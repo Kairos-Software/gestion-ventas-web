@@ -1,0 +1,682 @@
+/* proveedores.css — Kai-Cart Design System
+   Alineado con base.css: variables --brand-*, fuentes Plus Jakarta Sans + DM Sans
+   Accent: --brand-orange (#F26A1B) · --brand-blue (#1E6FA8)
+   ─────────────────────────────────────────────────────────── */
+
+/* ════════════════════════════════════════════════════════════
+   PAGE HEADER
+   ════════════════════════════════════════════════════════════ */
+.nx-page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1.75rem;
+}
+
+.nx-page-header-left {}
+
+.nx-page-tag {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--brand-orange);
+    margin-bottom: 0.3rem;
+}
+
+.nx-page-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin: 0 0 0.3rem;
+    letter-spacing: -0.3px;
+}
+
+.nx-page-sub {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.nx-page-header-right {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+/* ════════════════════════════════════════════════════════════
+   STAT PILLS
+   ════════════════════════════════════════════════════════════ */
+.nx-stat-pill {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.45rem 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    background: var(--bg-white);
+    box-shadow: var(--shadow-sm);
+    gap: 0.1rem;
+}
+
+.nx-stat-pill--green {
+    border-color: rgba(16, 185, 129, 0.25);
+    background: rgba(16, 185, 129, 0.04);
+}
+
+.nx-stat-pill-val {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 1.125rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    line-height: 1;
+}
+
+.nx-stat-pill--green .nx-stat-pill-val { color: var(--success); }
+
+.nx-stat-pill-lbl {
+    font-size: 0.58rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 600;
+    margin-top: 1px;
+}
+
+/* ════════════════════════════════════════════════════════════
+   BOTONES
+   ════════════════════════════════════════════════════════════ */
+.nx-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: var(--brand-orange);
+    color: #fff;
+    border: none;
+    border-radius: 0.625rem;
+    padding: 0.5625rem 1.125rem;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.18s;
+    white-space: nowrap;
+    box-shadow: var(--shadow-orange);
+}
+
+.nx-btn-primary:hover {
+    background: var(--brand-orange-dark);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(242, 106, 27, 0.3);
+}
+
+.nx-btn-primary:active { transform: scale(0.98); }
+
+.nx-btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 0.625rem;
+    padding: 0.5rem 1.125rem;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.18s;
+}
+
+.nx-btn-ghost:hover {
+    border-color: var(--brand-orange);
+    color: var(--brand-orange);
+    background: var(--brand-orange-light);
+}
+
+.nx-btn-danger {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(239, 68, 68, 0.08);
+    color: var(--danger);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 0.625rem;
+    padding: 0.5rem 1.125rem;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.18s;
+}
+
+.nx-btn-danger:hover {
+    background: rgba(239, 68, 68, 0.14);
+    border-color: var(--danger);
+}
+
+.nx-btn-icon {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    color: var(--text-muted);
+    width: 30px;
+    height: 30px;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.18s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.nx-btn-icon:hover {
+    background: var(--brand-orange-light);
+    color: var(--brand-orange);
+    border-color: var(--brand-orange);
+}
+
+.nx-btn-icon--danger:hover {
+    background: rgba(239, 68, 68, 0.08);
+    color: var(--danger);
+    border-color: var(--danger);
+}
+
+/* ════════════════════════════════════════════════════════════
+   FILTROS
+   ════════════════════════════════════════════════════════════ */
+.nx-filters {
+    margin-bottom: 1.5rem;
+}
+
+.nx-filters-form {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.nx-search-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 200px;
+    max-width: 380px;
+}
+
+.nx-search-icon {
+    position: absolute;
+    left: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    font-size: 1rem;
+    pointer-events: none;
+    line-height: 1;
+}
+
+.nx-search-input {
+    width: 100%;
+    padding: 0.5rem 0.75rem 0.5rem 2.25rem;
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: 0.625rem;
+    color: var(--text-primary);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.875rem;
+    outline: none;
+    transition: all 0.18s;
+    box-shadow: var(--shadow-sm);
+}
+
+.nx-search-input:focus {
+    border-color: var(--brand-orange);
+    box-shadow: 0 0 0 3px rgba(242, 106, 27, 0.12);
+}
+
+.nx-search-input::placeholder { color: var(--text-muted); }
+
+.nx-select {
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: 0.625rem;
+    color: var(--text-secondary);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.875rem;
+    outline: none;
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    transition: all 0.18s;
+}
+
+.nx-select:focus {
+    border-color: var(--brand-orange);
+    box-shadow: 0 0 0 3px rgba(242, 106, 27, 0.12);
+}
+
+/* ════════════════════════════════════════════════════════════
+   TABLA
+   ════════════════════════════════════════════════════════════ */
+.nx-table-wrap {
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: 1rem;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+}
+
+.nx-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.nx-table thead tr {
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.nx-table th {
+    padding: 0.875rem 1rem;
+    text-align: left;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.nx-th-actions { text-align: center; }
+
+.nx-tr {
+    border-bottom: 1px solid var(--border-color);
+    transition: background 0.15s;
+}
+
+.nx-tr:last-child { border-bottom: none; }
+.nx-tr:hover { background: var(--bg-surface-hover); }
+
+.nx-table td {
+    padding: 0.875rem 1rem;
+    color: var(--text-secondary);
+    vertical-align: middle;
+}
+
+.nx-td-actions {
+    text-align: center;
+    white-space: nowrap;
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+}
+
+.nx-cell-main {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.nx-cell-sub {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.nx-cell-mono {
+    font-family: 'Plus Jakarta Sans', monospace;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.nx-empty { color: var(--text-muted); }
+
+.nx-link {
+    color: var(--brand-blue);
+    text-decoration: none;
+    font-size: 0.7rem;
+}
+
+.nx-link:hover {
+    color: var(--brand-blue-dark);
+    text-decoration: underline;
+}
+
+/* ════════════════════════════════════════════════════════════
+   BADGES
+   ════════════════════════════════════════════════════════════ */
+.nx-badge {
+    display: inline-block;
+    padding: 0.25rem 0.625rem;
+    border-radius: 2rem;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+}
+
+.nx-badge--activo {
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--success);
+    border: 1px solid rgba(16, 185, 129, 0.22);
+}
+
+.nx-badge--inactivo {
+    background: rgba(239, 68, 68, 0.08);
+    color: var(--danger);
+    border: 1px solid rgba(239, 68, 68, 0.18);
+}
+
+.nx-badge--pago {
+    background: var(--brand-orange-light);
+    color: var(--brand-orange-dark);
+    border: 1px solid var(--brand-orange-mid);
+}
+
+/* ════════════════════════════════════════════════════════════
+   PAGINACIÓN
+   ════════════════════════════════════════════════════════════ */
+.nx-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 1rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.nx-page-btn {
+    color: var(--brand-orange);
+    text-decoration: none;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    padding: 0.375rem 0.875rem;
+    border-radius: 0.5rem;
+    border: 1px solid transparent;
+    transition: all 0.18s;
+}
+
+.nx-page-btn:hover {
+    background: var(--brand-orange-light);
+    border-color: var(--brand-orange-mid);
+}
+
+.nx-page-info {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+/* ════════════════════════════════════════════════════════════
+   EMPTY STATE
+   ════════════════════════════════════════════════════════════ */
+.nx-empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+}
+
+.nx-empty-icon {
+    font-size: 2.5rem;
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+    opacity: 0.4;
+}
+
+.nx-empty-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.nx-empty-sub {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+/* ════════════════════════════════════════════════════════════
+   MODAL
+   ════════════════════════════════════════════════════════════ */
+.nx-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(13, 27, 42, 0.5);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.nx-modal {
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: 1.125rem;
+    width: 100%;
+    max-width: 700px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-lg);
+}
+
+.nx-modal--sm { max-width: 440px; }
+
+.nx-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.nx-modal-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 1.0625rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+    letter-spacing: -0.2px;
+}
+
+.nx-modal-close {
+    width: 32px;
+    height: 32px;
+    background: none;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.18s;
+    line-height: 1;
+}
+
+.nx-modal-close:hover {
+    background: var(--bg-surface-hover);
+    color: var(--text-primary);
+    border-color: var(--border-strong);
+}
+
+.nx-modal-body {
+    padding: 1.25rem 1.5rem;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.nx-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--border-color);
+    flex-shrink: 0;
+    background: var(--bg-secondary);
+    border-radius: 0 0 1.125rem 1.125rem;
+}
+
+/* ════════════════════════════════════════════════════════════
+   FORMULARIO
+   ════════════════════════════════════════════════════════════ */
+.nx-form-section-label {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--brand-orange);
+    margin: 1.375rem 0 0.75rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.nx-form-section-label:first-child { margin-top: 0; }
+
+.nx-form-grid {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.nx-form-grid--2 { grid-template-columns: repeat(2, 1fr); }
+.nx-form-grid--3 { grid-template-columns: repeat(3, 1fr); }
+
+@media (max-width: 600px) {
+    .nx-form-grid--2,
+    .nx-form-grid--3 { grid-template-columns: 1fr; }
+}
+
+.nx-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.nx-field--full { grid-column: 1 / -1; }
+
+.nx-field--check {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+}
+
+.nx-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.nx-label-check {
+    font-size: 0.8125rem;
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.nx-required { color: var(--danger); }
+
+/* Inputs: Django renderiza los widgets con class="nx-input" vía forms.py */
+.nx-input {
+    background: var(--bg-secondary) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 0.625rem !important;
+    color: var(--text-primary) !important;
+    font-family: 'DM Sans', sans-serif !important;
+    font-size: 0.875rem !important;
+    padding: 0.5rem 0.75rem !important;
+    transition: border-color 0.18s, background 0.18s, box-shadow 0.18s !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+.nx-input:focus {
+    border-color: var(--brand-orange) !important;
+    background: var(--bg-white) !important;
+    box-shadow: 0 0 0 3px rgba(242, 106, 27, 0.12) !important;
+    outline: none !important;
+}
+
+.nx-input.is-invalid {
+    border-color: var(--danger) !important;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important;
+}
+
+.nx-input::placeholder { color: var(--text-muted) !important; }
+
+select.nx-input option {
+    background: var(--bg-white);
+    color: var(--text-primary);
+}
+
+textarea.nx-input {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.nx-field-error {
+    font-size: 0.7rem;
+    color: var(--danger);
+    min-height: 1rem;
+}
+
+/* ════════════════════════════════════════════════════════════
+   MODAL ELIMINAR
+   ════════════════════════════════════════════════════════════ */
+.nx-confirm-text {
+    font-size: 0.9375rem;
+    color: var(--text-secondary);
+    line-height: 1.65;
+}
+
+.nx-confirm-text strong { color: var(--danger); }
+
+/* ════════════════════════════════════════════════════════════
+   TOAST
+   ════════════════════════════════════════════════════════════ */
+.nx-toast {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    padding: 0.75rem 1.25rem;
+    border-radius: 0.75rem;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #fff;
+    background: var(--text-primary);
+    box-shadow: var(--shadow-lg);
+    z-index: 9999;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.25s, transform 0.25s;
+    pointer-events: none;
+    max-width: 340px;
+}
+
+.nx-toast--show { opacity: 1; transform: translateY(0); }
+.nx-toast--error { background: var(--danger); }
+
+/* ════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    .nx-page-header { flex-direction: column; }
+    .nx-page-header-right { width: 100%; justify-content: flex-start; }
+    .nx-table { font-size: 0.75rem; }
+    .nx-table th, .nx-table td { padding: 0.5rem 0.75rem; }
+    .nx-td-actions { flex-direction: column; gap: 0.25rem; }
+    .nx-modal { max-width: calc(100% - 2rem); }
+    .nx-toast { bottom: 1rem; right: 1rem; left: 1rem; text-align: center; max-width: none; }
+}

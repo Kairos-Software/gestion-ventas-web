@@ -1,0 +1,81 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Permisos — {{ usuario_obj.username }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/permisos_usuario.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <a href="{% url 'core:gestion_usuarios' %}" class="back-link">← Volver a usuarios</a>
+        <h1>Permisos de <span>{{ usuario_obj.username }}</span></h1>
+        {% if rol_nombre %}
+            <p class="rol-info">
+                Rol actual: <strong>{{ rol_nombre }}</strong> —
+                Los permisos marcados con <span class="tag-rol">ROL</span> vienen del rol.
+                Los marcados con <span class="tag-override-si">OVERRIDE ✓</span> o
+                <span class="tag-override-no">OVERRIDE ✗</span> son excepciones individuales.
+            </p>
+        {% else %}
+            <p class="rol-info sin-rol">Este usuario no tiene rol asignado. Todos los permisos son overrides individuales.</p>
+        {% endif %}
+    </div>
+    <button class="btn btn-primary btn-sm" id="btnGuardar">Guardar permisos</button>
+</div>
+
+<div id="alertGuardado" class="alerta-guardado" style="display:none;"></div>
+
+<form id="formPermisos">
+    {% for modulo, permisos in modulos %}
+    <div class="modulo-card">
+        <div class="modulo-header">
+            <span class="modulo-icon">◈</span>
+            <h3>{{ modulo }}</h3>
+            <span class="modulo-count">{{ permisos|length }} permiso{{ permisos|length|pluralize }}</span>
+        </div>
+        <div class="permisos-lista">
+            {% for p in permisos %}
+            <div class="permiso-row {% if p.concedido %}concedido{% else %}denegado{% endif %}" data-codigo="{{ p.codigo }}">
+                <div class="permiso-info">
+                    <label class="permiso-label" for="perm_{{ p.codigo }}">{{ p.label }}</label>
+                    <span class="fuente-badge fuente-{{ p.fuente }}">
+                        {% if p.fuente == 'rol' %}ROL
+                        {% elif p.fuente == 'override_positivo' %}OVERRIDE ✓
+                        {% elif p.fuente == 'override_negativo' %}OVERRIDE ✗
+                        {% elif p.fuente == 'superusuario' %}SUPERUSER
+                        {% else %}—{% endif %}
+                    </span>
+                    <span class="permiso-codigo">{{ p.codigo }}</span>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox"
+                           id="perm_{{ p.codigo }}"
+                           name="{{ p.codigo }}"
+                           {% if p.concedido %}checked{% endif %}
+                           {% if p.fuente == 'superusuario' %}disabled{% endif %}>
+                    <span class="toggle-track">
+                        <span class="toggle-thumb"></span>
+                    </span>
+                </label>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</form>
+
+<div class="acciones-bottom">
+    <a href="{% url 'core:gestion_usuarios' %}" class="btn btn-secondary btn-sm">Cancelar</a>
+    <button class="btn btn-primary btn-sm" id="btnGuardarBottom">Guardar permisos</button>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    window.guardarPermisosUrl = "{% url 'core:guardar_permisos' usuario_obj.pk %}";
+</script>
+<script src="{% static 'core/js/permisos_usuario.js' %}"></script>
+{% endblock %}

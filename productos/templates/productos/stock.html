@@ -1,0 +1,310 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Stock{% endblock %}
+
+{% block breadcrumb %}Catálogo &rsaquo; <strong>Mi Stock</strong>{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'productos/css/stock.css' %}">
+{% endblock %}
+
+{% block content %}
+<div>
+
+    <!-- ── KPI Cards ── -->
+    <div class="kpi-grid">
+
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:rgba(30,111,168,0.1); color:#1E6FA8;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                    <rect x="2" y="2" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+                    <rect x="13" y="2" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+                    <rect x="2" y="13" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+                    <rect x="13" y="13" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+                </svg>
+            </div>
+            <div class="kpi-body">
+                <div class="kpi-value">{{ total_productos }}</div>
+                <div class="kpi-label">Productos con stock activo</div>
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:rgba(245,158,11,0.1); color:#f59e0b;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                    <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                    <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                    <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <div class="kpi-body">
+                <div class="kpi-value" style="{% if stock_bajo_count > 0 %}color:var(--warning);{% endif %}">
+                    {{ stock_bajo_count }}
+                </div>
+                <div class="kpi-label">Productos con stock bajo</div>
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:rgba(239,68,68,0.1); color:#ef4444;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
+                    <path d="M12 7V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    <circle cx="12" cy="16.5" r="0.75" fill="currentColor"/>
+                </svg>
+            </div>
+            <div class="kpi-body">
+                <div class="kpi-value" style="{% if sin_stock_count > 0 %}color:var(--danger);{% endif %}">
+                    {{ sin_stock_count }}
+                </div>
+                <div class="kpi-label">Productos sin stock</div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ── Tabla principal ── -->
+    <div class="stock-panel">
+        <div class="panel-header">
+            <span class="panel-title">Niveles de stock</span>
+            <form method="get" class="filter-bar">
+                <input
+                    type="text"
+                    name="q"
+                    class="search-input"
+                    placeholder="Buscar producto..."
+                    value="{{ q }}"
+                    autocomplete="off"
+                >
+                <select name="alerta" class="filter-select" onchange="this.form.submit()">
+                    <option value=""         {% if not filtro_alerta %}selected{% endif %}>Todos</option>
+                    <option value="ok"       {% if filtro_alerta == 'ok' %}selected{% endif %}>Stock OK</option>
+                    <option value="bajo"     {% if filtro_alerta == 'bajo' %}selected{% endif %}>Stock bajo</option>
+                    <option value="sin_stock"{% if filtro_alerta == 'sin_stock' %}selected{% endif %}>Sin stock</option>
+                </select>
+                {% if q %}
+                <a href="?" style="display:flex;align-items:center;color:var(--text-muted);font-size:0.8rem;white-space:nowrap;text-decoration:none;">✕ Limpiar</a>
+                {% endif %}
+            </form>
+        </div>
+
+        {% if productos %}
+        <div style="overflow-x:auto;">
+            <table class="stock-table">
+                <thead>
+                    <tr>
+                        <th>Producto</th>
+                        <th>Stock actual</th>
+                        <th>Mínimo</th>
+                        <th>Estado</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in productos %}
+                    <tr data-pk="{{ p.pk }}"
+                        data-nombre="{{ p.nombre }}"
+                        data-stock="{{ p.stock_actual }}"
+                        data-minimo="{{ p.stock_minimo }}"
+                        data-maximo="{{ p.stock_maximo|default:'' }}"
+                        data-unidad="{{ p.get_unidad_medida_display }}">
+
+                        <td>
+                            <div class="prod-info">
+                                <span class="prod-nombre">{{ p.nombre }}</span>
+                                <span class="prod-codigo">{{ p.codigo }}{% if p.sku %} · {{ p.sku }}{% endif %}</span>
+                            </div>
+                        </td>
+
+                        <td>
+                            {% with stock=p.stock_actual minimo=p.stock_minimo maximo=p.stock_maximo %}
+                            {% if maximo and maximo > 0 %}
+                                {% widthratio stock maximo 100 as pct %}
+                            {% elif minimo and minimo > 0 %}
+                                {% widthratio stock minimo 200 as pct %}
+                            {% endif %}
+                            <div class="stock-bar-wrap">
+                                <div class="stock-bar">
+                                    {% if p.stock_actual <= 0 %}
+                                        <div class="stock-bar-fill danger" style="width:3%;"></div>
+                                    {% elif p.stock_bajo %}
+                                        <div class="stock-bar-fill warning" style="width:25%;"></div>
+                                    {% else %}
+                                        <div class="stock-bar-fill ok" style="width:{% if pct %}{% if pct > 100 %}100{% else %}{{ pct }}{% endif %}{% else %}60{% endif %}%;"></div>
+                                    {% endif %}
+                                </div>
+                                <span class="stock-qty {% if p.stock_actual <= 0 %}danger{% elif p.stock_bajo %}warning{% else %}ok{% endif %}"
+                                      id="stockQty-{{ p.pk }}">
+                                    {{ p.stock_actual|floatformat:"-3" }} {{ p.get_unidad_medida_display }}
+                                </span>
+                            </div>
+                            {% endwith %}
+                        </td>
+
+                        <td style="color:var(--text-muted);font-size:0.78rem;">
+                            {{ p.stock_minimo|floatformat:"-3" }}
+                        </td>
+
+                        <td>
+                            {% if p.stock_actual <= 0 %}
+                            <span class="badge-alerta danger">
+                                <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
+                                    <circle cx="5" cy="5" r="4" stroke="currentColor" stroke-width="1.2"/>
+                                    <path d="M5 3V5.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                                    <circle cx="5" cy="7" r="0.5" fill="currentColor"/>
+                                </svg>
+                                Sin stock
+                            </span>
+                            {% elif p.stock_bajo %}
+                            <span class="badge-alerta warning">
+                                <svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor"><circle cx="5" cy="5" r="4"/></svg>
+                                Stock bajo
+                            </span>
+                            {% else %}
+                            <span class="badge-alerta ok">
+                                <svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor"><circle cx="5" cy="5" r="4"/></svg>
+                                OK
+                            </span>
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            <div style="display:flex;gap:0.375rem;">
+                                <button class="btn-row" onclick="abrirAjuste(this)" title="Ajuste manual">
+                                    <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                                        <path d="M7 2V12M2 7H12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                                    </svg>
+                                    Ajustar
+                                </button>
+                                <button class="btn-row" onclick="verHistorial({{ p.pk }}, '{{ p.nombre|escapejs }}')" title="Ver historial">
+                                    <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                                        <path d="M2 3H12M2 7H10M2 11H7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if productos.has_other_pages %}
+        <div class="paginacion">
+            {% if productos.has_previous %}
+            <a href="?page={{ productos.previous_page_number }}&q={{ q }}&alerta={{ filtro_alerta }}" class="pag-btn">‹</a>
+            {% endif %}
+            {% for i in productos.paginator.page_range %}
+            <a href="?page={{ i }}&q={{ q }}&alerta={{ filtro_alerta }}"
+               class="pag-btn {% if i == productos.number %}active{% endif %}">{{ i }}</a>
+            {% endfor %}
+            {% if productos.has_next %}
+            <a href="?page={{ productos.next_page_number }}&q={{ q }}&alerta={{ filtro_alerta }}" class="pag-btn">›</a>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="empty-state">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
+                <rect x="2" y="2" width="9" height="9" rx="1.5" stroke="var(--text-muted)" stroke-width="1.5"/>
+                <rect x="13" y="2" width="9" height="9" rx="1.5" stroke="var(--text-muted)" stroke-width="1.5"/>
+                <rect x="2" y="13" width="9" height="9" rx="1.5" stroke="var(--text-muted)" stroke-width="1.5"/>
+                <rect x="13" y="13" width="9" height="9" rx="1.5" stroke="var(--text-muted)" stroke-width="1.5"/>
+            </svg>
+            <p>No se encontraron productos{% if q %} para "{{ q }}"{% endif %}.</p>
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+
+<!-- ── Modal: ajuste manual de stock ── -->
+<div class="modal-overlay" id="modalAjuste">
+    <div class="modal-box" style="width:420px;">
+        <div class="modal-header">
+            <div>
+                <span class="modal-title" id="modalAjusteTitulo">Ajuste de stock</span>
+                <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.15rem;" id="modalAjusteStock"></div>
+            </div>
+            <button class="modal-close" onclick="cerrarModalAjuste()">✕</button>
+        </div>
+        <div style="padding:1.25rem;display:flex;flex-direction:column;gap:1rem;">
+
+            <input type="hidden" id="ajustePk">
+
+            <div class="form-group" style="margin:0;">
+                <label class="form-label">¿Qué querés hacer?</label>
+                <!-- Ajuste positivo -->
+                <button type="button"
+                    class="tipo-btn entrada"
+                    data-tipo="ajuste_pos"
+                    onclick="seleccionarTipoAjuste(this)"
+                    style="margin-bottom:0.375rem;">
+                    <span class="tipo-signo">+</span>
+                    Sumar unidades
+                    <span style="display:block;font-size:0.68rem;font-weight:400;color:inherit;opacity:0.75;margin-top:2px;">
+                        Encontré más stock del registrado (conteo físico, error previo)
+                    </span>
+                </button>
+                <!-- Ajuste negativo -->
+                <button type="button"
+                    class="tipo-btn salida"
+                    data-tipo="ajuste_neg"
+                    onclick="seleccionarTipoAjuste(this)">
+                    <span class="tipo-signo">−</span>
+                    Restar unidades
+                    <span style="display:block;font-size:0.68rem;font-weight:400;color:inherit;opacity:0.75;margin-top:2px;">
+                        Hay menos stock del registrado (rotura, pérdida, merma)
+                    </span>
+                </button>
+                <input type="hidden" id="ajusteTipo">
+            </div>
+
+            <div class="form-group" style="margin:0;">
+                <label class="form-label">Cantidad a ajustar</label>
+                <input type="number" id="ajusteCantidad" class="form-control" placeholder="0" min="0.001" step="any">
+                <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.3rem;">
+                    Ingresá la diferencia, no el stock total. Ej: si tenés 8 y el sistema dice 5, ponés 3.
+                </div>
+            </div>
+
+            <div class="form-group" style="margin:0;">
+                <label class="form-label">Motivo <span style="color:var(--text-muted);font-weight:400">(recomendado)</span></label>
+                <input type="text" id="ajusteMotivo" class="form-control" placeholder="Ej: conteo físico mayo, rotura en depósito…">
+            </div>
+
+            <button class="btn-primary-stock" id="btnAjuste" onclick="registrarAjuste()">
+                Confirmar ajuste
+            </button>
+            <div class="feedback" id="ajusteFeedback"></div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Modal: historial de movimientos ── -->
+<div class="modal-overlay" id="modalHistorial">
+    <div class="modal-box">
+        <div class="modal-header">
+            <span class="modal-title" id="modalHistorialTitle">Historial de movimientos</span>
+            <button class="modal-close" onclick="cerrarModalHistorial()">✕</button>
+        </div>
+        <div class="modal-body" id="modalHistorialBody">
+            <div class="empty-state">Cargando…</div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const URLS = {
+    ajuste:    "{% url 'productos:stock_ajuste' %}",
+    historial: "{% url 'productos:stock_historial' %}",
+};
+const CSRF = "{{ csrf_token }}";
+</script>
+<script src="{% static 'productos/js/stock.js' %}"></script>
+{% endblock %}

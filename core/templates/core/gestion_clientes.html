@@ -1,0 +1,616 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Clientes{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/gestion_clientes.css' %}">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Gestión de <span>Clientes</span></h1>
+        <p class="page-subtitle">
+            {% if clientes.paginator %}{{ clientes.paginator.count }}{% else %}0{% endif %}
+            cliente{{ clientes.paginator.count|pluralize }} registrado{{ clientes.paginator.count|pluralize }}
+        </p>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+        <a href="{% url 'core:home' %}" class="btn btn-secondary btn-sm">← Volver</a>
+        {% if puede_crear %}
+        <button class="btn btn-primary btn-sm" id="btnNuevoCliente">+ Nuevo cliente</button>
+        {% endif %}
+    </div>
+</div>
+
+{% if error_msg %}
+<div class="alerta-inline alerta-error">{{ error_msg }}</div>
+{% endif %}
+
+{% if sin_permiso %}
+<div class="alerta-inline alerta-error">No tenés permiso para ver la lista de clientes.</div>
+{% else %}
+
+{# ── Filtros ── #}
+<form method="get" class="filtros-bar" id="formFiltros">
+    <div class="search-wrapper">
+        <svg class="search-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="9" cy="9" r="5.5" stroke="#aaa" stroke-width="1.5"/>
+            <path d="M13.5 13.5L17 17" stroke="#aaa" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <input type="text" name="q" value="{{ q }}"
+               placeholder="Buscar por nombre, código, teléfono, email, DNI..."
+               class="search-input" autocomplete="off">
+        {% if q %}
+        <button type="button" class="search-clear"
+                onclick="document.querySelector('[name=q]').value='';document.getElementById('formFiltros').submit()">×</button>
+        {% endif %}
+    </div>
+    <select name="tipo" class="filtro-select" onchange="this.form.submit()">
+        <option value="">Todos los tipos</option>
+        {% for val, label in tipo_choices %}
+        <option value="{{ val }}" {% if filtro_tipo == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select>
+    <select name="estado" class="filtro-select" onchange="this.form.submit()">
+        <option value="">Todos los estados</option>
+        {% for val, label in estado_choices %}
+        <option value="{{ val }}" {% if filtro_estado == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select>
+    <select name="riesgo" class="filtro-select" onchange="this.form.submit()">
+        <option value="">Todos los riesgos</option>
+        {% for val, label in riesgo_choices %}
+        <option value="{{ val }}" {% if filtro_riesgo == val %}selected{% endif %}>Riesgo {{ label }}</option>
+        {% endfor %}
+    </select>
+    {% if q or filtro_tipo or filtro_estado or filtro_riesgo %}
+    <a href="{% url 'core:gestion_clientes' %}" class="btn-limpiar">× Limpiar</a>
+    {% endif %}
+</form>
+
+{# ── Tabla ── #}
+<div class="table-card">
+    <table class="table" id="tablaClientes">
+        <thead>
+            <tr>
+                <th>Código</th>
+                <th>Cliente</th>
+                <th>Tipo</th>
+                <th>Teléfono</th>
+                <th>Localidad</th>
+                <th>Score</th>
+                <th>Estado</th>
+                {% if puede_editar or puede_eliminar %}<th>Acciones</th>{% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for cliente in clientes %}
+            <tr data-id="{{ cliente.pk }}">
+                <td><span class="codigo-badge">{{ cliente.codigo }}</span></td>
+                <td>
+                    <div class="cliente-cell">
+                        <div class="avatar-placeholder tipo-{{ cliente.tipo }}">{{ cliente.get_nombre_display|first|upper }}</div>
+                        <div>
+                            <a href="{% url 'core:cliente_detalle' cliente.pk %}" class="cliente-nombre">{{ cliente.get_nombre_display }}</a>
+                            {% if cliente.tipo == 'empresa' and cliente.rubro %}<span class="cliente-sub">{{ cliente.rubro }}</span>{% endif %}
+                            {% if cliente.tags %}
+                            <div class="tags-row">{% for tag in cliente.get_tags_lista %}<span class="tag-chip">{{ tag }}</span>{% endfor %}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <span class="tipo-badge tipo-{{ cliente.tipo }}">
+                        {% if cliente.tipo == 'empresa' %}Empresa{% else %}Persona{% endif %}
+                    </span>
+                </td>
+                <td>
+                    {% with tel=cliente.telefonos.all %}
+                    {% for t in tel %}{% if t.es_titular %}<span class="tel-display">{{ t.numero }}</span>{% endif %}{% endfor %}
+                    {% endwith %}
+                </td>
+                <td>{{ cliente.localidad|default:'—' }}{% if cliente.provincia %}, {{ cliente.provincia }}{% endif %}</td>
+                <td>
+                    <span class="score-chip score-{% if cliente.scoring >= 900 %}alto{% elif cliente.scoring >= 600 %}medio{% else %}bajo{% endif %}">
+                        {{ cliente.scoring }}
+                    </span>
+                </td>
+                <td><span class="estado-badge estado-{{ cliente.estado }}">{{ cliente.get_estado_display }}</span></td>
+                {% if puede_editar or puede_eliminar %}
+                <td>
+                    <div class="acciones-cell">
+                        <a href="{% url 'core:cliente_detalle' cliente.pk %}" class="btn-accion btn-ver">Ver</a>
+                        {% if puede_editar %}<button class="btn-accion btn-editar" data-id="{{ cliente.pk }}">Editar</button>{% endif %}
+                        {% if puede_eliminar %}<button class="btn-accion btn-eliminar" data-id="{{ cliente.pk }}" data-nombre="{{ cliente.get_nombre_display }}">Eliminar</button>{% endif %}
+                    </div>
+                </td>
+                {% endif %}
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="8" class="empty-state">
+                    {% if q %}Sin resultados para "{{ q }}"{% else %}No hay clientes registrados.{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if clientes.has_other_pages %}
+<div class="paginacion">
+    {% if clientes.has_previous %}
+    <a href="?page={{ clientes.previous_page_number }}&q={{ q }}&tipo={{ filtro_tipo }}&estado={{ filtro_estado }}&riesgo={{ filtro_riesgo }}" class="pag-btn">← Anterior</a>
+    {% endif %}
+    <span class="pag-info">Página {{ clientes.number }} de {{ clientes.paginator.num_pages }}</span>
+    {% if clientes.has_next %}
+    <a href="?page={{ clientes.next_page_number }}&q={{ q }}&tipo={{ filtro_tipo }}&estado={{ filtro_estado }}&riesgo={{ filtro_riesgo }}" class="pag-btn">Siguiente →</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endif %}
+
+
+{# ══════════════════════════════════════════════════════ #}
+{# MODAL CREAR / EDITAR                                   #}
+{# ══════════════════════════════════════════════════════ #}
+{% if puede_crear or puede_editar %}
+<div class="modal fade" id="clienteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title" id="clienteModalLabel">Nuevo cliente</h5>
+                    <p class="modal-subtitle" id="clienteModalSubtitle">Completá los datos del cliente</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body p-0">
+                <form id="formCliente" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <input type="hidden" name="pk" id="clientePk">
+
+                    {# ── Selector tipo persona / empresa ── #}
+                    <div class="tipo-selector-bar">
+                        <label class="tipo-opt">
+                            <input type="radio" name="tipo" value="persona" checked>
+                            <span class="tipo-card">
+                                <span class="tipo-card-icon tipo-icon-persona"></span>
+                                <span class="tipo-card-label">Persona física</span>
+                            </span>
+                        </label>
+                        <label class="tipo-opt">
+                            <input type="radio" name="tipo" value="empresa">
+                            <span class="tipo-card">
+                                <span class="tipo-card-icon tipo-icon-empresa"></span>
+                                <span class="tipo-card-label">Empresa</span>
+                            </span>
+                        </label>
+                    </div>
+
+                    {# ── Tabs ── #}
+                    <ul class="nav form-tabs px-3 pt-0" id="formTabs">
+                        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabId" type="button">Identidad</button></li>
+                        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabTel" type="button">Teléfonos</button></li>
+                        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabContacto" type="button">Contacto digital</button></li>
+                        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabDir" type="button">Dirección</button></li>
+                        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabFamilia" type="button">Familia</button></li>
+                        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabCRM" type="button">CRM</button></li>
+                        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabImagenes" type="button">Imágenes</button></li>
+                    </ul>
+
+                    <div class="tab-content px-4 pb-3 pt-3">
+
+                        {# ── TAB IDENTIDAD ── #}
+                        <div class="tab-pane fade show active" id="tabId">
+
+                            <div class="seccion-persona">
+                                <p class="form-section-title">Datos personales</p>
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <label class="form-label">Nombre <span class="field-required">*</span></label>
+                                        <input type="text" class="form-control" name="nombre" id="id_nombre">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Apellido <span class="field-required">*</span></label>
+                                        <input type="text" class="form-control" name="apellido" id="id_apellido">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Ocupación</label>
+                                        <input type="text" class="form-control" name="ocupacion" id="id_ocupacion" placeholder="Profesión u ocupación">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">DNI</label>
+                                        <input type="text" class="form-control" name="dni" id="id_dni">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">CUIL</label>
+                                        <input type="text" class="form-control" name="cuil" id="id_cuil">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Fecha de nacimiento</label>
+                                        <input type="date" class="form-control" name="fecha_nacimiento" id="id_fecha_nacimiento">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Género</label>
+                                        <select class="form-select" name="genero" id="id_genero">
+                                            <option value="">—</option>
+                                            <option value="masculino">Masculino</option>
+                                            <option value="femenino">Femenino</option>
+                                            <option value="nd">Prefiero no decir</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="seccion-empresa" style="display:none;">
+                                <p class="form-section-title">Datos de empresa</p>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Razón social <span class="field-required">*</span></label>
+                                        <input type="text" class="form-control" name="razon_social" id="id_razon_social">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Nombre comercial</label>
+                                        <input type="text" class="form-control" name="nombre_comercial" id="id_nombre_comercial">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">CUIT</label>
+                                        <input type="text" class="form-control" name="cuit" id="id_cuit">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Condición ante IVA</label>
+                                        <input type="text" class="form-control" name="cond_iva" id="id_cond_iva">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Rubro</label>
+                                        <input type="text" class="form-control" name="rubro" id="id_rubro">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Sitio web</label>
+                                        <input type="url" class="form-control" name="sitio_web" id="id_sitio_web" placeholder="https://">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Fecha de fundación</label>
+                                        <input type="date" class="form-control" name="fecha_fundacion" id="id_fecha_fundacion">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <p class="form-section-title mt-4">Estado y clasificación</p>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">Estado</label>
+                                    <select class="form-select" name="estado" id="id_estado">
+                                        <option value="activo">Activo</option>
+                                        <option value="inactivo">Inactivo</option>
+                                        <option value="potencial">Potencial</option>
+                                        <option value="suspendido">Suspendido</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Nivel de riesgo</label>
+                                    <select class="form-select" name="nivel_riesgo" id="id_nivel_riesgo">
+                                        <option value="bajo">Bajo</option>
+                                        <option value="medio">Medio</option>
+                                        <option value="alto">Alto</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Canal preferido</label>
+                                    <select class="form-select" name="canal_preferido" id="id_canal_preferido">
+                                        <option value="whatsapp">WhatsApp</option>
+                                        <option value="llamada">Llamada</option>
+                                        <option value="email">Email</option>
+                                        <option value="sms">SMS</option>
+                                        <option value="presencial">Presencial</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        {# ── TAB TELÉFONOS ── #}
+                        <div class="tab-pane fade" id="tabTel">
+                            <p class="form-section-title">Teléfonos del cliente</p>
+                            <p class="form-section-desc">Podés agregar todos los números que necesites. Marcá uno como titular por tipo.</p>
+                            <div class="subrecurso-header">
+                                <span class="subrecurso-hint">Cada fila es un número de contacto.</span>
+                                <button type="button" class="btn-add-row" id="btnAgregarTel">+ Agregar teléfono</button>
+                            </div>
+                            <div id="telefonosContainer" class="subrecurso-container"></div>
+                            <template id="telTemplate">
+                                <div class="subrecurso-row tel-row">
+                                    <div class="subrecurso-fields tel-row-fields">
+                                        <div class="field-group field-grow-2">
+                                            <label class="field-label">Número <span class="field-required">*</span></label>
+                                            <input type="text" class="form-control form-control-sm" name="tel_numero[]" required>
+                                        </div>
+                                        <div class="field-group">
+                                            <label class="field-label">Tipo</label>
+                                            <select class="form-select form-select-sm" name="tel_tipo[]">
+                                                <option value="movil">Móvil</option>
+                                                <option value="fijo">Fijo</option>
+                                            </select>
+                                        </div>
+                                        <div class="field-group field-grow-2">
+                                            <label class="field-label">Descripción</label>
+                                            <input type="text" class="form-control form-control-sm" name="tel_desc[]" placeholder="Ej: trabajo, personal">
+                                        </div>
+                                        <div class="field-group field-check-inline">
+                                            <label class="check-label">
+                                                <input type="checkbox" class="form-check-input" name="tel_titular[]" value="1"> Titular
+                                            </label>
+                                        </div>
+                                        <div class="field-group field-check-inline">
+                                            <label class="check-label">
+                                                <input type="checkbox" class="form-check-input" name="tel_whatsapp[]" value="1"> WhatsApp
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <button type="button" class="btn-del-tel btn-del-row" title="Eliminar">×</button>
+                                </div>
+                            </template>
+                        </div>
+
+                        {# ── TAB CONTACTO DIGITAL ── #}
+                        <div class="tab-pane fade" id="tabContacto">
+                            <p class="form-section-title">Emails</p>
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-6">
+                                    <label class="form-label">Email principal</label>
+                                    <input type="email" class="form-control" name="email_principal" id="id_email_principal">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Email secundario</label>
+                                    <input type="email" class="form-control" name="email_secundario" id="id_email_secundario">
+                                </div>
+                            </div>
+                            <p class="form-section-title">Redes sociales</p>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">Instagram</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">@</span>
+                                        <input type="text" class="form-control" name="instagram" id="id_instagram">
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Facebook</label>
+                                    <input type="text" class="form-control" name="facebook" id="id_facebook" placeholder="URL o nombre de página">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">LinkedIn</label>
+                                    <input type="url" class="form-control" name="linkedin" id="id_linkedin" placeholder="https://linkedin.com/…">
+                                </div>
+                            </div>
+                        </div>
+
+                        {# ── TAB DIRECCIÓN ── #}
+                        <div class="tab-pane fade" id="tabDir">
+                            <p class="form-section-title">Datos de domicilio</p>
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-7">
+                                    <label class="form-label">Calle</label>
+                                    <input type="text" class="form-control" name="calle" id="id_calle">
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Número</label>
+                                    <input type="text" class="form-control" name="numero" id="id_numero">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Piso / Depto</label>
+                                    <input type="text" class="form-control" name="piso_depto" id="id_piso_depto">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Barrio</label>
+                                    <input type="text" class="form-control" name="barrio" id="id_barrio">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Localidad</label>
+                                    <input type="text" class="form-control" name="localidad" id="id_localidad">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Partido</label>
+                                    <input type="text" class="form-control" name="partido" id="id_partido">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Provincia</label>
+                                    <input type="text" class="form-control" name="provincia" id="id_provincia">
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">País</label>
+                                    <input type="text" class="form-control" name="pais" id="id_pais" value="Argentina">
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Cód. postal</label>
+                                    <input type="text" class="form-control" name="codigo_postal" id="id_codigo_postal">
+                                </div>
+                            </div>
+
+                            <p class="form-section-title">Ubicación en mapa</p>
+                            <div class="mapa-search-wrapper mb-2">
+                                <input type="text" class="form-control" id="mapaSearchInput" placeholder="Buscá una dirección o lugar…">
+                                <div id="mapaSearchSuggestions" class="mapa-suggestions" style="display:none;"></div>
+                            </div>
+                            <p class="mapa-hint">Buscá, seleccioná el resultado y ajustá el pin si es necesario. También podés hacer clic directamente en el mapa.</p>
+                            <div id="mapaFormulario" class="mapa-form-container"></div>
+                            <div class="mapa-coords-display" id="coordsDisplay" style="display:none;">
+                                <span class="coords-pin">Pin</span>
+                                <span id="coordsText"></span>
+                                &nbsp;·&nbsp;
+                                <a id="btnVerEnMapa" href="#" target="_blank" class="link-ver-mapa">Ver en OpenStreetMap</a>
+                            </div>
+                            <input type="hidden" name="latitud"  id="id_latitud">
+                            <input type="hidden" name="longitud" id="id_longitud">
+                            <input type="hidden" name="maps_url" id="id_maps_url">
+                        </div>
+
+                        {# ── TAB FAMILIA ── #}
+                        <div class="tab-pane fade" id="tabFamilia">
+                            <p class="form-section-title">Grupo familiar / Convivencia</p>
+                            <p class="form-section-desc">Si este cliente comparte terreno, edificio o dirección con otros clientes, asignalo a un grupo.</p>
+                            <div class="row g-3">
+                                <div class="col-md-8">
+                                    <label class="form-label">Grupo familiar</label>
+                                    <div style="position:relative;">
+                                        <input type="text" class="form-control" id="grupoSearchInput" placeholder="Buscar por apellido o dirección…">
+                                        <div id="grupoSuggestions" class="mapa-suggestions" style="display:none;"></div>
+                                    </div>
+                                    <input type="hidden" name="grupo_familiar" id="id_grupo_familiar">
+                                    <div id="grupoSeleccionado" class="selected-chip" style="display:none;">
+                                        <span id="grupoNombre"></span>
+                                        <button type="button" id="btnQuitarGrupo" class="btn-chip-remove">×</button>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Unidad habitacional</label>
+                                    <input type="text" class="form-control" name="unidad_habitacional" id="id_unidad_habitacional" placeholder="Ej: Casa A, Depto 3B, Lote 2">
+                                </div>
+                            </div>
+                            <div class="nuevo-grupo-panel mt-3">
+                                <button type="button" class="btn-add-row" id="btnToggleNuevoGrupo">+ Crear nuevo grupo familiar</button>
+                                <div id="nuevoGrupoForm" style="display:none;" class="nuevo-grupo-fields mt-3">
+                                    <div class="row g-3">
+                                        <div class="col-md-4">
+                                            <label class="form-label">Apellido de referencia <span class="field-required">*</span></label>
+                                            <input type="text" class="form-control form-control-sm" id="ng_apellido" placeholder="Ej: López">
+                                        </div>
+                                        <div class="col-md-5">
+                                            <label class="form-label">Dirección de referencia</label>
+                                            <input type="text" class="form-control form-control-sm" id="ng_direccion" placeholder="Ej: Av. San Martín 450">
+                                        </div>
+                                        <div class="col-md-3 d-flex align-items-end">
+                                            <button type="button" class="btn btn-primary btn-sm w-100" id="btnCrearGrupo">Crear grupo</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {# ── TAB CRM ── #}
+                        <div class="tab-pane fade" id="tabCRM">
+                            <p class="form-section-title">Origen y seguimiento</p>
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-6">
+                                    <label class="form-label">¿Cómo nos conoció?</label>
+                                    <input type="text" class="form-control" name="como_nos_conocio" id="id_como_nos_conocio" placeholder="Ej: referido, redes, publicidad, web">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Referido por (cliente)</label>
+                                    <div style="position:relative;">
+                                        <input type="text" class="form-control" id="referidoSearchInput" placeholder="Buscar cliente…">
+                                        <div id="referidoSuggestions" class="mapa-suggestions" style="display:none;"></div>
+                                    </div>
+                                    <input type="hidden" name="referido_por" id="id_referido_por">
+                                    <div id="referidoSeleccionado" style="display:none;" class="selected-chip mt-1">
+                                        <span id="referidoNombre"></span>
+                                        <button type="button" id="btnQuitarReferido" class="btn-chip-remove">×</button>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Cliente desde</label>
+                                    <input type="date" class="form-control" name="fecha_desde_cliente" id="id_fecha_desde_cliente">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Último contacto</label>
+                                    <input type="date" class="form-control" name="fecha_ultimo_contacto" id="id_fecha_ultimo_contacto">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Próximo contacto</label>
+                                    <input type="date" class="form-control" name="fecha_proximo_contacto" id="id_fecha_proximo_contacto">
+                                </div>
+                            </div>
+
+                            <p class="form-section-title">Etiquetas</p>
+                            <div class="row g-3 mb-4">
+                                <div class="col-12">
+                                    <label class="form-label">Tags</label>
+                                    <input type="text" class="form-control" name="tags" id="id_tags" placeholder="Ej: VIP, moroso, potencial (separados por coma)">
+                                    <p class="field-hint">Separados por coma. Se muestran como chips en la lista.</p>
+                                </div>
+                            </div>
+
+                            <p class="form-section-title">Notas internas</p>
+                            <textarea class="form-control" name="notas" id="id_notas" rows="5" placeholder="Observaciones, acuerdos, historial relevante…"></textarea>
+                        </div>
+
+                        {# ── TAB IMÁGENES ── #}
+                        <div class="tab-pane fade" id="tabImagenes">
+                            <p class="form-section-title">Imágenes de documentación</p>
+                            <p class="form-section-desc">Fotos del router, domicilio, facturas, equipos, contratos, etc. Podés subir varias.</p>
+                            <div class="img-upload-zone" id="imgUploadZone">
+                                <input type="file" id="imgFilesInput" multiple accept="image/*" style="display:none;">
+                                <div class="img-upload-placeholder" id="imgUploadPlaceholder">
+                                    <div class="img-upload-icon-wrap">
+                                        <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <rect x="4" y="8" width="32" height="24" rx="4" stroke="#ccc" stroke-width="1.5"/>
+                                            <circle cx="14" cy="16" r="3" stroke="#ccc" stroke-width="1.5"/>
+                                            <path d="M4 26l8-6 6 5 5-4 9 7" stroke="#ccc" stroke-width="1.5" stroke-linejoin="round"/>
+                                        </svg>
+                                    </div>
+                                    <p>Arrastrá imágenes acá o <button type="button" class="btn-link-inline" id="btnSeleccionarArchivos">seleccioná archivos</button></p>
+                                    <small>JPG, PNG, WEBP — múltiples archivos permitidos</small>
+                                </div>
+                                <div id="imgPreviewContainer" class="img-preview-container"></div>
+                            </div>
+                            <div id="imgEditNota" style="display:none;" class="img-edit-nota mt-2">
+                                Las imágenes ya cargadas se ven en el <a id="linkDetalleCliente" href="#">detalle del cliente</a>. Acá podés agregar nuevas.
+                            </div>
+                        </div>
+
+                    </div>{# /tab-content #}
+
+                    <div id="formError" class="alerta-inline alerta-error mx-4 mb-3" style="display:none;"></div>
+
+                </form>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary btn-sm" id="btnGuardarCliente">Guardar cliente</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# ── Modal confirmar eliminación ── #}
+{% if puede_eliminar %}
+<div class="modal fade" id="eliminarModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header modal-header-danger">
+                <h5 class="modal-title">Eliminar cliente</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>¿Confirmás la eliminación de:</p>
+                <p><strong id="nombreEliminar"></strong></p>
+                <p class="eliminar-warning">Esta acción no se puede deshacer.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger btn-sm" id="confirmarEliminarBtn">Eliminar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    window.clienteAccionesUrl = "{% url 'core:cliente_acciones' %}";
+    window.clienteEliminarUrl = "{% url 'core:cliente_eliminar' %}";
+    window.clienteImagenesUrl = "/clientes/0/imagenes/";
+    window.grupoFamiliarUrl   = "{% url 'core:grupo_familiar' %}";
+    window.clienteBuscarUrl   = "{% url 'core:cliente_buscar' %}";
+</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{% static 'core/js/gestion_clientes.js' %}"></script>
+{% endblock %}

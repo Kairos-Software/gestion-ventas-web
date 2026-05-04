@@ -1,0 +1,313 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}{{ cliente.get_nombre_display }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/detalle_cliente.css' %}">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+{% endblock %}
+
+{% block content %}
+
+{# ── HERO ── #}
+<div class="dc-hero">
+    <a href="{% url 'core:gestion_clientes' %}" class="back-link">← Volver a clientes</a>
+    <div class="dc-hero-body">
+
+        {# Avatar #}
+        <div class="dc-avatar-wrap">
+            {% if cliente.foto_perfil %}
+                <img src="{{ cliente.foto_perfil.url }}" class="dc-avatar-img" alt="Foto">
+            {% else %}
+                <div class="dc-avatar tipo-{{ cliente.tipo }}">
+                    {{ cliente.get_nombre_display|first|upper }}
+                </div>
+            {% endif %}
+        </div>
+
+        {# Info #}
+        <div class="dc-hero-info">
+            <div class="dc-hero-badges">
+                <span class="tipo-badge tipo-{{ cliente.tipo }}">{% if cliente.tipo == 'empresa' %}Empresa{% else %}Persona{% endif %}</span>
+                <span class="estado-badge estado-{{ cliente.estado }}">{{ cliente.get_estado_display }}</span>
+                <span class="riesgo-badge riesgo-{{ cliente.nivel_riesgo }}">Riesgo {{ cliente.get_nivel_riesgo_display }}</span>
+                {% if cliente.canal_preferido %}<span class="canal-badge">{{ cliente.get_canal_preferido_display }}</span>{% endif %}
+            </div>
+            <h1 class="dc-hero-nombre">{{ cliente.get_nombre_display }}</h1>
+            <div class="dc-hero-meta">
+                <span class="meta-chip">{{ cliente.codigo }}</span>
+                {% if cliente.tipo == 'empresa' and cliente.rubro %}<span class="meta-sep">·</span><span>{{ cliente.rubro }}</span>{% endif %}
+                {% if cliente.tipo == 'persona' and cliente.ocupacion %}<span class="meta-sep">·</span><span>{{ cliente.ocupacion }}</span>{% endif %}
+                {% if cliente.grupo_familiar %}<span class="meta-sep">·</span><span>{{ cliente.grupo_familiar }}{% if cliente.unidad_habitacional %} — {{ cliente.unidad_habitacional }}{% endif %}</span>{% endif %}
+            </div>
+            {% if cliente.tags %}
+            <div class="dc-hero-tags">
+                {% for tag in cliente.get_tags_lista %}<span class="tag-chip">{{ tag }}</span>{% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        {# Score #}
+        <div class="dc-hero-score">
+            <span class="score-label">SCORING</span>
+            <span class="score-value score-{% if cliente.scoring >= 900 %}alto{% elif cliente.scoring >= 600 %}medio{% else %}bajo{% endif %}">{{ cliente.scoring }}</span>
+            <span class="score-sub">puntos</span>
+        </div>
+
+    </div>
+</div>
+
+{# ── GRID PRINCIPAL ── #}
+<div class="dc-grid">
+
+    {# ═══════════ COL IZQUIERDA ═══════════ #}
+    <div class="dc-col">
+
+        {# Identidad — persona #}
+        {% if cliente.tipo == 'persona' %}
+        <div class="dc-card">
+            <p class="dc-card-title">Datos personales</p>
+            <div class="field-grid">
+                <div class="field-item"><span class="fi-label">Nombre</span><span class="fi-value">{{ cliente.nombre|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Apellido</span><span class="fi-value">{{ cliente.apellido|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">DNI</span><span class="fi-value">{{ cliente.dni|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">CUIL</span><span class="fi-value">{{ cliente.cuil|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Fecha de nacimiento</span><span class="fi-value">{{ cliente.fecha_nacimiento|date:"d/m/Y"|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Género</span><span class="fi-value">{{ cliente.get_genero_display|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Ocupación</span><span class="fi-value">{{ cliente.ocupacion|default:'—' }}</span></div>
+            </div>
+        </div>
+        {% else %}
+        {# Identidad — empresa #}
+        <div class="dc-card">
+            <p class="dc-card-title">Datos de empresa</p>
+            <div class="field-grid">
+                <div class="field-item field-wide"><span class="fi-label">Razón social</span><span class="fi-value">{{ cliente.razon_social|default:'—' }}</span></div>
+                <div class="field-item field-wide"><span class="fi-label">Nombre comercial</span><span class="fi-value">{{ cliente.nombre_comercial|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">CUIT</span><span class="fi-value">{{ cliente.cuit|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Condición ante IVA</span><span class="fi-value">{{ cliente.cond_iva|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Rubro</span><span class="fi-value">{{ cliente.rubro|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Sitio web</span><span class="fi-value">{% if cliente.sitio_web %}<a href="{{ cliente.sitio_web }}" target="_blank">{{ cliente.sitio_web }}</a>{% else %}—{% endif %}</span></div>
+                <div class="field-item"><span class="fi-label">Fecha de fundación</span><span class="fi-value">{{ cliente.fecha_fundacion|date:"d/m/Y"|default:'—' }}</span></div>
+            </div>
+        </div>
+        {% endif %}
+
+        {# Teléfonos #}
+        <div class="dc-card">
+            <div class="dc-card-title-row">
+                <span>Teléfonos</span>
+                <span class="dc-card-count">{{ telefonos|length }}</span>
+            </div>
+            {% if telefonos %}
+            <div class="tel-list">
+                {% for tel in telefonos %}
+                <div class="tel-item {% if tel.es_titular %}tel-titular{% endif %}">
+                    <div class="tel-num-wrap">
+                        <span class="tel-numero">{{ tel.numero }}</span>
+                        <div class="tel-flags">
+                            <span class="tel-flag">{{ tel.get_tipo_display }}</span>
+                            {% if tel.es_titular %}<span class="tel-flag flag-titular">Titular</span>{% endif %}
+                            {% if tel.tiene_whatsapp %}<span class="tel-flag flag-wa">WhatsApp</span>{% endif %}
+                        </div>
+                    </div>
+                    {% if tel.descripcion %}<span class="tel-desc">{{ tel.descripcion }}</span>{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="sin-datos">Sin teléfonos registrados.</p>
+            {% endif %}
+        </div>
+
+        {# Contacto digital #}
+        <div class="dc-card">
+            <p class="dc-card-title">Contacto digital</p>
+            <div class="field-grid">
+                <div class="field-item field-wide"><span class="fi-label">Email principal</span><span class="fi-value">{% if cliente.email_principal %}<a href="mailto:{{ cliente.email_principal }}">{{ cliente.email_principal }}</a>{% else %}—{% endif %}</span></div>
+                <div class="field-item field-wide"><span class="fi-label">Email secundario</span><span class="fi-value">{% if cliente.email_secundario %}<a href="mailto:{{ cliente.email_secundario }}">{{ cliente.email_secundario }}</a>{% else %}—{% endif %}</span></div>
+                <div class="field-item"><span class="fi-label">Canal preferido</span><span class="fi-value">{{ cliente.get_canal_preferido_display|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Instagram</span><span class="fi-value">{% if cliente.instagram %}<a href="https://instagram.com/{{ cliente.instagram }}" target="_blank">@{{ cliente.instagram }}</a>{% else %}—{% endif %}</span></div>
+                <div class="field-item"><span class="fi-label">Facebook</span><span class="fi-value">{{ cliente.facebook|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">LinkedIn</span><span class="fi-value">{% if cliente.linkedin %}<a href="{{ cliente.linkedin }}" target="_blank">Ver perfil</a>{% else %}—{% endif %}</span></div>
+            </div>
+        </div>
+
+        {# CRM #}
+        <div class="dc-card">
+            <p class="dc-card-title">CRM y seguimiento</p>
+            <div class="field-grid">
+                <div class="field-item field-wide"><span class="fi-label">¿Cómo nos conoció?</span><span class="fi-value">{{ cliente.como_nos_conocio|default:'—' }}</span></div>
+                <div class="field-item field-wide"><span class="fi-label">Referido por</span><span class="fi-value">{% if cliente.referido_por %}<a href="{% url 'core:cliente_detalle' cliente.referido_por.pk %}">{{ cliente.referido_por.get_nombre_display }} ({{ cliente.referido_por.codigo }})</a>{% else %}—{% endif %}</span></div>
+                <div class="field-item"><span class="fi-label">Clientes referidos</span><span class="fi-value">{% if cliente.referidos.exists %}{{ cliente.referidos.count }} cliente{{ cliente.referidos.count|pluralize }}{% else %}—{% endif %}</span></div>
+                <div class="field-item"><span class="fi-label">Cliente desde</span><span class="fi-value">{{ cliente.fecha_desde_cliente|date:"d/m/Y"|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Último contacto</span><span class="fi-value">{{ cliente.fecha_ultimo_contacto|date:"d/m/Y"|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Próximo contacto</span><span class="fi-value">{% if cliente.fecha_proximo_contacto %}<strong class="proximo-contacto">{{ cliente.fecha_proximo_contacto|date:"d/m/Y" }}</strong>{% else %}—{% endif %}</span></div>
+            </div>
+            {% if cliente.tags %}
+            <div class="field-textarea-wrap mt-2">
+                <span class="fi-label">Tags</span>
+                <div class="tags-wrap">{% for tag in cliente.get_tags_lista %}<span class="tag-chip">{{ tag }}</span>{% endfor %}</div>
+            </div>
+            {% endif %}
+            <div class="field-textarea-wrap mt-2">
+                <span class="fi-label">Notas internas</span>
+                <div class="fi-textarea">{{ cliente.notas|default:'Sin notas registradas.'|linebreaks }}</div>
+            </div>
+        </div>
+
+        {# Auditoría #}
+        <div class="dc-card dc-card-dark">
+            <p class="dc-card-title">Auditoría</p>
+            <div class="field-grid">
+                <div class="field-item"><span class="fi-label">Código GK</span><span class="fi-value fi-mono">{{ cliente.codigo }}</span></div>
+                <div class="field-item"><span class="fi-label">Estado</span><span class="fi-value"><span class="estado-badge estado-{{ cliente.estado }}">{{ cliente.get_estado_display }}</span></span></div>
+                <div class="field-item"><span class="fi-label">Nivel de riesgo</span><span class="fi-value"><span class="riesgo-badge riesgo-{{ cliente.nivel_riesgo }}">{{ cliente.get_nivel_riesgo_display }}</span></span></div>
+                <div class="field-item"><span class="fi-label">Scoring</span><span class="fi-value"><strong>{{ cliente.scoring }} pts</strong></span></div>
+                <div class="field-item"><span class="fi-label">Creado por</span><span class="fi-value">{{ cliente.creado_por|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Fecha de alta</span><span class="fi-value">{{ cliente.fecha_alta|date:"d/m/Y H:i" }}</span></div>
+                <div class="field-item"><span class="fi-label">Última modificación</span><span class="fi-value">{{ cliente.fecha_modificacion|date:"d/m/Y H:i" }}</span></div>
+            </div>
+        </div>
+
+    </div>{# /col izq #}
+
+    {# ═══════════ COL DERECHA ═══════════ #}
+    <div class="dc-col">
+
+        {# Dirección + mapa #}
+        <div class="dc-card">
+            <p class="dc-card-title">Dirección</p>
+            <div class="field-grid">
+                <div class="field-item field-wide"><span class="fi-label">Calle</span><span class="fi-value">{{ cliente.calle|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Número</span><span class="fi-value">{{ cliente.numero|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Piso / Depto</span><span class="fi-value">{{ cliente.piso_depto|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Barrio</span><span class="fi-value">{{ cliente.barrio|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Localidad</span><span class="fi-value">{{ cliente.localidad|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Partido</span><span class="fi-value">{{ cliente.partido|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Provincia</span><span class="fi-value">{{ cliente.provincia|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">País</span><span class="fi-value">{{ cliente.pais|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Código postal</span><span class="fi-value">{{ cliente.codigo_postal|default:'—' }}</span></div>
+            </div>
+
+            {% if cliente.tiene_geolocalizacion %}
+            <div class="mapa-wrap">
+                <div id="mapaDetalle" class="mapa-detalle-container"></div>
+                <div class="mapa-coords">
+                    <span class="coords-pin">Pin</span>
+                    {{ cliente.latitud }}, {{ cliente.longitud }}
+                    &nbsp;·&nbsp;
+                    <a href="https://www.openstreetmap.org/?mlat={{ cliente.latitud }}&mlon={{ cliente.longitud }}&zoom=17" target="_blank">Ver en OpenStreetMap</a>
+                    {% if cliente.maps_url %}&nbsp;·&nbsp;<a href="{{ cliente.maps_url }}" target="_blank">Enlace guardado</a>{% endif %}
+                </div>
+            </div>
+            <script>window.clienteLatitud={{ cliente.latitud }};window.clienteLongitud={{ cliente.longitud }};</script>
+            {% elif cliente.maps_url %}
+            <div class="mt-3">
+                <a href="{{ cliente.maps_url }}" target="_blank" class="btn-maps">Ver en mapa</a>
+            </div>
+            {% endif %}
+        </div>
+
+        {# Grupo familiar #}
+        <div class="dc-card">
+            <p class="dc-card-title">Grupo familiar</p>
+            {% if cliente.grupo_familiar %}
+            <div class="field-grid">
+                <div class="field-item field-wide"><span class="fi-label">Grupo</span><span class="fi-value"><strong>{{ cliente.grupo_familiar }}</strong></span></div>
+                <div class="field-item"><span class="fi-label">Unidad habitacional</span><span class="fi-value">{{ cliente.unidad_habitacional|default:'—' }}</span></div>
+                <div class="field-item field-wide"><span class="fi-label">Dirección de referencia</span><span class="fi-value">{{ cliente.grupo_familiar.direccion_referencia|default:'—' }}</span></div>
+            </div>
+            {% if convivientes %}
+            <p class="dc-section-sub">Otros miembros del grupo:</p>
+            <div class="conv-list">
+                {% for cv in convivientes %}
+                <a href="{% url 'core:cliente_detalle' cv.pk %}" class="conv-item">
+                    <div class="conv-avatar tipo-{{ cv.tipo }}">{{ cv.get_nombre_display|first|upper }}</div>
+                    <div>
+                        <span class="conv-nombre">{{ cv.get_nombre_display }}</span>
+                        {% if cv.unidad_habitacional %}<span class="conv-unidad">{{ cv.unidad_habitacional }}</span>{% endif %}
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% else %}
+            <p class="sin-datos">Sin grupo familiar asignado.</p>
+            {% endif %}
+        </div>
+
+        {# Contactos adicionales #}
+        <div class="dc-card">
+            <div class="dc-card-title-row">
+                <span>Contactos adicionales</span>
+                <span class="dc-card-count">{{ contactos|length }}</span>
+            </div>
+            {% if contactos %}
+            <div class="contacto-list">
+                {% for c in contactos %}
+                <div class="contacto-item">
+                    <div class="contacto-avatar">{{ c.nombre|first|upper }}</div>
+                    <div class="contacto-body">
+                        <strong>{{ c.nombre }} {{ c.apellido }}</strong>
+                        <span class="contacto-rol">{{ c.get_rol_display }}</span>
+                        <div class="contacto-datos">
+                            <span class="fi-label">Tel</span><span>{{ c.telefono|default:'—' }}</span>
+                            <span class="fi-label">WhatsApp</span><span>{{ c.whatsapp|default:'—' }}</span>
+                            <span class="fi-label">Email</span><span>{% if c.email %}<a href="mailto:{{ c.email }}">{{ c.email }}</a>{% else %}—{% endif %}</span>
+                        </div>
+                        {% if c.notas %}<p class="contacto-notas">{{ c.notas }}</p>{% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="sin-datos">Sin contactos adicionales registrados.</p>
+            {% endif %}
+        </div>
+
+        {# Galería #}
+        <div class="dc-card">
+            <div class="dc-card-title-row">
+                <span>Galería de imágenes</span>
+                <span class="dc-card-count">{{ imagenes|length }}</span>
+            </div>
+            {% if imagenes %}
+            <div class="galeria-grid" id="galeriaGrid">
+                {% for img in imagenes %}
+                <div class="galeria-item" data-id="{{ img.pk }}">
+                    <img src="{{ img.imagen.url }}" alt="{{ img.descripcion|default:img.get_tipo_display }}">
+                    <div class="galeria-overlay">
+                        <span class="galeria-tipo">{{ img.get_tipo_display }}</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="sin-datos">Sin imágenes cargadas.</p>
+            {% endif %}
+        </div>
+
+    </div>{# /col der #}
+</div>{# /dc-grid #}
+
+{# Lightbox #}
+<div id="lightbox" class="lightbox-overlay">
+    <button class="lb-close" id="lbClose">×</button>
+    <div class="lb-counter" id="lbCounter"></div>
+    <button class="lb-nav lb-prev" id="lbPrev">‹</button>
+    <div class="lb-content">
+        <img class="lb-img" id="lbImg" src="" alt="">
+        <p class="lb-caption" id="lbCaption"></p>
+    </div>
+    <button class="lb-nav lb-next" id="lbNext">›</button>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>window.clientePk = {{ cliente.pk }};</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{% static 'core/js/detalle_cliente.js' %}"></script>
+{% endblock %}

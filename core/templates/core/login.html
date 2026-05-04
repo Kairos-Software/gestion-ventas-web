@@ -1,0 +1,92 @@
+<!-- login.html -->
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kai-Cart — Iniciar sesión</title>
+    <link rel="icon" type="image/png" href="{% static 'core/img/logo.png' %}">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'core/css/login.css' %}">
+</head>
+<body>
+
+    <div class="login-container">
+        <div class="login-card">
+
+            <!-- Brand: solo imagen, el logo ya trae el texto "Kai-Cart" adentro -->
+            <div class="login-brand">
+                <img src="{% static 'core/img/logo3.png' %}" alt="Kai-Cart" class="login-logo-img">
+                <div class="login-brand-text">
+                    <span class="login-logo-sub">Management System</span>
+                </div>
+            </div>
+
+            <!-- Heading -->
+            <div class="login-header">
+                <h2>Bienvenido de nuevo</h2>
+                <p>Ingresá tus credenciales para acceder al sistema</p>
+            </div>
+
+            <!-- Error -->
+            {% if form.errors %}
+            <div class="alert-error">
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+                    <circle cx="10" cy="10" r="9" stroke="currentColor" stroke-width="1.5"/>
+                    <path d="M10 6V10M10 14H10.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+                <span>Usuario o contraseña incorrectos</span>
+            </div>
+            {% endif %}
+
+            <!-- Form -->
+            <form method="post" class="login-form">
+                {% csrf_token %}
+
+                <div class="form-group">
+                    <label for="id_username">Usuario</label>
+                    <div class="input-wrapper">
+                        <svg class="input-icon" width="17" height="17" viewBox="0 0 18 18" fill="none">
+                            <circle cx="9" cy="6" r="3" stroke="currentColor" stroke-width="1.5"/>
+                            <path d="M3 15C3 12.24 5.69 10 9 10C12.31 10 15 12.24 15 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                        <input type="text" id="id_username" name="username" placeholder="nombre.usuario" autofocus autocomplete="username">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="id_password">Contraseña</label>
+                    <div class="input-wrapper">
+                        <svg class="input-icon" width="17" height="17" viewBox="0 0 18 18" fill="none">
+                            <rect x="3" y="7" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+                            <path d="M6 7V4.5C6 2.84 7.34 1.5 9 1.5C10.66 1.5 12 2.84 12 4.5V7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                        <input type="password" id="id_password" name="password" placeholder="••••••••" autocomplete="current-password">
+                        <button type="button" class="toggle-password" aria-label="Mostrar contraseña">
+                            <svg width="17" height="17" viewBox="0 0 18 18" fill="none">
+                                <path d="M9 4C5 4 2.5 7 1 9C2.5 11 5 14 9 14C13 14 15.5 11 17 9C15.5 7 13 4 9 4Z" stroke="currentColor" stroke-width="1.5"/>
+                                <circle cx="9" cy="9" r="2.5" stroke="currentColor" stroke-width="1.5"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-login">
+                    <span>Ingresar al sistema</span>
+                    <svg width="17" height="17" viewBox="0 0 18 18" fill="none">
+                        <path d="M1 9H15M15 9L10 4M15 9L10 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+            </form>
+
+            <div class="login-footer">
+                © {% now "Y" %} Kai-Cart · Todos los derechos reservados
+            </div>
+
+        </div>
+    </div>
+
+    <script src="{% static 'core/js/login.js' %}"></script>
+</body>
+</html>

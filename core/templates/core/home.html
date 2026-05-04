@@ -1,0 +1,197 @@
+<!-- home.html -->
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block breadcrumb %}<strong>Dashboard</strong>{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/home.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+
+    <!-- ── Welcome Banner ── -->
+    <div class="welcome-section">
+        <div class="welcome-left">
+            <h1 class="welcome-title">
+                Hola, <span>{{ user.get_full_name|default:user.username }}</span>
+            </h1>
+            <p class="welcome-subtitle">
+                {{ fecha_actual|date:"l, j \d\e F \d\e Y" }} &nbsp;·&nbsp; {{ user.rol.nombre|default:'Usuario' }}
+            </p>
+        </div>
+        <div class="welcome-right">
+            <div class="welcome-pill">
+                <span class="welcome-pill-dot"></span>
+                Sistema en línea
+            </div>
+            <div class="welcome-pill welcome-pill--date">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                    <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/>
+                    <path d="M8 4.5V8L10.5 10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                </svg>
+                Última actualización: hoy
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Quick Access ── -->
+    <div class="section-header">
+        <h2>Acceso rápido</h2>
+        <p>Módulos disponibles del sistema</p>
+    </div>
+
+    <div class="modules-grid">
+
+        <a href="{% url 'core:gestion_usuarios' %}" class="module-card">
+            <div class="module-icon" style="background:rgba(30,111,168,0.1); color:#1E6FA8;">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                    <path d="M12 12C14.21 12 16 10.21 16 8C16 5.79 14.21 4 12 4C9.79 4 8 5.79 8 8C8 10.21 9.79 12 12 12Z" stroke="currentColor" stroke-width="1.5"/>
+                    <path d="M5 20V19C5 15.13 8.13 12 12 12C15.87 12 19 15.13 19 19V20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <div class="module-info">
+                <h3>Gestión de Usuarios</h3>
+                <p>Administrá el personal y sus permisos</p>
+            </div>
+            <div class="module-arrow">→</div>
+        </a>
+
+        <a href="{% url 'core:gestion_clientes' %}" class="module-card">
+            <div class="module-icon" style="background:rgba(16,185,129,0.1); color:#10b981;">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                    <path d="M20 21V19C20 16.8 18.2 15 16 15H8C5.8 15 4 16.8 4 19V21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    <circle cx="12" cy="7" r="4" stroke="currentColor" stroke-width="1.5"/>
+                </svg>
+            </div>
+            <div class="module-info">
+                <h3>Gestión de Clientes</h3>
+                <p>Base de clientes y contactos comerciales</p>
+            </div>
+            <div class="module-arrow">→</div>
+        </a>
+
+        <a href="{% url 'productos:gestion_productos' %}" class="module-card">
+            <div class="module-icon" style="background:rgba(242,106,27,0.1); color:#F26A1B;">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                    <rect x="2" y="2" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+                    <rect x="13" y="2" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+                    <rect x="2" y="13" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+                    <rect x="13" y="13" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+                </svg>
+            </div>
+            <div class="module-info">
+                <h3>Productos</h3>
+                <p>Catálogo y gestión de productos</p>
+            </div>
+            <div class="module-arrow">→</div>
+        </a>
+
+        <a href="{% url 'productos:gestion_proveedores' %}" class="module-card">
+            <div class="module-icon" style="background:rgba(245,158,11,0.1); color:#f59e0b;">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                    <path d="M3 9L12 3L21 9V21H15V15H9V21H3V9Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <div class="module-info">
+                <h3>Proveedores</h3>
+                <p>Gestión de proveedores y abastecimiento</p>
+            </div>
+            <div class="module-arrow">→</div>
+        </a>
+
+        <a href="{% url 'compras:nueva_compra' %}" class="module-card">
+            <div class="module-icon" style="background:rgba(139,92,246,0.1); color:#8b5cf6;">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                    <path d="M3 3H5L6.68 12.39C6.77 12.83 7.16 13.14 7.61 13.14H15.5C15.95 13.14 16.33 12.83 16.42 12.39L18 5H5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <circle cx="8.5" cy="18" r="1.5" stroke="currentColor" stroke-width="1.5"/>
+                    <circle cx="15.5" cy="18" r="1.5" stroke="currentColor" stroke-width="1.5"/>
+                </svg>
+            </div>
+            <div class="module-info">
+                <h3>Compras</h3>
+                <p>Registrar y gestionar órdenes de compra</p>
+            </div>
+            <div class="module-arrow">→</div>
+        </a>
+
+    </div>
+
+    <!-- ── Recent Activity ── -->
+    <div class="section-header" style="margin-top:0.5rem;">
+        <h2>Actividad reciente</h2>
+        <a href="#" class="view-all">Ver todas →</a>
+    </div>
+
+    <div class="activity-card">
+        <div class="activity-tabs">
+            <button class="tab-btn active" data-tab="clientes">Clientes</button>
+            <button class="tab-btn" data-tab="usuarios">Usuarios</button>
+        </div>
+
+        <div class="activity-list" id="activityClientes">
+            {% if ultimos_clientes %}
+                {% for cliente in ultimos_clientes %}
+                <div class="activity-item">
+                    <div class="activity-icon" style="background:rgba(16,185,129,0.1); color:#10b981;">
+                        <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                            <path d="M17 18V16C17 13.8 15.2 12 13 12H7C4.8 12 3 13.8 3 16V18" stroke="currentColor" stroke-width="1.5"/>
+                            <circle cx="10" cy="6" r="4" stroke="currentColor" stroke-width="1.5"/>
+                        </svg>
+                    </div>
+                    <div class="activity-details">
+                        <span class="activity-name">{{ cliente.get_nombre_display }}</span>
+                        <span class="activity-meta">{{ cliente.fecha_alta|date:"d/m/Y" }}</span>
+                    </div>
+                    <span class="activity-badge estado-{{ cliente.estado }}">{{ cliente.get_estado_display }}</span>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-activity">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" style="margin-bottom:0.5rem; color:var(--text-muted)">
+                        <path d="M20 21V19C20 16.8 18.2 15 16 15H8C5.8 15 4 16.8 4 19V21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        <circle cx="12" cy="7" r="4" stroke="currentColor" stroke-width="1.5"/>
+                    </svg>
+                    <p>No hay clientes registrados aún</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="activity-list" id="activityUsuarios" style="display:none;">
+            {% if ultimos_usuarios %}
+                {% for usuario in ultimos_usuarios %}
+                <div class="activity-item">
+                    <div class="activity-icon" style="background:rgba(30,111,168,0.1); color:#1E6FA8;">
+                        <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                            <path d="M17 18V16C17 13.8 15.2 12 13 12H7C4.8 12 3 13.8 3 16V18" stroke="currentColor" stroke-width="1.5"/>
+                            <circle cx="10" cy="6" r="4" stroke="currentColor" stroke-width="1.5"/>
+                        </svg>
+                    </div>
+                    <div class="activity-details">
+                        <span class="activity-name">{{ usuario.get_full_name|default:usuario.username }}</span>
+                        <span class="activity-meta">@{{ usuario.username }}</span>
+                    </div>
+                    <span class="activity-badge">{{ usuario.rol.nombre|default:'Usuario' }}</span>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-activity">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" style="margin-bottom:0.5rem; color:var(--text-muted)">
+                        <path d="M12 12C14.21 12 16 10.21 16 8C16 5.79 14.21 4 12 4C9.79 4 8 5.79 8 8C8 10.21 9.79 12 12 12Z" stroke="currentColor" stroke-width="1.5"/>
+                        <path d="M5 20V19C5 15.13 8.13 12 12 12C15.87 12 19 15.13 19 19V20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                    <p>No hay usuarios registrados aún</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'core/js/home.js' %}"></script>
+{% endblock %}

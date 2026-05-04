@@ -1,0 +1,256 @@
+<!-- base.html -->
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Kai-Cart{% endblock %} — Sistema de Gestión</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="{% static 'core/img/logo1.png' %}">
+    <link rel="shortcut icon" href="{% static 'core/img/logo1.png' %}">
+
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- CSS Principal -->
+    <link rel="stylesheet" href="{% static 'core/css/base.css' %}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+<div class="app-container">
+
+    <!-- ══════════════════════════════════
+         SIDEBAR
+    ══════════════════════════════════ -->
+    <aside class="sidebar">
+
+        <div class="sidebar-header">
+            <a href="{% url 'core:home' %}" class="logo">
+                <!--
+                    El PNG de logo.png trae "Kai-Cart" dibujado dentro.
+                    mix-blend-mode:screen (en el CSS) hace que el fondo
+                    negro del PNG sea invisible sobre el sidebar oscuro,
+                    mostrando solo el carrito naranja y el texto azul.
+                    Usamos solo la imagen, sin texto codificado al lado,
+                    para que el logo pueda lucirse completo.
+                -->
+                <img src="{% static 'core/img/logo3.png' %}" alt="Kai-Cart" class="logo-img">
+            </a>
+        </div>
+
+        <nav class="sidebar-nav">
+            {% if user.is_authenticated %}
+
+            {# ── DASHBOARD ── #}
+            <a href="{% url 'core:home' %}"
+               class="nav-item {% if request.resolver_match.url_name == 'home' %}active{% endif %}">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M2 8L10 2L18 8V17C18 17.55 17.55 18 17 18H13V13H7V18H3C2.45 18 2 17.55 2 17V8Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                </svg>
+                <span>Dashboard</span>
+            </a>
+
+            {# ── CATÁLOGO ── #}
+            {% with en_catalogo=request.resolver_match.app_name %}
+            <div class="nav-group {% if en_catalogo == 'productos' %}open{% endif %}" id="navGrupoCatalogo">
+                <button class="nav-group-toggle" onclick="toggleNavGroup('navGrupoCatalogo')">
+                    <div class="nav-group-toggle-left">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                            <rect x="2" y="2" width="7" height="7" rx="1" stroke="currentColor" stroke-width="1.5"/>
+                            <rect x="11" y="2" width="7" height="7" rx="1" stroke="currentColor" stroke-width="1.5"/>
+                            <rect x="2" y="11" width="7" height="7" rx="1" stroke="currentColor" stroke-width="1.5"/>
+                            <rect x="11" y="11" width="7" height="7" rx="1" stroke="currentColor" stroke-width="1.5"/>
+                        </svg>
+                        <span>Catálogo</span>
+                    </div>
+                    <svg class="nav-group-arrow" width="14" height="14" viewBox="0 0 14 14" fill="none">
+                        <path d="M3 5L7 9L11 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+                <div class="nav-group-items">
+                    <div class="nav-group-items-inner">
+                        <a href="{% url 'productos:gestion_productos' %}"
+                           class="nav-subitem {% if 'producto' in request.resolver_match.url_name %}active{% endif %}">
+                            <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                                <rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/>
+                                <rect x="9" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/>
+                                <rect x="1.5" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/>
+                                <rect x="9" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/>
+                            </svg>
+                            <span>Productos</span>
+                        </a>
+                        <a href="{% url 'productos:gestion_proveedores' %}"
+                           class="nav-subitem {% if 'proveedor' in request.resolver_match.url_name %}active{% endif %}">
+                            <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                                <path d="M2 13V5L8 2L14 5V13" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+                                <path d="M5 13V9H11V13" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+                            </svg>
+                            <span>Proveedores</span>
+                        </a>
+                        <a href="{% url 'productos:stock' %}"
+                        class="nav-subitem {% if 'stock' in request.resolver_match.url_name %}active{% endif %}">
+                            <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                                <rect x="2" y="9" width="3" height="5" rx="0.5" stroke="currentColor" stroke-width="1.3"/>
+                                <rect x="6.5" y="6" width="3" height="8" rx="0.5" stroke="currentColor" stroke-width="1.3"/>
+                                <rect x="11" y="3" width="3" height="11" rx="0.5" stroke="currentColor" stroke-width="1.3"/>
+                            </svg>
+                            <span>Mi Stock</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endwith %}
+
+            {# ── OPERACIONES ── #}
+            {% with en_op=request.resolver_match.app_name %}
+            <div class="nav-group {% if en_op == 'compras' %}open{% endif %}" id="navGrupoOperaciones">
+                <button class="nav-group-toggle" onclick="toggleNavGroup('navGrupoOperaciones')">
+                    <div class="nav-group-toggle-left">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                            <path d="M3 3H5L6.68 12.39C6.77 12.83 7.16 13.14 7.61 13.14H15.5C15.95 13.14 16.33 12.83 16.42 12.39L18 5H5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            <circle cx="8.5" cy="17" r="1" stroke="currentColor" stroke-width="1.3"/>
+                            <circle cx="15.5" cy="17" r="1" stroke="currentColor" stroke-width="1.3"/>
+                        </svg>
+                        <span>Operaciones</span>
+                    </div>
+                    <svg class="nav-group-arrow" width="14" height="14" viewBox="0 0 14 14" fill="none">
+                        <path d="M3 5L7 9L11 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+                <div class="nav-group-items">
+                    <div class="nav-group-items-inner">
+                        <a href="{% url 'compras:nueva_compra' %}"
+                           class="nav-subitem {% if request.resolver_match.url_name == 'nueva_compra' %}active{% endif %}">
+                            <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                                <path d="M2 2H4L5.44 10.29C5.52 10.69 5.87 10.98 6.28 10.98H12.5C12.91 10.98 13.26 10.69 13.34 10.29L14.5 4H4.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+                                <circle cx="7" cy="14" r="0.8" stroke="currentColor" stroke-width="1.2"/>
+                                <circle cx="12.5" cy="14" r="0.8" stroke="currentColor" stroke-width="1.2"/>
+                            </svg>
+                            <span>Nueva Compra</span>
+                        </a>
+                        <a href="{% url 'compras:historial_compras' %}"
+                           class="nav-subitem {% if request.resolver_match.url_name == 'historial_compras' %}active{% endif %}">
+                            <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                                <path d="M2 3.5H14M2 7H14M2 10.5H10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                            </svg>
+                            <span>Historial de Compras</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endwith %}
+
+            {# ── ADMINISTRACIÓN ── #}
+            {% with en_admin=request.resolver_match.url_name %}
+            <div class="nav-group {% if 'usuario' in en_admin or 'cliente' in en_admin %}open{% endif %}" id="navGrupoAdmin">
+                <button class="nav-group-toggle" onclick="toggleNavGroup('navGrupoAdmin')">
+                    <div class="nav-group-toggle-left">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                            <circle cx="10" cy="6" r="3" stroke="currentColor" stroke-width="1.5"/>
+                            <path d="M3 17C3 13.69 5.69 11 9 11H11C14.31 11 17 13.69 17 17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                        <span>Administración</span>
+                    </div>
+                    <svg class="nav-group-arrow" width="14" height="14" viewBox="0 0 14 14" fill="none">
+                        <path d="M3 5L7 9L11 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+                <div class="nav-group-items">
+                    <div class="nav-group-items-inner">
+                        <a href="{% url 'core:gestion_usuarios' %}"
+                           class="nav-subitem {% if 'usuario' in request.resolver_match.url_name %}active{% endif %}">
+                            <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                                <circle cx="8" cy="5" r="2.5" stroke="currentColor" stroke-width="1.3"/>
+                                <path d="M2 14C2 11.24 4.69 9 8 9C11.31 9 14 11.24 14 14" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                            </svg>
+                            <span>Usuarios</span>
+                        </a>
+                        <a href="{% url 'core:gestion_clientes' %}"
+                           class="nav-subitem {% if 'cliente' in request.resolver_match.url_name %}active{% endif %}">
+                            <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                                <path d="M10 1.5H12C12.55 1.5 13 1.95 13 2.5V13.5C13 14.05 12.55 14.5 12 14.5H4C3.45 14.5 3 14.05 3 13.5V2.5C3 1.95 3.45 1.5 4 1.5H6" stroke="currentColor" stroke-width="1.3"/>
+                                <path d="M6 1.5H10V3.5H6V1.5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+                                <path d="M6 7H10M6 9.5H9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                            </svg>
+                            <span>Clientes</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endwith %}
+
+            {% endif %}
+        </nav>
+
+        {% if user.is_authenticated %}
+        <div class="sidebar-footer">
+            <div class="user-info">
+                <div class="user-avatar">
+                    {% if user.foto_perfil %}
+                        <img src="{{ user.foto_perfil.url }}" alt="{{ user.username }}">
+                    {% else %}
+                        <span>{{ user.username|first|upper }}</span>
+                    {% endif %}
+                </div>
+                <div class="user-details">
+                    <span class="user-name">{{ user.get_full_name|default:user.username }}</span>
+                    <span class="user-role">{{ user.rol.nombre|default:'Usuario' }}</span>
+                </div>
+            </div>
+            <form action="{% url 'core:logout' %}" method="post" class="logout-form">
+                {% csrf_token %}
+                <button type="submit" class="logout-btn">
+                    <svg width="15" height="15" viewBox="0 0 18 18" fill="none">
+                        <path d="M7 2H3C2.45 2 2 2.45 2 3V15C2 15.55 2.45 16 3 16H7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M12 13L16 9L12 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M7 9H16" stroke="currentColor" stroke-width="1.5"/>
+                    </svg>
+                    <span>Cerrar sesión</span>
+                </button>
+            </form>
+        </div>
+        {% endif %}
+
+    </aside>
+
+    <!-- ══════════════════════════════════
+         MAIN CONTENT
+    ══════════════════════════════════ -->
+    <main class="main-content">
+        <div class="main-header">
+            <div style="display:flex; align-items:center; gap:0.75rem;">
+                <button class="sidebar-toggle" id="sidebarToggle" aria-label="Contraer/expandir menú">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M3 6H17M3 10H17M3 14H17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </button>
+                <span class="header-breadcrumb">
+                    {% block breadcrumb %}<strong>Dashboard</strong>{% endblock %}
+                </span>
+            </div>
+            <div class="header-right">
+                <span class="online-status">
+                    <span class="status-dot"></span>
+                    Sistema en línea
+                </span>
+                <span class="header-user">{{ user.get_full_name|default:user.username }}</span>
+            </div>
+        </div>
+
+        <div class="main-container">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{% static 'core/js/base.js' %}"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

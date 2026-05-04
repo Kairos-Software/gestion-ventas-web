@@ -1,0 +1,634 @@
+/* ═══════════════════════════════════════════════════════════════════
+   compras.css — Kai-Cart Design System
+   Alineado con base.css: variables --brand-*, Plus Jakarta Sans + DM Sans
+   Accent: --brand-orange (#F26A1B) · --brand-blue (#1E6FA8)
+═══════════════════════════════════════════════════════════════════ */
+
+/* ────────────────────────────────────────────────────────────────
+   PAGE HEADER
+──────────────────────────────────────────────────────────────── */
+.cmp-page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.75rem;
+    flex-wrap: wrap;
+    gap: .75rem;
+}
+
+.cmp-page-title {
+    display: flex;
+    align-items: center;
+    gap: .875rem;
+}
+
+.cmp-page-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: .875rem;
+    background: var(--brand-orange-light);
+    border: 1px solid var(--brand-orange-mid);
+    color: var(--brand-orange);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.cmp-page-tag {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: .6rem;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--brand-orange);
+    margin-bottom: .2rem;
+}
+
+.cmp-page-title h1 {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin: 0;
+    line-height: 1.2;
+    letter-spacing: -.3px;
+}
+
+.cmp-page-title p {
+    font-size: .8125rem;
+    color: var(--text-muted);
+    margin: .1rem 0 0;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   LAYOUT
+──────────────────────────────────────────────────────────────── */
+.cmp-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 1.25rem;
+    align-items: start;
+    /* Asegura que no desborde el contenedor padre */
+    width: 100%;
+    min-width: 0;
+}
+
+/* Fuerza que la columna principal no desborde */
+.cmp-layout > :first-child {
+    min-width: 0;
+    overflow: hidden;
+}
+
+@media (max-width: 1100px) {
+    .cmp-layout { grid-template-columns: minmax(0, 1fr) 280px; }
+}
+
+@media (max-width: 960px) {
+    .cmp-layout { grid-template-columns: 1fr; }
+}
+
+/* ────────────────────────────────────────────────────────────────
+   CARDS
+──────────────────────────────────────────────────────────────── */
+.cmp-card {
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: 1rem;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+}
+
+/* La card del buscador NO debe clip al dropdown */
+.cmp-card--search {
+    overflow: visible;
+}
+
+/* Dentro de la card de búsqueda, el body tampoco clipea */
+.cmp-card--search .cmp-card-body {
+    overflow: visible;
+}
+
+.cmp-card-header {
+    padding: .875rem 1.25rem;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    background: var(--bg-secondary);
+}
+
+.cmp-card-header svg { color: var(--brand-orange); }
+
+.cmp-card-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: .65rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: .09em;
+}
+
+.cmp-card-body { padding: 1.25rem; }
+
+/* ────────────────────────────────────────────────────────────────
+   BUSCADOR DE PRODUCTOS
+──────────────────────────────────────────────────────────────── */
+.cmp-search-wrap { position: relative; }
+
+.cmp-search-input {
+    width: 100%;
+    padding: .625rem 1rem .625rem 2.4rem;
+    border: 1px solid var(--border-color);
+    border-radius: .625rem;
+    background: var(--bg-white);
+    color: var(--text-primary);
+    font-family: 'DM Sans', sans-serif;
+    font-size: .875rem;
+    transition: border-color .18s, box-shadow .18s;
+    box-shadow: var(--shadow-sm);
+}
+
+.cmp-search-input:focus {
+    outline: none;
+    border-color: var(--brand-orange);
+    box-shadow: 0 0 0 3px rgba(242, 106, 27, .12);
+}
+
+.cmp-search-input::placeholder { color: var(--text-muted); }
+
+.cmp-search-icon {
+    position: absolute;
+    left: .75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    pointer-events: none;
+}
+
+/* Dropdown de resultados */
+.cmp-dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: .75rem;
+    box-shadow: var(--shadow-lg);
+    z-index: 400;
+    max-height: 320px;
+    overflow-y: auto;
+    display: none;
+}
+
+.cmp-dropdown.open { display: block; }
+
+.cmp-dropdown-item {
+    padding: .75rem 1rem;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-color);
+    transition: background .12s;
+}
+
+.cmp-dropdown-item:last-child { border-bottom: none; }
+
+.cmp-dropdown-item:hover { background: var(--brand-orange-light); }
+
+.cmp-dropdown-item-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    margin-bottom: .25rem;
+}
+
+.cmp-dropdown-item-nombre {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: .875rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.cmp-dropdown-item-codigo {
+    font-family: 'Plus Jakarta Sans', monospace;
+    font-size: .7rem;
+    font-weight: 700;
+    background: var(--brand-orange-light);
+    color: var(--brand-orange-dark);
+    border: 1px solid var(--brand-orange-mid);
+    padding: .1rem .45rem;
+    border-radius: .25rem;
+    white-space: nowrap;
+}
+
+.cmp-dropdown-item-meta {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    flex-wrap: wrap;
+}
+
+.cmp-meta-chip {
+    font-size: .72rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: .25rem;
+}
+
+.cmp-meta-chip strong {
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.cmp-meta-chip--stock strong { color: var(--success); }
+.cmp-meta-chip--stock.bajo strong { color: var(--warning); }
+
+.cmp-dropdown-empty {
+    padding: 1.25rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: .85rem;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   TABLA DEL CARRITO
+──────────────────────────────────────────────────────────────── */
+.cmp-table-wrap { overflow-x: auto; }
+
+.cmp-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .82rem;
+}
+
+.cmp-table th {
+    padding: .7rem .875rem;
+    text-align: left;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: .65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .09em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-color);
+    white-space: nowrap;
+    background: var(--bg-secondary);
+}
+
+.cmp-table td {
+    padding: .65rem .875rem;
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: middle;
+    color: var(--text-primary);
+}
+
+.cmp-table tbody tr:last-child td { border-bottom: none; }
+
+.cmp-table tbody tr:hover td { background: var(--bg-surface-hover); }
+
+/* Producto en tabla */
+.cmp-prod-cell   { display: flex; flex-direction: column; gap: .15rem; min-width: 140px; }
+.cmp-prod-nombre { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: .82rem; color: var(--text-primary); line-height: 1.3; }
+.cmp-prod-meta   { font-size: .7rem; color: var(--text-muted); }
+
+/* Inputs inline */
+.cmp-input-inline {
+    padding: .375rem .55rem;
+    border: 1px solid var(--border-color);
+    border-radius: .5rem;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-family: 'DM Sans', sans-serif;
+    font-size: .8rem;
+    transition: border-color .18s, box-shadow .18s, background .18s;
+    width: 100%;
+}
+
+.cmp-input-inline:focus {
+    outline: none;
+    border-color: var(--brand-orange);
+    background: var(--bg-white);
+    box-shadow: 0 0 0 2px rgba(242, 106, 27, .1);
+}
+
+.cmp-input-inline.w-xs  { min-width: 56px;  max-width: 72px;  }
+.cmp-input-inline.w-sm  { min-width: 72px;  max-width: 100px; }
+.cmp-input-inline.w-md  { min-width: 100px; max-width: 130px; }
+.cmp-input-inline.w-lg  { min-width: 130px; }
+
+.cmp-select-inline {
+    padding: .375rem .55rem;
+    border: 1px solid var(--border-color);
+    border-radius: .5rem;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-family: 'DM Sans', sans-serif;
+    font-size: .8rem;
+    cursor: pointer;
+    transition: border-color .18s;
+}
+
+.cmp-select-inline:focus {
+    outline: none;
+    border-color: var(--brand-orange);
+}
+
+/* Proveedor autocomplete en fila */
+.cmp-prov-wrap { position: relative; min-width: 140px; }
+
+.cmp-prov-dropdown {
+    /* El dropdown global se posiciona fixed por JS;
+       esta regla aplica a ambos casos (inline legacy y global) */
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: .625rem;
+    box-shadow: var(--shadow-lg);
+    z-index: 9000;
+    max-height: 200px;
+    overflow-y: auto;
+    display: none;
+}
+
+.cmp-prov-dropdown.open { display: block; }
+
+.cmp-prov-option {
+    padding: .55rem .875rem;
+    font-family: 'DM Sans', sans-serif;
+    font-size: .8rem;
+    cursor: pointer;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-color);
+    transition: background .12s;
+}
+
+.cmp-prov-option:last-child { border-bottom: none; }
+.cmp-prov-option:hover { background: var(--brand-orange-light); }
+
+.cmp-prov-option-nombre { font-weight: 600; }
+.cmp-prov-option-meta   { font-size: .7rem; color: var(--text-muted); margin-top: .1rem; }
+
+/* Subtotal celda */
+.cmp-subtotal-cell {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 800;
+    color: var(--brand-orange-dark);
+    white-space: nowrap;
+    font-size: .875rem;
+}
+
+/* Botón eliminar fila */
+.cmp-btn-remove {
+    background: none;
+    border: none;
+    color: var(--danger);
+    cursor: pointer;
+    padding: .3rem;
+    border-radius: .375rem;
+    opacity: .5;
+    transition: opacity .15s, background .15s;
+    display: flex;
+    align-items: center;
+    line-height: 1;
+}
+
+.cmp-btn-remove:hover {
+    opacity: 1;
+    background: rgba(239, 68, 68, .08);
+}
+
+/* Estado vacío */
+.cmp-empty {
+    text-align: center;
+    padding: 3.5rem 1.5rem;
+    color: var(--text-muted);
+}
+
+.cmp-empty-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--brand-orange-light);
+    border: 1px solid var(--brand-orange-mid);
+    color: var(--brand-orange);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1rem;
+    opacity: .7;
+}
+
+.cmp-empty p {
+    font-size: .875rem;
+    margin: 0;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   PANEL LATERAL  (datos de la compra + totales)
+──────────────────────────────────────────────────────────────── */
+.cmp-side-sticky {
+    position: sticky;
+    top: 1rem;
+}
+
+.cmp-field { margin-bottom: 1rem; }
+
+.cmp-label {
+    display: block;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: .65rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .09em;
+    margin-bottom: .35rem;
+}
+
+.cmp-control {
+    width: 100%;
+    padding: .5625rem .75rem;
+    border: 1px solid var(--border-color);
+    border-radius: .625rem;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-family: 'DM Sans', sans-serif;
+    font-size: .875rem;
+    transition: border-color .18s, box-shadow .18s, background .18s;
+}
+
+.cmp-control:focus {
+    outline: none;
+    border-color: var(--brand-orange);
+    background: var(--bg-white);
+    box-shadow: 0 0 0 3px rgba(242, 106, 27, .12);
+}
+
+textarea.cmp-control {
+    resize: vertical;
+    min-height: 80px;
+}
+
+/* Totales */
+.cmp-totals {
+    border-top: 1px solid var(--border-color);
+    padding-top: 1rem;
+    margin: 1rem 0;
+}
+
+.cmp-totals-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: .3rem 0;
+    font-size: .8125rem;
+    color: var(--text-muted);
+}
+
+.cmp-totals-grand {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding-top: .6rem;
+    margin-top: .35rem;
+    border-top: 2px solid var(--border-color);
+}
+
+.cmp-totals-grand-label {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: .9375rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.cmp-totals-grand-value {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 1.375rem;
+    font-weight: 800;
+    color: var(--brand-orange);
+    letter-spacing: -.02em;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   BOTONES
+──────────────────────────────────────────────────────────────── */
+.cmp-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .45rem;
+    padding: .625rem 1.125rem;
+    border-radius: .625rem;
+    border: none;
+    font-family: 'DM Sans', sans-serif;
+    font-size: .875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .18s;
+    text-decoration: none;
+    width: 100%;
+    line-height: 1;
+}
+
+.cmp-btn-primary {
+    background: var(--brand-orange);
+    color: #fff;
+    box-shadow: var(--shadow-orange);
+}
+
+.cmp-btn-primary:hover:not(:disabled) {
+    background: var(--brand-orange-dark);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(242, 106, 27, .3);
+}
+
+.cmp-btn-primary:disabled {
+    opacity: .4;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.cmp-btn-ghost {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
+    margin-top: .5rem;
+}
+
+.cmp-btn-ghost:hover {
+    background: var(--bg-surface-hover);
+    color: var(--text-primary);
+    border-color: var(--border-strong);
+}
+
+/* ────────────────────────────────────────────────────────────────
+   BADGE DE ÍTEMS
+──────────────────────────────────────────────────────────────── */
+.cmp-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: .2rem .6rem;
+    border-radius: 99px;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: .65rem;
+    font-weight: 700;
+    letter-spacing: .03em;
+    background: var(--brand-orange);
+    color: #fff;
+    margin-left: .3rem;
+    vertical-align: middle;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   TOAST
+──────────────────────────────────────────────────────────────── */
+.cmp-toast {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-left: 4px solid var(--success);
+    border-radius: .75rem;
+    box-shadow: var(--shadow-lg);
+    padding: 1rem 1.25rem;
+    font-family: 'DM Sans', sans-serif;
+    font-size: .875rem;
+    color: var(--text-primary);
+    z-index: 9999;
+    max-width: 340px;
+    transform: translateY(12px);
+    opacity: 0;
+    transition: transform .25s, opacity .25s;
+    pointer-events: none;
+}
+
+.cmp-toast.show {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+.cmp-toast-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700;
+    margin-bottom: .2rem;
+    color: var(--success);
+}
+
+.cmp-toast-body {
+    color: var(--text-muted);
+    font-size: .8rem;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   SPINNER
+──────────────────────────────────────────────────────────────── */
+@keyframes cmp-spin {
+    to { transform: rotate(360deg); }
+}
+
+.cmp-spin {
+    animation: cmp-spin .7s linear infinite;
+    display: inline-block;
+}

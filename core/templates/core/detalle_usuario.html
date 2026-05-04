@@ -1,0 +1,402 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}{{ usuario_obj.get_full_name|default:usuario_obj.username }} — Personal{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/detalle_usuario.css' %}">
+{% endblock %}
+
+{% block content %}
+
+{# ── HERO ── #}
+<div class="du-hero">
+    <a href="{% url 'core:gestion_usuarios' %}" class="back-link">← Volver a personal</a>
+    <div class="du-hero-body">
+
+        {# Avatar #}
+        <div class="du-avatar-wrap" id="avatarWrap">
+            {% if usuario_obj.foto_perfil %}
+                <img src="{{ usuario_obj.foto_perfil.url }}" class="du-avatar-img" id="heroAvatarImg" alt="Foto de perfil">
+            {% else %}
+                <div class="du-avatar-placeholder" id="heroAvatarPlaceholder">
+                    {{ usuario_obj.first_name|default:''|first|default:usuario_obj.username|first|upper }}
+                </div>
+            {% endif %}
+        </div>
+
+        {# Info principal #}
+        <div class="du-hero-info">
+            <div class="du-hero-badges">
+                <span class="estado-badge estado-{{ usuario_obj.estado_laboral|default:'activo' }}">
+                    {{ usuario_obj.get_estado_laboral_display|default:'Activo' }}
+                </span>
+                {% if usuario_obj.tipo_contrato %}
+                <span class="contrato-badge">{{ usuario_obj.get_tipo_contrato_display }}</span>
+                {% endif %}
+                {% if usuario_obj.rol %}
+                <span class="rol-badge">{{ usuario_obj.rol.nombre }}</span>
+                {% endif %}
+            </div>
+            <h1 class="du-hero-nombre">
+                {{ usuario_obj.get_full_name|default:usuario_obj.username }}
+            </h1>
+            <div class="du-hero-meta">
+                <span class="meta-chip">@{{ usuario_obj.username }}</span>
+                {% if usuario_obj.puesto %}<span class="meta-sep">·</span><span>{{ usuario_obj.puesto }}</span>{% endif %}
+                {% if usuario_obj.area %}<span class="meta-sep">·</span><span>{{ usuario_obj.area }}</span>{% endif %}
+                {% if usuario_obj.legajo %}<span class="meta-sep">·</span><span class="meta-chip">Legajo #{{ usuario_obj.legajo }}</span>{% endif %}
+            </div>
+            <div class="du-hero-sub">
+                {% if usuario_obj.email %}<span>{{ usuario_obj.email }}</span>{% endif %}
+                {% if usuario_obj.telefono_personal %}<span>{{ usuario_obj.telefono_personal }}</span>{% endif %}
+                {% if usuario_obj.get_antiguedad %}<span>{{ usuario_obj.get_antiguedad }} de antigüedad</span>{% endif %}
+                {% if usuario_obj.get_edad %}<span>{{ usuario_obj.get_edad }} años</span>{% endif %}
+            </div>
+        </div>
+
+        {# Bloque de stats rápidos #}
+        <div class="du-hero-stats">
+            <div class="hero-stat-item">
+                <span class="hsi-value">{{ usuario_obj.get_edad|default:'—' }}</span>
+                <span class="hsi-label">Años</span>
+            </div>
+            <div class="hero-stat-item">
+                <span class="hsi-value">{{ estudios|length }}</span>
+                <span class="hsi-label">Estudios</span>
+            </div>
+            <div class="hero-stat-item">
+                <span class="hsi-value">{{ capacitaciones|length }}</span>
+                <span class="hsi-label">Capacitaciones</span>
+            </div>
+            <div class="hero-stat-item">
+                <span class="hsi-value">{{ documentos|length }}</span>
+                <span class="hsi-label">Documentos</span>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+{# ── GRID PRINCIPAL ── #}
+<div class="du-grid">
+
+    {# ═══════════ COL IZQUIERDA ═══════════ #}
+    <div class="du-col">
+
+        {# Foto de perfil #}
+        <div class="du-card">
+            <p class="du-card-title">Foto de perfil</p>
+            <div class="foto-wrap">
+                {% if usuario_obj.foto_perfil %}
+                    <img src="{{ usuario_obj.foto_perfil.url }}" class="foto-grande" id="fotoPerfilGrande" alt="Foto">
+                    <p class="foto-nota">Clic para ampliar</p>
+                {% else %}
+                    <div class="foto-empty">
+                        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="24" cy="18" r="8" stroke="#ddd" stroke-width="2"/>
+                            <path d="M8 40c0-8.837 7.163-16 16-16s16 7.163 16 16" stroke="#ddd" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                        <span>Sin foto de perfil</span>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        {# Datos personales #}
+        <div class="du-card">
+            <p class="du-card-title">Datos personales</p>
+            <div class="field-grid">
+                <div class="field-item"><span class="fi-label">Nombre/s</span><span class="fi-value">{{ usuario_obj.first_name|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Apellido/s</span><span class="fi-value">{{ usuario_obj.last_name|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">DNI</span><span class="fi-value">{{ usuario_obj.dni|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">CUIL</span><span class="fi-value">{{ usuario_obj.cuil|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Fecha de nacimiento</span><span class="fi-value">{{ usuario_obj.fecha_nacimiento|date:"d/m/Y"|default:'—' }}{% if usuario_obj.get_edad %} <span class="fi-hint">({{ usuario_obj.get_edad }} años)</span>{% endif %}</span></div>
+                <div class="field-item"><span class="fi-label">Género</span><span class="fi-value">{{ usuario_obj.get_genero_display|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Estado civil</span><span class="fi-value">{{ usuario_obj.get_estado_civil_display|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Nacionalidad</span><span class="fi-value">{{ usuario_obj.nacionalidad|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Hijos</span><span class="fi-value">
+                    {% if usuario_obj.tiene_hijos is None %}—
+                    {% elif usuario_obj.tiene_hijos %}Sí{% if usuario_obj.cantidad_hijos %} <span class="fi-hint">({{ usuario_obj.cantidad_hijos }})</span>{% endif %}
+                    {% else %}No{% endif %}
+                </span></div>
+            </div>
+        </div>
+
+        {# Contacto personal #}
+        <div class="du-card">
+            <p class="du-card-title">Contacto personal</p>
+            <div class="field-grid">
+                <div class="field-item"><span class="fi-label">Teléfono personal</span><span class="fi-value">{{ usuario_obj.telefono_personal|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Teléfono alternativo</span><span class="fi-value">{{ usuario_obj.telefono_alternativo|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Email del sistema</span><span class="fi-value">{% if usuario_obj.email %}<a href="mailto:{{ usuario_obj.email }}">{{ usuario_obj.email }}</a>{% else %}—{% endif %}</span></div>
+                <div class="field-item"><span class="fi-label">Email personal</span><span class="fi-value">{% if usuario_obj.email_personal %}<a href="mailto:{{ usuario_obj.email_personal }}">{{ usuario_obj.email_personal }}</a>{% else %}—{% endif %}</span></div>
+            </div>
+        </div>
+
+        {# Domicilio #}
+        <div class="du-card">
+            <p class="du-card-title">Domicilio particular</p>
+            <div class="field-grid">
+                <div class="field-item field-wide"><span class="fi-label">Calle</span><span class="fi-value">{{ usuario_obj.calle|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Número</span><span class="fi-value">{{ usuario_obj.numero|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Piso / Depto</span><span class="fi-value">{{ usuario_obj.piso_depto|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Barrio</span><span class="fi-value">{{ usuario_obj.barrio|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Localidad</span><span class="fi-value">{{ usuario_obj.localidad|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Partido / Municipio</span><span class="fi-value">{{ usuario_obj.partido|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Provincia</span><span class="fi-value">{{ usuario_obj.provincia|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">País</span><span class="fi-value">{{ usuario_obj.pais|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Código postal</span><span class="fi-value">{{ usuario_obj.codigo_postal|default:'—' }}</span></div>
+            </div>
+        </div>
+
+        {# Salud #}
+        <div class="du-card">
+            <p class="du-card-title">Información médica</p>
+            <div class="field-grid">
+                <div class="field-item"><span class="fi-label">Grupo sanguíneo</span>
+                    <span class="fi-value">{% if usuario_obj.grupo_sanguineo %}<span class="gs-badge">{{ usuario_obj.grupo_sanguineo }}</span>{% else %}—{% endif %}</span>
+                </div>
+                <div class="field-item"><span class="fi-label">Obra social / Prepaga</span><span class="fi-value">{{ usuario_obj.obra_social|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Nº de afiliado</span><span class="fi-value">{{ usuario_obj.nro_afiliado|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Apto psicofísico</span><span class="fi-value">
+                    {% if usuario_obj.apto_psicofisico is None %}—
+                    {% elif usuario_obj.apto_psicofisico %}<span class="badge-ok">Apto</span>
+                    {% else %}<span class="badge-no">No apto</span>{% endif %}
+                </span></div>
+                <div class="field-item"><span class="fi-label">Fecha del apto</span><span class="fi-value">{{ usuario_obj.fecha_apto|date:"d/m/Y"|default:'—' }}</span></div>
+            </div>
+            <div class="field-textarea-wrap">
+                <span class="fi-label">Observaciones de salud</span>
+                <div class="fi-textarea">{{ usuario_obj.observaciones_salud|default:'—'|linebreaks }}</div>
+            </div>
+        </div>
+
+        {# Contacto de emergencia #}
+        <div class="du-card">
+            <p class="du-card-title">Contacto de emergencia</p>
+            <div class="field-grid">
+                <div class="field-item"><span class="fi-label">Nombre</span><span class="fi-value">{{ usuario_obj.emergencia_nombre|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Vínculo</span><span class="fi-value">{{ usuario_obj.emergencia_vinculo|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Teléfono</span><span class="fi-value">{{ usuario_obj.emergencia_telefono|default:'—' }}</span></div>
+            </div>
+        </div>
+
+    </div>{# /col izq #}
+
+    {# ═══════════ COL DERECHA ═══════════ #}
+    <div class="du-col">
+
+        {# Datos laborales #}
+        <div class="du-card">
+            <p class="du-card-title">Datos laborales</p>
+            <div class="field-grid">
+                <div class="field-item"><span class="fi-label">Puesto / Cargo</span><span class="fi-value">{{ usuario_obj.puesto|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Área / Departamento</span><span class="fi-value">{{ usuario_obj.area|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Sucursal / Sede</span><span class="fi-value">{{ usuario_obj.sucursal|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Nº de legajo</span><span class="fi-value">{{ usuario_obj.legajo|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Fecha de ingreso</span><span class="fi-value">{{ usuario_obj.fecha_ingreso|date:"d/m/Y"|default:'—' }}{% if usuario_obj.get_antiguedad %} <span class="fi-hint">— {{ usuario_obj.get_antiguedad }}</span>{% endif %}</span></div>
+                <div class="field-item"><span class="fi-label">Fecha de egreso</span><span class="fi-value">{{ usuario_obj.fecha_egreso|date:"d/m/Y"|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Estado laboral</span><span class="fi-value">
+                    <span class="estado-badge estado-{{ usuario_obj.estado_laboral|default:'activo' }}">{{ usuario_obj.get_estado_laboral_display|default:'Activo' }}</span>
+                </span></div>
+                <div class="field-item"><span class="fi-label">Tipo de contrato</span><span class="fi-value">{{ usuario_obj.get_tipo_contrato_display|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Modalidad de trabajo</span><span class="fi-value">{{ usuario_obj.get_modalidad_trabajo_display|default:'—' }}</span></div>
+                <div class="field-item"><span class="fi-label">Rol del sistema</span><span class="fi-value">{% if usuario_obj.rol %}<span class="rol-badge">{{ usuario_obj.rol.nombre }}</span>{% else %}—{% endif %}</span></div>
+            </div>
+        </div>
+
+        {# Cuentas bancarias #}
+        <div class="du-card">
+            <div class="du-card-title-row">
+                <span>Cuentas bancarias / Billeteras</span>
+                <span class="du-card-count">{{ cuentas|length }}</span>
+            </div>
+            {% if cuentas %}
+            <div class="timeline-list">
+                {% for cb in cuentas %}
+                <div class="timeline-item">
+                    <div class="tl-dot"></div>
+                    <div class="tl-body">
+                        <div class="tl-title">
+                            {{ cb.nombre }}
+                            {% if cb.es_principal %}<span class="tl-badge">Principal</span>{% endif %}
+                            <span class="tl-meta">{{ cb.get_tipo_display }}</span>
+                        </div>
+                        {% if cb.titular %}<div class="tl-sub">Titular: {{ cb.titular }}</div>{% endif %}
+                        {% if cb.cbu_cvu %}<div class="tl-sub fi-mono">CBU/CVU: {{ cb.cbu_cvu }}</div>{% endif %}
+                        {% if cb.alias %}<div class="tl-sub">Alias: {{ cb.alias }}</div>{% endif %}
+                        {% if cb.nro_cuenta %}<div class="tl-sub">Nº cuenta: {{ cb.nro_cuenta }}</div>{% endif %}
+                        {% if cb.observaciones %}<div class="tl-sub">{{ cb.observaciones }}</div>{% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="du-empty">Sin cuentas registradas.</p>
+            {% endif %}
+        </div>
+
+        {# Estudios #}
+        <div class="du-card">
+            <div class="du-card-title-row">
+                <span>Estudios</span>
+                <span class="du-card-count">{{ estudios|length }}</span>
+            </div>
+            {% if estudios %}
+            <div class="timeline-list">
+                {% for e in estudios %}
+                <div class="timeline-item">
+                    <div class="tl-dot"></div>
+                    <div class="tl-body">
+                        <div class="tl-main">
+                            <strong>{{ e.titulo }}</strong>
+                            <span class="tl-badge tl-badge-{{ e.estado }}">{{ e.get_estado_display }}</span>
+                        </div>
+                        <div class="tl-sub">
+                            <span>{{ e.get_nivel_display }}</span>
+                            {% if e.institucion %}<span class="tl-sep">·</span><span>{{ e.institucion }}</span>{% endif %}
+                            {% if e.fecha_fin %}<span class="tl-sep">·</span><span>Egreso {{ e.fecha_fin|date:"Y" }}</span>{% endif %}
+                            {% if e.promedio %}<span class="tl-sep">·</span><span>Promedio {{ e.promedio }}</span>{% endif %}
+                        </div>
+                        {% if e.observaciones %}<p class="tl-obs">{{ e.observaciones }}</p>{% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="sin-datos">Sin estudios registrados.</p>
+            {% endif %}
+        </div>
+
+        {# Experiencia laboral #}
+        <div class="du-card">
+            <div class="du-card-title-row">
+                <span>Experiencia laboral previa</span>
+                <span class="du-card-count">{{ experiencias|length }}</span>
+            </div>
+            {% if experiencias %}
+            <div class="timeline-list">
+                {% for exp in experiencias %}
+                <div class="timeline-item">
+                    <div class="tl-dot tl-dot-exp"></div>
+                    <div class="tl-body">
+                        <div class="tl-main">
+                            <strong>{{ exp.puesto }}</strong>
+                            {% if exp.trabajo_actual %}<span class="tl-badge tl-badge-actual">Actual</span>{% endif %}
+                        </div>
+                        <div class="tl-sub">
+                            <span>{{ exp.empresa }}</span>
+                            {% if exp.area %}<span class="tl-sep">·</span><span>{{ exp.area }}</span>{% endif %}
+                            <span class="tl-sep">·</span>
+                            <span>{{ exp.fecha_inicio|date:"m/Y" }} — {% if exp.trabajo_actual %}Actualidad{% elif exp.fecha_fin %}{{ exp.fecha_fin|date:"m/Y" }}{% else %}—{% endif %}</span>
+                            {% if exp.get_duracion %}<span class="tl-sep">·</span><span class="fi-hint">{{ exp.get_duracion }}</span>{% endif %}
+                        </div>
+                        {% if exp.descripcion %}<p class="tl-obs">{{ exp.descripcion }}</p>{% endif %}
+                        {% if exp.referencia_nombre %}<p class="tl-ref">Referencia: {{ exp.referencia_nombre }}{% if exp.referencia_contacto %} — {{ exp.referencia_contacto }}{% endif %}</p>{% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="sin-datos">Sin experiencia laboral registrada.</p>
+            {% endif %}
+        </div>
+
+        {# Capacitaciones #}
+        <div class="du-card">
+            <div class="du-card-title-row">
+                <span>Capacitaciones</span>
+                <span class="du-card-count">{{ capacitaciones|length }}</span>
+            </div>
+            {% if capacitaciones %}
+            <div class="cap-list">
+                {% for cap in capacitaciones %}
+                <div class="cap-item">
+                    <div class="cap-top">
+                        <strong>{{ cap.nombre }}</strong>
+                        <span class="resultado-badge resultado-{{ cap.resultado }}">{{ cap.get_resultado_display }}</span>
+                    </div>
+                    <div class="cap-meta">
+                        <span>{{ cap.get_tipo_display }}</span>
+                        {% if cap.proveedor %}<span>{{ cap.proveedor }}</span>{% endif %}
+                        {% if cap.duracion_hs %}<span>{{ cap.duracion_hs }} hs</span>{% endif %}
+                        {% if cap.fecha_fin %}<span>{{ cap.fecha_fin|date:"d/m/Y" }}</span>{% endif %}
+                        {% if cap.calificacion %}<span>Nota: {{ cap.calificacion }}{% if cap.nota_maxima %}/{{ cap.nota_maxima }}{% endif %}</span>{% endif %}
+                    </div>
+                    <div class="cap-flags">
+                        {% if cap.es_obligatoria %}<span class="cap-flag flag-obligatoria">Obligatoria</span>{% endif %}
+                        {% if cap.certificado_emitido %}
+                            <span class="cap-flag flag-cert {% if cap.certificado_vigente == False %}flag-vencido{% endif %}">
+                                Certificado{% if cap.vencimiento_cert %} — vence {{ cap.vencimiento_cert|date:"d/m/Y" }}{% endif %}
+                            </span>
+                        {% endif %}
+                    </div>
+                    {% if cap.observaciones %}<p class="cap-obs">{{ cap.observaciones }}</p>{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="sin-datos">Sin capacitaciones registradas.</p>
+            {% endif %}
+        </div>
+
+        {# Documentos #}
+        <div class="du-card">
+            <div class="du-card-title-row">
+                <span>Documentos</span>
+                <span class="du-card-count">{{ documentos|length }}</span>
+            </div>
+            {% if documentos %}
+            <div class="doc-list">
+                {% for doc in documentos %}
+                <div class="doc-item {% if doc.vencido %}doc-vencido{% elif doc.proxima_a_vencer %}doc-por-vencer{% endif %}">
+                    <div class="doc-icon-wrap">
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                            <path d="M14 2v6h6M9 13h6M9 17h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                    <div class="doc-body">
+                        <a href="{{ doc.archivo.url }}" target="_blank" class="doc-nombre">{{ doc.nombre }}</a>
+                        <div class="doc-meta">
+                            <span>{{ doc.get_tipo_display }}</span>
+                            {% if doc.fecha_doc %}<span>{{ doc.fecha_doc|date:"d/m/Y" }}</span>{% endif %}
+                            {% if doc.vencimiento %}
+                                <span class="{% if doc.vencido %}texto-vencido{% elif doc.proxima_a_vencer %}texto-por-vencer{% endif %}">
+                                    {% if doc.vencido %}Vencido{% else %}Vence {{ doc.vencimiento|date:"d/m/Y" }}{% endif %}
+                                </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="sin-datos">Sin documentos cargados.</p>
+            {% endif %}
+        </div>
+
+        {# Notas internas #}
+        <div class="du-card du-card-dark">
+            <p class="du-card-title">Notas internas (RRHH)</p>
+            <div class="fi-textarea">{{ usuario_obj.notas_internas|default:'Sin notas registradas.'|linebreaks }}</div>
+        </div>
+
+    </div>{# /col der #}
+</div>{# /du-grid #}
+
+{# Lightbox #}
+<div id="lightbox" class="lightbox-overlay">
+    <button class="lb-close" id="lbClose">×</button>
+    <div class="lb-content">
+        <img class="lb-img" id="lbImg" alt="Foto ampliada">
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>window.usuarioPk = {{ usuario_obj.pk }};</script>
+<script src="{% static 'core/js/detalle_usuario.js' %}"></script>
+{% endblock %}

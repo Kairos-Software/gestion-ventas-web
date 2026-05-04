@@ -1,0 +1,86 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Historial de Compras{% endblock %}
+
+{% block breadcrumb %}
+    Operaciones &rsaquo; <strong>Historial de Compras</strong>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'compras/css/historial_compras.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="historial-header">
+    <div class="historial-title">
+        <h1>Historial de Compras</h1>
+        <p>Registro completo de todas las órdenes de compra</p>
+    </div>
+</div>
+
+<!-- ── Filtros ── -->
+<div class="filtros-card">
+    <div class="filtro-group" style="max-width:200px;">
+        <label>Buscar</label>
+        <input type="text" id="filtroQ" placeholder="Número o nota…">
+    </div>
+    <div class="filtro-group" style="max-width:160px;">
+        <label>Estado</label>
+        <select id="filtroEstado">
+            <option value="">Todos</option>
+            {% for val, label in estados %}
+                <option value="{{ val }}">{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="filtro-group" style="max-width:160px;">
+        <label>Desde</label>
+        <input type="date" id="filtroDesde">
+    </div>
+    <div class="filtro-group" style="max-width:160px;">
+        <label>Hasta</label>
+        <input type="date" id="filtroHasta">
+    </div>
+    <button class="btn-filtrar" id="btnFiltrar">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="margin-right:4px;vertical-align:middle;">
+            <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M11 11L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        Buscar
+    </button>
+    <button class="btn-limpiar" id="btnLimpiar">Limpiar</button>
+</div>
+
+<!-- ── Resumen ── -->
+<div class="resumen-bar" id="resumenBar" style="display:none;">
+    <div class="resumen-chip">Resultados: <strong id="resumenTotal">—</strong></div>
+    <div class="resumen-chip">Página <strong id="resumenPag">—</strong></div>
+</div>
+
+<!-- ── Lista ── -->
+<div id="listaContainer">
+    <div class="loading-state">
+        <span class="spinner"></span> Cargando compras…
+    </div>
+</div>
+
+<!-- ── Paginación ── -->
+<div class="paginacion" id="paginacion" style="display:none;">
+    <button class="btn-pag" id="btnAnterior">← Anterior</button>
+    <span class="pag-info" id="pagInfo"></span>
+    <button class="btn-pag" id="btnSiguiente">Siguiente →</button>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const HISTORIAL_URLS = {
+        listar:    "{% url 'compras:listar_compras' %}",
+        productos: "{% url 'productos:gestion_productos' %}",
+        proveedores:"{% url 'productos:gestion_proveedores' %}",
+    };
+</script>
+<script src="{% static 'compras/js/historial_compras.js' %}"></script>
+{% endblock %}

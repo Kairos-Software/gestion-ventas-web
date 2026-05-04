@@ -1,0 +1,291 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Proveedores{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'productos/css/proveedores.css' %}">
+{% endblock %}
+
+{% block content %}
+
+<!-- HEADER -->
+<div class="nx-page-header">
+    <div class="nx-page-header-left">
+        <div class="nx-page-tag">Módulo</div>
+        <h1 class="nx-page-title">Proveedores</h1>
+        <p class="nx-page-sub">Gestioná tus proveedores, condiciones comerciales y contactos.</p>
+    </div>
+    <div class="nx-page-header-right">
+        <div class="nx-stat-pill">
+            <span class="nx-stat-pill-val">{{ total }}</span>
+            <span class="nx-stat-pill-lbl">Total</span>
+        </div>
+        <div class="nx-stat-pill nx-stat-pill--green">
+            <span class="nx-stat-pill-val">{{ activos }}</span>
+            <span class="nx-stat-pill-lbl">Activos</span>
+        </div>
+        <button class="nx-btn-primary" id="btn-nuevo-proveedor">
+            + Nuevo proveedor
+        </button>
+    </div>
+</div>
+
+<!-- FILTROS -->
+<div class="nx-filters">
+    <form method="get" class="nx-filters-form" id="form-filtros">
+        <div class="nx-search-wrap">
+            <span class="nx-search-icon">⌕</span>
+            <input type="text" name="q" value="{{ q }}" placeholder="Buscar por nombre o CUIT..."
+                   class="nx-search-input" id="input-busqueda">
+        </div>
+        <select name="estado" class="nx-select" onchange="this.form.submit()">
+            <option value=""        {% if estado == ''       %}selected{% endif %}>Todos</option>
+            <option value="activo"  {% if estado == 'activo' %}selected{% endif %}>Activos</option>
+            <option value="inactivo"{% if estado == 'inactivo'%}selected{% endif %}>Inactivos</option>
+        </select>
+    </form>
+</div>
+
+<!-- TABLA -->
+<div class="nx-table-wrap">
+    {% if proveedores %}
+    <table class="nx-table" id="tabla-proveedores">
+        <thead>
+            <tr>
+                <th>Proveedor</th>
+                <th>CUIT</th>
+                <th>Contacto</th>
+                <th>Ciudad</th>
+                <th>Condición</th>
+                <th>Estado</th>
+                <th class="nx-th-actions">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in proveedores %}
+            <tr class="nx-tr" data-pk="{{ p.pk }}">
+                <td>
+                    <div class="nx-cell-main">{{ p.nombre }}</div>
+                    {% if p.sitio_web %}
+                    <div class="nx-cell-sub">
+                        <a href="{{ p.sitio_web }}" target="_blank" class="nx-link">{{ p.sitio_web }}</a>
+                    </div>
+                    {% endif %}
+                </td>
+                <td class="nx-cell-mono">{{ p.cuit|default:"—" }}</td>
+                <td>
+                    {% if p.contacto_nombre %}
+                    <div class="nx-cell-main">{{ p.contacto_nombre }}</div>
+                    <div class="nx-cell-sub">{{ p.contacto_cargo }}</div>
+                    {% elif p.email %}
+                    <div class="nx-cell-sub">{{ p.email }}</div>
+                    {% else %}
+                    <span class="nx-empty">—</span>
+                    {% endif %}
+                </td>
+                <td>{{ p.ciudad|default:"—" }}</td>
+                <td>
+                    <span class="nx-badge nx-badge--pago">{{ p.get_condicion_pago_display }}</span>
+                </td>
+                <td>
+                    {% if p.activo %}
+                    <span class="nx-badge nx-badge--activo">Activo</span>
+                    {% else %}
+                    <span class="nx-badge nx-badge--inactivo">Inactivo</span>
+                    {% endif %}
+                </td>
+                <td class="nx-td-actions">
+                    <button class="nx-btn-icon btn-editar" data-pk="{{ p.pk }}" title="Editar">✎</button>
+                    <button class="nx-btn-icon btn-eliminar nx-btn-icon--danger" data-pk="{{ p.pk }}" data-nombre="{{ p.nombre }}" title="Eliminar">✕</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- PAGINACIÓN -->
+    {% if proveedores.has_other_pages %}
+    <div class="nx-pagination">
+        {% if proveedores.has_previous %}
+        <a href="?page={{ proveedores.previous_page_number }}&q={{ q }}&estado={{ estado }}" class="nx-page-btn">← Anterior</a>
+        {% endif %}
+        <span class="nx-page-info">Página {{ proveedores.number }} de {{ proveedores.paginator.num_pages }}</span>
+        {% if proveedores.has_next %}
+        <a href="?page={{ proveedores.next_page_number }}&q={{ q }}&estado={{ estado }}" class="nx-page-btn">Siguiente →</a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="nx-empty-state">
+        <div class="nx-empty-icon">◈</div>
+        <p class="nx-empty-title">No hay proveedores{% if q %} que coincidan con "{{ q }}"{% endif %}</p>
+        <p class="nx-empty-sub">Creá tu primer proveedor con el botón de arriba.</p>
+    </div>
+    {% endif %}
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     MODAL — CREAR / EDITAR PROVEEDOR
+═══════════════════════════════════════════ -->
+<div class="nx-modal-overlay" id="modal-proveedor" style="display:none;">
+    <div class="nx-modal">
+
+        <div class="nx-modal-header">
+            <h2 class="nx-modal-title" id="modal-titulo">Nuevo proveedor</h2>
+            <button class="nx-modal-close" id="btn-cerrar-modal">✕</button>
+        </div>
+
+        <div class="nx-modal-body">
+            <form id="form-proveedor" novalidate>
+                {% csrf_token %}
+                <input type="hidden" id="f-pk" name="pk" value="">
+
+                <!-- IDENTIDAD -->
+                <div class="nx-form-section-label">Identidad</div>
+                <div class="nx-form-grid nx-form-grid--2">
+                    <div class="nx-field">
+                        <label class="nx-label">Nombre / Razón social <span class="nx-required">*</span></label>
+                        {{ form.nombre }}
+                        <span class="nx-field-error" id="err-nombre"></span>
+                    </div>
+                    <div class="nx-field">
+                        <label class="nx-label">CUIT</label>
+                        {{ form.cuit }}
+                        <span class="nx-field-error" id="err-cuit"></span>
+                    </div>
+                    <div class="nx-field">
+                        <label class="nx-label">Tipo</label>
+                        {{ form.tipo }}
+                    </div>
+                    <div class="nx-field">
+                        <label class="nx-label">Sitio web</label>
+                        {{ form.sitio_web }}
+                    </div>
+                </div>
+                <div class="nx-field">
+                    <label class="nx-label">Descripción interna</label>
+                    {{ form.descripcion }}
+                </div>
+                <div class="nx-field nx-field--check">
+                    {{ form.activo }}
+                    <label class="nx-label-check">Proveedor activo</label>
+                </div>
+
+                <!-- CONTACTO -->
+                <div class="nx-form-section-label">Contacto</div>
+                <div class="nx-form-grid nx-form-grid--2">
+                    <div class="nx-field">
+                        <label class="nx-label">Email</label>
+                        {{ form.email }}
+                        <span class="nx-field-error" id="err-email"></span>
+                    </div>
+                    <div class="nx-field">
+                        <label class="nx-label">Teléfono</label>
+                        {{ form.telefono }}
+                    </div>
+                    <div class="nx-field">
+                        <label class="nx-label">Nombre del contacto</label>
+                        {{ form.contacto_nombre }}
+                    </div>
+                    <div class="nx-field">
+                        <label class="nx-label">Cargo</label>
+                        {{ form.contacto_cargo }}
+                    </div>
+                </div>
+
+                <!-- DIRECCIÓN -->
+                <div class="nx-form-section-label">Dirección</div>
+                <div class="nx-form-grid nx-form-grid--2">
+                    <div class="nx-field nx-field--full">
+                        <label class="nx-label">Calle y número</label>
+                        {{ form.calle }}
+                    </div>
+                    <div class="nx-field">
+                        <label class="nx-label">Ciudad</label>
+                        {{ form.ciudad }}
+                    </div>
+                    <div class="nx-field">
+                        <label class="nx-label">Provincia</label>
+                        {{ form.provincia }}
+                    </div>
+                    <div class="nx-field">
+                        <label class="nx-label">País</label>
+                        {{ form.pais }}
+                    </div>
+                </div>
+
+                <!-- COMERCIAL -->
+                <div class="nx-form-section-label">Comercial</div>
+                <div class="nx-form-grid nx-form-grid--3">
+                    <div class="nx-field">
+                        <label class="nx-label">Condición de pago</label>
+                        {{ form.condicion_pago }}
+                    </div>
+                    <div class="nx-field">
+                        <label class="nx-label">Moneda</label>
+                        {{ form.moneda }}
+                    </div>
+                    <div class="nx-field">
+                        <label class="nx-label">Días de entrega</label>
+                        {{ form.dias_entrega }}
+                    </div>
+                </div>
+                <div class="nx-field">
+                    <label class="nx-label">Notas internas</label>
+                    {{ form.notas }}
+                </div>
+
+            </form>
+        </div><!-- /modal-body -->
+
+        <div class="nx-modal-footer">
+            <button class="nx-btn-ghost" id="btn-cancelar">Cancelar</button>
+            <button class="nx-btn-primary" id="btn-guardar">
+                <span id="btn-guardar-txt">Guardar proveedor</span>
+                <span id="btn-guardar-spin" style="display:none">Guardando...</span>
+            </button>
+        </div>
+
+    </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     MODAL — CONFIRMAR ELIMINACIÓN
+═══════════════════════════════════════════ -->
+<div class="nx-modal-overlay" id="modal-eliminar" style="display:none;">
+    <div class="nx-modal nx-modal--sm">
+        <div class="nx-modal-header">
+            <h2 class="nx-modal-title">Eliminar proveedor</h2>
+            <button class="nx-modal-close" id="btn-cerrar-eliminar">✕</button>
+        </div>
+        <div class="nx-modal-body">
+            <p class="nx-confirm-text">
+                ¿Estás seguro de que querés eliminar a
+                <strong id="nombre-a-eliminar"></strong>?
+                Esta acción no se puede deshacer.
+            </p>
+        </div>
+        <div class="nx-modal-footer">
+            <button class="nx-btn-ghost" id="btn-cancelar-eliminar">Cancelar</button>
+            <button class="nx-btn-danger" id="btn-confirmar-eliminar">Eliminar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast de feedback -->
+<div class="nx-toast" id="nx-toast"></div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const URL_ACCIONES = "{% url 'productos:proveedor_acciones' %}";
+    const URL_ELIMINAR = "{% url 'productos:proveedor_eliminar' %}";
+    const CSRF_TOKEN   = "{{ csrf_token }}";
+</script>
+<script src="{% static 'productos/js/proveedores.js' %}"></script>
+{% endblock %}

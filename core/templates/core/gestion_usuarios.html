@@ -1,0 +1,864 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Gestión de Personal{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/gestion_usuarios.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Gestión de <span>Personal</span></h1>
+        <p class="page-subtitle">{{ usuarios.count }} empleado{{ usuarios.count|pluralize }} registrado{{ usuarios.count|pluralize }}</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'core:home' %}" class="btn btn-secondary btn-sm">← Volver</a>
+        {% if puede_crear %}
+            <button class="btn btn-primary btn-sm" id="btnNuevoUsuario">+ Nuevo usuario</button>
+        {% endif %}
+    </div>
+</div>
+
+{% if sin_permiso %}
+<div class="alerta-inline alerta-error">No tenés permiso para ver la lista de usuarios.</div>
+{% else %}
+<div class="table-card">
+    <table class="table" id="tablaUsuarios">
+        <thead>
+            <tr>
+                <th style="width:48px"></th>
+                <th>Usuario</th>
+                <th>Nombre completo</th>
+                <th>Puesto / Área</th>
+                <th>DNI</th>
+                <th>Rol</th>
+                <th>Estado</th>
+                {% if puede_editar or puede_gestionar_permisos or puede_eliminar %}
+                <th>Acciones</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for usuario in usuarios %}
+            <tr data-id="{{ usuario.pk }}"
+                data-username="{{ usuario.username }}"
+                data-first_name="{{ usuario.first_name|default:'' }}"
+                data-last_name="{{ usuario.last_name|default:'' }}"
+                data-email="{{ usuario.email|default:'' }}"
+                data-dni="{{ usuario.dni|default:'' }}"
+                data-cuil="{{ usuario.cuil|default:'' }}"
+                data-telefono_personal="{{ usuario.telefono_personal|default:'' }}"
+                data-telefono_alternativo="{{ usuario.telefono_alternativo|default:'' }}"
+                data-email_personal="{{ usuario.email_personal|default:'' }}"
+                data-genero="{{ usuario.genero|default:'' }}"
+                data-estado_civil="{{ usuario.estado_civil|default:'' }}"
+                data-tiene_hijos="{{ usuario.tiene_hijos|yesno:'true,false,' }}"
+                data-cantidad_hijos="{{ usuario.cantidad_hijos|default:'0' }}"
+                data-nacionalidad="{{ usuario.nacionalidad|default:'Argentina' }}"
+                data-fecha_nacimiento="{{ usuario.fecha_nacimiento|date:'Y-m-d'|default:'' }}"
+                data-calle="{{ usuario.calle|default:'' }}"
+                data-numero="{{ usuario.numero|default:'' }}"
+                data-piso_depto="{{ usuario.piso_depto|default:'' }}"
+                data-barrio="{{ usuario.barrio|default:'' }}"
+                data-localidad="{{ usuario.localidad|default:'' }}"
+                data-partido="{{ usuario.partido|default:'' }}"
+                data-provincia="{{ usuario.provincia|default:'' }}"
+                data-pais="{{ usuario.pais|default:'Argentina' }}"
+                data-codigo_postal="{{ usuario.codigo_postal|default:'' }}"
+                data-legajo="{{ usuario.legajo|default:'' }}"
+                data-puesto="{{ usuario.puesto|default:'' }}"
+                data-area="{{ usuario.area|default:'' }}"
+                data-sucursal="{{ usuario.sucursal|default:'' }}"
+                data-fecha_ingreso="{{ usuario.fecha_ingreso|date:'Y-m-d'|default:'' }}"
+                data-fecha_egreso="{{ usuario.fecha_egreso|date:'Y-m-d'|default:'' }}"
+                data-estado_laboral="{{ usuario.estado_laboral|default:'activo' }}"
+                data-tipo_contrato="{{ usuario.tipo_contrato|default:'' }}"
+                data-modalidad_trabajo="{{ usuario.modalidad_trabajo|default:'' }}"
+                data-banco="{{ usuario.banco|default:'' }}"
+                data-cbu="{{ usuario.cbu|default:'' }}"
+                data-alias_cbu="{{ usuario.alias_cbu|default:'' }}"
+                data-emergencia_nombre="{{ usuario.emergencia_nombre|default:'' }}"
+                data-emergencia_vinculo="{{ usuario.emergencia_vinculo|default:'' }}"
+                data-emergencia_telefono="{{ usuario.emergencia_telefono|default:'' }}"
+                data-grupo_sanguineo="{{ usuario.grupo_sanguineo|default:'' }}"
+                data-obra_social="{{ usuario.obra_social|default:'' }}"
+                data-nro_afiliado="{{ usuario.nro_afiliado|default:'' }}"
+                data-apto_psicofisico="{{ usuario.apto_psicofisico|yesno:'true,false,' }}"
+                data-fecha_apto="{{ usuario.fecha_apto|date:'Y-m-d'|default:'' }}"
+                data-observaciones_salud="{{ usuario.observaciones_salud|default:'' }}"
+                data-notas_internas="{{ usuario.notas_internas|default:'' }}"
+                data-rol_nombre="{{ usuario.rol.nombre|default:'' }}">
+                <td>
+                    {% if usuario.foto_perfil %}
+                        <img src="{{ usuario.foto_perfil.url }}" class="tabla-avatar" alt="">
+                    {% else %}
+                        <div class="tabla-avatar tabla-avatar-placeholder">
+                            {{ usuario.first_name|default:''|first|default:usuario.username|first|upper }}
+                        </div>
+                    {% endif %}
+                </td>
+                <td class="col-username">{{ usuario.username }}</td>
+                <td>{{ usuario.get_full_name }}</td>
+                <td>
+                    {% if usuario.puesto %}
+                        <span class="puesto-text">{{ usuario.puesto }}</span>
+                        {% if usuario.area %}<span class="area-text">{{ usuario.area }}</span>{% endif %}
+                    {% else %}
+                        <span class="text-muted small">—</span>
+                    {% endif %}
+                </td>
+                <td>{{ usuario.dni|default:'—' }}</td>
+                <td>
+                    {% if usuario.rol %}
+                        <span class="rol-badge">{{ usuario.rol.nombre }}</span>
+                    {% else %}
+                        <span class="rol-badge empty">Sin rol</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <span class="estado-badge estado-{{ usuario.estado_laboral|default:'activo' }}">
+                        {{ usuario.get_estado_laboral_display|default:'Activo' }}
+                    </span>
+                </td>
+                {% if puede_editar or puede_gestionar_permisos or puede_eliminar %}
+                <td>
+                    <div class="acciones-cell">
+                        <a href="{% url 'core:detalle_usuario' usuario.pk %}" class="btn-accion btn-ver">Ver</a>
+                        {% if puede_editar %}
+                            <button class="btn-accion btn-editar" data-id="{{ usuario.pk }}">Editar</button>
+                        {% endif %}
+                        {% if puede_gestionar_permisos %}
+                            <a href="{% url 'core:gestion_permisos' usuario.pk %}" class="btn-accion btn-permisos">Permisos</a>
+                        {% endif %}
+                        {% if puede_eliminar %}
+                            <button class="btn-accion btn-eliminar" data-id="{{ usuario.pk }}">Eliminar</button>
+                        {% endif %}
+                    </div>
+                </td>
+                {% endif %}
+            </tr>
+            {% empty %}
+            <tr><td colspan="8" class="empty-state">No hay usuarios registrados.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+
+{# ══════════════════════════════════════════════════════ #}
+{# MODAL CREAR / EDITAR                                   #}
+{# ══════════════════════════════════════════════════════ #}
+{% if puede_crear or puede_editar %}
+<div class="modal fade" id="usuarioModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title" id="usuarioModalLabel">Nuevo usuario</h5>
+                    <p class="modal-subtitle">Solo el usuario y la contraseña son obligatorios al crear.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body p-0">
+
+                {# ── Tabs ── #}
+                <ul class="nav nav-tabs form-tabs px-3 pt-2" id="usuarioTabs">
+                    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabSistema">Sistema</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabPersonal">Personal</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabDomicilio">Domicilio</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabLaboral">Laboral</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSalud">Salud</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabEstudios">Estudios</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabExperiencia">Experiencia</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabCapacitaciones">Capacitaciones</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabDocumentos">Documentos</button></li>
+                </ul>
+
+                <form id="formUsuario" enctype="multipart/form-data" class="px-4 pt-4 pb-3">
+                    {% csrf_token %}
+                    <input type="hidden" name="pk" id="usuarioPk">
+
+                    <div class="tab-content">
+
+                        {# ── TAB SISTEMA ── #}
+                        <div class="tab-pane fade show active" id="tabSistema">
+                            <p class="form-section-title">Acceso al sistema</p>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">Usuario <span class="field-required">*</span></label>
+                                    <input type="text" class="form-control" name="username" id="id_username" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Email del sistema</label>
+                                    <input type="email" class="form-control" name="email" id="id_email">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Rol del sistema</label>
+                                    <input type="text" class="form-control" name="rol_nombre" id="id_rol_nombre" placeholder="Ej: Administrativo, Técnico">
+                                </div>
+                            </div>
+                            <div class="row g-3 mt-1 campo-password">
+                                <div class="col-md-6 campo-password">
+                                    <label class="form-label">Contraseña <span class="field-required req-pwd">*</span></label>
+                                    <input type="password" class="form-control" name="password1" id="id_password1">
+                                </div>
+                                <div class="col-md-6 campo-password">
+                                    <label class="form-label">Confirmar contraseña <span class="field-required req-pwd">*</span></label>
+                                    <input type="password" class="form-control" name="password2" id="id_password2">
+                                </div>
+                            </div>
+
+                            <p class="form-section-title mt-3">Notas internas <span style="font-size:.7rem;font-weight:400;color:var(--text-muted);margin-left:.25rem;">Solo visible para administradores</span></p>
+                            <textarea class="form-control" name="notas_internas" id="id_notas_internas" rows="3" placeholder="Anotá observaciones relevantes del empleado…"></textarea>
+                        </div>
+
+                        {# ── TAB PERSONAL ── #}
+                        <div class="tab-pane fade" id="tabPersonal">
+
+                            {# Foto + Identidad lado a lado en pantallas grandes #}
+                            <div class="personal-top-grid">
+
+                                {# Foto de perfil #}
+                                <div class="foto-block">
+                                    <p class="form-section-title">Foto de perfil</p>
+                                    <input type="file" id="id_foto_perfil" name="foto_perfil" accept="image/*" style="display:none">
+                                    <div class="foto-upload-wrap">
+                                        <div id="fotoPreviewContainer" class="foto-preview-wrap">
+                                            <div class="foto-preview-placeholder">
+                                                <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="10" r="5" stroke="currentColor" stroke-width="1.5"/><path d="M4 24c0-5.523 4.477-10 10-10s10 4.477 10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                                            </div>
+                                        </div>
+                                        <div class="foto-upload-info">
+                                            <div class="foto-upload-hint">JPG, PNG · Máx. 5 MB</div>
+                                            <div class="foto-upload-actions">
+                                                <button type="button" id="btnSeleccionarFoto" class="btn btn-secondary btn-sm">Seleccionar foto</button>
+                                                <button type="button" id="btnEliminarFoto" class="btn btn-sm" style="color:var(--danger);border-color:rgba(239,68,68,.25);background:transparent;">Eliminar</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <input type="hidden" name="foto_perfil_eliminar" id="id_foto_perfil_eliminar" value="0">
+                                </div>
+
+                                {# Identidad #}
+                                <div class="identidad-block">
+                                    <p class="form-section-title">Identidad</p>
+                                    <div class="row g-3">
+                                        <div class="col-sm-6">
+                                            <label class="form-label">Nombre/s</label>
+                                            <input type="text" class="form-control" name="first_name" id="id_first_name">
+                                        </div>
+                                        <div class="col-sm-6">
+                                            <label class="form-label">Apellido/s</label>
+                                            <input type="text" class="form-control" name="last_name" id="id_last_name">
+                                        </div>
+                                        <div class="col-sm-6">
+                                            <label class="form-label">DNI</label>
+                                            <input type="text" class="form-control" name="dni" id="id_dni">
+                                        </div>
+                                        <div class="col-sm-6">
+                                            <label class="form-label">CUIL</label>
+                                            <input type="text" class="form-control" name="cuil" id="id_cuil">
+                                        </div>
+                                        <div class="col-sm-6">
+                                            <label class="form-label">Fecha de nacimiento</label>
+                                            <input type="date" class="form-control" name="fecha_nacimiento" id="id_fecha_nacimiento">
+                                        </div>
+                                        <div class="col-sm-6">
+                                            <label class="form-label">Nacionalidad</label>
+                                            <input type="text" class="form-control" name="nacionalidad" id="id_nacionalidad" value="Argentina">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {# Segunda fila: género, estado civil, hijos #}
+                            <div class="row g-3 mt-2">
+                                <div class="col-md-3">
+                                    <label class="form-label">Género</label>
+                                    <select class="form-select" name="genero" id="id_genero">
+                                        <option value="">—</option>
+                                        <option value="masculino">Masculino</option>
+                                        <option value="femenino">Femenino</option>
+                                        <option value="nd">Prefiero no decir</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Estado civil</label>
+                                    <select class="form-select" name="estado_civil" id="id_estado_civil">
+                                        <option value="">—</option>
+                                        <option value="soltero">Soltero/a</option>
+                                        <option value="casado">Casado/a</option>
+                                        <option value="divorciado">Divorciado/a</option>
+                                        <option value="viudo">Viudo/a</option>
+                                        <option value="union">Unión convivencial</option>
+                                        <option value="otro">Otro</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Cantidad de hijos</label>
+                                    <input type="number" class="form-control" name="cantidad_hijos" id="id_cantidad_hijos" value="0" min="0">
+                                </div>
+                                <div class="col-md-3 d-flex align-items-end pb-1">
+                                    <label class="check-label">
+                                        <input class="form-check-input" type="checkbox" name="tiene_hijos" id="id_tiene_hijos">
+                                        Tiene hijos
+                                    </label>
+                                </div>
+                            </div>
+
+                            {# Contacto personal #}
+                            <p class="form-section-title mt-4">Contacto personal</p>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">Teléfono personal</label>
+                                    <input type="text" class="form-control" name="telefono_personal" id="id_telefono_personal">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Teléfono alternativo</label>
+                                    <input type="text" class="form-control" name="telefono_alternativo" id="id_telefono_alternativo">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Email personal</label>
+                                    <input type="email" class="form-control" name="email_personal" id="id_email_personal">
+                                </div>
+                            </div>
+                        </div>
+
+                        {# ── TAB DOMICILIO ── #}
+                        <div class="tab-pane fade" id="tabDomicilio">
+                            <p class="form-section-title">Domicilio particular</p>
+                            <div class="row g-3">
+                                <div class="col-md-5">
+                                    <label class="form-label">Calle</label>
+                                    <input type="text" class="form-control" name="calle" id="id_calle">
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Número</label>
+                                    <input type="text" class="form-control" name="numero" id="id_numero">
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Piso / Depto</label>
+                                    <input type="text" class="form-control" name="piso_depto" id="id_piso_depto">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Barrio</label>
+                                    <input type="text" class="form-control" name="barrio" id="id_barrio">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Localidad</label>
+                                    <input type="text" class="form-control" name="localidad" id="id_localidad">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Partido / Municipio</label>
+                                    <input type="text" class="form-control" name="partido" id="id_partido">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Provincia</label>
+                                    <input type="text" class="form-control" name="provincia" id="id_provincia">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">País</label>
+                                    <input type="text" class="form-control" name="pais" id="id_pais" value="Argentina">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Código postal</label>
+                                    <input type="text" class="form-control" name="codigo_postal" id="id_codigo_postal">
+                                </div>
+                            </div>
+                        </div>
+
+                        {# ── TAB LABORAL ── #}
+                        <div class="tab-pane fade" id="tabLaboral">
+                            <p class="form-section-title">Datos laborales</p>
+                            <div class="row g-3 mb-2">
+                                <div class="col-md-4">
+                                    <label class="form-label">Puesto / Cargo</label>
+                                    <input type="text" class="form-control" name="puesto" id="id_puesto">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Área / Departamento</label>
+                                    <input type="text" class="form-control" name="area" id="id_area">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Sucursal / Sede</label>
+                                    <input type="text" class="form-control" name="sucursal" id="id_sucursal">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Nº de legajo</label>
+                                    <input type="text" class="form-control" name="legajo" id="id_legajo">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Fecha de ingreso</label>
+                                    <input type="date" class="form-control" name="fecha_ingreso" id="id_fecha_ingreso">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Fecha de egreso</label>
+                                    <input type="date" class="form-control" name="fecha_egreso" id="id_fecha_egreso">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Estado laboral</label>
+                                    <select class="form-select" name="estado_laboral" id="id_estado_laboral">
+                                        <option value="activo">Activo</option>
+                                        <option value="licencia">En licencia</option>
+                                        <option value="suspendido">Suspendido</option>
+                                        <option value="egresado">Egresado / Desvinculado</option>
+                                        <option value="periodo_prueba">Período de prueba</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Tipo de contrato</label>
+                                    <select class="form-select" name="tipo_contrato" id="id_tipo_contrato">
+                                        <option value="">—</option>
+                                        <option value="indeterminado">Tiempo indeterminado</option>
+                                        <option value="determinado">Tiempo determinado</option>
+                                        <option value="pasantia">Pasantía</option>
+                                        <option value="eventual">Eventual / Temporario</option>
+                                        <option value="prestacion">Prestación de servicios</option>
+                                        <option value="otro">Otro</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Modalidad de trabajo</label>
+                                    <select class="form-select" name="modalidad_trabajo" id="id_modalidad_trabajo">
+                                        <option value="">—</option>
+                                        <option value="presencial">Presencial</option>
+                                        <option value="remoto">Remoto</option>
+                                        <option value="hibrido">Híbrido</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <p class="form-section-title mt-3">Cuentas bancarias / Billeteras</p>
+                            <div class="subrecurso-header">
+                                <span class="subrecurso-hint">Podés agregar banco, billetera virtual, cripto, etc.</span>
+                                <button type="button" class="btn-add-row" id="btnAgregarCuenta">+ Agregar cuenta</button>
+                            </div>
+                            <div id="cuentasContainer" class="subrecurso-container"></div>
+                            <template id="cuentaTemplate">
+                                <div class="subrecurso-row cuenta-row">
+                                    <div class="subrecurso-fields">
+                                        <div class="field-group">
+                                            <label class="field-label">Tipo</label>
+                                            <select class="form-select form-select-sm" name="cb_tipo[]">
+                                                <option value="banco">Banco</option>
+                                                <option value="billetera">Billetera virtual</option>
+                                                <option value="cripto">Cripto / Exchange</option>
+                                                <option value="otro">Otro</option>
+                                            </select>
+                                        </div>
+                                        <div class="field-group field-grow-2">
+                                            <label class="field-label">Banco / Entidad <span class="field-required">*</span></label>
+                                            <input type="text" class="form-control form-control-sm" name="cb_nombre[]" placeholder="Ej: Banco Nación, Mercado Pago, Ualá">
+                                        </div>
+                                        <div class="field-group field-grow-2">
+                                            <label class="field-label">Titular</label>
+                                            <input type="text" class="form-control form-control-sm" name="cb_titular[]" placeholder="Solo si difiere del empleado">
+                                        </div>
+                                        <div class="field-group field-grow-2">
+                                            <label class="field-label">CBU / CVU</label>
+                                            <input type="text" class="form-control form-control-sm" name="cb_cbu_cvu[]">
+                                        </div>
+                                        <div class="field-group">
+                                            <label class="field-label">Alias</label>
+                                            <input type="text" class="form-control form-control-sm" name="cb_alias[]">
+                                        </div>
+                                        <div class="field-group">
+                                            <label class="field-label">Nº cuenta</label>
+                                            <input type="text" class="form-control form-control-sm" name="cb_nro_cuenta[]">
+                                        </div>
+                                        <div class="field-group field-narrow" style="text-align:center">
+                                            <label class="field-label">Principal</label>
+                                            <input type="checkbox" class="form-check-input d-block mx-auto mt-1" name="cb_es_principal[]" value="1">
+                                        </div>
+                                        <div class="field-group field-grow-2">
+                                            <label class="field-label">Observaciones</label>
+                                            <input type="text" class="form-control form-control-sm" name="cb_observaciones[]">
+                                        </div>
+                                    </div>
+                                    <button type="button" class="btn-del-tel btn-del-row" title="Eliminar">×</button>
+                                </div>
+                            </template>
+                        </div>
+
+                        {# ── TAB SALUD ── #}
+                        <div class="tab-pane fade" id="tabSalud">
+                            <p class="form-section-title">Información médica</p>
+                            <div class="row g-3 mb-2">
+                                <div class="col-md-3">
+                                    <label class="form-label">Grupo sanguíneo</label>
+                                    <input type="text" class="form-control" name="grupo_sanguineo" id="id_grupo_sanguineo" placeholder="Ej: A+, O-, AB+">
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label">Obra social / Prepaga</label>
+                                    <input type="text" class="form-control" name="obra_social" id="id_obra_social">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Nº de afiliado</label>
+                                    <input type="text" class="form-control" name="nro_afiliado" id="id_nro_afiliado">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Fecha del apto psicofísico</label>
+                                    <input type="date" class="form-control" name="fecha_apto" id="id_fecha_apto">
+                                </div>
+                                <div class="col-md-4 d-flex align-items-end pb-1">
+                                    <label class="check-label">
+                                        <input class="form-check-input" type="checkbox" name="apto_psicofisico" id="id_apto_psicofisico">
+                                        Apto psicofísico vigente
+                                    </label>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Observaciones de salud</label>
+                                    <textarea class="form-control" name="observaciones_salud" id="id_observaciones_salud" rows="3" placeholder="Alergias, medicación habitual, condiciones relevantes…"></textarea>
+                                </div>
+                            </div>
+
+                            <p class="form-section-title mt-3">Contacto de emergencia</p>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">Nombre</label>
+                                    <input type="text" class="form-control" name="emergencia_nombre" id="id_emergencia_nombre">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Vínculo</label>
+                                    <input type="text" class="form-control" name="emergencia_vinculo" id="id_emergencia_vinculo" placeholder="Ej: madre, cónyuge, hermano">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Teléfono</label>
+                                    <input type="text" class="form-control" name="emergencia_telefono" id="id_emergencia_telefono">
+                                </div>
+                            </div>
+                        </div>
+
+                        {# ── TAB ESTUDIOS ── #}
+                        <div class="tab-pane fade" id="tabEstudios">
+                            <p class="form-section-title">Estudios realizados</p>
+                            <div class="subrecurso-header">
+                                <span class="subrecurso-hint">Cada fila representa un nivel o título educativo.</span>
+                                <button type="button" class="btn-add-row" id="btnAgregarEstudio">+ Agregar estudio</button>
+                            </div>
+                            <div id="estudiosContainer" class="subrecurso-container"></div>
+                            <template id="estudioTemplate">
+                                <div class="subrecurso-row estudio-row">
+                                    <div class="subrecurso-fields estudio-row-fields">
+                                        <div class="field-group">
+                                            <label class="field-label">Nivel</label>
+                                            <select class="form-select form-select-sm" name="estudio_nivel[]">
+                                                <option value="primario">Primario</option>
+                                                <option value="secundario">Secundario</option>
+                                                <option value="terciario">Terciario / Técnico</option>
+                                                <option value="universitario">Universitario</option>
+                                                <option value="posgrado">Posgrado / Maestría</option>
+                                                <option value="doctorado">Doctorado</option>
+                                                <option value="curso">Curso / Taller</option>
+                                                <option value="idioma">Idioma</option>
+                                                <option value="otro">Otro</option>
+                                            </select>
+                                        </div>
+                                        <div class="field-group field-grow-2">
+                                            <label class="field-label">Título / Carrera <span class="field-required">*</span></label>
+                                            <input type="text" class="form-control form-control-sm" name="estudio_titulo[]" required>
+                                        </div>
+                                        <div class="field-group field-grow-2">
+                                            <label class="field-label">Institución</label>
+                                            <input type="text" class="form-control form-control-sm" name="estudio_institucion[]">
+                                        </div>
+                                        <div class="field-group">
+                                            <label class="field-label">Estado</label>
+                                            <select class="form-select form-select-sm" name="estudio_estado[]">
+                                                <option value="completo">Completo</option>
+                                                <option value="en_curso">En curso</option>
+                                                <option value="incompleto">Incompleto</option>
+                                            </select>
+                                        </div>
+                                        <div class="field-group">
+                                            <label class="field-label">Inicio</label>
+                                            <input type="date" class="form-control form-control-sm" name="estudio_fecha_inicio[]">
+                                        </div>
+                                        <div class="field-group">
+                                            <label class="field-label">Fin / Egreso</label>
+                                            <input type="date" class="form-control form-control-sm" name="estudio_fecha_fin[]">
+                                        </div>
+                                        <div class="field-group field-narrow">
+                                            <label class="field-label">Promedio</label>
+                                            <input type="number" class="form-control form-control-sm" name="estudio_promedio[]" step="0.01">
+                                        </div>
+                                        <div class="field-group field-grow-2">
+                                            <label class="field-label">Observaciones</label>
+                                            <input type="text" class="form-control form-control-sm" name="estudio_observaciones[]">
+                                        </div>
+                                    </div>
+                                    <button type="button" class="btn-del-tel btn-del-row" title="Eliminar">×</button>
+                                </div>
+                            </template>
+                        </div>
+
+                        {# ── TAB EXPERIENCIA ── #}
+                        <div class="tab-pane fade" id="tabExperiencia">
+                            <p class="form-section-title">Experiencia laboral previa</p>
+                            <div class="subrecurso-header">
+                                <span class="subrecurso-hint">Registrá los trabajos anteriores al ingreso.</span>
+                                <button type="button" class="btn-add-row" id="btnAgregarExperiencia">+ Agregar experiencia</button>
+                            </div>
+                            <div id="experienciasContainer" class="subrecurso-container"></div>
+                            <template id="experienciaTemplate">
+                                <div class="subrecurso-row exp-row">
+                                    <div class="subrecurso-fields exp-row-fields">
+                                        <div class="field-group field-grow-2">
+                                            <label class="field-label">Empresa <span class="field-required">*</span></label>
+                                            <input type="text" class="form-control form-control-sm" name="exp_empresa[]" required>
+                                        </div>
+                                        <div class="field-group field-grow-2">
+                                            <label class="field-label">Puesto <span class="field-required">*</span></label>
+                                            <input type="text" class="form-control form-control-sm" name="exp_puesto[]" required>
+                                        </div>
+                                        <div class="field-group">
+                                            <label class="field-label">Área</label>
+                                            <input type="text" class="form-control form-control-sm" name="exp_area[]">
+                                        </div>
+                                        <div class="field-group">
+                                            <label class="field-label">Inicio <span class="field-required">*</span></label>
+                                            <input type="date" class="form-control form-control-sm" name="exp_fecha_inicio[]" required>
+                                        </div>
+                                        <div class="field-group">
+                                            <label class="field-label">Fin</label>
+                                            <input type="date" class="form-control form-control-sm" name="exp_fecha_fin[]">
+                                        </div>
+                                        <div class="field-group field-check-inline">
+                                            <label class="check-label">
+                                                <input class="form-check-input" type="checkbox" name="exp_trabajo_actual[]" value="1">
+                                                Trabajo actual
+                                            </label>
+                                        </div>
+                                        <div class="field-group">
+                                            <label class="field-label">Motivo de egreso</label>
+                                            <select class="form-select form-select-sm" name="exp_motivo_egreso[]">
+                                                <option value="">—</option>
+                                                <option value="renuncia">Renuncia voluntaria</option>
+                                                <option value="despido">Despido</option>
+                                                <option value="mutuo_acuerdo">Mutuo acuerdo</option>
+                                                <option value="fin_contrato">Fin de contrato</option>
+                                                <option value="cierre">Cierre de empresa</option>
+                                                <option value="otro">Otro</option>
+                                            </select>
+                                        </div>
+                                        <div class="field-group field-grow-3">
+                                            <label class="field-label">Descripción de tareas</label>
+                                            <input type="text" class="form-control form-control-sm" name="exp_descripcion[]">
+                                        </div>
+                                        <div class="field-group">
+                                            <label class="field-label">Referencia — Nombre</label>
+                                            <input type="text" class="form-control form-control-sm" name="exp_referencia_nombre[]">
+                                        </div>
+                                        <div class="field-group">
+                                            <label class="field-label">Referencia — Contacto</label>
+                                            <input type="text" class="form-control form-control-sm" name="exp_referencia_contacto[]">
+                                        </div>
+                                        <div class="field-group field-grow-2">
+                                            <label class="field-label">Observaciones</label>
+                                            <input type="text" class="form-control form-control-sm" name="exp_observaciones[]">
+                                        </div>
+                                    </div>
+                                    <button type="button" class="btn-del-tel btn-del-row" title="Eliminar">×</button>
+                                </div>
+                            </template>
+                        </div>
+
+                        {# ── TAB CAPACITACIONES ── #}
+                        <div class="tab-pane fade" id="tabCapacitaciones">
+                            <p class="form-section-title">Capacitaciones</p>
+                            <div class="subrecurso-header">
+                                <span class="subrecurso-hint">Cursos, inducciones y certificaciones del empleado.</span>
+                                <button type="button" class="btn-add-row" id="btnAgregarCapacitacion">+ Agregar capacitación</button>
+                            </div>
+                            <div id="capacitacionesContainer" class="subrecurso-container"></div>
+                            <template id="capacitacionTemplate">
+                                <div class="subrecurso-row cap-row">
+                                    <div class="subrecurso-fields cap-row-fields">
+                                        <div class="field-group field-grow-2">
+                                            <label class="field-label">Nombre <span class="field-required">*</span></label>
+                                            <input type="text" class="form-control form-control-sm" name="cap_nombre[]" required>
+                                        </div>
+                                        <div class="field-group">
+                                            <label class="field-label">Tipo</label>
+                                            <select class="form-select form-select-sm" name="cap_tipo[]">
+                                                <option value="onboarding">Onboarding / Inducción</option>
+                                                <option value="tecnica">Técnica</option>
+                                                <option value="seguridad">Seguridad e higiene</option>
+                                                <option value="blandas">Habilidades blandas</option>
+                                                <option value="normativa">Normativa / Compliance</option>
+                                                <option value="producto">Producto / Servicio</option>
+                                                <option value="otro">Otro</option>
+                                            </select>
+                                        </div>
+                                        <div class="field-group">
+                                            <label class="field-label">Modalidad</label>
+                                            <select class="form-select form-select-sm" name="cap_modalidad[]">
+                                                <option value="">—</option>
+                                                <option value="presencial">Presencial</option>
+                                                <option value="virtual">Virtual</option>
+                                                <option value="mixta">Mixta</option>
+                                                <option value="autogestivo">Autogestivo</option>
+                                            </select>
+                                        </div>
+                                        <div class="field-group">
+                                            <label class="field-label">Proveedor</label>
+                                            <input type="text" class="form-control form-control-sm" name="cap_proveedor[]">
+                                        </div>
+                                        <div class="field-group">
+                                            <label class="field-label">Inicio</label>
+                                            <input type="date" class="form-control form-control-sm" name="cap_fecha_inicio[]">
+                                        </div>
+                                        <div class="field-group">
+                                            <label class="field-label">Fin</label>
+                                            <input type="date" class="form-control form-control-sm" name="cap_fecha_fin[]">
+                                        </div>
+                                        <div class="field-group field-narrow">
+                                            <label class="field-label">Duración (hs)</label>
+                                            <input type="number" class="form-control form-control-sm" name="cap_duracion_hs[]" step="0.5">
+                                        </div>
+                                        <div class="field-group">
+                                            <label class="field-label">Resultado</label>
+                                            <select class="form-select form-select-sm" name="cap_resultado[]">
+                                                <option value="pendiente">Pendiente</option>
+                                                <option value="en_curso">En curso</option>
+                                                <option value="aprobado">Aprobado</option>
+                                                <option value="desaprobado">Desaprobado</option>
+                                                <option value="no_aplica">No aplica</option>
+                                            </select>
+                                        </div>
+                                        <div class="field-group field-narrow">
+                                            <label class="field-label">Calificación</label>
+                                            <input type="number" class="form-control form-control-sm" name="cap_calificacion[]" step="0.01">
+                                        </div>
+                                        <div class="field-group field-narrow">
+                                            <label class="field-label">Nota máx.</label>
+                                            <input type="number" class="form-control form-control-sm" name="cap_nota_maxima[]" step="0.01">
+                                        </div>
+                                        <div class="field-group">
+                                            <label class="field-label">Vto. certificado</label>
+                                            <input type="date" class="form-control form-control-sm" name="cap_vencimiento_cert[]">
+                                        </div>
+                                        <div class="field-group field-check-inline">
+                                            <label class="check-label">
+                                                <input class="form-check-input" type="checkbox" name="cap_es_obligatoria[]" value="1">
+                                                Obligatoria
+                                            </label>
+                                        </div>
+                                        <div class="field-group field-check-inline">
+                                            <label class="check-label">
+                                                <input class="form-check-input" type="checkbox" name="cap_certificado_emitido[]" value="1">
+                                                Certificado emitido
+                                            </label>
+                                        </div>
+                                        <div class="field-group field-grow-3">
+                                            <label class="field-label">Observaciones</label>
+                                            <input type="text" class="form-control form-control-sm" name="cap_observaciones[]">
+                                        </div>
+                                    </div>
+                                    <button type="button" class="btn-del-tel btn-del-row" title="Eliminar">×</button>
+                                </div>
+                            </template>
+                        </div>
+
+                        {# ── TAB DOCUMENTOS ── #}
+                        <div class="tab-pane fade" id="tabDocumentos">
+                            <p class="form-section-title">Documentos</p>
+                            <div class="subrecurso-header">
+                                <span class="subrecurso-hint">Adjuntá contratos, constancias, títulos y más.</span>
+                                <button type="button" class="btn-add-row" id="btnAgregarDocumento">+ Agregar documento</button>
+                            </div>
+                            <div id="documentosContainer" class="subrecurso-container"></div>
+                            <template id="documentoTemplate">
+                                <div class="subrecurso-row doc-row">
+                                    <div class="subrecurso-fields doc-row-fields">
+                                        <div class="field-group">
+                                            <label class="field-label">Tipo</label>
+                                            <select class="form-select form-select-sm" name="doc_tipo[]">
+                                                <option value="dni">DNI / Identidad</option>
+                                                <option value="contrato">Contrato laboral</option>
+                                                <option value="titulo">Título / Certificado</option>
+                                                <option value="certificado">Cert. capacitación</option>
+                                                <option value="apto_medico">Apto médico</option>
+                                                <option value="recibo_sueldo">Recibo de sueldo</option>
+                                                <option value="constancia">Constancia</option>
+                                                <option value="obra_social">Obra social</option>
+                                                <option value="otro">Otro</option>
+                                            </select>
+                                        </div>
+                                        <div class="field-group field-grow-2">
+                                            <label class="field-label">Descripción <span class="field-required">*</span></label>
+                                            <input type="text" class="form-control form-control-sm" name="doc_nombre[]" required>
+                                        </div>
+                                        <div class="field-group field-grow-2">
+                                            <label class="field-label">Archivo</label>
+                                            <input type="file" class="form-control form-control-sm" name="doc_archivo[]" accept=".pdf,.jpg,.png,.jpeg">
+                                        </div>
+                                        <div class="field-group">
+                                            <label class="field-label">Fecha del documento</label>
+                                            <input type="date" class="form-control form-control-sm" name="doc_fecha_doc[]">
+                                        </div>
+                                        <div class="field-group">
+                                            <label class="field-label">Vencimiento</label>
+                                            <input type="date" class="form-control form-control-sm" name="doc_vencimiento[]">
+                                        </div>
+                                        <div class="field-group field-grow-2">
+                                            <label class="field-label">Notas</label>
+                                            <input type="text" class="form-control form-control-sm" name="doc_observaciones[]">
+                                        </div>
+                                    </div>
+                                    <button type="button" class="btn-del-tel btn-del-row" title="Eliminar">×</button>
+                                </div>
+                            </template>
+                        </div>
+
+                    </div>{# /tab-content #}
+
+                    <div id="formErrores" class="alerta-inline alerta-error mt-3" style="display:none;"></div>
+
+                    <div class="modal-footer-custom">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary btn-sm" id="btnGuardarUsuario">Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+
+{# ── Modal confirmar eliminación ── #}
+{% if puede_eliminar %}
+<div class="modal fade" id="confirmarEliminarModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header modal-header-danger">
+                <h5 class="modal-title">Eliminar usuario</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>¿Confirmas la eliminación de:</p>
+                <p><strong id="nombreUsuarioEliminar"></strong></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger btn-sm" id="confirmarEliminarBtn">Eliminar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    window.usuarioAccionesUrl = "{% url 'core:usuario_acciones' %}";
+    window.usuarioEliminarUrl = "{% url 'core:usuario_eliminar' %}";
+</script>
+<script src="{% static 'core/js/gestion_usuarios.js' %}"></script>
+{% endblock %}
