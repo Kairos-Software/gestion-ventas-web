@@ -162,8 +162,59 @@
 .prod-nombre { font-weight: 500; color: var(--text-primary); }
 .prod-codigo { font-size: 0.7rem; color: var(--text-muted); font-family: monospace; }
 
-/* ── Barra de stock ── */
-.stock-bar-wrap {
+/* ── Marca de mínimo en la barra ── */
+.stock-bar {
+    position: relative;
+}
+
+.stock-bar-minimo {
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    width: 2px;
+    background: var(--text-muted);
+    border-radius: 1px;
+    opacity: 0.45;
+    z-index: 2;
+    pointer-events: none;
+}
+
+.stock-bar-minimo::after {
+    content: '';
+    position: absolute;
+    top: -3px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 5px;
+    height: 5px;
+    background: var(--text-muted);
+    border-radius: 50%;
+    opacity: 0.7;
+}
+
+/* ── Celda de mínimo ── */
+.stock-minimo-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.stock-minimo-val {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
+.stock-minimo-pct {
+    font-size: 0.68rem;
+    font-weight: 600;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+.stock-minimo-pct.ok      { color: var(--success); }
+.stock-minimo-pct.warning { color: var(--warning); }
+.stock-minimo-pct.danger  { color: var(--danger); }
+
+
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -573,4 +624,44 @@
 @media (max-width: 600px) {
     .kpi-grid { grid-template-columns: 1fr; }
     .filter-bar { flex-wrap: wrap; }
+}
+/* ── Desglose de colores en fila de stock ── */
+.stock-colores {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-top: 0.35rem;
+}
+
+.stock-color-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 0.35rem;
+    padding: 0.1rem 0.45rem 0.1rem 0.3rem;
+    white-space: nowrap;
+}
+
+.stock-color-swatch {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    border: 1px solid rgba(0,0,0,0.15);
+    flex-shrink: 0;
+}
+/* Modal con scroll interno cuando el contenido es alto */
+.modal-box {
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.modal-box > div:last-child {   /* el div con padding que tiene los campos */
+    overflow-y: auto;
 }

@@ -6,15 +6,40 @@ from django.views import View
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Q, F
 
 from .models import Producto, MovimientoStock, TipoMovimiento, MOVIMIENTOS_ENTRADA
-from core.permisos import chequear_permiso  # ← único import nuevo
+from productos.models import ProductoColor
+from core.permisos import chequear_permiso
 
 TIPOS_AJUSTE = {
     TipoMovimiento.AJUSTE_POS,
     TipoMovimiento.AJUSTE_NEG,
 }
+
+
+def _serializar_colores(producto):
+    """
+    Devuelve un string JSON con los colores activos del producto,
+    listo para inyectar en data-colores del <tr>.
+    Igual que hace BuscarProductoAjax en compras.
+    Ejemplo: '[{"pk":1,"nombre":"Rojo","codigo_hex":"#e00","stock_actual":"3"}]'
+    Si el producto no tiene variantes de color devuelve '[]'.
+    """
+    if not producto.tiene_variantes_color:
+        return '[]'
+    colores = [
+        {
+            'pk':          c.pk,
+            'nombre':      c.nombre,
+            'codigo_hex':  c.codigo_hex or '',
+            'stock_actual': str(c.stock_actual),
+        }
+        for c in producto.colores.all()   # ya viene del prefetch_related
+        if c.activo
+    ]
+    return json.dumps(colores, ensure_ascii=False)
 
 
 class StockView(LoginRequiredMixin, TemplateView):
@@ -23,7 +48,6 @@ class StockView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
 
-        # ── Permisos para el template ─────────────────────────────
         ctx['puede_ajustar'] = chequear_permiso(self.request.user, 'ajustar_stock')
 
         if not chequear_permiso(self.request.user, 'ver_stock'):
@@ -32,7 +56,7 @@ class StockView(LoginRequiredMixin, TemplateView):
 
         qs = Producto.objects.filter(
             gestiona_stock=True
-        ).select_related('categoria').order_by('nombre')
+        ).select_related('categoria').prefetch_related('colores').order_by('nombre')
 
         q = self.request.GET.get('q', '').strip()
         if q:
@@ -51,12 +75,18 @@ class StockView(LoginRequiredMixin, TemplateView):
             qs = qs.filter(stock_actual__lte=0)
 
         paginator = Paginator(qs, 25)
-        productos = paginator.get_page(self.request.GET.get('page', 1))
+        page_obj  = paginator.get_page(self.request.GET.get('page', 1))
+
+        # ── Adjuntar colores serializados a cada producto de la página ──
+        # Se hace aquí en Python para evitar construir JSON con el sistema
+        # de templates de Django (frágil con {% for %} + {% if %} anidados).
+        for p in page_obj:
+            p.colores_json_str = _serializar_colores(p)
 
         todos = Producto.objects.filter(gestiona_stock=True)
 
         ctx.update({
-            'productos':        productos,
+            'productos':        page_obj,
             'total_productos':  todos.count(),
             'stock_bajo_count': todos.filter(stock_actual__lte=F('stock_minimo'), stock_actual__gt=0).count(),
             'sin_stock_count':  todos.filter(stock_actual__lte=0).count(),
@@ -112,7 +142,26 @@ class StockHistorialAjax(LoginRequiredMixin, View):
 
 
 class StockAjusteAjax(LoginRequiredMixin, View):
-    """POST — registra un ajuste manual de stock."""
+    """
+    POST — registra un ajuste manual de stock.
+
+    Soporta productos con y sin variantes de color:
+
+    - Sin colores: ajusta Producto.stock_actual vía MovimientoStock.save().
+    - Con colores: requiere color_pk. Registra el MovimientoStock a nivel
+      producto (auditoría), ajusta ProductoColor.stock_actual, y luego
+      llama sincronizar_stock_desde_colores() para que el total del
+      producto quede consistente.
+
+    Body JSON:
+    {
+        "producto_pk": 12,
+        "tipo":        "ajuste_pos" | "ajuste_neg",
+        "cantidad":    3,
+        "motivo":      "Conteo físico mayo",   // opcional
+        "color_pk":    5                        // requerido si tiene_variantes_color
+    }
+    """
 
     def post(self, request):
         if not chequear_permiso(request.user, 'ajustar_stock'):
@@ -126,6 +175,7 @@ class StockAjusteAjax(LoginRequiredMixin, View):
         producto_pk = body.get('producto_pk')
         tipo        = body.get('tipo', '').strip()
         motivo      = body.get('motivo', '').strip()
+        color_pk    = body.get('color_pk')  # None si el producto no maneja colores
 
         if not producto_pk:
             return JsonResponse({'ok': False, 'error': 'Falta producto_pk.'}, status=400)
@@ -145,19 +195,54 @@ class StockAjusteAjax(LoginRequiredMixin, View):
         except (TypeError, ValueError, InvalidOperation):
             return JsonResponse({'ok': False, 'error': 'La cantidad debe ser un número positivo.'}, status=400)
 
+        # ── Validar / resolver color ──────────────────────────────
+        color = None
+        if producto.tiene_variantes_color:
+            if not color_pk:
+                return JsonResponse({
+                    'ok':    False,
+                    'error': 'Este producto tiene variantes de color. Seleccioná un color para ajustar.'
+                }, status=400)
+            color = get_object_or_404(ProductoColor, pk=color_pk, producto=producto)
+        else:
+            if color_pk:
+                return JsonResponse({
+                    'ok':    False,
+                    'error': 'Este producto no maneja variantes de color.'
+                }, status=400)
+
+        # ── Registrar movimiento y ajustar stock ──────────────────
         try:
-            mov = MovimientoStock(
-                producto=producto,
-                tipo=tipo,
-                cantidad=cantidad,
-                motivo=motivo,
-                usuario=request.user,
-            )
-            mov.save()
+            with transaction.atomic():
+                mov = MovimientoStock(
+                    producto=producto,
+                    tipo=tipo,
+                    cantidad=cantidad,
+                    motivo=motivo,
+                    usuario=request.user,
+                )
+                mov.save()  # ajusta Producto.stock_actual internamente
+
+                if color is not None:
+                    # Ajustar el color específico y resincronizar el total
+                    # (igual que hace _sumar_stock_item / _restar_stock_item en compras)
+                    es_entrada = tipo in MOVIMIENTOS_ENTRADA
+                    if es_entrada:
+                        color.stock_actual += cantidad
+                    else:
+                        color.stock_actual -= cantidad
+                    color.save(update_fields=['stock_actual'])
+                    producto.sincronizar_stock_desde_colores()
+
         except ValueError as e:
             return JsonResponse({'ok': False, 'error': str(e)}, status=400)
 
         producto.refresh_from_db()
+
+        color_stock = None
+        if color is not None:
+            color.refresh_from_db()
+            color_stock = str(color.stock_actual)
 
         return JsonResponse({
             'ok':              True,
@@ -167,4 +252,6 @@ class StockAjusteAjax(LoginRequiredMixin, View):
             'stock_bajo':      producto.stock_bajo,
             'es_entrada':      mov.es_entrada,
             'tipo_display':    mov.get_tipo_display(),
+            'color_pk':        color.pk if color else None,
+            'color_stock':     color_stock,
         })

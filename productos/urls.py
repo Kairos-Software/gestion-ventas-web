@@ -26,6 +26,12 @@ urlpatterns = [
     path('imagenes/eliminar/',    views_productos.ProductoImagenEliminarAjax.as_view(), name='producto_imagen_eliminar'),
     path('imagenes/portada/',     views_productos.ProductoImagenPortadaAjax.as_view(),  name='producto_imagen_portada'),
 
+    # — Colores —
+    path('colores/',              views_productos.ProductoColorListaAjax.as_view(),         name='producto_color_lista'),
+    path('colores/acciones/',     views_productos.ProductoColorAccionesAjax.as_view(),      name='producto_color_acciones'),
+    path('colores/stock/',        views_productos.ProductoColorStockAjax.as_view(),         name='producto_color_stock'),
+    path('colores/toggle/',       views_productos.ProductoColorToggleActivoAjax.as_view(),  name='producto_color_toggle'),
+
     # ══════════════════════════════════════════════════════════════════
     #  CATEGORÍAS
     # ══════════════════════════════════════════════════════════════════
@@ -43,7 +49,7 @@ urlpatterns = [
     # ══════════════════════════════════════════════════════════════════
     #  STOCK
     # ══════════════════════════════════════════════════════════════════
-    path('stock/',           views_stock.StockView.as_view(),        name='stock'),
-    path('stock/ajuste/',    views_stock.StockAjusteAjax.as_view(),  name='stock_ajuste'),
+    path('stock/',           views_stock.StockView.as_view(),          name='stock'),
+    path('stock/ajuste/',    views_stock.StockAjusteAjax.as_view(),    name='stock_ajuste'),
     path('stock/historial/', views_stock.StockHistorialAjax.as_view(), name='stock_historial'),
 ]

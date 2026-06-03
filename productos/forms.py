@@ -146,13 +146,16 @@ class ProductoForm(forms.ModelForm):
             # Dimensiones
             'peso_kg', 'alto_cm', 'ancho_cm', 'profundidad_cm',
             # Precios
-            'precio_venta', 'precio_mayorista', 'precio_oferta',
-            # Impuestos
-            'alicuota_iva', 'precio_incluye_iva',
+            'precio_venta',
             # Estado y visibilidad (publicado se maneja con botón toggle en tabla)
             'estado', 'publicado', 'destacado',
             # Logística
             'requiere_refrigeracion', 'es_fragil', 'es_peligroso',
+            'posicion_deposito',
+            # Stock
+            'gestiona_stock', 'permite_stock_negativo',
+            # Colores
+            'tiene_variantes_color', 'color_unico',
             # Notas
             'notas', 'tags',
         ]
@@ -216,12 +219,6 @@ class ProductoForm(forms.ModelForm):
  
             # — Precios —
             'precio_venta':     forms.NumberInput(attrs={'class': 'form-control nx-input', 'step': '0.01', 'min': '0', 'placeholder': '0.00'}),
-            'precio_mayorista': forms.NumberInput(attrs={'class': 'form-control nx-input', 'step': '0.01', 'min': '0', 'placeholder': '0.00'}),
-            'precio_oferta':    forms.NumberInput(attrs={'class': 'form-control nx-input', 'step': '0.01', 'min': '0', 'placeholder': '0.00'}),
- 
-            # — Impuestos —
-            'alicuota_iva':       forms.Select(attrs={'class': 'form-select nx-input'}),
-            'precio_incluye_iva': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
  
             # — Estado —
             'estado':     forms.Select(attrs={'class': 'form-select nx-input'}),
@@ -232,7 +229,16 @@ class ProductoForm(forms.ModelForm):
             'requiere_refrigeracion': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'es_fragil':              forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'es_peligroso':           forms.CheckboxInput(attrs={'class': 'form-check-input'}),
- 
+            'posicion_deposito':      forms.TextInput(attrs={'class': 'form-control nx-input', 'placeholder': 'Ej: A3-P2'}),
+
+            # — Stock —
+            'gestiona_stock':         forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'permite_stock_negativo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+
+            # — Colores —
+            'tiene_variantes_color':  forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'color_unico':            forms.TextInput(attrs={'class': 'form-control nx-input', 'placeholder': 'Ej: Azul marino'}),
+
             # — Notas —
             'notas': forms.Textarea(attrs={
                 'class': 'form-control nx-input',
@@ -265,14 +271,6 @@ class ProductoForm(forms.ModelForm):
             raise forms.ValidationError('Ya existe un producto con ese código.')
         return codigo
  
-    def clean_precio_oferta(self):
-        oferta = self.cleaned_data.get('precio_oferta')
-        venta  = self.cleaned_data.get('precio_venta')
-        if oferta and venta and oferta >= venta:
-            raise forms.ValidationError(
-                'El precio de oferta debe ser menor al precio de venta.'
-            )
-        return oferta
  
  
 # ══════════════════════════════════════════════════════════════════

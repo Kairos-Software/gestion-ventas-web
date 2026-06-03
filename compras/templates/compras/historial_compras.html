@@ -15,7 +15,7 @@
 <div class="historial-header">
     <div class="historial-title">
         <h1>Historial de Compras</h1>
-        <p>Registro completo de todas las órdenes de compra</p>
+        <p>Registro completo de todas las órdenes de compra confirmadas</p>
     </div>
 </div>
 
@@ -30,7 +30,9 @@
         <select id="filtroEstado">
             <option value="">Todos</option>
             {% for val, label in estados %}
-                <option value="{{ val }}">{{ label }}</option>
+                {% if val != 'borrador' %}
+                    <option value="{{ val }}">{{ label }}</option>
+                {% endif %}
             {% endfor %}
         </select>
     </div>
@@ -72,15 +74,53 @@
     <button class="btn-pag" id="btnSiguiente">Siguiente →</button>
 </div>
 
+<!-- ══════════════════════════════════════════════════════
+     MODAL DE CONFIRMACIÓN
+══════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalOverlay">
+    <div class="modal-box">
+        <div class="modal-icon" id="modalIcon"></div>
+        <h3 class="modal-title" id="modalTitle"></h3>
+        <p class="modal-body" id="modalBody"></p>
+        <div class="modal-warning" id="modalWarning" style="display:none;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M8 1.5L14.5 13H1.5L8 1.5Z" stroke="currentColor" stroke-width="1.4"
+                      stroke-linejoin="round"/>
+                <path d="M8 6V9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                <circle cx="8" cy="11.5" r="0.75" fill="currentColor"/>
+            </svg>
+            <span id="modalWarningText"></span>
+        </div>
+        <div class="modal-actions">
+            <button class="modal-btn modal-btn-cancel" id="modalCancel">Cancelar</button>
+            <button class="modal-btn modal-btn-confirm" id="modalConfirm"></button>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
 <script>
     const HISTORIAL_URLS = {
-        listar:    "{% url 'compras:listar_compras' %}",
-        productos: "{% url 'productos:gestion_productos' %}",
-        proveedores:"{% url 'productos:gestion_proveedores' %}",
+        listar:      "{% url 'compras:listar_compras' %}",
+        anular:      "{% url 'compras:anular_compra' %}",
+        reactivar:   "{% url 'compras:reactivar_compra' %}",
+        eliminar:    "{% url 'compras:eliminar_compra' %}",
+        editar:      "{% url 'compras:editar_compra' %}",
+        productos:   "{% url 'productos:gestion_productos' %}",
+        proveedores: "{% url 'productos:gestion_proveedores' %}",
+        buscarProducto:  "{% url 'compras:buscar_producto' %}",
+        buscarProveedor: "{% url 'compras:buscar_proveedor' %}",
     };
+    const HISTORIAL_PERMISOS = {
+        puede_editar:   {{ puede_editar|yesno:"true,false" }},
+        puede_eliminar: {{ puede_eliminar|yesno:"true,false" }},
+    };
+    const CSRF_TOKEN = "{{ csrf_token }}";
 </script>
+<script src="{% static 'compras/js/historial_utils.js' %}"></script>
+<script src="{% static 'compras/js/historial_docs.js' %}"></script>
+<script src="{% static 'compras/js/historial_editor.js' %}"></script>
 <script src="{% static 'compras/js/historial_compras.js' %}"></script>
 {% endblock %}

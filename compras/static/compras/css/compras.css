@@ -69,12 +69,10 @@
     grid-template-columns: minmax(0, 1fr) 300px;
     gap: 1.25rem;
     align-items: start;
-    /* Asegura que no desborde el contenedor padre */
     width: 100%;
     min-width: 0;
 }
 
-/* Fuerza que la columna principal no desborde */
 .cmp-layout > :first-child {
     min-width: 0;
     overflow: hidden;
@@ -99,12 +97,10 @@
     box-shadow: var(--shadow-sm);
 }
 
-/* La card del buscador NO debe clip al dropdown */
 .cmp-card--search {
     overflow: visible;
 }
 
-/* Dentro de la card de búsqueda, el body tampoco clipea */
 .cmp-card--search .cmp-card-body {
     overflow: visible;
 }
@@ -192,7 +188,6 @@
 }
 
 .cmp-dropdown-item:last-child { border-bottom: none; }
-
 .cmp-dropdown-item:hover { background: var(--brand-orange-light); }
 
 .cmp-dropdown-item-top {
@@ -245,6 +240,9 @@
 .cmp-meta-chip--stock strong { color: var(--success); }
 .cmp-meta-chip--stock.bajo strong { color: var(--warning); }
 
+/* Chip de colores en el dropdown */
+.cmp-meta-chip--colores strong { color: var(--brand-blue, #1E6FA8); }
+
 .cmp-dropdown-empty {
     padding: 1.25rem;
     text-align: center;
@@ -285,13 +283,46 @@
 }
 
 .cmp-table tbody tr:last-child td { border-bottom: none; }
+.cmp-table tbody tr.cmp-row-main:hover td { background: var(--bg-surface-hover); }
 
-.cmp-table tbody tr:hover td { background: var(--bg-surface-hover); }
+/* La fila de colores no tiene hover propio, toma fondo sutil */
+.cmp-table tbody tr.cmp-row-colores td {
+    background: var(--bg-secondary);
+    padding: 0;
+    border-bottom: 2px solid var(--border-color);
+}
 
 /* Producto en tabla */
 .cmp-prod-cell   { display: flex; flex-direction: column; gap: .15rem; min-width: 140px; }
 .cmp-prod-nombre { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: .82rem; color: var(--text-primary); line-height: 1.3; }
 .cmp-prod-meta   { font-size: .7rem; color: var(--text-muted); }
+
+/* Badge "Por color" en celda de producto */
+.cmp-prod-badge-colores {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    font-size: .65rem;
+    font-weight: 700;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    color: var(--brand-blue, #1E6FA8);
+    background: rgba(30, 111, 168, .08);
+    border: 1px solid rgba(30, 111, 168, .18);
+    border-radius: .3rem;
+    padding: .1rem .4rem;
+    margin-top: .2rem;
+    width: fit-content;
+}
+
+/* Ícono de advertencia distribución incompleta */
+.cmp-color-warning {
+    display: inline-flex;
+    align-items: center;
+    margin-left: .35rem;
+    color: var(--warning, #F59E0B);
+    vertical-align: middle;
+    cursor: help;
+}
 
 /* Inputs inline */
 .cmp-input-inline {
@@ -339,8 +370,6 @@
 .cmp-prov-wrap { position: relative; min-width: 140px; }
 
 .cmp-prov-dropdown {
-    /* El dropdown global se posiciona fixed por JS;
-       esta regla aplica a ambos casos (inline legacy y global) */
     background: var(--bg-white);
     border: 1px solid var(--border-color);
     border-radius: .625rem;
@@ -422,6 +451,108 @@
 .cmp-empty p {
     font-size: .875rem;
     margin: 0;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   DISTRIBUCIÓN POR COLOR (fila secundaria)
+──────────────────────────────────────────────────────────────── */
+.cmp-colores-panel {
+    padding: .75rem 1.25rem .875rem;
+    border-left: 3px solid var(--brand-blue, #1E6FA8);
+}
+
+.cmp-colores-panel-header {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    margin-bottom: .625rem;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: .65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .09em;
+    color: var(--brand-blue, #1E6FA8);
+}
+
+.cmp-colores-panel-header svg { flex-shrink: 0; }
+
+/* Resumen (distribución completa / incompleta) */
+.cmp-colores-panel-resumen {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    font-size: .7rem;
+    font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+    text-transform: none;
+    letter-spacing: 0;
+    margin-left: auto;
+    padding: .15rem .55rem;
+    border-radius: .375rem;
+}
+
+.cmp-colores-panel-resumen.ok {
+    color: var(--success, #22C55E);
+    background: rgba(34, 197, 94, .08);
+    border: 1px solid rgba(34, 197, 94, .2);
+}
+
+.cmp-colores-panel-resumen.error {
+    color: var(--warning, #F59E0B);
+    background: rgba(245, 158, 11, .08);
+    border: 1px solid rgba(245, 158, 11, .2);
+}
+
+.cmp-colores-panel-resumen strong { font-weight: 700; }
+
+/* Chips de colores */
+.cmp-colores-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem .75rem;
+}
+
+.cmp-color-chip {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: .5rem;
+    padding: .3rem .55rem .3rem .45rem;
+    font-family: 'DM Sans', sans-serif;
+    font-size: .78rem;
+}
+
+/* Pastilla de color */
+.cmp-color-swatch {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 1px solid rgba(0,0,0,.12);
+    flex-shrink: 0;
+}
+
+.cmp-color-chip-nombre {
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+.cmp-color-chip-stock {
+    font-size: .7rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+/* Input de cantidad dentro del chip */
+.cmp-color-qty {
+    min-width: 52px !important;
+    max-width: 68px !important;
+    padding: .25rem .4rem !important;
+    font-size: .78rem !important;
+    text-align: right;
 }
 
 /* ────────────────────────────────────────────────────────────────
@@ -631,4 +762,290 @@ textarea.cmp-control {
 .cmp-spin {
     animation: cmp-spin .7s linear infinite;
     display: inline-block;
+}
+/* ────────────────────────────────────────────────────────────────
+   PANEL DOCUMENTOS ADJUNTOS
+──────────────────────────────────────────────────────────────── */
+
+/* Zona de drag & drop */
+.cmp-doc-upload-zone {
+    border: 1.5px dashed var(--border-strong, #CBD5E1);
+    border-radius: .75rem;
+    padding: 1.25rem 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .35rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .18s, background .18s;
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+    font-size: .8rem;
+    font-family: 'DM Sans', sans-serif;
+}
+
+.cmp-doc-upload-zone:hover,
+.cmp-doc-upload-zone.over {
+    border-color: var(--brand-orange);
+    background: var(--brand-orange-light);
+    color: var(--brand-orange-dark);
+}
+
+.cmp-doc-upload-zone svg { opacity: .5; }
+.cmp-doc-upload-zone:hover svg,
+.cmp-doc-upload-zone.over svg { opacity: 1; }
+
+.cmp-doc-upload-zone p { margin: 0; line-height: 1.4; }
+
+.cmp-doc-upload-link {
+    color: var(--brand-orange);
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.cmp-doc-upload-hint {
+    font-size: .72rem !important;
+    color: var(--text-muted) !important;
+    opacity: .8;
+}
+
+/* Lista de documentos */
+.cmp-doc-lista {
+    display: flex;
+    flex-direction: column;
+    gap: .4rem;
+    margin-top: .75rem;
+}
+
+.cmp-doc-item {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    padding: .5rem .65rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: .5rem;
+    font-family: 'DM Sans', sans-serif;
+    font-size: .8rem;
+    transition: background .12s;
+}
+
+.cmp-doc-item:hover { background: var(--bg-surface-hover); }
+
+.cmp-doc-item-icon {
+    flex-shrink: 0;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+}
+
+.cmp-doc-item-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .1rem;
+}
+
+.cmp-doc-item-nombre {
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: .8rem;
+    text-decoration: none;
+}
+
+a.cmp-doc-item-nombre:hover { color: var(--brand-orange); text-decoration: underline; }
+
+.cmp-doc-item-tipo {
+    font-size: .7rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: .3rem;
+}
+
+/* Badge "pendiente" */
+.cmp-doc-pendiente-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: .05rem .4rem;
+    border-radius: .25rem;
+    font-size: .62rem;
+    font-weight: 700;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    background: rgba(245, 158, 11, .12);
+    color: var(--warning, #F59E0B);
+    border: 1px solid rgba(245, 158, 11, .25);
+}
+
+/* Botón quitar documento */
+.cmp-doc-item-del {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    border-radius: .375rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: background .14s, color .14s;
+    padding: 0;
+}
+
+.cmp-doc-item-del:hover {
+    background: rgba(239, 68, 68, .1);
+    color: var(--danger, #EF4444);
+}
+
+/* ────────────────────────────────────────────────────────────────
+   DETALLE DE COMPRA
+──────────────────────────────────────────────────────────────── */
+.cdt-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 1.25rem;
+    align-items: start;
+}
+
+@media (max-width: 1100px) { .cdt-layout { grid-template-columns: minmax(0,1fr) 280px; } }
+@media (max-width: 960px)  { .cdt-layout { grid-template-columns: 1fr; } }
+
+.cdt-col-main  { min-width: 0; }
+.cdt-col-side  { position: sticky; top: 1rem; }
+
+/* Acciones del header */
+.cdt-header-actions {
+    display: flex;
+    gap: .6rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+/* Badge de estado */
+.cdt-estado {
+    display: inline-flex;
+    align-items: center;
+    padding: .2rem .7rem;
+    border-radius: 99px;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: .65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    vertical-align: middle;
+    margin-left: .5rem;
+}
+
+.cdt-estado--confirmada {
+    background: rgba(34, 197, 94, .1);
+    color: var(--success, #22C55E);
+    border: 1px solid rgba(34, 197, 94, .25);
+}
+
+.cdt-estado--borrador {
+    background: rgba(245, 158, 11, .1);
+    color: var(--warning, #F59E0B);
+    border: 1px solid rgba(245, 158, 11, .25);
+}
+
+.cdt-estado--anulada {
+    background: rgba(239, 68, 68, .1);
+    color: var(--danger, #EF4444);
+    border: 1px solid rgba(239, 68, 68, .25);
+}
+
+/* Tabla — fila total */
+.cdt-tfoot-total td {
+    border-top: 2px solid var(--border-color);
+    background: var(--bg-secondary);
+}
+
+/* Chips y helpers dentro de tabla */
+.cdt-color-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    font-size: .78rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.cdt-color-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1px solid rgba(0,0,0,.15);
+    flex-shrink: 0;
+    display: inline-block;
+}
+
+.cdt-moneda-chip {
+    display: inline-flex;
+    padding: .1rem .4rem;
+    border-radius: .3rem;
+    font-size: .7rem;
+    font-weight: 700;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background: var(--brand-orange-light);
+    color: var(--brand-orange-dark);
+    border: 1px solid var(--brand-orange-mid);
+}
+
+.cdt-ref {
+    font-family: monospace;
+    font-size: .78rem;
+    background: var(--bg-secondary);
+    padding: .1rem .4rem;
+    border-radius: .3rem;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+}
+
+.cdt-muted { color: var(--text-muted); }
+
+/* Resumen lateral */
+.cdt-resumen-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: .45rem 0;
+    border-bottom: 1px solid var(--border-color);
+    font-size: .8375rem;
+    color: var(--text-muted);
+}
+
+.cdt-resumen-row strong { color: var(--text-primary); font-weight: 600; }
+
+.cdt-resumen-row--total {
+    border-bottom: none;
+    padding-top: .75rem;
+    margin-top: .25rem;
+    font-size: .9rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    border-top: 2px solid var(--border-color);
+}
+
+.cdt-total-val {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: var(--brand-orange);
+    letter-spacing: -.02em;
+}
+
+/* Item subiendo (spinner) */
+.cmp-doc-item--uploading {
+    opacity: .7;
 }
