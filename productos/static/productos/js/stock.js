@@ -38,14 +38,16 @@ function abrirAjuste(btn) {
     document.getElementById('ajusteFeedback').style.display  = 'none';
     document.querySelectorAll('.tipo-btn').forEach(b => b.classList.remove('selected'));
 
+    // Resetear botón por si quedó deshabilitado de una operación anterior
+    const btnAjuste = document.getElementById('btnAjuste');
+    btnAjuste.disabled    = false;
+    btnAjuste.textContent = 'Confirmar ajuste';
+
     // ── Selector de color ───────────────────────────────────────────
-    // Si el producto tiene colores, mostramos el select y lo populamos.
-    // Si no, ocultamos la sección por completo.
     const colorWrap   = document.getElementById('ajusteColorWrap');
     const colorSelect = document.getElementById('ajusteColorSelect');
 
     if (colores.length > 0) {
-        // Construir opciones con stock actual de cada color
         colorSelect.innerHTML =
             '<option value="">— Seleccioná un color —</option>' +
             colores.map(c => {
@@ -93,12 +95,12 @@ async function registrarAjuste() {
     if (!cantidad || parseFloat(cantidad) <= 0) {
         return mostrarFeedbackAjuste('Ingresá una cantidad válida.', false);
     }
-    // Si el producto tiene colores (el wrap está visible), el color es obligatorio
     if (colorWrap.style.display !== 'none' && !colorPk) {
         return mostrarFeedbackAjuste('Seleccioná el color a ajustar.', false);
     }
 
     const btn = document.getElementById('btnAjuste');
+    // Bloquear el botón para evitar doble envío
     btn.disabled    = true;
     btn.textContent = 'Registrando…';
 
@@ -109,7 +111,6 @@ async function registrarAjuste() {
             cantidad:    parseFloat(cantidad),
             motivo,
         };
-        // Solo incluir color_pk si corresponde (el backend lo valida también)
         if (colorPk) payload.color_pk = colorPk;
 
         const res  = await fetch(URLS.ajuste, {
@@ -120,29 +121,38 @@ async function registrarAjuste() {
         const data = await res.json();
 
         if (data.ok) {
-            // Actualizar stock total visible en la tabla
+            // Actualizar stock total (qty, barra de progreso, badge de estado)
             actualizarFilaStock(pk, data.stock_actual, data.stock_bajo);
 
-            // Si el ajuste fue por color, actualizar el stock del color
-            // en el data-colores del row (para que al reabrir el modal
-            // los números sean correctos sin necesidad de recargar la página)
+            // Actualizar KPIs del header (stock bajo, sin stock, total)
+            actualizarKPIs();
+
+            // Si el ajuste fue por color, actualizar stock en memoria y chip visual
             if (data.color_pk != null && data.color_stock != null) {
                 actualizarStockColorEnRow(pk, data.color_pk, data.color_stock);
-                // También actualizar el chip visual del color en la tabla
                 actualizarChipColor(pk, data.color_pk, data.color_stock);
             }
 
             mostrarFeedbackAjuste(`✓ Stock: ${data.stock_anterior} → ${data.stock_posterior}`, true);
-            setTimeout(cerrarModalAjuste, 1800);
+
+            // Cerrar rápido (600ms) y re-habilitar el botón DESPUÉS de cerrar
+            // para que no se pueda hacer doble clic mientras el modal sigue abierto
+            setTimeout(() => {
+                cerrarModalAjuste();
+                btn.disabled    = false;
+                btn.textContent = 'Confirmar ajuste';
+            }, 600);
+
         } else {
             mostrarFeedbackAjuste(data.error || 'Error al registrar.', false);
+            btn.disabled    = false;
+            btn.textContent = 'Confirmar ajuste';
         }
     } catch {
         mostrarFeedbackAjuste('Error de red.', false);
+        btn.disabled    = false;
+        btn.textContent = 'Confirmar ajuste';
     }
-
-    btn.disabled    = false;
-    btn.textContent = 'Confirmar ajuste';
 }
 
 function mostrarFeedbackAjuste(msg, ok) {
@@ -152,23 +162,93 @@ function mostrarFeedbackAjuste(msg, ok) {
     el.style.display = 'block';
 }
 
-// Actualiza el stock total visible en la fila de la tabla
+// Actualiza el stock total visible en la fila: qty, barra de progreso y badge de estado
 function actualizarFilaStock(pk, nuevoStock, stockBajo) {
-    const el = document.getElementById(`stockQty-${pk}`);
-    if (!el) return;
-
     const row = document.querySelector(`tr[data-pk="${pk}"]`);
-    if (row) row.dataset.stock = nuevoStock;
+    if (!row) return;
 
-    const val   = parseFloat(nuevoStock);
-    const clase = val <= 0 ? 'danger' : (stockBajo ? 'danger' : 'ok');
-    el.textContent = (val % 1 === 0 ? parseInt(val) : val).toString()
-                     + ' ' + (row ? row.dataset.unidad : '');
-    el.className   = `stock-qty ${clase}`;
+    const val    = parseFloat(nuevoStock);
+    const esBajo = val <= 0 || stockBajo;
+    const clase  = esBajo ? 'danger' : 'ok';
+    const fmt    = (val % 1 === 0 ? parseInt(val) : val).toString();
+
+    // Actualizar dataset del row
+    row.dataset.stock = nuevoStock;
+
+    // Actualizar qty badge
+    const el = document.getElementById(`stockQty-${pk}`);
+    if (el) {
+        el.textContent = `${fmt} ${row.dataset.unidad}`;
+        el.className   = `stock-qty ${clase}`;
+    }
+
+    // Actualizar barra de progreso
+    const fill = row.querySelector('.stock-bar-fill');
+    if (fill) {
+        fill.className = `stock-bar-fill ${clase}`;
+        if (val <= 0) {
+            fill.style.width = '3%';
+        } else if (stockBajo) {
+            fill.style.width = '25%';
+        } else {
+            // Recalcular porcentaje con los datos disponibles
+            const minimo  = parseFloat(row.dataset.minimo) || 0;
+            const maximo  = parseFloat(row.dataset.maximo) || 0;
+            let pct = 60; // fallback
+            if (maximo > 0)       pct = Math.min(100, Math.round((val / maximo) * 100));
+            else if (minimo > 0)  pct = Math.min(100, Math.round((val / minimo) * 200));
+            fill.style.width = `${pct}%`;
+        }
+    }
+
+    // Actualizar badge de estado (columna Estado)
+    // Usamos .badge-alerta que es la clase base del CSS, más danger/ok según estado
+    const estadoBadge = row.querySelector('.badge-alerta');
+    if (estadoBadge) {
+        if (val <= 0) {
+            estadoBadge.textContent = 'Sin stock';
+            estadoBadge.className   = 'badge-alerta danger';
+        } else if (stockBajo) {
+            estadoBadge.textContent = 'Stock bajo';
+            estadoBadge.className   = 'badge-alerta danger';
+        } else {
+            estadoBadge.textContent = 'OK';
+            estadoBadge.className   = 'badge-alerta ok';
+        }
+    }
 }
 
-// Actualiza el stock de un color en el dataset del row (estado en memoria),
-// para que al volver a abrir el modal los números sean correctos.
+// Recalcula y actualiza los KPI cards del header contando las filas de la tabla
+function actualizarKPIs() {
+    const filas = document.querySelectorAll('#tablaStock tbody tr[data-pk]');
+    let totalActivos = 0, stockBajoCount = 0, sinStockCount = 0;
+
+    filas.forEach(row => {
+        const stock  = parseFloat(row.dataset.stock);
+        const minimo = parseFloat(row.dataset.minimo) || 0;
+        if (stock <= 0) {
+            sinStockCount++;
+        } else {
+            totalActivos++;
+            if (minimo > 0 && stock <= minimo) stockBajoCount++;
+        }
+    });
+
+    // Actualizar valores en los KPI cards
+    const kpiTotal    = document.getElementById('kpiTotal');
+    const kpiBajo     = document.getElementById('kpiBajo');
+    const kpiSinStock = document.getElementById('kpiSinStock');
+
+    if (kpiTotal)    kpiTotal.textContent    = totalActivos;
+    if (kpiBajo)     kpiBajo.textContent     = stockBajoCount;
+    if (kpiSinStock) kpiSinStock.textContent = sinStockCount;
+
+    // Colorear en rojo si hay alertas
+    if (kpiBajo)     kpiBajo.style.color     = stockBajoCount > 0 ? 'var(--danger)' : '';
+    if (kpiSinStock) kpiSinStock.style.color = sinStockCount  > 0 ? 'var(--danger)' : '';
+}
+
+// Actualiza el stock de un color en el dataset del row (estado en memoria)
 function actualizarStockColorEnRow(productoPk, colorPk, nuevoStock) {
     const row = document.querySelector(`tr[data-pk="${productoPk}"]`);
     if (!row) return;
@@ -182,27 +262,16 @@ function actualizarStockColorEnRow(productoPk, colorPk, nuevoStock) {
     } catch { /* ignorar */ }
 }
 
-// Actualiza el chip visual del color en la columna "Stock actual" de la tabla.
-// El chip tiene id="colorChip-<productoPk>-<colorPk>".
+// Actualiza el chip visual del color en la columna "Stock actual"
 function actualizarChipColor(productoPk, colorPk, nuevoStock) {
     const chip = document.getElementById(`colorChip-${productoPk}-${colorPk}`);
     if (!chip) return;
     const val = parseFloat(nuevoStock);
     const fmt = (val % 1 === 0 ? parseInt(val) : val).toString();
-    // El chip tiene formato "Rojo: 5" — reemplazamos solo el número
     chip.dataset.stock = nuevoStock;
-    // Actualizar el texto del chip preservando el nombre del color
-    const nombreSpan = chip.querySelector('.chip-nombre');
-    const stockSpan  = chip.querySelector('.chip-stock');
+    const stockSpan = chip.querySelector('.chip-stock');
     if (stockSpan) stockSpan.textContent = fmt;
-
-    // Si el stock bajó a 0 o menos, ocultar el chip
-    // (la lógica original del template oculta colores con stock <= 0)
-    if (val <= 0) {
-        chip.style.display = 'none';
-    } else {
-        chip.style.display = '';
-    }
+    chip.style.display = val <= 0 ? 'none' : '';
 }
 
 // Cerrar modal al hacer clic fuera

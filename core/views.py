@@ -16,3 +16,11 @@ class CustomLogoutView(LogoutView):
 @login_required
 def home(request):
     return render(request, 'core/home.html')
+
+@login_required
+def mi_perfil(request):
+    return render(request, 'core/mi_perfil.html')
+
+@login_required
+def configuracion(request):
+    return render(request, 'core/configuracion.html')

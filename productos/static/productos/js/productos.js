@@ -250,11 +250,16 @@ async function guardarProducto() {
                     cargarColores(data.pk);
                 }
 
+                // Agregar la fila nueva a la tabla sin recargar
+                agregarFilaTabla(data);
+                actualizarContadoresStats(1, data.estado === 'activo' ? 1 : 0, 0);
+
                 showToast(`Producto "${data.nombre}" creado. Podés seguir completando los detalles.`);
             } else {
+                // Actualizar la fila existente en la tabla sin recargar
+                actualizarFilaTabla(data);
                 showToast(`Producto "${data.nombre}" actualizado.`);
                 cerrarModal('modalProducto');
-                setTimeout(() => location.reload(), 900);
             }
         } else {
             const msgs = Object.entries(data.errors || {})
@@ -768,6 +773,168 @@ async function _ejecutarAjusteStock(pk, nuevoStock) {
     }
 }
 
+
+
+// ════════════════════════════════════════════════════════════════════
+//  DOM — AGREGAR / ACTUALIZAR FILAS DE TABLA SIN RECARGAR
+// ════════════════════════════════════════════════════════════════════
+
+function _buildRowHtml(d) {
+    // Imagen/thumb
+    const thumbHtml = d.imagen_url
+        ? `<img src="${d.imagen_url}" alt="${d.nombre}" class="prd-thumb">`
+        : `<div class="prd-thumb-empty"><svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <rect x="2" y="2" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.2"/>
+                <circle cx="6.5" cy="6.5" r="1.5" fill="currentColor" fill-opacity=".4"/>
+                <path d="M2 12L5 9L8 11L12 7L16 12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+           </svg></div>`;
+
+    // Código + SKU
+    const codigoHtml = `<span class="prd-codigo">${d.codigo || ''}</span>${d.sku ? `<span class="prd-sku">${d.sku}</span>` : ''}`;
+
+    // Nombre + marca + variantes
+    let nombreHtml = `<span class="prd-nombre">${d.nombre}</span>`;
+    if (d.marca) nombreHtml += `<span class="prd-marca">${d.marca}${d.modelo ? ' · ' + d.modelo : ''}</span>`;
+    if (d.tiene_variantes_color) {
+        nombreHtml += `<span class="prd-badge prd-badge--color">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style="vertical-align:middle">
+                <circle cx="5" cy="5" r="4" stroke="currentColor" stroke-width="1.2"/>
+                <circle cx="5" cy="5" r="2" fill="currentColor"/>
+            </svg> Colores</span>`;
+    } else if (d.color_unico) {
+        nombreHtml += `<span class="prd-color-unico-badge">${d.color_unico}</span>`;
+    }
+
+    // Categoría
+    const categHtml = d.categoria_nombre
+        ? `<span class="prd-badge prd-badge--categ">${d.categoria_nombre}</span>`
+        : '<span class="prd-muted">—</span>';
+
+    // Tipo
+    const tipoHtml = d.tipo_nombre
+        ? `<span class="prd-badge prd-badge--tipo">${d.tipo_nombre}</span>`
+        : '<span class="prd-muted">—</span>';
+
+    // Precio
+    const precioHtml = d.precio_venta
+        ? `<span class="prd-precio">$${parseFloat(d.precio_venta).toFixed(2)}</span>`
+        : '<span class="prd-muted">—</span>';
+
+    // Stock
+    let stockHtml;
+    if (d.gestiona_stock) {
+        const stockBajo = d.stock_bajo ? 'prd-stock--bajo' : '';
+        const alerta    = d.stock_bajo ? `<span class="prd-stock-alerta" title="Stock mínimo: ${d.stock_minimo}">⚠</span>` : '';
+        stockHtml = `<span class="prd-stock ${stockBajo}">${parseFloat(d.stock_actual || 0).toFixed(0)}
+            <span class="prd-stock-um">${d.unidad_medida_display || ''}</span></span>${alerta}`;
+    } else {
+        stockHtml = '<span class="prd-muted">Sin stock</span>';
+    }
+
+    // Estado
+    const estadoMap = {
+        activo:       'prd-estado--activo',
+        inactivo:     'prd-estado--inactivo',
+        discontinuado:'prd-estado--disc',
+        agotado:      'prd-estado--agotado',
+    };
+    const estadoLabel = { activo:'Activo', inactivo:'Inactivo', discontinuado:'Discontinuado', agotado:'Agotado' };
+    const estadoHtml = `<span class="prd-estado ${estadoMap[d.estado] || ''}">${estadoLabel[d.estado] || d.estado}</span>`;
+
+    // Acciones
+    const publicadoClass = d.publicado ? 'prd-action-btn--publicado' : '';
+    const publicadoTitle = d.publicado ? 'Despublicar del catálogo' : 'Publicar en catálogo';
+    const accionesHtml = `
+        <button class="prd-action-btn ${publicadoClass}" title="${publicadoTitle}"
+                onclick="togglePublicar(${d.pk}, ${d.publicado}, this)">
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                <path d="M7.5 1C4 1 1 3.7 1 7c0 1.5.6 2.9 1.6 4L1 14l3.2-1.5C5.4 13.5 6.4 14 7.5 14c3.5 0 6.5-2.7 6.5-7S11 1 7.5 1z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+                <path d="M5 7.5h5M7.5 5v5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+            </svg>
+        </button>
+        <button class="prd-action-btn" title="Editar" onclick="abrirEditar(${d.pk})">
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                <path d="M10.5 2.5L12.5 4.5L5 12H3V10L10.5 2.5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+            </svg>
+        </button>
+        <button class="prd-action-btn prd-action-btn--danger" title="Eliminar"
+                onclick="confirmarEliminar(${d.pk}, '${(d.nombre || '').replace(/'/g, "\\'")}')">
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                <path d="M3 4H12M5 4V3H10V4M6 7V11M9 7V11M4 4L5 13H10L11 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>`;
+
+    return { thumbHtml, codigoHtml, nombreHtml, categHtml, tipoHtml, precioHtml, stockHtml, estadoHtml, accionesHtml };
+}
+
+function agregarFilaTabla(d) {
+    const tbody = document.getElementById('tablaProductosBody');
+    if (!tbody) return;
+
+    // Quitar fila de "no hay productos" si existe
+    tbody.querySelector('td[colspan]')?.closest('tr')?.remove();
+
+    const h = _buildRowHtml(d);
+    const tr = document.createElement('tr');
+    tr.className  = `prd-row${d.stock_bajo ? ' prd-row--stock-bajo' : ''}`;
+    tr.dataset.pk = d.pk;
+    tr.innerHTML  = `
+        <td class="prd-td-img">${h.thumbHtml}</td>
+        <td>${h.codigoHtml}</td>
+        <td>${h.nombreHtml}</td>
+        <td>${h.categHtml}</td>
+        <td>${h.tipoHtml}</td>
+        <td>${h.precioHtml}</td>
+        <td>${h.stockHtml}</td>
+        <td>${h.estadoHtml}</td>
+        <td class="prd-td-actions">${h.accionesHtml}</td>`;
+
+    // Animación de entrada
+    tr.style.opacity   = '0';
+    tr.style.transform = 'translateY(4px)';
+    tr.style.transition = 'opacity .2s ease, transform .2s ease';
+    tbody.prepend(tr);
+    requestAnimationFrame(() => { tr.style.opacity = '1'; tr.style.transform = ''; });
+
+    // Actualizar contador de resultados
+    const countEl = document.querySelector('.prd-table-count');
+    if (countEl) {
+        const actual = parseInt(countEl.textContent) || 0;
+        countEl.textContent = `${actual + 1} resultado${actual + 1 !== 1 ? 's' : ''}`;
+    }
+}
+
+function actualizarFilaTabla(d) {
+    const tr = document.querySelector(`#tablaProductosBody tr[data-pk="${d.pk}"]`);
+    if (!tr) return;
+
+    const h = _buildRowHtml(d);
+    tr.className = `prd-row${d.stock_bajo ? ' prd-row--stock-bajo' : ''}`;
+    tr.cells[0].innerHTML = `<td class="prd-td-img">${h.thumbHtml}</td>`.replace(/<td[^>]*>|<\/td>/g,'');
+    tr.cells[1].innerHTML = h.codigoHtml;
+    tr.cells[2].innerHTML = h.nombreHtml;
+    tr.cells[3].innerHTML = h.categHtml;
+    tr.cells[4].innerHTML = h.tipoHtml;
+    tr.cells[5].innerHTML = h.precioHtml;
+    tr.cells[6].innerHTML = h.stockHtml;
+    tr.cells[7].innerHTML = h.estadoHtml;
+    tr.cells[8].innerHTML = h.accionesHtml;
+
+    // Destello visual para indicar que se actualizó
+    tr.style.transition = 'background .15s';
+    tr.style.background = 'rgba(242,106,27,0.07)';
+    setTimeout(() => { tr.style.background = ''; }, 700);
+}
+
+// Actualiza los contadores de stats del header (Total, Activos, Publicados)
+function actualizarContadoresStats(deltTotal, deltActivo, deltPublicado) {
+    const elTotal     = document.getElementById('statTotal');
+    const elActivos   = document.getElementById('statActivos');
+    const elPublicados= document.getElementById('statPublicados');
+    if (elTotal      && deltTotal      !== 0) elTotal.textContent      = (parseInt(elTotal.textContent)      || 0) + deltTotal;
+    if (elActivos    && deltActivo     !== 0) elActivos.textContent    = (parseInt(elActivos.textContent)    || 0) + deltActivo;
+    if (elPublicados && deltPublicado  !== 0) elPublicados.textContent = (parseInt(elPublicados.textContent) || 0) + deltPublicado;
+}
 // ════════════════════════════════════════════════════════════════════
 //  UX GENERAL
 // ════════════════════════════════════════════════════════════════════

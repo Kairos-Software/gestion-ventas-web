@@ -424,9 +424,13 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function accionesHtml(u) {
+        const btnPermisos = window.puedeGestionarPermisos
+            ? `<a href="${window.permisosBaseUrl.replace('/0/', '/' + u.id + '/')}" class="btn-accion btn-permisos">Permisos</a>`
+            : '';
         return `<div class="acciones-cell">
             <a href="/usuarios/${u.id}/" class="btn-accion btn-ver">Ver</a>
             <button class="btn-accion btn-editar" data-id="${u.id}">Editar</button>
+            ${btnPermisos}
             <button class="btn-accion btn-eliminar" data-id="${u.id}">Eliminar</button>
         </div>`;
     }

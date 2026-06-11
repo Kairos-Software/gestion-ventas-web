@@ -859,6 +859,8 @@
 <script>
     window.usuarioAccionesUrl = "{% url 'core:usuario_acciones' %}";
     window.usuarioEliminarUrl = "{% url 'core:usuario_eliminar' %}";
+    window.puedeGestionarPermisos = {{ puede_gestionar_permisos|yesno:"true,false" }};
+    window.permisosBaseUrl = "{% url 'core:gestion_permisos' 0 %}";
 </script>
 <script src="{% static 'core/js/gestion_usuarios.js' %}"></script>
 {% endblock %}

@@ -1,41 +1,60 @@
 // base.js — Kai-Cart
 document.addEventListener('DOMContentLoaded', function () {
 
-    // ── Sidebar collapse / expand ──────────────────────────────────────
-    const sidebar   = document.querySelector('.sidebar');
-    const toggleBtn = document.getElementById('sidebarToggle');
+    const sidebar = document.querySelector('.sidebar');
 
-    if (toggleBtn && sidebar) {
-        toggleBtn.addEventListener('click', function () {
-            sidebar.classList.toggle('collapsed');
-            localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
-        });
-    }
-
-    if (sidebar && localStorage.getItem('sidebarCollapsed') === 'true') {
+    // ── Sidebar collapse / expand (desktop) ───────────────────────────
+    if (sidebar && localStorage.getItem('sidebarCollapsed') === 'true' && window.innerWidth >= 768) {
         sidebar.classList.add('collapsed');
     }
 
-    // ── Mobile sidebar ─────────────────────────────────────────────────
-    if (sidebar && window.innerWidth <= 768) {
-        const mobileToggle = document.createElement('button');
-        mobileToggle.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 12H21M3 6H21M3 18H21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
-        mobileToggle.className = 'mobile-menu-toggle';
-        mobileToggle.style.cssText = `
-            position:fixed; bottom:1.25rem; right:1.25rem;
-            width:46px; height:46px; border-radius:50%;
-            background:var(--brand-orange); border:none; color:white;
-            cursor:pointer; display:flex; align-items:center; justify-content:center;
-            z-index:1000; box-shadow:0 4px 14px rgba(242,106,27,0.4);
-        `;
-        document.body.appendChild(mobileToggle);
+    // ── Mobile sidebar con overlay ─────────────────────────────────────
+    const overlay      = document.getElementById('sidebarOverlay');
+    const closeBtn     = document.getElementById('sidebarCloseBtn');
+    const mobileToggle = document.getElementById('sidebarToggle');
 
-        mobileToggle.addEventListener('click', () => sidebar.classList.toggle('mobile-open'));
+    function openMobileSidebar() {
+        sidebar.classList.add('mobile-open');
+        if (overlay) overlay.classList.add('visible');
+        document.body.style.overflow = 'hidden';
+    }
 
-        document.addEventListener('click', (e) => {
-            if (!sidebar.contains(e.target) && !mobileToggle.contains(e.target)) {
-                sidebar.classList.remove('mobile-open');
+    function closeMobileSidebar() {
+        sidebar.classList.remove('mobile-open');
+        if (overlay) overlay.classList.remove('visible');
+        document.body.style.overflow = '';
+    }
+
+    function isMobile() { return window.innerWidth < 768; }
+
+    // El sidebarToggle en móvil abre el drawer; en desktop colapsa
+    if (mobileToggle && sidebar) {
+        mobileToggle.addEventListener('click', function () {
+            if (isMobile()) {
+                sidebar.classList.contains('mobile-open')
+                    ? closeMobileSidebar()
+                    : openMobileSidebar();
+            } else {
+                sidebar.classList.toggle('collapsed');
+                localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
             }
+        });
+    }
+
+    if (closeBtn)  closeBtn.addEventListener('click', closeMobileSidebar);
+    if (overlay)   overlay.addEventListener('click', closeMobileSidebar);
+
+    // Cerrar con Escape
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && isMobile()) closeMobileSidebar();
+    });
+
+    // Cerrar sidebar en móvil al navegar (click en un nav-item)
+    if (sidebar) {
+        sidebar.querySelectorAll('.nav-item, .nav-subitem').forEach(function(link) {
+            link.addEventListener('click', function() {
+                if (isMobile()) closeMobileSidebar();
+            });
         });
     }
 
@@ -50,7 +69,36 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     } catch (e) { /* sessionStorage no disponible */ }
 
-    // ── LOGO SHINE ─────────────────────────────────────────────────────
+    // ── User Dropdown ──────────────────────────────────────────────────
+    const dropdownBtn  = document.getElementById('userDropdownBtn');
+    const dropdownMenu = document.getElementById('userDropdownMenu');
+
+    if (dropdownBtn && dropdownMenu) {
+        dropdownBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            const isOpen = dropdownMenu.classList.contains('open');
+            dropdownMenu.classList.toggle('open', !isOpen);
+            dropdownBtn.setAttribute('aria-expanded', String(!isOpen));
+        });
+
+        // Cerrar al hacer click fuera
+        document.addEventListener('click', function (e) {
+            if (!dropdownBtn.contains(e.target) && !dropdownMenu.contains(e.target)) {
+                dropdownMenu.classList.remove('open');
+                dropdownBtn.setAttribute('aria-expanded', 'false');
+            }
+        });
+
+        // Cerrar con Escape
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+                dropdownMenu.classList.remove('open');
+                dropdownBtn.setAttribute('aria-expanded', 'false');
+            }
+        });
+    }
+
+
     // Agrega un <span class="logo-shine"> dentro del .logo y lo anima
     // con un sweep periódico (cada 7s, con variación aleatoria de ±2s).
     const logoLink = document.querySelector('.sidebar-header .logo');

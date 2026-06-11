@@ -1,0 +1,404 @@
+/* ═══════════════════════════════════════════════════════
+   mi_perfil.css — Kai-Cart  v2
+   Inspiración: layout limpio tipo ficha de usuario,
+   hero con fondo suave, stats en fila, sin tricks de overflow
+   ═══════════════════════════════════════════════════════ */
+
+.perfil-page {
+    max-width: 960px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+/* ────────────────────────────────────────
+   MENSAJES
+──────────────────────────────────────── */
+.perfil-messages { margin-bottom: 1.25rem; }
+
+.alert-anim {
+    animation: perfil-slideDown 0.2s ease both;
+    position: relative;
+}
+
+@keyframes perfil-slideDown {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.perfil-alert-close {
+    margin-left: auto;
+    flex-shrink: 0;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: inherit;
+    opacity: 0.6;
+    padding: 0.25rem;
+    border-radius: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity var(--transition-fast);
+    line-height: 1;
+}
+.perfil-alert-close:hover { opacity: 1; }
+
+/* ────────────────────────────────────────
+   HERO — ficha limpia, sin banner superpuesto
+──────────────────────────────────────── */
+.perfil-header {
+    margin-bottom: 1.5rem;
+    /* Hereda .card: bg blanco, border-radius, padding */
+}
+
+/* Tira superior naranja delgada — acento de marca */
+.perfil-cover {
+    height: 5px;
+    background: linear-gradient(90deg, var(--brand-orange) 0%, var(--brand-blue) 100%);
+    border-radius: var(--radius-lg, 0.75rem) var(--radius-lg, 0.75rem) 0 0;
+    margin: 0; /* sin margen, pegado al borde del card */
+}
+
+/* Cuerpo del hero */
+.perfil-hero {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 1.5rem 1.75rem;
+    flex-wrap: wrap;
+}
+
+/* Avatar grande */
+.perfil-avatar {
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #ffe5cc 0%, #ffd0a8 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.perfil-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.perfil-avatar span {
+    font-family: var(--font-heading);
+    font-size: 2.25rem;
+    font-weight: 800;
+    color: var(--brand-orange);
+    line-height: 1;
+    user-select: none;
+}
+
+/* Bloque central: nombre + badges */
+.perfil-hero-meta {
+    flex: 1;
+    min-width: 180px;
+}
+
+.perfil-name {
+    font-family: var(--font-heading);
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    letter-spacing: -0.3px;
+    margin: 0 0 0.5rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.perfil-hero-sub {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.perfil-at {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+}
+
+.perfil-puesto {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    padding-left: 0.625rem;
+    border-left: 1px solid var(--border-color);
+}
+
+/* ── Stats en fila (lado derecho del hero) ── */
+.perfil-stats {
+    display: flex;
+    gap: 0;
+    border-left: 1px solid var(--border-color);
+    padding-left: 1.75rem;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+
+.perfil-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 1.25rem;
+    border-right: 1px solid var(--border-color);
+    gap: 0.2rem;
+}
+
+.perfil-stat:last-child { border-right: none; }
+.perfil-stat:first-child { padding-left: 0; }
+
+.perfil-stat-value {
+    font-family: var(--font-heading);
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    line-height: 1;
+}
+
+.perfil-stat-label {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+/* ────────────────────────────────────────
+   GRILLA DE CARDS
+──────────────────────────────────────── */
+.perfil-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+}
+
+/* ────────────────────────────────────────
+   TÍTULOS DE CARD
+──────────────────────────────────────── */
+.perfil-card-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.perfil-card-title svg {
+    color: var(--brand-orange);
+    flex-shrink: 0;
+}
+
+/* ────────────────────────────────────────
+   CAMPOS SOLO LECTURA
+──────────────────────────────────────── */
+.perfil-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.perfil-field {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* label izq, valor der en desktop */
+    align-items: baseline;
+    gap: 0.25rem 1rem;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.perfil-field:last-child  { border-bottom: none; padding-bottom: 0; }
+.perfil-field:first-child { padding-top: 0; }
+
+.perfil-field-label {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+.perfil-field-value {
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.perfil-field-empty {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    font-style: italic;
+    font-weight: 400;
+}
+
+.perfil-status { font-weight: 600; }
+.perfil-status--active   { color: var(--success); }
+.perfil-status--inactive { color: var(--danger); }
+
+/* ────────────────────────────────────────
+   CARDS DE EDICIÓN
+──────────────────────────────────────── */
+.perfil-input-row {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    width: 100%;
+}
+
+.perfil-input-row .form-control { flex: 1; min-width: 0; }
+
+.perfil-save-btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.perfil-pwd-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.perfil-pwd-wrap .form-control { padding-right: 2.75rem; }
+
+.perfil-eye-btn {
+    position: absolute;
+    right: 0.625rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.25rem;
+    border-radius: 0.25rem;
+    transition: color var(--transition-fast);
+    min-width: 32px;
+    min-height: 32px;
+}
+
+.perfil-eye-btn:hover { color: var(--text-primary); }
+
+.perfil-pwd-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+}
+
+/* Barra de fortaleza */
+.perfil-strength {
+    display: none;
+    align-items: center;
+    gap: 0.625rem;
+    margin-top: 0.875rem;
+    flex-wrap: wrap;
+}
+
+.perfil-strength.visible { display: flex; }
+
+.perfil-strength-track {
+    flex: 1;
+    height: 4px;
+    background: var(--border-color);
+    border-radius: 2px;
+    overflow: hidden;
+    min-width: 80px;
+}
+
+.perfil-strength-fill {
+    height: 100%;
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.3s ease, background 0.3s ease;
+}
+
+.perfil-strength-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+    min-width: 60px;
+}
+
+.perfil-strength--weak   .perfil-strength-fill { background: var(--danger);  width: 25%; }
+.perfil-strength--fair   .perfil-strength-fill { background: var(--warning); width: 50%; }
+.perfil-strength--good   .perfil-strength-fill { background: var(--info);    width: 75%; }
+.perfil-strength--strong .perfil-strength-fill { background: var(--success); width: 100%; }
+
+.perfil-strength--weak   .perfil-strength-label { color: var(--danger); }
+.perfil-strength--fair   .perfil-strength-label { color: var(--warning); }
+.perfil-strength--good   .perfil-strength-label { color: var(--info); }
+.perfil-strength--strong .perfil-strength-label { color: var(--success); }
+
+.form-group.has-error .form-control {
+    border-color: var(--danger);
+    box-shadow: 0 0 0 3px rgba(239,68,68,0.1);
+}
+
+/* ══════════════════════════════════════
+   RESPONSIVE — sm: >= 480px
+══════════════════════════════════════ */
+@media (min-width: 480px) {
+    .perfil-name { font-size: 1.625rem; }
+}
+
+/* ══════════════════════════════════════
+   RESPONSIVE — md: >= 640px
+══════════════════════════════════════ */
+@media (min-width: 640px) {
+    .perfil-grid { grid-template-columns: 1fr 1fr; }
+    .perfil-edit-card { grid-column: 1 / -1; }
+    .perfil-pwd-grid { grid-template-columns: 1fr 1fr; gap: 1rem; }
+}
+
+/* ══════════════════════════════════════
+   RESPONSIVE — lg: >= 1024px
+══════════════════════════════════════ */
+@media (min-width: 1024px) {
+    .perfil-grid { gap: 1.375rem; }
+    .perfil-edit-card { grid-column: 1 / -1; }
+    .perfil-pwd-grid { grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+}
+
+/* ══════════════════════════════════════
+   RESPONSIVE — mobile < 640px:
+   En mobile los fields van en columna (stack)
+══════════════════════════════════════ */
+@media (max-width: 639px) {
+    .perfil-field {
+        grid-template-columns: 1fr;
+        gap: 0.2rem;
+    }
+
+    .perfil-stats {
+        border-left: none;
+        padding-left: 0;
+        border-top: 1px solid var(--border-color);
+        padding-top: 1rem;
+        width: 100%;
+        justify-content: space-around;
+    }
+
+    .perfil-stat:first-child { padding-left: 1.25rem; }
+}
+
+/* ══════════════════════════════════════
+   RESPONSIVE — xs: < 400px
+══════════════════════════════════════ */
+@media (max-width: 399px) {
+    .perfil-hero { padding: 1.25rem 1rem; gap: 1rem; }
+    .perfil-avatar { width: 72px; height: 72px; }
+    .perfil-avatar span { font-size: 1.75rem; }
+    .perfil-name { font-size: 1.25rem; }
+
+    .perfil-input-row { flex-direction: column; }
+    .perfil-save-btn { width: 100%; justify-content: center; }
+}

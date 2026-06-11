@@ -25,7 +25,7 @@
                 </svg>
             </div>
             <div class="kpi-body">
-                <div class="kpi-value">{{ total_productos }}</div>
+                <div class="kpi-value" id="kpiTotal">{{ total_productos }}</div>
                 <div class="kpi-label">Productos con stock activo</div>
             </div>
         </div>
@@ -39,7 +39,7 @@
                 </svg>
             </div>
             <div class="kpi-body">
-                <div class="kpi-value" style="{% if stock_bajo_count > 0 %}color:var(--danger);{% endif %}">
+                <div class="kpi-value" id="kpiBajo" style="{% if stock_bajo_count > 0 %}color:var(--danger);{% endif %}">
                     {{ stock_bajo_count }}
                 </div>
                 <div class="kpi-label">Productos con stock bajo</div>
@@ -55,7 +55,7 @@
                 </svg>
             </div>
             <div class="kpi-body">
-                <div class="kpi-value" style="{% if sin_stock_count > 0 %}color:var(--danger);{% endif %}">
+                <div class="kpi-value" id="kpiSinStock" style="{% if sin_stock_count > 0 %}color:var(--danger);{% endif %}">
                     {{ sin_stock_count }}
                 </div>
                 <div class="kpi-label">Productos sin stock</div>
@@ -91,7 +91,7 @@
 
         {% if productos %}
         <div style="overflow-x:auto;">
-            <table class="stock-table">
+            <table class="stock-table" id="tablaStock">
                 <thead>
                     <tr>
                         <th>Producto</th>

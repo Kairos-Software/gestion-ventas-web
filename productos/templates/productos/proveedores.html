@@ -64,7 +64,7 @@
         </thead>
         <tbody>
             {% for p in proveedores %}
-            <tr class="nx-tr" data-pk="{{ p.pk }}">
+            <tr class="nx-tr" data-pk="{{ p.pk }}" data-activo="{{ p.activo|yesno:'true,false' }}">
                 <td>
                     <div class="nx-cell-main">{{ p.nombre }}</div>
                     {% if p.sitio_web %}

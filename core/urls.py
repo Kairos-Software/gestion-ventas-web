@@ -4,6 +4,7 @@ from . import views
 from . import views_usuarios
 from . import views_permisos
 from . import views_clientes
+from . import views_perfil
 
 app_name = 'core'
 
@@ -44,4 +45,7 @@ urlpatterns = [
     path('clientes/<int:pk>/contactos/', views_clientes.ClienteContactoAjax.as_view(), name='cliente_contactos'),
     path('clientes/<int:pk>/telefonos/', views_clientes.ClienteTelefonoAjax.as_view(), name='cliente_telefonos'),
     path('clientes/grupos/', views_clientes.GrupoFamiliarAjax.as_view(), name='grupo_familiar'),
+
+    path('mi-perfil/', views_perfil.mi_perfil, name='mi_perfil'),
+    path('configuracion/', views.configuracion, name='configuracion'),
 ]
