@@ -116,7 +116,8 @@
             {% endwith %}
 
             {# ── VENTAS ── #}
-            <div class="nav-group" id="navGrupoVentas">
+            {% with en_ventas=request.resolver_match.app_name %}
+            <div class="nav-group {% if en_ventas == 'ventas' %}open{% endif %}" id="navGrupoVentas">
                 <button class="nav-group-toggle" onclick="toggleNavGroup('navGrupoVentas')">
                     <div class="nav-group-toggle-left">
                         <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -132,24 +133,25 @@
                 </button>
                 <div class="nav-group-items">
                     <div class="nav-group-items-inner">
-                        <span class="nav-subitem nav-subitem--soon">
+                        <a href="{% url 'ventas:nueva_venta' %}"
+                           class="nav-subitem {% if request.resolver_match.url_name == 'nueva_venta' %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
                                 <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3"/>
-                                <path d="M8 5V8L10 10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                                <path d="M8 5V11M5 8H11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
                             </svg>
                             <span>Nueva Venta</span>
-                            <span class="nav-soon-badge">Pronto</span>
-                        </span>
-                        <span class="nav-subitem nav-subitem--soon">
+                        </a>
+                        <a href="{% url 'ventas:historial_ventas' %}"
+                           class="nav-subitem {% if request.resolver_match.url_name == 'historial_ventas' %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
                                 <path d="M2 3.5H14M2 7H14M2 10.5H10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
                             </svg>
                             <span>Historial</span>
-                            <span class="nav-soon-badge">Pronto</span>
-                        </span>
+                        </a>
                     </div>
                 </div>
             </div>
+            {% endwith %}
 
             {# ── COMPRAS ── #}
             {% with en_op=request.resolver_match.app_name %}

@@ -1,0 +1,137 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Historial de Ventas{% endblock %}
+
+{% block breadcrumb %}
+    Operaciones &rsaquo; <strong>Historial de Ventas</strong>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'ventas/css/historial_ventas.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="historial-header">
+    <div class="historial-title">
+        <h1>Historial de Ventas</h1>
+        <p>Registro completo de todas las ventas confirmadas</p>
+    </div>
+</div>
+
+<!-- ── Filtros ── -->
+<div class="filtros-card">
+    <div class="filtro-group" style="max-width:200px;">
+        <label>Buscar</label>
+        <input type="text" id="filtroQ" placeholder="Número o nota…">
+    </div>
+    <div class="filtro-group" style="max-width:160px;">
+        <label>Estado</label>
+        <select id="filtroEstado">
+            <option value="">Todos</option>
+            {% for val, label in estados %}
+                {% if val != 'borrador' %}
+                    <option value="{{ val }}">{{ label }}</option>
+                {% endif %}
+            {% endfor %}
+        </select>
+    </div>
+    <div class="filtro-group" style="max-width:180px;">
+        <label>Medio de pago</label>
+        <select id="filtroMedioPago">
+            <option value="">Todos</option>
+            {% for val, label in medios_pago %}
+                <option value="{{ val }}">{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="filtro-group" style="max-width:160px;">
+        <label>Desde</label>
+        <input type="date" id="filtroDesde">
+    </div>
+    <div class="filtro-group" style="max-width:160px;">
+        <label>Hasta</label>
+        <input type="date" id="filtroHasta">
+    </div>
+    <button class="btn-filtrar" id="btnFiltrar">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="margin-right:4px;vertical-align:middle;">
+            <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M11 11L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        Buscar
+    </button>
+    <button class="btn-limpiar" id="btnLimpiar">Limpiar</button>
+</div>
+
+<!-- ── Resumen ── -->
+<div class="resumen-bar" id="resumenBar" style="display:none;">
+    <div class="resumen-chip">Resultados: <strong id="resumenTotal">—</strong></div>
+    <div class="resumen-chip">Página <strong id="resumenPag">—</strong></div>
+</div>
+
+<!-- ── Lista ── -->
+<div id="listaContainer">
+    <div class="loading-state">
+        <span class="spinner"></span> Cargando ventas…
+    </div>
+</div>
+
+<!-- ── Paginación ── -->
+<div class="paginacion" id="paginacion" style="display:none;">
+    <button class="btn-pag" id="btnAnterior">← Anterior</button>
+    <span class="pag-info" id="pagInfo"></span>
+    <button class="btn-pag" id="btnSiguiente">Siguiente →</button>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     MODAL DE CONFIRMACIÓN
+══════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalOverlay">
+    <div class="modal-box">
+        <div class="modal-icon" id="modalIcon"></div>
+        <h3 class="modal-title" id="modalTitle"></h3>
+        <p class="modal-body" id="modalBody"></p>
+        <div class="modal-warning" id="modalWarning" style="display:none;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M8 1.5L14.5 13H1.5L8 1.5Z" stroke="currentColor" stroke-width="1.4"
+                      stroke-linejoin="round"/>
+                <path d="M8 6V9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                <circle cx="8" cy="11.5" r="0.75" fill="currentColor"/>
+            </svg>
+            <span id="modalWarningText"></span>
+        </div>
+        <div class="modal-actions">
+            <button class="modal-btn modal-btn-cancel" id="modalCancel">Cancelar</button>
+            <button class="modal-btn modal-btn-confirm" id="modalConfirm"></button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const HISTORIAL_URLS = {
+        listar:          "{% url 'ventas:listar_ventas' %}",
+        anular:          "{% url 'ventas:anular_venta' %}",
+        reactivar:       "{% url 'ventas:reactivar_venta' %}",
+        eliminar:        "{% url 'ventas:eliminar_venta' %}",
+        editar:          "{% url 'ventas:editar_venta' %}",
+        productos:       "{% url 'productos:gestion_productos' %}",
+        clientes:        "{% url 'core:gestion_clientes' %}",
+        buscarProducto:  "{% url 'ventas:buscar_producto' %}",
+        buscarCliente:   "{% url 'ventas:buscar_cliente' %}",
+        documentoSubir:   "{% url 'ventas:documento_subir' %}",
+        documentoEliminar:"{% url 'ventas:documento_eliminar' %}",
+    };
+    const HISTORIAL_PERMISOS = {
+        puede_editar:   {{ puede_editar|yesno:"true,false" }},
+        puede_eliminar: {{ puede_eliminar|yesno:"true,false" }},
+    };
+    const CSRF_TOKEN = "{{ csrf_token }}";
+</script>
+<script src="{% static 'ventas/js/historial_utils.js' %}"></script>
+<script src="{% static 'ventas/js/historial_docs.js' %}"></script>
+<script src="{% static 'ventas/js/historial_editor.js' %}"></script>
+<script src="{% static 'ventas/js/historial_ventas.js' %}"></script>
+{% endblock %}

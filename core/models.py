@@ -48,6 +48,12 @@ PERMISOS_CHOICES = [
     ('crear_compras',     'Crear nuevas compras'),
     ('editar_compras',    'Editar compras existentes'),   # ← NUEVO
     ('eliminar_compras',  'Eliminar compras'),            # ← NUEVO
+
+    # ── Módulo: Ventas ───────────────────────────────────────────────
+    ('ver_ventas',        'Ver historial de ventas'),
+    ('crear_ventas',      'Crear nuevas ventas'),
+    ('editar_ventas',     'Editar ventas existentes'),
+    ('eliminar_ventas',   'Eliminar ventas'),
 ]
 
 CODIGOS_PERMISOS = {codigo for codigo, _ in PERMISOS_CHOICES}

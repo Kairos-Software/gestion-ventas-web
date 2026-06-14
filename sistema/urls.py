@@ -8,6 +8,7 @@ urlpatterns = [
     path('', include('core.urls')),
     path('productos/', include('productos.urls', namespace='productos')),  # ← esto
     path('compras/', include('compras.urls', namespace='compras')),  # ← esto
+    path('ventas/', include('ventas.urls', namespace='ventas')),  # ← esto
 ]
 
 if settings.DEBUG:

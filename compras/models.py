@@ -35,11 +35,17 @@ def _sumar_stock_item(item):
 
     if producto.tiene_variantes_color and item.color is not None:
         color = item.color
-        color.stock_actual += item.cantidad
+        nuevo_stock = color.stock_actual + item.cantidad
+        if nuevo_stock < 0 and not producto.permite_stock_negativo:
+            raise ValueError(f'Stock resultaría negativo para color {color.nombre}: {nuevo_stock}')
+        color.stock_actual = nuevo_stock
         color.save(update_fields=['stock_actual'])
         producto.sincronizar_stock_desde_colores()
     else:
-        producto.stock_actual += item.cantidad
+        nuevo_stock = producto.stock_actual + item.cantidad
+        if nuevo_stock < 0 and not producto.permite_stock_negativo:
+            raise ValueError(f'Stock resultaría negativo para producto {producto.nombre}: {nuevo_stock}')
+        producto.stock_actual = nuevo_stock
         producto.save(update_fields=['stock_actual'])
 
 
@@ -54,11 +60,17 @@ def _restar_stock_item(item):
 
     if producto.tiene_variantes_color and item.color is not None:
         color = item.color
-        color.stock_actual -= item.cantidad
+        nuevo_stock = color.stock_actual - item.cantidad
+        if nuevo_stock < 0 and not producto.permite_stock_negativo:
+            raise ValueError(f'Stock resultaría negativo para color {color.nombre}: {nuevo_stock}')
+        color.stock_actual = nuevo_stock
         color.save(update_fields=['stock_actual'])
         producto.sincronizar_stock_desde_colores()
     else:
-        producto.stock_actual -= item.cantidad
+        nuevo_stock = producto.stock_actual - item.cantidad
+        if nuevo_stock < 0 and not producto.permite_stock_negativo:
+            raise ValueError(f'Stock resultaría negativo para producto {producto.nombre}: {nuevo_stock}')
+        producto.stock_actual = nuevo_stock
         producto.save(update_fields=['stock_actual'])
 
 

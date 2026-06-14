@@ -1,0 +1,778 @@
+/* ═══════════════════════════════════════════════════════════════════
+   ventas.css — Kai-Cart Design System
+   Alineado con base.css: variables --brand-*, Plus Jakarta Sans + DM Sans
+   Accent: --brand-orange (#F26A1B) · --brand-blue (#1E6FA8)
+═══════════════════════════════════════════════════════════════════ */
+
+/* ────────────────────────────────────────────────────────────────
+   PAGE HEADER
+──────────────────────────────────────────────────────────────── */
+.vta-page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.75rem;
+    flex-wrap: wrap;
+    gap: .75rem;
+}
+
+.vta-page-title {
+    display: flex;
+    align-items: center;
+    gap: .875rem;
+}
+
+.vta-page-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: .875rem;
+    background: var(--brand-orange-light);
+    border: 1px solid var(--brand-orange-mid);
+    color: var(--brand-orange);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.vta-page-tag {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: .6rem;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--brand-orange);
+    margin-bottom: .2rem;
+}
+
+.vta-page-title h1 {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin: 0;
+    line-height: 1.2;
+    letter-spacing: -.3px;
+}
+
+.vta-page-title p {
+    font-size: .8125rem;
+    color: var(--text-muted);
+    margin: .1rem 0 0;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   LAYOUT
+──────────────────────────────────────────────────────────────── */
+.vta-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 1.25rem;
+    align-items: start;
+    width: 100%;
+    min-width: 0;
+}
+
+.vta-layout > :first-child {
+    min-width: 0;
+    overflow: hidden;
+}
+
+@media (max-width: 1100px) {
+    .vta-layout { grid-template-columns: minmax(0, 1fr) 280px; }
+}
+
+@media (max-width: 960px) {
+    .vta-layout { grid-template-columns: 1fr; }
+}
+
+/* ────────────────────────────────────────────────────────────────
+   CARDS
+──────────────────────────────────────────────────────────────── */
+.vta-card {
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: 1rem;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+}
+
+.vta-card--search {
+    overflow: visible;
+}
+
+.vta-card--search .vta-card-body {
+    overflow: visible;
+}
+
+.vta-card-header {
+    padding: .875rem 1.25rem;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    background: var(--bg-secondary);
+}
+
+.vta-card-header svg { color: var(--brand-orange); }
+
+.vta-card-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: .65rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: .09em;
+}
+
+.vta-card-body { padding: 1.25rem; }
+
+/* ────────────────────────────────────────────────────────────────
+   BUSCADOR DE PRODUCTOS
+──────────────────────────────────────────────────────────────── */
+.vta-search-wrap { position: relative; }
+
+.vta-search-input {
+    width: 100%;
+    padding: .625rem 1rem .625rem 2.4rem;
+    border: 1px solid var(--border-color);
+    border-radius: .625rem;
+    background: var(--bg-white);
+    color: var(--text-primary);
+    font-family: 'DM Sans', sans-serif;
+    font-size: .875rem;
+    transition: border-color .18s, box-shadow .18s;
+    box-shadow: var(--shadow-sm);
+}
+
+.vta-search-input:focus {
+    outline: none;
+    border-color: var(--brand-orange);
+    box-shadow: 0 0 0 3px rgba(242, 106, 27, .12);
+}
+
+.vta-search-input::placeholder { color: var(--text-muted); }
+
+.vta-search-icon {
+    position: absolute;
+    left: .75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    pointer-events: none;
+}
+
+/* Dropdown de resultados */
+.vta-dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: .75rem;
+    box-shadow: var(--shadow-lg);
+    z-index: 400;
+    max-height: 320px;
+    overflow-y: auto;
+    display: none;
+}
+
+.vta-dropdown.open { display: block; }
+
+.vta-dropdown-item {
+    padding: .75rem 1rem;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-color);
+    transition: background .12s;
+}
+
+.vta-dropdown-item:last-child { border-bottom: none; }
+.vta-dropdown-item:hover { background: var(--brand-orange-light); }
+
+.vta-dropdown-item-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    margin-bottom: .25rem;
+}
+
+.vta-dropdown-item-nombre {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: .875rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.vta-dropdown-item-codigo {
+    font-family: 'Plus Jakarta Sans', monospace;
+    font-size: .7rem;
+    font-weight: 700;
+    background: var(--brand-orange-light);
+    color: var(--brand-orange-dark);
+    border: 1px solid var(--brand-orange-mid);
+    padding: .1rem .45rem;
+    border-radius: .25rem;
+    white-space: nowrap;
+}
+
+.vta-dropdown-item-meta {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    flex-wrap: wrap;
+}
+
+.vta-meta-chip {
+    font-size: .72rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: .25rem;
+}
+
+.vta-meta-chip strong {
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.vta-meta-chip--stock strong { color: var(--success); }
+.vta-meta-chip--stock.bajo strong { color: var(--warning); }
+
+/* Chip de colores en el dropdown */
+.vta-meta-chip--colores strong { color: var(--brand-blue, #1E6FA8); }
+
+.vta-dropdown-empty {
+    padding: 1.25rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: .85rem;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   TABLA DEL CARRITO
+──────────────────────────────────────────────────────────────── */
+.vta-table-wrap { overflow-x: auto; }
+
+.vta-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .82rem;
+}
+
+.vta-table th {
+    padding: .7rem .875rem;
+    text-align: left;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: .65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .09em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-color);
+    white-space: nowrap;
+    background: var(--bg-secondary);
+}
+
+.vta-table td {
+    padding: .65rem .875rem;
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: middle;
+    color: var(--text-primary);
+}
+
+.vta-table tbody tr:last-child td { border-bottom: none; }
+.vta-table tbody tr.vta-row-main:hover td { background: var(--bg-surface-hover); }
+
+/* La fila de colores no tiene hover propio, toma fondo sutil */
+.vta-table tbody tr.vta-row-colores td {
+    background: var(--bg-secondary);
+    padding: 0;
+    border-bottom: 2px solid var(--border-color);
+}
+
+/* Producto en tabla */
+.vta-prod-cell   { display: flex; flex-direction: column; gap: .15rem; min-width: 140px; }
+.vta-prod-nombre { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: .82rem; color: var(--text-primary); line-height: 1.3; }
+.vta-prod-meta   { font-size: .7rem; color: var(--text-muted); }
+
+/* Badge "Por color" en celda de producto */
+.vta-prod-badge-colores {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    font-size: .65rem;
+    font-weight: 700;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    color: var(--brand-blue, #1E6FA8);
+    background: rgba(30, 111, 168, .08);
+    border: 1px solid rgba(30, 111, 168, .18);
+    border-radius: .3rem;
+    padding: .1rem .4rem;
+    margin-top: .2rem;
+    width: fit-content;
+}
+
+/* Ícono de advertencia distribución incompleta */
+.vta-color-warning {
+    display: inline-flex;
+    align-items: center;
+    margin-left: .35rem;
+    color: var(--warning, #F59E0B);
+    vertical-align: middle;
+    cursor: help;
+}
+
+/* Inputs inline */
+.vta-input-inline {
+    padding: .375rem .55rem;
+    border: 1px solid var(--border-color);
+    border-radius: .5rem;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-family: 'DM Sans', sans-serif;
+    font-size: .8rem;
+    transition: border-color .18s, box-shadow .18s, background .18s;
+    width: 100%;
+}
+
+.vta-input-inline:focus {
+    outline: none;
+    border-color: var(--brand-orange);
+    background: var(--bg-white);
+    box-shadow: 0 0 0 2px rgba(242, 106, 27, .1);
+}
+
+.vta-input-inline.w-xs  { min-width: 56px;  max-width: 72px;  }
+.vta-input-inline.w-sm  { min-width: 72px;  max-width: 100px; }
+.vta-input-inline.w-md  { min-width: 100px; max-width: 130px; }
+.vta-input-inline.w-lg  { min-width: 130px; }
+
+.vta-select-inline {
+    padding: .375rem .55rem;
+    border: 1px solid var(--border-color);
+    border-radius: .5rem;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-family: 'DM Sans', sans-serif;
+    font-size: .8rem;
+    cursor: pointer;
+    transition: border-color .18s;
+}
+
+.vta-select-inline:focus {
+    outline: none;
+    border-color: var(--brand-orange);
+}
+
+/* Cliente autocomplete en fila */
+.vta-cli-wrap { position: relative; min-width: 140px; }
+
+.vta-cli-dropdown {
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: .625rem;
+    box-shadow: var(--shadow-lg);
+    z-index: 9000;
+    max-height: 200px;
+    overflow-y: auto;
+    display: none;
+}
+
+.vta-cli-dropdown.open { display: block; }
+
+.vta-cli-option {
+    padding: .55rem .875rem;
+    font-family: 'DM Sans', sans-serif;
+    font-size: .8rem;
+    cursor: pointer;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-color);
+    transition: background .12s;
+}
+
+.vta-cli-option:last-child { border-bottom: none; }
+.vta-cli-option:hover { background: var(--brand-orange-light); }
+
+.vta-cli-option-nombre { font-weight: 600; }
+.vta-cli-option-meta   { font-size: .7rem; color: var(--text-muted); margin-top: .1rem; }
+
+/* Subtotal celda */
+.vta-subtotal-cell {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 800;
+    color: var(--brand-orange-dark);
+    white-space: nowrap;
+    font-size: .875rem;
+}
+
+/* Botón eliminar fila */
+.vta-btn-remove {
+    background: none;
+    border: none;
+    color: var(--danger);
+    cursor: pointer;
+    padding: .3rem;
+    border-radius: .375rem;
+    opacity: .5;
+    transition: opacity .15s, background .15s;
+    display: flex;
+    align-items: center;
+    line-height: 1;
+}
+
+.vta-btn-remove:hover {
+    opacity: 1;
+    background: rgba(239, 68, 68, .08);
+}
+
+/* Estado vacío */
+.vta-empty {
+    text-align: center;
+    padding: 3.5rem 1.5rem;
+    color: var(--text-muted);
+}
+
+.vta-empty-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--brand-orange-light);
+    border: 1px solid var(--brand-orange-mid);
+    color: var(--brand-orange);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1rem;
+    opacity: .7;
+}
+
+.vta-empty p {
+    font-size: .875rem;
+    margin: 0;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   DISTRIBUCIÓN POR COLOR (fila secundaria)
+──────────────────────────────────────────────────────────────── */
+.vta-colores-panel {
+    padding: .75rem 1.25rem .875rem;
+    border-left: 3px solid var(--brand-blue, #1E6FA8);
+}
+
+.vta-colores-panel-header {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    margin-bottom: .625rem;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: .65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .09em;
+    color: var(--brand-blue, #1E6FA8);
+}
+
+.vta-colores-panel-header svg { flex-shrink: 0; }
+
+/* Resumen (distribución completa / incompleta) */
+.vta-colores-panel-resumen {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    font-size: .7rem;
+    font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+    text-transform: none;
+    letter-spacing: 0;
+    margin-left: auto;
+    padding: .15rem .55rem;
+    border-radius: .375rem;
+}
+
+.vta-colores-panel-resumen.ok {
+    color: var(--success, #22C55E);
+    background: rgba(34, 197, 94, .08);
+    border: 1px solid rgba(34, 197, 94, .2);
+}
+
+.vta-colores-panel-resumen.error {
+    color: var(--warning, #F59E0B);
+    background: rgba(245, 158, 11, .08);
+    border: 1px solid rgba(245, 158, 11, .2);
+}
+
+.vta-colores-panel-resumen strong { font-weight: 700; }
+
+/* Chips de colores */
+.vta-colores-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem .75rem;
+}
+
+.vta-color-chip {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: .5rem;
+    padding: .3rem .55rem .3rem .45rem;
+    font-family: 'DM Sans', sans-serif;
+    font-size: .78rem;
+}
+
+/* Pastilla de color */
+.vta-color-swatch {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 1px solid rgba(0,0,0,.12);
+    flex-shrink: 0;
+}
+
+.vta-color-chip-nombre {
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+.vta-color-chip-stock {
+    font-size: .7rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+/* Input de cantidad dentro del chip */
+.vta-color-qty {
+    min-width: 52px !important;
+    max-width: 68px !important;
+    padding: .25rem .4rem !important;
+    font-size: .78rem !important;
+    text-align: right;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   PANEL LATERAL  (datos de la venta + totales)
+──────────────────────────────────────────────────────────────── */
+.vta-side-sticky {
+    position: sticky;
+    top: 1rem;
+}
+
+.vta-field { margin-bottom: 1rem; }
+
+.vta-label {
+    display: block;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: .65rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .09em;
+    margin-bottom: .35rem;
+}
+
+.vta-control {
+    width: 100%;
+    padding: .5625rem .75rem;
+    border: 1px solid var(--border-color);
+    border-radius: .625rem;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-family: 'DM Sans', sans-serif;
+    font-size: .875rem;
+    transition: border-color .18s, box-shadow .18s, background .18s;
+}
+
+.vta-control:focus {
+    outline: none;
+    border-color: var(--brand-orange);
+    background: var(--bg-white);
+    box-shadow: 0 0 0 3px rgba(242, 106, 27, .12);
+}
+
+textarea.vta-control {
+    resize: vertical;
+    min-height: 80px;
+}
+
+/* Totales */
+.vta-totals {
+    border-top: 1px solid var(--border-color);
+    padding-top: 1rem;
+    margin: 1rem 0;
+}
+
+.vta-totals-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: .3rem 0;
+    font-size: .8125rem;
+    color: var(--text-muted);
+}
+
+.vta-totals-grand {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding-top: .6rem;
+    margin-top: .35rem;
+    border-top: 2px solid var(--border-color);
+}
+
+.vta-totals-grand-label {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: .9375rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.vta-totals-grand-value {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 1.375rem;
+    font-weight: 800;
+    color: var(--brand-orange);
+    letter-spacing: -.02em;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   BOTONES
+──────────────────────────────────────────────────────────────── */
+.vta-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .45rem;
+    padding: .625rem 1.125rem;
+    border-radius: .625rem;
+    border: none;
+    font-family: 'DM Sans', sans-serif;
+    font-size: .875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .18s;
+    text-decoration: none;
+    width: 100%;
+    line-height: 1;
+}
+
+.vta-btn-primary {
+    background: var(--brand-orange);
+    color: #fff;
+    box-shadow: var(--shadow-orange);
+}
+
+.vta-btn-primary:hover:not(:disabled) {
+    background: var(--brand-orange-dark);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(242, 106, 27, .3);
+}
+
+.vta-btn-primary:disabled {
+    opacity: .4;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.vta-btn-ghost {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
+    margin-top: .5rem;
+}
+
+.vta-btn-ghost:hover {
+    background: var(--bg-surface-hover);
+    color: var(--text-primary);
+    border-color: var(--border-strong);
+}
+
+/* ────────────────────────────────────────────────────────────────
+   BADGE DE ÍTEMS
+──────────────────────────────────────────────────────────────── */
+.vta-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: .2rem .6rem;
+    border-radius: 99px;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: .65rem;
+    font-weight: 700;
+    letter-spacing: .03em;
+    background: var(--brand-orange);
+    color: #fff;
+    margin-left: .3rem;
+    vertical-align: middle;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   TOAST
+──────────────────────────────────────────────────────────────── */
+.vta-toast {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-left: 4px solid var(--success);
+    border-radius: .75rem;
+    box-shadow: var(--shadow-lg);
+    padding: 1rem 1.25rem;
+    font-family: 'DM Sans', sans-serif;
+    font-size: .875rem;
+    color: var(--text-primary);
+    z-index: 9999;
+    max-width: 340px;
+    transform: translateY(12px);
+    opacity: 0;
+    transition: transform .25s, opacity .25s;
+    pointer-events: none;
+}
+
+.vta-toast.show {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+.vta-toast-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700;
+    margin-bottom: .2rem;
+    color: var(--success);
+}
+
+.vta-toast-body {
+    color: var(--text-muted);
+    font-size: .8rem;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   SPINNER
+──────────────────────────────────────────────────────────────── */
+@keyframes vta-spin {
+    to { transform: rotate(360deg); }
+}
+
+.vta-spin {
+    animation: vta-spin .7s linear infinite;
+    display: inline-block;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   DROPDOWN — chip de precio de venta
+──────────────────────────────────────────────────────────────── */
+.vta-meta-chip--precio strong {
+    color: var(--brand-orange-dark);
+    font-weight: 700;
+}
+.vta-meta-chip--sin-precio {
+    font-size: .72rem;
+    color: var(--text-muted);
+    font-style: italic;
+}
