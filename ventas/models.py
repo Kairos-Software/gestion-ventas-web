@@ -1,6 +1,7 @@
 from django.db import models
 from django.conf import settings
 from django.db import transaction
+from django.utils import timezone
 
 from productos.models import Producto, Moneda, CondicionPago, ProductoColor
 from core.models import Cliente
@@ -17,11 +18,11 @@ class EstadoVenta(models.TextChoices):
 
 
 class MedioPago(models.TextChoices):
-    EFECTIVO     = 'efectivo',     'Efectivo'
+    EFECTIVO      = 'efectivo',      'Efectivo'
     TRANSFERENCIA = 'transferencia', 'Transferencia'
-    DEBITO       = 'debito',       'Débito'
-    CREDITO      = 'credito',      'Crédito'
-    QR           = 'qr',           'QR'
+    DEBITO        = 'debito',        'Débito'
+    CREDITO       = 'credito',       'Crédito'
+    QR            = 'qr',            'QR'
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -79,17 +80,13 @@ class Venta(models.Model):
     Flujo de estados:
         BORRADOR ──confirmar──→ CONFIRMADA  (resta stock)
         CONFIRMADA ──anular───→ ANULADA     (revierte stock)
-        ANULADA ──reactivar───→ BORRADOR    (sin tocar stock)
-        BORRADOR ──confirmar──→ CONFIRMADA  (re-confirma)
+        ANULADA ──editar_completa──→ CONFIRMADA (re-confirma)
 
-    Eliminar:
-        CONFIRMADA → revierte stock + borra
-        ANULADA    → borra directo (stock ya revertido al anular)
-
-    Medio de pago:
-        Se registra al confirmar. Puede ser mixto (varios métodos),
-        pero para esta etapa es un único campo en la cabecera.
-        Cuando se implemente la caja, cada VentaPago sumará al turno activo.
+    Auditoría completa:
+        creado_por       / fecha_alta         → quién creó el borrador
+        confirmado_por   / fecha_confirmacion → quién confirmó
+        anulado_por      / fecha_anulacion    → quién anuló
+        editado_por      / fecha_edicion      → quién editó (re-confirmó)
     """
 
     numero = models.CharField(max_length=20, unique=True, blank=True,
@@ -99,8 +96,6 @@ class Venta(models.Model):
                  default=EstadoVenta.BORRADOR)
 
     # — Medio de pago —
-    # Se completa al confirmar la venta. blank=True para que el borrador
-    # pueda existir sin medio de pago aún definido.
     medio_pago = models.CharField(
         'Medio de pago',
         max_length=20,
@@ -115,20 +110,49 @@ class Venta(models.Model):
     # — Notas —
     notas = models.TextField(blank=True)
 
-    # — Auditoría —
-    # creado_por: quien creó el borrador (puede ser distinto al que confirmó)
-    # confirmado_por: quien apretó "Confirmar venta" — es el dato relevante
-    #                 para el control de caja y turnos.
+    # ── Auditoría ────────────────────────────────────────────────
+    # Creación del borrador
     creado_por = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
         null=True, blank=True, related_name='ventas_creadas',
+        verbose_name='Creado por',
     )
+    fecha_alta = models.DateTimeField(auto_now_add=True)
+
+    # Confirmación
     confirmado_por = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
         null=True, blank=True, related_name='ventas_confirmadas',
         verbose_name='Confirmado por',
     )
-    fecha_alta         = models.DateTimeField(auto_now_add=True)
+    fecha_confirmacion = models.DateTimeField(
+        null=True, blank=True,
+        verbose_name='Fecha de confirmación',
+    )
+
+    # Anulación
+    anulado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='ventas_anuladas',
+        verbose_name='Anulado por',
+    )
+    fecha_anulacion = models.DateTimeField(
+        null=True, blank=True,
+        verbose_name='Fecha de anulación',
+    )
+
+    # Edición (re-confirmación desde historial)
+    editado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='ventas_editadas',
+        verbose_name='Editado por',
+    )
+    fecha_edicion = models.DateTimeField(
+        null=True, blank=True,
+        verbose_name='Fecha de última edición',
+    )
+
+    # Modificación general (auto)
     fecha_modificacion = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -164,11 +188,15 @@ class Venta(models.Model):
         self.save(update_fields=['fecha', 'notas'])
 
     @transaction.atomic
-    def confirmar(self, confirmado_por=None, medio_pago=None):
+    def confirmar(self, confirmado_por=None, medio_pago=None, pagos=None):
         """
         Confirma la venta: resta stock y pasa a CONFIRMADA.
-        Registra quién confirmó y el medio de pago.
-        Solo disponible desde BORRADOR.
+        Registra quién confirmó, cuándo, el medio de pago principal
+        y, si se pasan, las líneas de pago dividido (PagoVenta).
+
+        pagos: lista de dicts [{'medio': 'efectivo', 'monto': 3000}, ...]
+               Si se pasa, reemplaza cualquier PagoVenta previo de
+               esta venta (relevante en re-confirmaciones vía editar_completa).
         """
         if self.estado != EstadoVenta.BORRADOR:
             raise ValueError('Solo se pueden confirmar ventas en estado Borrador.')
@@ -177,17 +205,32 @@ class Venta(models.Model):
             _restar_stock_item(item)
 
         self.calcular_total()
-        self.estado = EstadoVenta.CONFIRMADA
+        self.estado            = EstadoVenta.CONFIRMADA
+        self.fecha_confirmacion = timezone.now()
 
         if confirmado_por is not None:
             self.confirmado_por = confirmado_por
         if medio_pago is not None:
             self.medio_pago = medio_pago
 
-        self.save(update_fields=['estado', 'total', 'confirmado_por', 'medio_pago'])
+        self.save(update_fields=[
+            'estado', 'total', 'confirmado_por', 'fecha_confirmacion', 'medio_pago',
+        ])
+
+        if pagos is not None:
+            self.pagos.all().delete()
+            for p in pagos:
+                monto = p.get('monto')
+                if not monto or float(monto) <= 0:
+                    continue
+                PagoVenta.objects.create(
+                    venta = self,
+                    medio = p.get('medio', MedioPago.EFECTIVO),
+                    monto = monto,
+                )
 
     @transaction.atomic
-    def anular(self):
+    def anular(self, anulado_por=None):
         """Anula la venta y revierte el stock. Solo desde CONFIRMADA."""
         if self.estado == EstadoVenta.ANULADA:
             raise ValueError('La venta ya está anulada.')
@@ -197,8 +240,10 @@ class Venta(models.Model):
         for item in self.items.select_related('producto', 'color'):
             _sumar_stock_item(item)
 
-        self.estado = EstadoVenta.ANULADA
-        self.save(update_fields=['estado'])
+        self.estado         = EstadoVenta.ANULADA
+        self.anulado_por    = anulado_por
+        self.fecha_anulacion = timezone.now()
+        self.save(update_fields=['estado', 'anulado_por', 'fecha_anulacion'])
 
     @transaction.atomic
     def reactivar(self):
@@ -210,11 +255,11 @@ class Venta(models.Model):
         self.save(update_fields=['estado'])
 
     @transaction.atomic
-    def editar_completa(self, fecha, notas='', items_data=None):
+    def editar_completa(self, fecha, notas='', items_data=None, medio_pago=None, editado_por=None, pagos=None):
         """
         Edita una venta ANULADA: reemplaza sus ítems y la re-confirma.
-        El medio_pago y confirmado_por NO se tocan aquí — se pasan
-        por separado desde la view si es necesario.
+        Registra quién editó y cuándo. Si se pasan pagos, reemplaza
+        las líneas de pago dividido existentes.
         """
         if self.estado != EstadoVenta.ANULADA:
             raise ValueError('Solo se pueden editar ventas anuladas.')
@@ -236,12 +281,19 @@ class Venta(models.Model):
                 notas           = d.get('notas', ''),
             )
 
-        self.fecha = fecha
-        self.notas = notas
+        self.fecha        = fecha
+        self.notas        = notas
+        self.editado_por  = editado_por
+        self.fecha_edicion = timezone.now()
+        if medio_pago:
+            self.medio_pago = medio_pago
         self.estado = EstadoVenta.BORRADOR
-        self.save(update_fields=['fecha', 'notas', 'estado'])
+        self.save(update_fields=[
+            'fecha', 'notas', 'medio_pago', 'estado', 'editado_por', 'fecha_edicion',
+        ])
 
-        self.confirmar()
+        # Re-confirma propagando quien editó como confirmador y los pagos
+        self.confirmar(confirmado_por=editado_por, medio_pago=medio_pago, pagos=pagos)
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -347,6 +399,29 @@ class ItemVenta(models.Model):
         if self.color_nombre:
             return f'{self.color_nombre} (eliminado)'
         return ''
+
+
+# ══════════════════════════════════════════════════════════════════
+#  PAGO DE VENTA — soporta pago dividido (ej: mitad efectivo, mitad transferencia)
+# ══════════════════════════════════════════════════════════════════
+
+class PagoVenta(models.Model):
+    """
+    Una línea de pago de una venta. Una venta puede tener varias
+    líneas (pago dividido entre distintos medios). La suma de
+    montos de todas las líneas debe igualar venta.total al confirmar.
+    """
+    venta = models.ForeignKey(Venta, on_delete=models.CASCADE, related_name='pagos')
+    medio = models.CharField(max_length=20, choices=MedioPago.choices, default=MedioPago.EFECTIVO)
+    monto = models.DecimalField(max_digits=14, decimal_places=2)
+
+    class Meta:
+        verbose_name        = 'Pago de venta'
+        verbose_name_plural = 'Pagos de venta'
+        ordering            = ['id']
+
+    def __str__(self):
+        return f'{self.venta.numero} — {self.get_medio_display()}: {self.monto}'
 
 
 # ══════════════════════════════════════════════════════════════════

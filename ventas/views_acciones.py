@@ -6,8 +6,6 @@ from django.views import View
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 
-# ── IMPORTANTE: ProductoColor debe importarse para que editar_completa
-#    pueda resolver las variantes y _restar_stock_item funcione correctamente ──
 from productos.models import Producto, ProductoColor
 from core.models import Cliente
 from .models import Venta, EstadoVenta
@@ -26,7 +24,8 @@ class AnularVentaAjax(LoginRequiredMixin, View):
 
         venta = get_object_or_404(Venta, pk=pk)
         try:
-            venta.anular()
+            # ← CORREGIDO: se pasa el usuario que anula
+            venta.anular(anulado_por=request.user)
         except ValueError as e:
             return JsonResponse({'error': str(e)}, status=400)
 
@@ -99,27 +98,24 @@ class EditarVentaAjax(LoginRequiredMixin, View):
     """
     POST JSON — edita una venta ANULADA, reemplaza sus ítems y la re-confirma.
 
-    Cada ítem del body puede tener color_pk si el producto maneja variantes.
-    Para productos con colores, el frontend envía 1 item por cada color > 0.
-
     Body:
     {
         "pk": 5,
         "fecha": "2025-01-15",
         "notas": "...",
+        "medio_pago": "efectivo",
         "items": [
             {
-                "producto_pk":    1,
-                "cliente_pk":     2,        // opcional
-                "color_pk":       3,        // para productos con variantes de color
-                "cantidad":       "3",
+                "producto_pk":     1,
+                "cliente_pk":      2,
+                "color_pk":        3,
+                "cantidad":        "3",
                 "precio_unitario": "12.00",
-                "moneda":         "ARS",
-                "descuento_pct":  "0",
-                "condicion_pago": "contado",
-                "referencia":     ""
-            },
-            ...
+                "moneda":          "ARS",
+                "descuento_pct":   "0",
+                "condicion_pago":  "contado",
+                "referencia":      ""
+            }
         ]
     }
     """
@@ -145,8 +141,9 @@ class EditarVentaAjax(LoginRequiredMixin, View):
                 status=400
             )
 
-        fecha     = body.get('fecha')
-        items_raw = body.get('items', [])
+        fecha      = body.get('fecha')
+        medio_pago = body.get('medio_pago')
+        items_raw  = body.get('items', [])
 
         if not fecha:
             return JsonResponse({'error': 'La fecha es requerida.'}, status=400)
@@ -169,9 +166,9 @@ class EditarVentaAjax(LoginRequiredMixin, View):
                 continue
 
             try:
-                cantidad       = Decimal(str(raw.get('cantidad', 0)))
+                cantidad        = Decimal(str(raw.get('cantidad', 0)))
                 precio_unitario = Decimal(str(raw.get('precio_unitario', 0)))
-                descuento_pct  = Decimal(str(raw.get('descuento_pct', 0)))
+                descuento_pct   = Decimal(str(raw.get('descuento_pct', 0)))
             except (InvalidOperation, Exception):
                 errores.append(f'Ítem {idx}: valores numéricos inválidos.')
                 continue
@@ -189,7 +186,7 @@ class EditarVentaAjax(LoginRequiredMixin, View):
             if cliente_pk:
                 cliente = Cliente.objects.filter(pk=cliente_pk).first()
 
-            # ── Color (solo para productos con variantes) ────────────
+            # ── Color (solo para productos con variantes) ──────────
             color    = None
             color_pk = raw.get('color_pk')
             if color_pk:
@@ -198,36 +195,37 @@ class EditarVentaAjax(LoginRequiredMixin, View):
                     errores.append(f'Ítem {idx}: el color seleccionado no pertenece a este producto.')
                     continue
 
-            # Si el producto requiere color pero no se mandó ninguno
             if producto.tiene_variantes_color and color is None:
                 errores.append(
                     f'Ítem {idx}: "{producto.nombre}" maneja variantes de color. '
                     f'Cada color debe enviarse como un ítem separado con su color_pk.'
                 )
                 continue
-            # ────────────────────────────────────────────────────────
 
             items_data.append({
-                'producto':       producto,
-                'cliente':      cliente,
-                'color':          color,
-                'cantidad':       cantidad,
+                'producto':        producto,
+                'cliente':         cliente,
+                'color':           color,
+                'cantidad':        cantidad,
                 'precio_unitario': precio_unitario,
-                'moneda':         raw.get('moneda', 'ARS'),
-                'descuento_pct':  descuento_pct,
-                'condicion_pago': raw.get('condicion_pago', 'contado'),
-                'referencia':     raw.get('referencia', ''),
-                'notas':          raw.get('notas', ''),
+                'moneda':          raw.get('moneda', 'ARS'),
+                'descuento_pct':   descuento_pct,
+                'condicion_pago':  raw.get('condicion_pago', 'contado'),
+                'referencia':      raw.get('referencia', ''),
+                'notas':           raw.get('notas', ''),
             })
 
         if errores:
             return JsonResponse({'error': ' | '.join(errores)}, status=400)
 
         try:
+            # ← CORREGIDO: se pasa el usuario que edita
             venta.editar_completa(
-                fecha      = fecha,
-                notas      = body.get('notas', ''),
-                items_data = items_data,
+                fecha        = fecha,
+                notas        = body.get('notas', ''),
+                medio_pago   = medio_pago,
+                items_data   = items_data,
+                editado_por  = request.user,
             )
         except ValueError as e:
             return JsonResponse({'error': str(e)}, status=400)

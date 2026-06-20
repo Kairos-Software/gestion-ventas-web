@@ -19,6 +19,11 @@ from core.permisos import chequear_permiso
 # ══════════════════════════════════════════════════════════════════
 
 class NuevaVentaView(LoginRequiredMixin, TemplateView):
+    """
+    Solo carga de productos al carrito. No se elige fecha ni medio
+    de pago acá — eso se hace en el detalle/borrador, al que se
+    llega con "Continuar al detalle".
+    """
     template_name = 'ventas/nueva_venta.html'
 
     def get_context_data(self, **kwargs):
@@ -27,8 +32,6 @@ class NuevaVentaView(LoginRequiredMixin, TemplateView):
             ctx['sin_permiso'] = True
             return ctx
         ctx['puede_crear']  = True
-        ctx['today']        = timezone.now().date().isoformat()
-        ctx['medios_pago']  = MedioPago.choices
         return ctx
 
 
@@ -128,13 +131,13 @@ class GuardarBorradorAjax(LoginRequiredMixin, View):
     """
     POST JSON:
     {
-        "fecha":      "2025-01-15",   // opcional, usa hoy si falta
-        "notas":      "...",
-        "medio_pago": "efectivo",     // se guarda en el borrador, se confirma al aceptar
         "items": [ { producto_pk, cliente_pk, color_pk, cantidad,
                      precio_unitario, moneda, descuento_pct,
                      condicion_pago, referencia } ]
     }
+    Crea la venta en estado BORRADOR con fecha de hoy y medio de
+    pago por defecto (efectivo) — ambos se terminan de definir en
+    el detalle/borrador antes de confirmar.
     Respuesta: { ok, pk, numero }
     """
 
@@ -151,18 +154,10 @@ class GuardarBorradorAjax(LoginRequiredMixin, View):
         if not items_raw:
             return JsonResponse({'error': 'El carrito está vacío.'}, status=400)
 
-        fecha      = body.get('fecha') or timezone.now().date().isoformat()
-        medio_pago = body.get('medio_pago', MedioPago.EFECTIVO)
-
-        # Validar medio_pago
-        valores_validos = [v for v, _ in MedioPago.choices]
-        if medio_pago not in valores_validos:
-            return JsonResponse({'error': f'Medio de pago inválido: {medio_pago}'}, status=400)
-
         venta = Venta(
-            fecha      = fecha,
+            fecha      = body.get('fecha') or timezone.now().date().isoformat(),
             notas      = body.get('notas', ''),
-            medio_pago = medio_pago,
+            medio_pago = MedioPago.EFECTIVO,
             estado     = EstadoVenta.BORRADOR,
             creado_por = request.user,
         )
@@ -239,8 +234,24 @@ class GuardarBorradorAjax(LoginRequiredMixin, View):
 
 class ConfirmarVentaAjax(LoginRequiredMixin, View):
     """
-    POST JSON { venta_pk, fecha, notas, medio_pago }
-    Confirma el borrador: resta stock, guarda confirmado_por y medio_pago.
+    POST JSON:
+    {
+        "venta_pk":   5,
+        "fecha":      "2025-01-15",
+        "notas":      "...",
+        "medio_pago": "efectivo",          // medio principal (el primero de "pagos")
+        "pagos": [                          // opcional — pago dividido
+            {"medio": "efectivo",      "monto": 3000},
+            {"medio": "transferencia", "monto": 999.97}
+        ]
+    }
+
+    Si se manda "pagos", la suma de montos debe igualar el total de
+    la venta (con tolerancia de 1 centavo). Si no se manda "pagos",
+    se asume pago completo con "medio_pago" (compatibilidad hacia atrás).
+
+    Confirma el borrador: resta stock, guarda confirmado_por,
+    medio_pago principal y las líneas de PagoVenta.
     """
 
     def post(self, request):
@@ -255,6 +266,7 @@ class ConfirmarVentaAjax(LoginRequiredMixin, View):
         venta_pk   = body.get('venta_pk')
         fecha      = body.get('fecha', '').strip()
         medio_pago = body.get('medio_pago', '').strip()
+        pagos_raw  = body.get('pagos')
 
         if not venta_pk:
             return JsonResponse({'error': 'venta_pk requerido.'}, status=400)
@@ -275,6 +287,36 @@ class ConfirmarVentaAjax(LoginRequiredMixin, View):
                 status=400
             )
 
+        # ── Validar pagos divididos, si se mandaron ──
+        pagos_normalizados = None
+        if pagos_raw:
+            pagos_normalizados = []
+            suma = Decimal('0')
+            for p in pagos_raw:
+                medio_p = p.get('medio', '').strip()
+                if medio_p not in valores_validos:
+                    return JsonResponse({'error': f'Medio de pago inválido en pagos: {medio_p}'}, status=400)
+                try:
+                    monto_p = Decimal(str(p.get('monto', 0)))
+                except Exception:
+                    return JsonResponse({'error': 'Monto de pago inválido.'}, status=400)
+                if monto_p <= 0:
+                    continue
+                suma += monto_p
+                pagos_normalizados.append({'medio': medio_p, 'monto': monto_p})
+
+            if not pagos_normalizados:
+                return JsonResponse({'error': 'Agregá al menos un medio de pago con monto.'}, status=400)
+
+            # El total recién se recalcula en confirmar(); usamos el total actual del borrador
+            total_actual = venta.calcular_total() or venta.total
+            venta.refresh_from_db(fields=['total'])
+            diferencia = abs(suma - venta.total)
+            if diferencia > Decimal('0.01'):
+                return JsonResponse({
+                    'error': f'La suma de los pagos (${suma}) no coincide con el total (${venta.total}).'
+                }, status=400)
+
         try:
             venta.editar_cabecera(fecha=fecha, notas=body.get('notas', ''))
         except Exception as e:
@@ -282,7 +324,7 @@ class ConfirmarVentaAjax(LoginRequiredMixin, View):
             return JsonResponse({'error': f'editar_cabecera: {e}', 'detalle': traceback.format_exc()}, status=400)
 
         try:
-            venta.confirmar(confirmado_por=request.user, medio_pago=medio_pago)
+            venta.confirmar(confirmado_por=request.user, medio_pago=medio_pago, pagos=pagos_normalizados)
         except Exception as e:
             import traceback
             return JsonResponse({'error': f'confirmar: {e}', 'detalle': traceback.format_exc()}, status=400)
@@ -421,16 +463,18 @@ class DetalleVentaView(LoginRequiredMixin, View):
 
         venta = get_object_or_404(
             Venta.objects.prefetch_related(
-                'items__producto', 'items__cliente', 'items__color', 'documentos',
+                'items__producto', 'items__cliente', 'items__color',
+                'documentos', 'pagos',
             ),
             pk=pk
         )
 
         from django.urls import reverse
         return _render(request, self.template_name, {
-            'venta':     venta,
+            'venta':      venta,
             'items':      venta.items.select_related('producto', 'cliente', 'color').all(),
             'documentos': venta.documentos.all(),
+            'pagos':      venta.pagos.all(),
             'es_borrador': venta.estado == EstadoVenta.BORRADOR,
             'medios_pago': MedioPago.choices,
             'url_confirmar':         reverse('ventas:confirmar_venta'),

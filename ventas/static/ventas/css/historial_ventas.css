@@ -1501,3 +1501,305 @@
     border-color: rgba(245,158,11,.2);
     color: #92400e;
 }
+
+/* ══════════════════════════════════════════════════════
+   USUARIO EN CABECERA DE VENTA
+══════════════════════════════════════════════════════ */
+.venta-cabecera {
+    grid-template-columns: 140px 110px 1fr auto auto auto auto auto;
+}
+.venta-por-usuario {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    font-style: italic;
+}
+
+/* ══════════════════════════════════════════════════════
+   AUDITORÍA INLINE EN DETALLE DE VENTA
+══════════════════════════════════════════════════════ */
+.hist-auditoria {
+    margin-top: 0.875rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+.hist-auditoria-title {
+    font-size: 0.69rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+}
+.hist-audit-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    flex-wrap: wrap;
+}
+.hist-audit-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    min-width: 100px;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+}
+.hist-audit-val {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+.hist-audit-fecha {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+.hist-audit-row--anulada .hist-audit-label { color: var(--danger, #dc2626); }
+.hist-audit-row--anulada .hist-audit-val   { color: var(--danger, #dc2626); }
+.hist-audit-row--editada .hist-audit-label { color: var(--brand-blue, #3b82f6); }
+.hist-audit-row--editada .hist-audit-val   { color: var(--brand-blue, #3b82f6); }
+
+/* ══════════════════════════════════════════════════════
+   BOTONES DE TICKET EN EL HISTORIAL
+══════════════════════════════════════════════════════ */
+.hist-ticket-btns {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-top: 0.875rem;
+    padding-top: 0.875rem;
+    border-top: 1px solid var(--border-color);
+}
+.hist-ticket-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.9rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s;
+    border: 1px solid transparent;
+    text-decoration: none;
+}
+.hist-ticket-btn:active { transform: scale(0.97); }
+.hist-ticket-btn--outline {
+    background: var(--bg-white);
+    color: var(--text-secondary);
+    border-color: var(--border-color);
+}
+.hist-ticket-btn--outline:hover {
+    border-color: var(--brand-orange);
+    color: var(--brand-orange);
+    background: rgba(242,106,27,0.05);
+}
+.hist-ticket-btn--primary {
+    background: var(--brand-orange);
+    color: #fff;
+    border-color: var(--brand-orange);
+}
+.hist-ticket-btn--primary:hover { filter: brightness(0.93); }
+.hist-ticket-btn--ghost {
+    background: transparent;
+    color: var(--text-muted);
+    border-color: var(--border-color);
+}
+.hist-ticket-btn--ghost:hover {
+    color: var(--text-primary);
+    border-color: var(--border-strong);
+    background: var(--bg-surface-hover);
+}
+
+/* ══════════════════════════════════════════════════════
+   MODAL DE TICKET (historial)
+══════════════════════════════════════════════════════ */
+.hist-ticket-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+    background: rgba(0,0,0,0.45);
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+.hist-ticket-overlay[style*="flex"] { display: flex !important; }
+
+.hist-ticket-box {
+    background: var(--bg-white, #fff);
+    border-radius: 1rem;
+    max-width: 560px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 2rem;
+    position: relative;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+}
+.hist-ticket-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 1.25rem;
+    line-height: 1;
+    padding: 0.25rem;
+    border-radius: 4px;
+    transition: color 0.15s;
+}
+.hist-ticket-close:hover { color: var(--text-primary); }
+.hist-ticket-actions-modal {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1.25rem;
+}
+
+/* ══════════════════════════════════════════════════════
+   USUARIO EN CABECERA DE VENTA
+══════════════════════════════════════════════════════ */
+.venta-cabecera {
+    grid-template-columns: 140px 110px 1fr auto auto auto auto auto;
+}
+.venta-por-usuario {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    font-style: italic;
+}
+
+/* ══════════════════════════════════════════════════════
+   AUDITORÍA INLINE EN DETALLE DE VENTA
+══════════════════════════════════════════════════════ */
+.hist-auditoria {
+    margin-top: 0.875rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+.hist-auditoria-title {
+    font-size: 0.69rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+}
+.hist-audit-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    flex-wrap: wrap;
+}
+.hist-audit-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    min-width: 100px;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+}
+.hist-audit-val {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+.hist-audit-fecha {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+.hist-audit-row--anulada .hist-audit-label { color: var(--danger, #dc2626); }
+.hist-audit-row--anulada .hist-audit-val   { color: var(--danger, #dc2626); }
+.hist-audit-row--editada .hist-audit-label { color: var(--brand-blue, #3b82f6); }
+.hist-audit-row--editada .hist-audit-val   { color: var(--brand-blue, #3b82f6); }
+
+
+/* ══════════════════════════════════════════════════════
+   USUARIO EN CABECERA DE VENTA
+══════════════════════════════════════════════════════ */
+.venta-cabecera {
+    grid-template-columns: 140px 110px 1fr auto auto auto auto auto;
+}
+.venta-por-usuario {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    font-style: italic;
+}
+
+/* ══════════════════════════════════════════════════════
+   AUDITORÍA INLINE EN DETALLE DE VENTA
+══════════════════════════════════════════════════════ */
+.hist-auditoria {
+    margin-top: 0.875rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+.hist-auditoria-title {
+    font-size: 0.69rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+}
+.hist-audit-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    flex-wrap: wrap;
+}
+.hist-audit-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    min-width: 100px;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+}
+.hist-audit-val {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+.hist-audit-fecha {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+.hist-audit-row--anulada .hist-audit-label { color: var(--danger, #dc2626); }
+.hist-audit-row--anulada .hist-audit-val   { color: var(--danger, #dc2626); }
+.hist-audit-row--editada .hist-audit-label { color: var(--brand-blue, #3b82f6); }
+.hist-audit-row--editada .hist-audit-val   { color: var(--brand-blue, #3b82f6); }
+
+/* ══════════════════════════════════════════════════════
+   PAGO DIVIDIDO — badge compacto en la cabecera
+══════════════════════════════════════════════════════ */
+.mp--dividido {
+    background: rgba(124, 58, 237, 0.1);
+    color: #7c3aed;
+    border-color: rgba(124, 58, 237, 0.25);
+}

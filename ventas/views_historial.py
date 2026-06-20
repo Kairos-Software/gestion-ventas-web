@@ -36,11 +36,14 @@ class ListarVentasAjax(LoginRequiredMixin, View):
         ).select_related(
             'creado_por',
             'confirmado_por',
+            'anulado_por',
+            'editado_por',
         ).prefetch_related(
             'items__producto',
             'items__cliente',
             'items__color',
             'documentos',
+            'pagos',
         ).order_by('-fecha', '-fecha_alta')
 
         # — Filtros —
@@ -76,7 +79,6 @@ class ListarVentasAjax(LoginRequiredMixin, View):
         puede_editar   = chequear_permiso(request.user, 'editar_ventas')
         puede_eliminar = chequear_permiso(request.user, 'eliminar_ventas')
 
-        # Íconos SVG por medio de pago (inline, sin necesidad de fuente de iconos)
         MEDIO_PAGO_ICON = {
             'efectivo':      '💵',
             'transferencia': '🏦',
@@ -84,6 +86,16 @@ class ListarVentasAjax(LoginRequiredMixin, View):
             'credito':       '💳',
             'qr':            '📱',
         }
+
+        def _nombre_usuario(u):
+            if not u:
+                return None
+            return u.get_full_name() or u.username or None
+
+        def _fmt_dt(dt):
+            if not dt:
+                return None
+            return dt.strftime('%d/%m/%Y %H:%M')
 
         data = []
         for v in ventas:
@@ -130,19 +142,21 @@ class ListarVentasAjax(LoginRequiredMixin, View):
                     'subido_el':   doc.subido_el.strftime('%d/%m/%Y %H:%M'),
                 })
 
-            # — Usuarios —
-            def _nombre_usuario(u):
-                if not u:
-                    return '—'
-                return u.get_full_name() or u.username or '—'
-
+            # — Auditoría —
             creado_por     = _nombre_usuario(v.creado_por)
             confirmado_por = _nombre_usuario(v.confirmado_por)
+            anulado_por    = _nombre_usuario(v.anulado_por)
+            editado_por    = _nombre_usuario(v.editado_por)
 
-            # Si no hay confirmado_por pero hay creado_por, usamos creado_por
-            # (ventas confirmadas antes de agregar el campo)
-            if confirmado_por == '—' and creado_por != '—':
+            # Fallback: si no hay confirmado_por usar creado_por (ventas viejas)
+            if not confirmado_por and creado_por:
                 confirmado_por = creado_por
+
+            # — Pagos múltiples —
+            pagos = [
+                {'medio': p.medio, 'medio_label': p.get_medio_display(), 'monto': str(p.monto)}
+                for p in v.pagos.all()
+            ]
 
             data.append({
                 'pk':                      v.pk,
@@ -157,9 +171,15 @@ class ListarVentasAjax(LoginRequiredMixin, View):
                 'medio_pago':              v.medio_pago,
                 'medio_pago_label':        v.get_medio_pago_display(),
                 'medio_pago_icon':         MEDIO_PAGO_ICON.get(v.medio_pago, '💰'),
-                # — Usuarios —
-                'creado_por':              creado_por,
-                'confirmado_por':          confirmado_por,
+                'pagos':                   pagos,
+                # — Auditoría —
+                'creado_por':              creado_por or '—',
+                'confirmado_por':          confirmado_por or '—',
+                'fecha_confirmacion':      _fmt_dt(v.fecha_confirmacion),
+                'anulado_por':             anulado_por,
+                'fecha_anulacion':         _fmt_dt(v.fecha_anulacion),
+                'editado_por':             editado_por,
+                'fecha_edicion':           _fmt_dt(v.fecha_edicion),
                 # — Ítems y docs —
                 'items':                   items,
                 'items_count':             len(items),

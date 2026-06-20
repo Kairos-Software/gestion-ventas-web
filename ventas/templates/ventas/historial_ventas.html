@@ -9,6 +9,40 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'ventas/css/historial_ventas.css' %}">
+<style>
+/* Resalte temporal de la venta recién confirmada (llegada desde Nueva Venta) */
+.venta-row--recien-confirmada .venta-cabecera {
+    animation: ventaRecienConfirmadaPulse 1.8s ease-out 2;
+}
+@keyframes ventaRecienConfirmadaPulse {
+    0%   { background: rgba(34,197,94,.14); }
+    100% { background: transparent; }
+}
+.venta-row--recien-confirmada .venta-numero::after {
+    content: '✓ recién confirmada';
+    margin-left: .5rem;
+    font-size: .68rem;
+    font-weight: 700;
+    color: var(--success, #16a34a);
+    background: rgba(34,197,94,.1);
+    padding: .1rem .5rem;
+    border-radius: 10px;
+    vertical-align: middle;
+}
+
+/* Botón "Ver detalle" — estilo ghost discreto */
+.btn-accion--ghost {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    text-decoration: none;
+}
+.btn-accion--ghost:hover {
+    border-color: var(--brand-orange);
+    color: var(--brand-orange);
+    background: rgba(242,106,27,.05);
+}
+</style>
 {% endblock %}
 
 {% block content %}
@@ -112,17 +146,19 @@
 {% block extra_js %}
 <script>
     const HISTORIAL_URLS = {
-        listar:          "{% url 'ventas:listar_ventas' %}",
-        anular:          "{% url 'ventas:anular_venta' %}",
-        reactivar:       "{% url 'ventas:reactivar_venta' %}",
-        eliminar:        "{% url 'ventas:eliminar_venta' %}",
-        editar:          "{% url 'ventas:editar_venta' %}",
-        productos:       "{% url 'productos:gestion_productos' %}",
-        clientes:        "{% url 'core:gestion_clientes' %}",
-        buscarProducto:  "{% url 'ventas:buscar_producto' %}",
-        buscarCliente:   "{% url 'ventas:buscar_cliente' %}",
+        listar:           "{% url 'ventas:listar_ventas' %}",
+        anular:           "{% url 'ventas:anular_venta' %}",
+        reactivar:        "{% url 'ventas:reactivar_venta' %}",
+        eliminar:         "{% url 'ventas:eliminar_venta' %}",
+        editar:           "{% url 'ventas:editar_venta' %}",
+        productos:        "{% url 'productos:gestion_productos' %}",
+        clientes:         "{% url 'core:gestion_clientes' %}",
+        buscarProducto:   "{% url 'ventas:buscar_producto' %}",
+        buscarCliente:    "{% url 'ventas:buscar_cliente' %}",
         documentoSubir:   "{% url 'ventas:documento_subir' %}",
         documentoEliminar:"{% url 'ventas:documento_eliminar' %}",
+        {# CORREGIDO: URL del detalle de venta — usada por el botón "Ver detalle" #}
+        detalleVenta:     "{% url 'ventas:detalle_venta' pk=0 %}",
     };
     const HISTORIAL_PERMISOS = {
         puede_editar:   {{ puede_editar|yesno:"true,false" }},
@@ -134,4 +170,27 @@
 <script src="{% static 'ventas/js/historial_docs.js' %}"></script>
 <script src="{% static 'ventas/js/historial_editor.js' %}"></script>
 <script src="{% static 'ventas/js/historial_ventas.js' %}"></script>
+<script>
+// Resaltar la venta recién confirmada al llegar desde Nueva Venta
+(function() {
+    const raw = sessionStorage.getItem('vtaUltimaVenta');
+    if (!raw) return;
+    sessionStorage.removeItem('vtaUltimaVenta');
+    let info;
+    try { info = JSON.parse(raw); } catch { return; }
+    if (!info || !info.pk) return;
+
+    // Espera a que renderLista termine de pintar la lista
+    const intento = setInterval(() => {
+        const fila = document.querySelector(`.venta-row[data-pk="${info.pk}"]`);
+        if (fila) {
+            clearInterval(intento);
+            fila.classList.add('venta-row--recien-confirmada');
+            fila.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setTimeout(() => fila.classList.remove('venta-row--recien-confirmada'), 4000);
+        }
+    }, 200);
+    setTimeout(() => clearInterval(intento), 5000);
+})();
+</script>
 {% endblock %}

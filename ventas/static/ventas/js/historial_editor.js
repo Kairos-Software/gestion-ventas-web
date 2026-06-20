@@ -16,6 +16,157 @@
 let editState = null;
 
 /* ════════════════════════════════════════════════════════════════
+   WIDGET DE MEDIOS DE PAGO
+   ──────────────────────────────────────────────────────────────
+   Idéntico al de detalle_venta.js: N líneas (medio + monto +
+   quitar), botón "Agregar otro medio", resumen cubierto /
+   pendiente / exceso.
+   El estado vive en editState.pagoLineas / pagoNextId / pagoTotal.
+════════════════════════════════════════════════════════════════ */
+
+const MEDIOS_PAGO_EDITOR = [
+    { value: 'efectivo',      label: 'Efectivo' },
+    { value: 'transferencia', label: 'Transferencia' },
+    { value: 'debito',        label: 'Tarjeta de débito' },
+    { value: 'credito',       label: 'Tarjeta de crédito' },
+    { value: 'qr',            label: 'QR / Mercado Pago' },
+];
+
+function _fmtARS(v) {
+    return '$ ' + parseFloat(v || 0).toLocaleString('es-AR', {
+        minimumFractionDigits: 2, maximumFractionDigits: 2,
+    });
+}
+
+function _pagoMedioOpts(seleccionado) {
+    return MEDIOS_PAGO_EDITOR.map(m =>
+        `<option value="${m.value}" ${m.value === seleccionado ? 'selected' : ''}>${m.label}</option>`
+    ).join('');
+}
+
+function _pagoRenderLineas() {
+    if (!editState) return;
+    const { pk, pagoLineas } = editState;
+    const contenedor = document.getElementById(`editPagoLineas_${pk}`);
+    if (!contenedor) return;
+
+    if (!pagoLineas.length) {
+        contenedor.innerHTML = `
+        <p style="font-size:.8125rem;color:var(--text-muted);margin:.25rem 0">
+            Sin medios de pago. Usá el botón de abajo para agregar.
+        </p>`;
+        _pagoActualizarResumen();
+        return;
+    }
+
+    contenedor.innerHTML = pagoLineas.map(l => `
+    <div class="vdt-pago-linea" data-linea-id="${l.id}">
+        <select class="vdt-pago-select" data-campo="medio" data-id="${l.id}">
+            ${_pagoMedioOpts(l.medio)}
+        </select>
+        <input type="number" class="vdt-pago-monto" min="0" step="0.01"
+               placeholder="Monto"
+               value="${l.monto > 0 ? l.monto : ''}"
+               data-campo="monto" data-id="${l.id}">
+        <button class="vdt-pago-btn-quitar" data-id="${l.id}" title="Quitar">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M2 2L10 10M10 2L2 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+        </button>
+    </div>`).join('');
+
+    contenedor.querySelectorAll('[data-campo]').forEach(el => {
+        el.addEventListener('change', () => {
+            if (!editState) return;
+            const id    = parseInt(el.dataset.id, 10);
+            const campo = el.dataset.campo;
+            const linea = editState.pagoLineas.find(l => l.id === id);
+            if (!linea) return;
+            linea[campo] = campo === 'monto' ? (parseFloat(el.value) || 0) : el.value;
+            _pagoActualizarResumen();
+        });
+        if (el.dataset.campo === 'monto') {
+            el.addEventListener('input', () => {
+                if (!editState) return;
+                const id    = parseInt(el.dataset.id, 10);
+                const linea = editState.pagoLineas.find(l => l.id === id);
+                if (linea) { linea.monto = parseFloat(el.value) || 0; _pagoActualizarResumen(); }
+            });
+        }
+    });
+
+    contenedor.querySelectorAll('.vdt-pago-btn-quitar').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (!editState) return;
+            const id = parseInt(btn.dataset.id, 10);
+            editState.pagoLineas = editState.pagoLineas.filter(l => l.id !== id);
+            _pagoRenderLineas();
+        });
+    });
+
+    _pagoActualizarResumen();
+}
+
+function _pagoActualizarResumen() {
+    if (!editState) return;
+    const { pk, pagoLineas, pagoTotal } = editState;
+
+    const asignado  = pagoLineas.reduce((s, l) => s + (l.monto || 0), 0);
+    const pendiente = pagoTotal - asignado;
+    const exceso    = asignado - pagoTotal;
+
+    const resumenEl = document.getElementById(`editPagoResumen_${pk}`);
+    if (!resumenEl) return;
+
+    resumenEl.className = 'vdt-pago-resumen ';
+
+    if (Math.abs(pendiente) < 0.005 && pagoLineas.length) {
+        resumenEl.classList.add('vdt-pago-resumen--ok');
+        resumenEl.innerHTML = `
+        <span>
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style="vertical-align:middle;margin-right:4px">
+                <path d="M2 7L5.5 10.5L12 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Pago cubierto
+        </span>
+        <span>Total: <strong>${_fmtARS(asignado)}</strong></span>`;
+    } else if (exceso > 0.005) {
+        resumenEl.classList.add('vdt-pago-resumen--exceso');
+        resumenEl.innerHTML = `
+        <span>Asignado: <strong>${_fmtARS(asignado)}</strong></span>
+        <span>Exceso: <strong>${_fmtARS(exceso)}</strong></span>`;
+    } else {
+        resumenEl.classList.add('vdt-pago-resumen--pendiente');
+        resumenEl.innerHTML = `
+        <span>Asignado: <strong>${_fmtARS(asignado)}</strong></span>
+        <span>Pendiente: <strong>${_fmtARS(pendiente)}</strong></span>`;
+    }
+}
+
+function _pagoAgregarLinea() {
+    if (!editState) return;
+    const asignado = editState.pagoLineas.reduce((s, l) => s + (l.monto || 0), 0);
+    const restante = Math.max(0, editState.pagoTotal - asignado);
+    editState.pagoLineas.push({
+        id:    editState.pagoNextId++,
+        medio: MEDIOS_PAGO_EDITOR[0].value,
+        monto: parseFloat(restante.toFixed(2)),
+    });
+    _pagoRenderLineas();
+}
+
+function _pagoEsCubierto() {
+    if (!editState) return false;
+    const asignado = editState.pagoLineas.reduce((s, l) => s + (l.monto || 0), 0);
+    return Math.abs(editState.pagoTotal - asignado) < 0.005 && editState.pagoLineas.length > 0;
+}
+
+function _pagoGetMedioPrincipal() {
+    if (!editState || !editState.pagoLineas.length) return 'efectivo';
+    return editState.pagoLineas[0].medio;
+}
+
+/* ════════════════════════════════════════════════════════════════
    ABRIR EDICIÓN
 ════════════════════════════════════════════════════════════════ */
 function accionEditar(pk, ventaData, listaContainer) {
@@ -87,6 +238,9 @@ function accionEditar(pk, ventaData, listaContainer) {
 
     const carrito = Array.from(carritoMap.values());
 
+    // Total estimado del carrito para inicializar el widget de pagos
+    const totalEstimado = carrito.reduce((s, i) => s + _calcEditSub(i), 0);
+
     editState = {
         pk,
         carrito,
@@ -95,12 +249,27 @@ function accionEditar(pk, ventaData, listaContainer) {
         cliGlobalDD:     null,
         cliActiveInput:  null,
         cliActiveItemId: null,
+        // — widget de medios de pago —
+        pagoLineas: [{
+            id:    0,
+            medio: ventaData.medio_pago || MEDIOS_PAGO_EDITOR[0].value,
+            monto: parseFloat(totalEstimado.toFixed(2)),
+        }],
+        pagoNextId:  1,
+        pagoTotal:   parseFloat(totalEstimado.toFixed(2)),
+        // guardamos listaContainer para poder cerrar desde _guardarEdicion
+        _listaContainer: listaContainer,
     };
 
     const detalle = row.querySelector('.venta-detalle');
     detalle.innerHTML = _buildEditorHTML(ventaData);
     _renderEditCarrito();
+    _pagoRenderLineas();
     _bindEditorEvents(row, ventaData, listaContainer);
+
+    // Botón "Agregar otro medio"
+    const btnAgregarPago = document.getElementById(`editBtnAgregarPago_${pk}`);
+    if (btnAgregarPago) btnAgregarPago.addEventListener('click', _pagoAgregarLinea);
 
     // Enriquecer colores con datos reales del servidor (hex, stock)
     carrito.forEach(item => {
@@ -127,7 +296,9 @@ async function _cargarColoresProducto(productoPk, itemId) {
     try {
         const res    = await fetch(`${HISTORIAL_URLS.buscarProducto}?pk=${encodeURIComponent(productoPk)}`);
         const data   = await res.json();
-        const colores = data.colores || [];
+        const colores = (data.results && data.results[0])
+            ? data.results[0].colores
+            : (data.colores || []);
 
         const item = editState.carrito.find(i => i.id === itemId);
         if (!item) return;
@@ -179,6 +350,8 @@ function _buildEditorHTML(c) {
                        placeholder="Observaciones…" value="${_esc(c.notas || '')}">
             </div>
         </div>
+
+        ${_buildPagoWidgetHTML(c)}
 
         <div class="edit-search-wrap">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
@@ -232,6 +405,51 @@ function _buildEditorHTML(c) {
                     Guardar y re-confirmar
                 </button>
             </div>
+        </div>
+    </div>`;
+}
+
+/**
+ * HTML del widget de medios de pago dentro del editor.
+ * Reemplaza al antiguo <select id="editMedioPago_${pk}"> simple.
+ * Los IDs llevan el pk de la venta para evitar colisiones si
+ * hubiera múltiples paneles (aunque solo hay uno a la vez).
+ */
+function _buildPagoWidgetHTML(c) {
+    return `
+    <div class="edit-pago-section" style="
+        margin:.75rem 0;
+        padding:.875rem 1rem;
+        background:var(--bg-secondary);
+        border:1px solid var(--border-color);
+        border-radius:.65rem;">
+
+        <div style="
+            font-family:'Plus Jakarta Sans',sans-serif;
+            font-size:.69rem; font-weight:700;
+            text-transform:uppercase; letter-spacing:.09em;
+            color:var(--text-muted); margin-bottom:.6rem;">
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none" style="vertical-align:middle;margin-right:4px">
+                <rect x="1" y="3" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.3"/>
+                <path d="M1 6H13" stroke="currentColor" stroke-width="1.3"/>
+            </svg>
+            Medios de pago
+        </div>
+
+        <div class="vdt-pago-lineas" id="editPagoLineas_${c.pk}">
+            <!-- renderizado por _pagoRenderLineas() -->
+        </div>
+
+        <button class="vdt-pago-agregar" id="editBtnAgregarPago_${c.pk}">
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                <path d="M7 2V12M2 7H12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            </svg>
+            Agregar otro medio
+        </button>
+
+        <div class="vdt-pago-resumen vdt-pago-resumen--pendiente" id="editPagoResumen_${c.pk}">
+            <span>Asignado: <strong>$ 0,00</strong></span>
+            <span>Pendiente: <strong>$ 0,00</strong></span>
         </div>
     </div>`;
 }
@@ -358,6 +576,11 @@ function _renderEditCarrito() {
     if (totalEl) {
         const t = carrito.reduce((s, i) => s + _calcEditSub(i), 0);
         totalEl.textContent = fmtPeso(t);
+        // Sincronizar pagoTotal con el total real del carrito
+        if (editState) {
+            editState.pagoTotal = parseFloat(t.toFixed(2));
+            _pagoActualizarResumen();
+        }
     }
 }
 
@@ -478,10 +701,13 @@ function _updateColorDist(itemId, colorPk, valor) {
     const subEl = document.getElementById(`editSub_${pk}_${itemId}`);
     if (subEl) subEl.textContent = fmtMoneda(_calcEditSub(item), item.moneda);
 
-    // Total general
+    // Total general + sincronizar pagoTotal
     const totalEl = document.getElementById(`editTotal_${pk}`);
     if (totalEl) {
-        totalEl.textContent = fmtPeso(editState.carrito.reduce((s, i) => s + _calcEditSub(i), 0));
+        const t = editState.carrito.reduce((s, i) => s + _calcEditSub(i), 0);
+        totalEl.textContent = fmtPeso(t);
+        editState.pagoTotal = parseFloat(t.toFixed(2));
+        _pagoActualizarResumen();
     }
 }
 
@@ -533,7 +759,13 @@ function _editUpdateField(id, campo, valor) {
     }
 
     const totalEl = document.getElementById(`editTotal_${pk}`);
-    if (totalEl) totalEl.textContent = fmtPeso(editState.carrito.reduce((s, i) => s + _calcEditSub(i), 0));
+    if (totalEl) {
+        const t = editState.carrito.reduce((s, i) => s + _calcEditSub(i), 0);
+        totalEl.textContent = fmtPeso(t);
+        // Sincronizar pagoTotal
+        editState.pagoTotal = parseFloat(t.toFixed(2));
+        _pagoActualizarResumen();
+    }
 }
 
 function _calcEditSub(item) {
@@ -733,10 +965,24 @@ function _guardarEdicion(ventaData) {
         return;
     }
 
-    const fechaEl = document.getElementById(`editFecha_${pk}`);
-    const notasEl = document.getElementById(`editNotas_${pk}`);
-    const fecha   = fechaEl ? fechaEl.value : ventaData.fecha_iso || '';
-    const notas   = notasEl ? notasEl.value.trim() : '';
+    // Validar que el pago esté cubierto
+    if (!_pagoEsCubierto()) {
+        const asignado  = editState.pagoLineas.reduce((s, l) => s + (l.monto || 0), 0);
+        const pendiente = editState.pagoTotal - asignado;
+        if (!editState.pagoLineas.length) {
+            mostrarToastError('Agregá al menos un medio de pago.');
+        } else {
+            mostrarToastError(`El pago no está cubierto. Falta: ${_fmtARS(Math.max(0, pendiente))}`);
+        }
+        return;
+    }
+
+    const fechaEl    = document.getElementById(`editFecha_${pk}`);
+    const notasEl    = document.getElementById(`editNotas_${pk}`);
+    const fecha      = fechaEl ? fechaEl.value : ventaData.fecha_iso || '';
+    const notas      = notasEl ? notasEl.value.trim() : '';
+    const medio_pago = _pagoGetMedioPrincipal();
+
     if (!fecha) { mostrarToastError('La fecha es requerida.'); return; }
 
     const btnGuardar = document.querySelector(`.edit-btn-guardar[data-pk="${pk}"]`);
@@ -781,9 +1027,12 @@ function _guardarEdicion(ventaData) {
         }
     }
 
+    // Capturamos listaContainer desde editState antes de cerrar
+    const listaContainer = editState._listaContainer;
+
     postAccion(
         HISTORIAL_URLS.editar,
-        { pk, fecha, notas, items: itemsPayload },
+        { pk, fecha, notas, medio_pago, items: itemsPayload },
         (data) => {
             mostrarToastExito(`Venta ${data.numero} actualizada y re-confirmada. Total: ${formatMoney(data.total)}`);
             cerrarEdicion(listaContainer);
