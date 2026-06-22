@@ -174,6 +174,9 @@ class Venta(models.Model):
             if self.estado == EstadoVenta.CONFIRMADA:
                 for item in self.items.select_related('producto', 'color'):
                     _sumar_stock_item(item)
+            # Sincronizar movimiento de caja grande antes de borrar
+            from caja.models import sincronizar_movimiento_venta
+            sincronizar_movimiento_venta(self)
             super().delete(*args, **kwargs)
 
     # ── Métodos de negocio ───────────────────────────────────────
@@ -229,6 +232,10 @@ class Venta(models.Model):
                     monto = monto,
                 )
 
+        # Sincronizar movimiento de caja grande
+        from caja.models import sincronizar_movimiento_venta
+        sincronizar_movimiento_venta(self)
+
     @transaction.atomic
     def anular(self, anulado_por=None):
         """Anula la venta y revierte el stock. Solo desde CONFIRMADA."""
@@ -244,6 +251,10 @@ class Venta(models.Model):
         self.anulado_por    = anulado_por
         self.fecha_anulacion = timezone.now()
         self.save(update_fields=['estado', 'anulado_por', 'fecha_anulacion'])
+
+        # Sincronizar movimiento de caja grande
+        from caja.models import sincronizar_movimiento_venta
+        sincronizar_movimiento_venta(self)
 
     @transaction.atomic
     def reactivar(self):
@@ -294,6 +305,7 @@ class Venta(models.Model):
 
         # Re-confirma propagando quien editó como confirmador y los pagos
         self.confirmar(confirmado_por=editado_por, medio_pago=medio_pago, pagos=pagos)
+        # La sincronización de caja ya ocurre dentro de confirmar()
 
 
 # ══════════════════════════════════════════════════════════════════

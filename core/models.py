@@ -20,6 +20,9 @@ PERMISOS_CHOICES = [
     ('eliminar_usuarios',  'Eliminar usuarios'),
     ('gestionar_permisos', 'Gestionar permisos de otros usuarios'),
 
+    # ── Módulo: Empresa ──────────────────────────────────────────
+    ('editar_empresa',     'Editar datos de la empresa'),
+
     # ── Módulo: Clientes ──────────────────────────────────────────
     ('ver_clientes',       'Ver lista de clientes'),
     ('crear_clientes',     'Crear clientes'),
@@ -54,9 +57,24 @@ PERMISOS_CHOICES = [
     ('crear_ventas',      'Crear nuevas ventas'),
     ('editar_ventas',     'Editar ventas existentes'),
     ('eliminar_ventas',   'Eliminar ventas'),
+
+    # ── Módulo: Caja ───────────────────────────────────────────────
+    ('ver_caja',              'Ver balance y movimientos de caja'),
+    ('cargar_movimientos_caja', 'Cargar movimientos manuales en caja'),
+
+    # ── Módulo: Gastos ───────────────────────────────────────────────
+    ('ver_gastos',       'Ver historial de gastos'),
+    ('crear_gastos',     'Crear nuevos gastos'),
+    ('editar_gastos',    'Editar gastos existentes'),
+    ('eliminar_gastos',  'Eliminar gastos'),
 ]
 
 CODIGOS_PERMISOS = {codigo for codigo, _ in PERMISOS_CHOICES}
+
+# Permisos que solo pueden ser otorgados por superusuarios
+PERMISOS_RESTRINGIDOS = {
+    'editar_empresa',
+}
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -930,3 +948,56 @@ class ClienteContactoAdicional(models.Model):
 
     def __str__(self):
         return f"{self.nombre} {self.apellido} ({self.get_rol_display()}) — {self.cliente}"
+
+
+# ══════════════════════════════════════════════════════════════════
+#  DATOS DE LA EMPRESA
+# ══════════════════════════════════════════════════════════════════
+
+class CondicionIVA(models.TextChoices):
+    RESPONSABLE_INSCRIPTO = 'RI', 'Responsable Inscripto'
+    MONOTRIBUTISTA = 'M', 'Monotributista'
+    EXENTO = 'E', 'Exento'
+    CONSUMIDOR_FINAL = 'CF', 'Consumidor Final'
+
+
+def _empresa_logo_path(instance, filename):
+    import os
+    ext = os.path.splitext(filename)[1].lower()
+    return f'empresa/logo{ext}'
+
+
+class DatosEmpresa(models.Model):
+    """
+    Modelo singleton para guardar los datos de la empresa.
+    Solo debe existir un registro en la base de datos.
+    """
+    nombre_comercial = models.CharField(max_length=200, default='Mi Empresa')
+    razon_social = models.CharField(max_length=200, blank=True)
+    cuit = models.CharField(max_length=13, blank=True, help_text='XX-XXXXXXXX-X')
+    condicion_iva = models.CharField(max_length=3, choices=CondicionIVA.choices, blank=True)
+    domicilio = models.CharField(max_length=300, blank=True)
+    telefono = models.CharField(max_length=50, blank=True)
+    email = models.EmailField(blank=True)
+    logo = models.ImageField(upload_to=_empresa_logo_path, blank=True, null=True)
+    actualizado_el = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Datos de la empresa'
+        verbose_name_plural = 'Datos de la empresa'
+
+    def __str__(self):
+        return self.nombre_comercial
+
+    @classmethod
+    def get_solo(cls):
+        """
+        Devuelve el único registro de DatosEmpresa, creándolo si no existe.
+        """
+        obj, created = cls.objects.get_or_create(
+            pk=1,
+            defaults={
+                'nombre_comercial': 'Mi Empresa',
+            }
+        )
+        return obj

@@ -9,6 +9,7 @@ urlpatterns = [
     path('productos/', include('productos.urls', namespace='productos')),  # ← esto
     path('compras/', include('compras.urls', namespace='compras')),  # ← esto
     path('ventas/', include('ventas.urls', namespace='ventas')),  # ← esto
+    path('caja/', include('caja.urls', namespace='caja')),
 ]
 
 if settings.DEBUG:

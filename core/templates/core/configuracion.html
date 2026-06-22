@@ -7,161 +7,7 @@
 {% block breadcrumb %}<strong>Configuración</strong>{% endblock %}
 
 {% block extra_css %}
-<style>
-.config-page { max-width: 860px; margin: 0 auto; }
-
-.config-page-header {
-    margin-bottom: 1.75rem;
-}
-
-.config-page-header h1 {
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    font-size: 1.5rem;
-    font-weight: 800;
-    color: var(--text-primary);
-    letter-spacing: -0.4px;
-    margin-bottom: 0.3rem;
-}
-
-.config-page-header p {
-    font-size: 0.875rem;
-    color: var(--text-muted);
-}
-
-.config-section {
-    background: var(--bg-white);
-    border: 1px solid var(--border-color);
-    border-radius: 1rem;
-    overflow: hidden;
-    box-shadow: var(--shadow-sm);
-    margin-bottom: 1.25rem;
-}
-
-.config-section-header {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 1rem 1.375rem;
-    border-bottom: 1px solid var(--border-color);
-    background: var(--bg-primary);
-}
-
-.config-section-icon {
-    width: 34px; height: 34px;
-    border-radius: 0.625rem;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
-}
-
-.config-section-header h2 {
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    font-size: 0.9375rem;
-    font-weight: 700;
-    color: var(--text-primary);
-    margin: 0;
-}
-
-.config-section-header p {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    margin: 0;
-}
-
-.config-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 1rem 1.375rem;
-    border-bottom: 1px solid var(--border-color);
-    transition: background 0.15s;
-}
-
-.config-row:last-child { border-bottom: none; }
-.config-row:hover { background: var(--bg-primary); }
-
-.config-row-info { flex: 1; min-width: 0; }
-
-.config-row-label {
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: 0.2rem;
-}
-
-.config-row-desc {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-}
-
-/* Toggle switch */
-.toggle-switch {
-    position: relative;
-    width: 40px; height: 22px;
-    flex-shrink: 0;
-}
-
-.toggle-switch input { opacity: 0; width: 0; height: 0; }
-
-.toggle-track {
-    position: absolute;
-    inset: 0;
-    background: var(--border-strong);
-    border-radius: 2rem;
-    cursor: pointer;
-    transition: background 0.2s;
-}
-
-.toggle-track::before {
-    content: '';
-    position: absolute;
-    left: 3px; top: 3px;
-    width: 16px; height: 16px;
-    background: white;
-    border-radius: 50%;
-    transition: transform 0.2s;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
-}
-
-.toggle-switch input:checked + .toggle-track { background: var(--brand-orange); }
-.toggle-switch input:checked + .toggle-track::before { transform: translateX(18px); }
-
-/* Badge "Próximamente" */
-.config-soon {
-    font-size: 0.6rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    padding: 0.2rem 0.5rem;
-    background: var(--bg-secondary);
-    color: var(--text-muted);
-    border: 1px solid var(--border-color);
-    border-radius: 0.4rem;
-    flex-shrink: 0;
-}
-
-/* Coming soon full card */
-.config-coming-soon {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 2.5rem;
-    text-align: center;
-    color: var(--text-muted);
-    gap: 0.5rem;
-}
-
-.config-coming-soon h3 {
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    font-size: 0.9375rem;
-    font-weight: 700;
-    color: var(--text-secondary);
-    margin: 0;
-}
-
-.config-coming-soon p { font-size: 0.8125rem; margin: 0; }
-</style>
+<link rel="stylesheet" href="{% static 'core/css/configuracion.css' %}">
 {% endblock %}
 
 {% block content %}
@@ -170,6 +16,97 @@
     <div class="config-page-header">
         <h1>Configuración</h1>
         <p>Administrá las preferencias del sistema y tu cuenta.</p>
+    </div>
+
+    <!-- ── Datos de la empresa ── -->
+    <div class="config-section">
+        <div class="config-section-header">
+            <div class="config-section-icon" style="background:rgba(16,185,129,0.1); color:var(--success);">
+                <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                    <path d="M3 17V5L10 2L17 5V17" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+                    <path d="M7 17V11H13V17" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <div>
+                <h2>Datos de la empresa</h2>
+                <p>Se usan en el ticket de venta y, más adelante, en el catálogo</p>
+            </div>
+        </div>
+
+        {% if puede_editar_empresa %}
+        <form id="formEmpresa">
+            {% csrf_token %}
+            <div class="config-row" style="flex-direction:column; align-items:flex-start; gap:0.6rem;">
+                <span class="config-row-label">Logo</span>
+                <div style="display:flex; align-items:center; gap:1rem;">
+                    <div class="config-logo-box" id="logoPreviewBox">
+                        {% if datos_empresa.logo %}
+                            <img src="{{ datos_empresa.logo.url }}" alt="Logo">
+                        {% else %}
+                            <span style="font-size:0.7rem; color:var(--text-muted);">Sin logo</span>
+                        {% endif %}
+                    </div>
+                    <input type="file" id="inputLogo" accept=".jpg,.jpeg,.png,.webp" style="display:none;">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('inputLogo').click()">Subir / cambiar</button>
+                    <button type="button" id="btnEliminarLogo" class="btn btn-sm btn-outline-danger" {% if not datos_empresa.logo %}style="display:none;"{% endif %}>Eliminar</button>
+                </div>
+            </div>
+
+            <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                <label class="config-row-label" for="idNombreComercial">Nombre comercial *</label>
+                <input class="form-control" id="idNombreComercial" value="{{ datos_empresa.nombre_comercial }}" required>
+            </div>
+
+            <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                <label class="config-row-label" for="idRazonSocial">Razón social</label>
+                <input class="form-control" id="idRazonSocial" value="{{ datos_empresa.razon_social }}">
+            </div>
+
+            <div class="config-row" style="gap:1rem;">
+                <div style="flex:1;">
+                    <label class="config-row-label" for="idCuit">CUIT</label>
+                    <input class="form-control" id="idCuit" value="{{ datos_empresa.cuit }}">
+                </div>
+                <div style="flex:1;">
+                    <label class="config-row-label" for="idCondicionIva">Condición frente al IVA</label>
+                    <select class="form-select" id="idCondicionIva">
+                        <option value="">— Sin especificar —</option>
+                        <option value="RI" {% if datos_empresa.condicion_iva == 'RI' %}selected{% endif %}>Responsable Inscripto</option>
+                        <option value="monotributo" {% if datos_empresa.condicion_iva == 'monotributo' %}selected{% endif %}>Monotributista</option>
+                        <option value="exento" {% if datos_empresa.condicion_iva == 'exento' %}selected{% endif %}>Exento</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                <label class="config-row-label" for="idDomicilio">Domicilio comercial</label>
+                <input class="form-control" id="idDomicilio" value="{{ datos_empresa.domicilio }}">
+            </div>
+
+            <div class="config-row" style="gap:1rem;">
+                <div style="flex:1;">
+                    <label class="config-row-label" for="idTelefono">Teléfono</label>
+                    <input class="form-control" id="idTelefono" value="{{ datos_empresa.telefono }}">
+                </div>
+                <div style="flex:1;">
+                    <label class="config-row-label" for="idEmail">Email</label>
+                    <input type="email" class="form-control" id="idEmail" value="{{ datos_empresa.email }}">
+                </div>
+            </div>
+
+            <div class="config-row" style="justify-content:flex-end;">
+                <button type="submit" class="btn btn-sm" style="background:var(--brand-orange); color:white;">Guardar cambios</button>
+            </div>
+            <div id="empresaMsg" class="config-empresa-msg"></div>
+        </form>
+        {% else %}
+        <div class="config-row">
+            <div class="config-row-info">
+                <div class="config-row-label">{{ datos_empresa.nombre_comercial|default:"Sin configurar" }}</div>
+                <div class="config-row-desc">Solo el propietario de la cuenta puede modificar estos datos.</div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     <!-- ── Apariencia ── -->
@@ -270,17 +207,10 @@
 
 {% block extra_js %}
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-    // Sidebar default toggle — sincroniza con localStorage
-    const toggleSidebar = document.getElementById('toggleSidebarDefault');
-    if (toggleSidebar) {
-        toggleSidebar.checked = localStorage.getItem('sidebarCollapsed') === 'true';
-        toggleSidebar.addEventListener('change', function () {
-            localStorage.setItem('sidebarCollapsed', this.checked);
-            const sidebar = document.querySelector('.sidebar');
-            if (sidebar) sidebar.classList.toggle('collapsed', this.checked);
-        });
-    }
-});
+    window.CONFIG_EMPRESA_URLS = {
+        guardar: "{% url 'core:empresa_guardar' %}",
+        logo:    "{% url 'core:empresa_logo' %}",
+    };
 </script>
+<script src="{% static 'core/js/configuracion.js' %}"></script>
 {% endblock %}

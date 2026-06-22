@@ -14,7 +14,7 @@
 #
 # ─────────────────────────────────────────────────────────────────
 
-from .models import UsuarioPermisoOverride, CODIGOS_PERMISOS
+from .models import UsuarioPermisoOverride, CODIGOS_PERMISOS, PERMISOS_RESTRINGIDOS
 
 
 def chequear_permiso(usuario, codigo_permiso):
@@ -50,16 +50,41 @@ def chequear_permiso(usuario, codigo_permiso):
     return False
 
 
-def permisos_del_usuario(usuario):
+def filtrar_permisos_otorgables(codigos, solicitante):
+    """
+    Dado un conjunto de códigos de permiso que alguien quiere otorgar
+    (a un usuario individual o a un Rol completo), devuelve solo los
+    que `solicitante` está autorizado a otorgar.
+
+    Los códigos en PERMISOS_RESTRINGIDOS (ej: 'editar_empresa') solo
+    pueden ser otorgados por un superusuario — ni siquiera alguien
+    con 'gestionar_permisos' puede asignarlos. Hay que llamar a esta
+    función en TODO lugar donde se guarden permisos: tanto al guardar
+    overrides individuales (guardar_permisos_usuario) como al guardar
+    el listado de permisos de un Rol (en views_permisos.py).
+    """
+    codigos = set(codigos)
+    if solicitante and solicitante.is_superuser:
+        return codigos
+    return codigos - PERMISOS_RESTRINGIDOS
+
+
+def permisos_del_usuario(usuario, solicitante=None):
     """
     Devuelve un dict completo con el estado de cada permiso para un usuario.
     Útil para renderizar la pantalla de gestión de permisos.
+
+    `solicitante` es el usuario logueado que está viendo/editando la
+    pantalla (el admin). Se usa solo para calcular 'editable': si es
+    False, el template debe renderizar ese permiso como bloqueado
+    (el solicitante puede ver su estado actual, pero no cambiarlo).
 
     Formato devuelto:
     {
         'ver_usuarios': {
             'concedido': True,
-            'fuente': 'rol' | 'override_positivo' | 'override_negativo' | 'sin_permiso'
+            'fuente': 'rol' | 'override_positivo' | 'override_negativo' | 'sin_permiso' | 'superusuario',
+            'editable': True | False
         },
         ...
     }
@@ -68,7 +93,7 @@ def permisos_del_usuario(usuario):
 
     if usuario.is_superuser:
         return {
-            codigo: {'concedido': True, 'fuente': 'superusuario'}
+            codigo: {'concedido': True, 'fuente': 'superusuario', 'editable': False}
             for codigo, _ in PERMISOS_CHOICES
         }
 
@@ -91,23 +116,39 @@ def permisos_del_usuario(usuario):
             concedido = False
             fuente = 'sin_permiso'
 
-        resultado[codigo] = {'concedido': concedido, 'fuente': fuente}
+        es_restringido = codigo in PERMISOS_RESTRINGIDOS
+        editable = not es_restringido or (solicitante is not None and solicitante.is_superuser)
+
+        resultado[codigo] = {
+            'concedido': concedido,
+            'fuente': fuente,
+            'editable': editable,
+        }
 
     return resultado
 
 
-def guardar_permisos_usuario(usuario, permisos_enviados):
+def guardar_permisos_usuario(usuario, permisos_enviados, solicitante):
     """
     Recibe un dict {codigo: bool} con los permisos que el admin quiere setear.
     Calcula qué es override (difiere del rol) y qué no, y guarda solo los overrides.
+
+    `solicitante` = el usuario logueado que está guardando (el admin).
+    Si `permisos_enviados` incluye un código restringido (ver
+    PERMISOS_RESTRINGIDOS) y `solicitante` no es superusuario, ese
+    código se ignora en silencio — no se guarda, no rompe el resto.
 
     permisos_enviados = {'ver_usuarios': True, 'crear_usuarios': False, ...}
     """
     permisos_rol = usuario.rol.get_permisos() if usuario.rol else set()
 
+    codigos_permitidos = filtrar_permisos_otorgables(permisos_enviados.keys(), solicitante)
+
     for codigo, concedido in permisos_enviados.items():
         if codigo not in CODIGOS_PERMISOS:
             continue
+        if codigo not in codigos_permitidos:
+            continue  # restringido y el solicitante no es superusuario
 
         en_rol = codigo in permisos_rol
 

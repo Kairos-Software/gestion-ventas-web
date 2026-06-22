@@ -1,10 +1,11 @@
-# core/urls.py  — versión extendida (agrega rutas de personal)
+# core/urls.py  — versión extendida (agrega rutas de personal + empresa)
 from django.urls import path
 from . import views
 from . import views_usuarios
 from . import views_permisos
 from . import views_clientes
 from . import views_perfil
+from . import views_empresa
 
 app_name = 'core'
 
@@ -48,4 +49,8 @@ urlpatterns = [
 
     path('mi-perfil/', views_perfil.mi_perfil, name='mi_perfil'),
     path('configuracion/', views.configuracion, name='configuracion'),
+
+    # ── Empresa (datos de la empresa — Configuración) ──────────────
+    path('configuracion/empresa/guardar/', views_empresa.EmpresaGuardarAjax.as_view(), name='empresa_guardar'),
+    path('configuracion/empresa/logo/', views_empresa.EmpresaLogoAjax.as_view(), name='empresa_logo'),
 ]

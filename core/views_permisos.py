@@ -6,7 +6,12 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views import View
 
 from .models import Usuario, Rol, PERMISOS_CHOICES
-from .permisos import chequear_permiso, permisos_del_usuario, guardar_permisos_usuario
+from .permisos import (
+    chequear_permiso,
+    permisos_del_usuario,
+    guardar_permisos_usuario,
+    filtrar_permisos_otorgables,
+)
 
 
 class GestionPermisosView(LoginRequiredMixin, View):
@@ -27,7 +32,12 @@ class GestionPermisosView(LoginRequiredMixin, View):
             }, status=403)
 
         usuario_obj = get_object_or_404(Usuario, pk=pk, is_superuser=False)
-        estado = permisos_del_usuario(usuario_obj)
+
+        # Pasamos solicitante=request.user para que cada permiso traiga
+        # 'editable': False si es restringido y quien mira la pantalla
+        # no es superusuario (el template puede usarlo para deshabilitar
+        # el checkbox y mostrar un candado).
+        estado = permisos_del_usuario(usuario_obj, solicitante=request.user)
 
         modulos = {}
         for codigo, label in PERMISOS_CHOICES:
@@ -64,7 +74,10 @@ class GuardarPermisosAjax(LoginRequiredMixin, View):
             return JsonResponse({'error': 'JSON inválido'}, status=400)
 
         permisos_bool = {k: bool(v) for k, v in permisos_enviados.items()}
-        guardar_permisos_usuario(usuario_obj, permisos_bool)
+
+        # solicitante=request.user → si manda 'editar_empresa' y no es
+        # superusuario, guardar_permisos_usuario lo ignora en silencio.
+        guardar_permisos_usuario(usuario_obj, permisos_bool, solicitante=request.user)
         return JsonResponse({'success': True})
 
 
@@ -81,5 +94,10 @@ class GuardarPermisosRolAjax(LoginRequiredMixin, View):
             return JsonResponse({'error': 'JSON inválido'}, status=400)
 
         rol = get_object_or_404(Rol, pk=rol_pk)
-        rol.set_permisos(set(permisos_lista))
+
+        # Este era el agujero: sin este filtro, el dueño podía meter
+        # 'editar_empresa' en un Rol y asignárselo a cualquier empleado,
+        # esquivando por completo la restricción de arriba.
+        permisos_permitidos = filtrar_permisos_otorgables(permisos_lista, request.user)
+        rol.set_permisos(permisos_permitidos)
         return JsonResponse({'success': True})

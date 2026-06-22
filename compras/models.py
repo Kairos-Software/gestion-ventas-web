@@ -139,6 +139,9 @@ class Compra(models.Model):
             if self.estado == EstadoCompra.CONFIRMADA:
                 for item in self.items.select_related('producto', 'color'):
                     _restar_stock_item(item)
+            # Sincronizar movimiento de caja grande antes de borrar
+            from caja.models import sincronizar_movimiento_compra
+            sincronizar_movimiento_compra(self)
             super().delete(*args, **kwargs)
 
     # ── Métodos de negocio ───────────────────────────────────────
@@ -164,6 +167,10 @@ class Compra(models.Model):
         self.estado = EstadoCompra.CONFIRMADA
         self.save(update_fields=['estado', 'total'])
 
+        # Sincronizar movimiento de caja grande
+        from caja.models import sincronizar_movimiento_compra
+        sincronizar_movimiento_compra(self)
+
     @transaction.atomic
     def anular(self):
         """
@@ -181,6 +188,10 @@ class Compra(models.Model):
 
         self.estado = EstadoCompra.ANULADA
         self.save(update_fields=['estado'])
+
+        # Sincronizar movimiento de caja grande
+        from caja.models import sincronizar_movimiento_compra
+        sincronizar_movimiento_compra(self)
 
     @transaction.atomic
     def reactivar(self):
@@ -252,6 +263,10 @@ class Compra(models.Model):
         self.total  = sum(item.subtotal for item in self.items.all())
         self.estado = EstadoCompra.CONFIRMADA
         self.save(update_fields=['total', 'estado'])
+
+        # Sincronizar movimiento de caja grande
+        from caja.models import sincronizar_movimiento_compra
+        sincronizar_movimiento_compra(self)
 
     @transaction.atomic
     def editar_cabecera(self, fecha, notas):

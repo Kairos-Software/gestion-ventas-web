@@ -3,6 +3,10 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.urls import reverse_lazy
 
+from .models import DatosEmpresa
+from .permisos import chequear_permiso
+
+
 class CustomLoginView(LoginView):
     template_name = 'core/login.html'
     redirect_authenticated_user = True
@@ -23,4 +27,7 @@ def mi_perfil(request):
 
 @login_required
 def configuracion(request):
-    return render(request, 'core/configuracion.html')
+    return render(request, 'core/configuracion.html', {
+        'datos_empresa':        DatosEmpresa.get_solo(),
+        'puede_editar_empresa': chequear_permiso(request.user, 'editar_empresa'),
+    })
