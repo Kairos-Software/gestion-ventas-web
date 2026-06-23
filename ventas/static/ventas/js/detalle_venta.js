@@ -225,8 +225,6 @@ if (VDT.esBorrador) {
                 const data = await res.json();
 
                 if (data.ok) {
-                    // ← CORREGIDO: redirige al detalle de la venta confirmada,
-                    //   no al historial, para que el usuario vea los botones de ticket
                     window.location.href = VDT.urlDetalle + data.pk + '/';
                 } else {
                     vdtToast('Error al confirmar', data.error || 'No se pudo confirmar la venta.');
@@ -304,24 +302,13 @@ function vdtEsc(str) {
 /* ════════════════════════════════════════════════════════════════
    TICKET — ver e imprimir
    ──────────────────────────────────────────────────────────────
-   Un solo botón de impresión: abre una ventana nueva con el HTML
-   del ticket (limpio, sin sidebar/nav) y dispara el diálogo de
-   impresión desde ahí. Si el usuario elige "Guardar como PDF" en
-   ese diálogo, obtiene el PDF — no hace falta un botón separado.
-
-   ESTRUCTURA:
-     detalle_venta.html → contiene #cdt-ticket-modal (preview) y
-                           el bloque Django con los datos de venta
-     detalle_venta.js   → estas funciones controlan ver/imprimir
-
-   PARA IMPRESORAS FÍSICAS (futuro):
-     El flujo será: JS llama a http://localhost:8765/imprimir
-     (microservicio Python local con python-escpos / pyserial)
-     con el JSON del ticket. Si el servicio no responde,
-     cae al fallback de ventana nueva que ya está acá.
+   vdtVerTicket()      → abre el modal de vista previa en pantalla
+   vdtCerrarTicket()   → cierra ese modal
+   vdtImprimirTicket() → abre el selector de formato (A4 / 80mm / 58mm)
+                         y delega la generación del HTML a ticket_imprimir.js
 ════════════════════════════════════════════════════════════════ */
 
-/** Abre el modal de vista previa del ticket */
+/** Abre el modal de vista previa del ticket en pantalla */
 function vdtVerTicket() {
     const modal = document.getElementById('cdt-ticket-modal');
     if (modal) modal.style.display = 'flex';
@@ -334,108 +321,16 @@ function vdtCerrarTicket() {
 }
 
 /**
- * Imprime el ticket: abre una ventana auxiliar con el HTML limpio
- * (tomado de #cdt-ticket-print, renderizado por Django) y dispara
- * el diálogo de impresión del navegador desde esa ventana. Desde
- * ahí el usuario puede imprimir físicamente o elegir "Guardar como
- * PDF" — es el mismo flujo, una sola función, un solo resultado.
+ * Abre el selector de formato de impresión.
+ * La generación del HTML del ticket y la apertura de la ventana
+ * son responsabilidad de ticket_imprimir.js → ticketAbrirSelector().
  */
 function vdtImprimirTicket() {
-    const ticketEl = document.getElementById('cdt-ticket-print');
-    if (!ticketEl) return;
-
-    const contenidoTicket = ticketEl.innerHTML;
-
-    const htmlVentana = `<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Ticket de Venta</title>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: 'DM Sans', Arial, sans-serif;
-            font-size: 12pt;
-            color: #111;
-            padding: 1.5rem 2rem;
-            background: #fff;
-        }
-        .ticket-header {
-            text-align: center;
-            border-bottom: 2px solid #111;
-            padding-bottom: .75rem;
-            margin-bottom: .75rem;
-        }
-        .ticket-header h2 { font-size: 16pt; margin-bottom: .25rem; }
-        .ticket-header p  { font-size: 10pt; color: #444; margin: .1rem 0; }
-        .ticket-meta {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: .75rem;
-            font-size: 10pt;
-        }
-        .ticket-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: .75rem;
-        }
-        .ticket-table th,
-        .ticket-table td {
-            padding: .35rem .5rem;
-            border-bottom: 1px solid #ddd;
-            text-align: left;
-        }
-        .ticket-table th {
-            font-size: 9pt;
-            text-transform: uppercase;
-            color: #666;
-        }
-        .ticket-table td:last-child,
-        .ticket-table th:last-child { text-align: right; }
-        .ticket-total {
-            text-align: right;
-            border-top: 2px solid #111;
-            padding-top: .5rem;
-            font-size: 13pt;
-            font-weight: 700;
-        }
-        .ticket-footer {
-            margin-top: 1rem;
-            text-align: center;
-            font-size: 9pt;
-            color: #666;
-            border-top: 1px solid #ddd;
-            padding-top: .75rem;
-        }
-        @media print {
-            body { padding: 0; }
-            @page { margin: 1.5cm 2cm; }
-        }
-    </style>
-</head>
-<body>
-    ${contenidoTicket}
-    <script>
-        window.addEventListener('load', function() {
-            setTimeout(function() {
-                window.print();
-                setTimeout(function() { window.close(); }, 3000);
-            }, 200);
-        });
-    <\/script>
-</body>
-</html>`;
-
-    const ventana = window.open('', '_blank', 'width=700,height=900');
-    if (!ventana) {
-        vdtToast(
-            'Popup bloqueado',
-            'Permitir popups para este sitio y volver a intentarlo.'
-        );
+    if (typeof ticketAbrirSelector !== 'function') {
+        console.error('detalle_venta.js: ticketAbrirSelector no disponible. ¿Cargaste ticket_imprimir.js?');
         return;
     }
-    ventana.document.write(htmlVentana);
-    ventana.document.close();
+    ticketAbrirSelector();
 }
 
 /* ════════════════════════════════════════════════════════════════

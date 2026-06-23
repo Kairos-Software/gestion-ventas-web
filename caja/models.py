@@ -356,6 +356,231 @@ def sincronizar_movimiento_compra(compra):
     )
 
 
+class EstadoTurno(models.TextChoices):
+    ABIERTO = 'abierto', 'Abierto'
+    CERRADO = 'cerrado', 'Cerrado'
+
+
+class TurnoCaja(models.Model):
+    """
+    Representa un turno de caja diaria.
+    
+    - Al abrir un turno, se especifica el monto inicial en efectivo que se toma
+      de la caja grande. Esto genera un egreso en caja grande y un ingreso en
+      caja diaria.
+    - Al cerrar un turno, el monto inicial se devuelve a caja grande (ingreso
+      en caja grande, egreso en caja diaria).
+    - Solo se permite efectivo para apertura/cierre (lo que se contabiliza a mano).
+    - Las ventas requieren un turno abierto para poder realizarse.
+    """
+    
+    numero = models.PositiveIntegerField()
+    fecha_apertura = models.DateTimeField(auto_now_add=True)
+    fecha_cierre = models.DateTimeField(null=True, blank=True)
+    estado = models.CharField(max_length=10, choices=EstadoTurno.choices, default=EstadoTurno.ABIERTO)
+    
+    # Monto inicial en efectivo (tomado de caja grande)
+    monto_inicial_efectivo = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    
+    # Monto final en efectivo al cierre (declarado por el cajero)
+    monto_final_efectivo = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    
+    # Diferencia entre lo que debería haber y lo que hay (para control)
+    diferencia_efectivo = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    
+    # Auditoría
+    abierto_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='turnos_abiertos',
+    )
+    cerrado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='turnos_cerrados',
+    )
+    
+    notas = models.TextField(blank=True, help_text='Notas del turno')
+    
+    class Meta:
+        verbose_name = 'Turno de caja'
+        verbose_name_plural = 'Turnos de caja'
+        ordering = ['-fecha_apertura']
+    
+    def __str__(self):
+        return f'Turno #{self.numero} - {self.fecha_apertura:%d/%m/%Y %H:%M}'
+    
+    @property
+    def totales_medio_pago(self):
+        if not hasattr(self, '_totales_medio_pago'):
+            self._totales_medio_pago = self.calcular_totales_por_medio_pago()
+        return self._totales_medio_pago
+
+    @property
+    def total_recaudado(self):
+        return sum(self.totales_medio_pago.values())
+
+    @property
+    def efectivo_ventas(self):
+        return self.totales_medio_pago.get('efectivo', 0)
+
+    @property
+    def efectivo_total(self):
+        return (self.monto_inicial_efectivo or 0) + self.efectivo_ventas
+
+    @property
+    def ganancia_turno(self):
+        return self.total_recaudado - (self.monto_inicial_efectivo or 0)
+
+    
+    @classmethod
+    def turno_actual(cls):
+        """Devuelve el turno abierto actual, o None si no hay ninguno."""
+        return cls.objects.filter(estado=EstadoTurno.ABIERTO).first()
+    
+    @classmethod
+    def obtener_siguiente_numero(cls):
+        """Obtiene el siguiente número de turno."""
+        ultimo = cls.objects.order_by('-numero').first()
+        return (ultimo.numero + 1) if ultimo else 1
+    
+    @classmethod
+    def abrir(cls, monto_inicial_efectivo, usuario):
+        """
+        Abre un nuevo turno:
+        - Toma el monto inicial de caja grande (egreso en caja grande)
+        - Registra el monto inicial en el turno
+        """
+        from django.db import transaction
+        
+        with transaction.atomic():
+            # Verificar que no haya un turno abierto
+            if cls.turno_actual():
+                raise ValueError('Ya existe un turno abierto')
+            
+            # Crear el turno
+            turno = cls(
+                numero=cls.obtener_siguiente_numero(),
+                monto_inicial_efectivo=monto_inicial_efectivo,
+                estado=EstadoTurno.ABIERTO,
+                abierto_por=usuario,
+            )
+            turno.save()
+            
+            # Registrar egreso en caja grande (dinero que sale para iniciar turno)
+            if monto_inicial_efectivo > 0:
+                cuenta_efectivo = _cuenta_default(moneda=Moneda.ARS, caja=TipoCaja.GRANDE)
+                concepto = _concepto_default('Apertura de turno', TipoMovimientoCaja.EGRESO)
+                
+                MovimientoCaja.objects.create(
+                    caja=TipoCaja.GRANDE,
+                    cuenta=cuenta_efectivo,
+                    concepto=concepto,
+                    tipo=TipoMovimientoCaja.EGRESO,
+                    monto=monto_inicial_efectivo,
+                    moneda=Moneda.ARS,
+                    fecha=turno.fecha_apertura.date(),
+                    descripcion=f'Apertura turno #{turno.numero}',
+                    referencia=f'Turno #{turno.numero}',
+                    origen=OrigenMovimiento.AJUSTE,
+                    origen_app='caja',
+                    origen_id=turno.pk,
+                    creado_por=usuario,
+                )
+            
+            return turno
+    
+    def calcular_totales_por_medio_pago(self):
+        """
+        Calcula los totales de ventas agrupados por medio de pago
+        para este turno.
+        
+        Usa PagoVenta para soportar pagos divididos (ej: mitad efectivo, mitad transferencia).
+        """
+        from ventas.models import Venta, MedioPago, PagoVenta
+        
+        ventas_en_turno = Venta.objects.filter(
+            estado='confirmada',
+            fecha_alta__gte=self.fecha_apertura,
+            fecha_alta__lte=self.fecha_cierre if self.fecha_cierre else timezone.now()
+        )
+        
+        # Obtener todos los pagos de las ventas en este turno
+        pagos_en_turno = PagoVenta.objects.filter(
+            venta__in=ventas_en_turno
+        )
+        
+        totales = {}
+        for medio, label in MedioPago.choices:
+            totales[medio] = pagos_en_turno.filter(medio=medio).aggregate(
+                total=Sum('monto')
+            )['total'] or 0
+        
+        return totales
+    
+    def cerrar(self, monto_final_efectivo, usuario, notas=''):
+        """
+        Cierra el turno:
+        - Devuelve el monto inicial a caja grande
+        - Mueve todo el efectivo de ventas a caja grande
+        - Registra el monto final declarado
+        """
+        from django.db import transaction
+        
+        with transaction.atomic():
+            # Calcular totales por medio de pago
+            totales = self.calcular_totales_por_medio_pago()
+            
+            # Monto que debería haber en efectivo
+            efectivo_ventas = totales.get('efectivo', 0)
+            esperado = self.monto_inicial_efectivo + efectivo_ventas
+            
+            # Calcular diferencia
+            self.monto_final_efectivo = monto_final_efectivo
+            self.diferencia_efectivo = monto_final_efectivo - esperado
+            self.fecha_cierre = timezone.now()
+            self.estado = EstadoTurno.CERRADO
+            self.cerrado_por = usuario
+            self.notas = notas
+            self.save()
+            
+            # Devolver monto inicial a caja grande
+            cuenta_efectivo = _cuenta_default(moneda=Moneda.ARS, caja=TipoCaja.GRANDE)
+            concepto = _concepto_default('Cierre de turno', TipoMovimientoCaja.INGRESO)
+            
+            MovimientoCaja.objects.create(
+                caja=TipoCaja.GRANDE,
+                cuenta=cuenta_efectivo,
+                concepto=concepto,
+                tipo=TipoMovimientoCaja.INGRESO,
+                monto=self.monto_inicial_efectivo,
+                moneda=Moneda.ARS,
+                fecha=self.fecha_cierre.date(),
+                descripcion=f'Devolución de apertura turno #{self.numero}',
+                referencia=f'Turno #{self.numero}',
+                origen=OrigenMovimiento.AJUSTE,
+                origen_app='caja',
+                origen_id=self.pk,
+                creado_por=usuario,
+            )
+            
+            # Mover efectivo de ventas a caja grande
+            if efectivo_ventas > 0:
+                MovimientoCaja.objects.create(
+                    caja=TipoCaja.GRANDE,
+                    cuenta=cuenta_efectivo,
+                    concepto=_concepto_default('Venta efectivo turno', TipoMovimientoCaja.INGRESO),
+                    tipo=TipoMovimientoCaja.INGRESO,
+                    monto=efectivo_ventas,
+                    moneda=Moneda.ARS,
+                    fecha=self.fecha_cierre.date(),
+                    descripcion=f'Ventas efectivo turno #{self.numero}',
+                    referencia=f'Turno #{self.numero}',
+                    origen=OrigenMovimiento.AJUSTE,
+                    origen_app='caja',
+                    origen_id=self.pk,
+                    creado_por=usuario,
+                )
+
+
 # ══════════════════════════════════════════════════════════════════
 #  GASTO
 # ══════════════════════════════════════════════════════════════════

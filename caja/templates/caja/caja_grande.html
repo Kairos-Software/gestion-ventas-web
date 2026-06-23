@@ -10,16 +10,15 @@
 {% endblock %}
 
 {% block content %}
-<div class="caja-grande" id="cajaGrande"
-     data-url-balance="{{ url_balance }}"
-     data-puede-cargar="{{ puede_cargar|yesno:'1,0' }}">
+<div class="caja-grande" id="cajaGrande" data-url-balance="{{ url_balance }}"
+    data-puede-cargar="{{ puede_cargar|yesno:'1,0' }}">
 
     {% if sin_permiso %}
     <div class="cg-sin-permiso">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
-            <path d="M12 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            <circle cx="12" cy="16.2" r="0.9" fill="currentColor"/>
+            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5" />
+            <path d="M12 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+            <circle cx="12" cy="16.2" r="0.9" fill="currentColor" />
         </svg>
         <p>No tenés permiso para ver la caja grande.</p>
     </div>
@@ -29,9 +28,19 @@
          ENCABEZADO
     ══════════════════════════════════ -->
     <div class="cg-header">
-        <div>
-            <h1 class="cg-title">Caja grande</h1>
-            <p class="cg-subtitle">Balance general del negocio por moneda.</p>
+        <div class="cg-header-title">
+            <div class="cg-page-icon">
+                <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+                    <path d="M3 16.5C3 9.5 6.5 4.5 11 4.5C15.5 4.5 19 9.5 19 16.5" stroke="currentColor"
+                        stroke-width="1.6" stroke-linecap="round" />
+                    <path d="M3 16.5H19" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+                    <circle cx="11" cy="11" r="2" stroke="currentColor" stroke-width="1.6" />
+                </svg>
+            </div>
+            <div>
+                <h1 class="cg-title">Caja grande</h1>
+                <p class="cg-subtitle">Balance general del negocio por moneda.</p>
+            </div>
         </div>
         <div class="cg-header-actions">
             <div class="cg-moneda-selector" id="monedaSelector">
@@ -46,13 +55,8 @@
          BALANCE POR MONEDA
     ══════════════════════════════════ -->
     <section class="cg-section">
-        <h2 class="cg-section-title">Balance por moneda</h2>
-        <div class="cg-monedas-grid" id="monedasGrid">
-            <div class="cg-skeleton-row">
-                <div class="cg-skeleton cg-skeleton--card"></div>
-                <div class="cg-skeleton cg-skeleton--card"></div>
-                <div class="cg-skeleton cg-skeleton--card"></div>
-            </div>
+        <div id="monedasGrid">
+            <div class="cg-skeleton cg-skeleton--hero"></div>
         </div>
         <p class="cg-empty-hint" id="monedasEmptyHint" hidden>
             Todavía no hay movimientos registrados.
@@ -63,7 +67,9 @@
          MÉTRICAS DETALLADAS
     ══════════════════════════════════ -->
     <section class="cg-section">
-        <h2 class="cg-section-title">Métricas detalladas</h2>
+        <div class="cg-section-header">
+            <h2 class="cg-section-title">Métricas detalladas</h2>
+        </div>
         <div class="cg-metricas-grid" id="metricasGrid">
             <p class="cg-empty-hint">Seleccioná una moneda para ver las métricas detalladas.</p>
         </div>

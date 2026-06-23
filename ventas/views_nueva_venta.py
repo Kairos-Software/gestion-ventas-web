@@ -9,9 +9,10 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
 from productos.models import Producto, ProductoColor
-from core.models import Cliente
+from core.models import Cliente, DatosEmpresa
 from .models import Venta, ItemVenta, EstadoVenta, MedioPago
 from core.permisos import chequear_permiso
+from caja.models import TurnoCaja
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -31,7 +32,13 @@ class NuevaVentaView(LoginRequiredMixin, TemplateView):
         if not chequear_permiso(self.request.user, 'crear_ventas'):
             ctx['sin_permiso'] = True
             return ctx
-        ctx['puede_crear']  = True
+        ctx['puede_crear'] = True
+        
+        # Verificar si hay turno abierto
+        turno_actual = TurnoCaja.turno_actual()
+        if not turno_actual:
+            ctx['sin_turno'] = True
+        
         return ctx
 
 
@@ -144,6 +151,10 @@ class GuardarBorradorAjax(LoginRequiredMixin, View):
     def post(self, request):
         if not chequear_permiso(request.user, 'crear_ventas'):
             return JsonResponse({'error': 'Sin permiso.'}, status=403)
+        
+        # Verificar si hay turno abierto
+        if not TurnoCaja.turno_actual():
+            return JsonResponse({'error': 'No hay un turno de caja abierto. Abrí un turno antes de vender.'}, status=400)
 
         try:
             body = json.loads(request.body)
@@ -477,6 +488,7 @@ class DetalleVentaView(LoginRequiredMixin, View):
             'pagos':      venta.pagos.all(),
             'es_borrador': venta.estado == EstadoVenta.BORRADOR,
             'medios_pago': MedioPago.choices,
+            'datos_empresa': DatosEmpresa.get_solo(),
             'url_confirmar':         reverse('ventas:confirmar_venta'),
             'url_eliminar_borrador': reverse('ventas:eliminar_borrador'),
             'url_nueva_venta':       reverse('ventas:nueva_venta'),
