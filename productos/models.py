@@ -309,21 +309,14 @@ class Producto(models.Model):
     gestiona_stock         = models.BooleanField('Gestiona stock', default=True,
                                  help_text='Desactivar para productos de tipo servicio o sin control de inventario.')
 
-    # — Variantes de color —
-    # tiene_variantes_color=True: el stock se lleva por color en ProductoColor.
-    #   stock_actual del producto = suma de stock de sus colores activos.
-    # tiene_variantes_color=False: producto de un solo color (o sin color relevante).
-    #   color_unico permite registrar el color a modo informativo, sin afectar el stock.
-    tiene_variantes_color = models.BooleanField(
-        'Gestiona variantes por color',
+    # — Variantes genéricas —
+    # gestiona_variantes=True: el producto tiene variantes (color, sabor, talle, etc.)
+    #   stock_actual del producto = suma de stock de todas sus combinaciones activas.
+    # gestiona_variantes=False: producto sin variantes (stock único).
+    gestiona_variantes = models.BooleanField(
+        'Gestiona variantes',
         default=False,
-        help_text='Activar si el producto existe en varios colores con stock independiente.',
-    )
-    color_unico = models.CharField(
-        'Color',
-        max_length=50,
-        blank=True,
-        help_text='Color informativo cuando no se gestionan variantes (ej: "Azul marino").',
+        help_text='Activar si el producto tiene variantes (color, sabor, talle, aroma, etc.) con stock independiente.',
     )
 
     # — Estado y visibilidad —
@@ -338,6 +331,8 @@ class Producto(models.Model):
     requiere_refrigeracion = models.BooleanField('Requiere refrigeración', default=False)
     es_fragil              = models.BooleanField('Es frágil', default=False)
     es_peligroso           = models.BooleanField('Es peligroso / Hazmat', default=False)
+    es_perecedero          = models.BooleanField('Es perecedero', default=False,
+                                 help_text='Producto con fecha de vencimiento.')
     posicion_deposito      = models.CharField('Posición en depósito', max_length=50, blank=True,
                                  help_text='Ej: A3-P2. Ubicación física en el depósito.')
 
@@ -361,25 +356,25 @@ class Producto(models.Model):
     def save(self, *args, **kwargs):
         if not self.codigo:
             self.codigo = _generar_codigo_producto()
-        if self.pk and self.tiene_variantes_color:
+        if self.pk and self.gestiona_variantes:
             total = (
-                self.colores.filter(activo=True)
+                self.combinaciones.filter(activo=True)
                 .aggregate(total=models.Sum('stock_actual'))['total']
                 or 0
             )
             self.stock_actual = total
         super().save(*args, **kwargs)
 
-    def sincronizar_stock_desde_colores(self):
+    def sincronizar_stock_desde_combinaciones(self):
         """
-        Recalcula y persiste stock_actual como suma de colores activos.
-        Llamar después de modificar el stock de cualquier ProductoColor.
-        No hacer nada si tiene_variantes_color=False.
+        Recalcula y persiste stock_actual como suma de combinaciones activas.
+        Llamar después de modificar el stock de cualquier CombinacionVariante.
+        No hacer nada si gestiona_variantes=False.
         """
-        if not self.tiene_variantes_color:
+        if not self.gestiona_variantes:
             return
         total = (
-            self.colores.filter(activo=True)
+            self.combinaciones.filter(activo=True)
             .aggregate(total=models.Sum('stock_actual'))['total']
             or 0
         )
@@ -434,52 +429,89 @@ class Producto(models.Model):
 
 
 # ══════════════════════════════════════════════════════════════════
-#  VARIANTES DE COLOR DEL PRODUCTO
+#  SISTEMA DE VARIANTES GENÉRICAS
 # ══════════════════════════════════════════════════════════════════
 
-class ProductoColor(models.Model):
+class Variante(models.Model):
     """
-    Variante de color de un Producto.
-    Solo existe cuando Producto.tiene_variantes_color = True.
-
-    El stock por color se actualiza desde el módulo de compras (ItemCompra)
-    y en el futuro desde ventas (ItemVenta). Cada vez que se guarda un color,
-    se sincroniza automáticamente el stock_actual del producto padre.
-
-    FUTURO (sprint de compras/ventas):
-      - MovimientoStock recibirá FK a ProductoColor (null=True).
-      - ItemVenta e ItemCompra recibirán FK a ProductoColor (null=True).
+    Tipo de variante genérica (ej: Color, Sabor, Talle, Aroma, Tamaño).
+    Estas variantes se crean una vez y se reutilizan en todos los productos.
     """
+    nombre      = models.CharField(max_length=50, unique=True)
+    descripcion = models.CharField(max_length=200, blank=True)
+    activo      = models.BooleanField(default=True)
+    orden       = models.PositiveSmallIntegerField(default=0)
+    fecha_alta  = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        verbose_name        = 'Variante'
+        verbose_name_plural = 'Variantes'
+        ordering            = ['orden', 'nombre']
+
+    def __str__(self):
+        return self.nombre
+
+    @property
+    def total_opciones(self):
+        return self.opciones.count()
+
+
+class OpcionVariante(models.Model):
+    """
+    Opción específica de una variante (ej: Rojo, Verde, S, M, L, Naranja, Manzana).
+    Estas opciones se crean una vez y se reutilizan en todos los productos.
+    """
+    variante    = models.ForeignKey(Variante, on_delete=models.CASCADE, related_name='opciones')
+    nombre      = models.CharField(max_length=50)
+    descripcion = models.CharField(max_length=200, blank=True)
+    activo      = models.BooleanField(default=True)
+    orden       = models.PositiveSmallIntegerField(default=0)
+    fecha_alta  = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name        = 'Opción de variante'
+        verbose_name_plural = 'Opciones de variantes'
+        ordering            = ['orden', 'nombre']
+        unique_together     = [('variante', 'nombre')]
+
+    def __str__(self):
+        return f'{self.variante.nombre}: {self.nombre}'
+
+
+class CombinacionVariante(models.Model):
+    """
+    Combinación específica de opciones para un producto.
+    Ejemplo: Producto "Remera" → Color:Rojo + Talle:M
+    Cada combinación tiene su propio código de barras y stock independiente.
+    """
     producto = models.ForeignKey(
         Producto,
         on_delete=models.CASCADE,
-        related_name='colores',
+        related_name='combinaciones',
         verbose_name='Producto',
     )
 
     # — Identificación —
-    nombre = models.CharField(
-        'Nombre del color',
-        max_length=50,
-        help_text='Ej: Rojo, Azul marino, Negro mate.',
-    )
-    codigo_hex = models.CharField(
-        'Color (hex)',
-        max_length=7,
+    descripcion_combinacion = models.CharField(
+        'Descripción de combinación',
+        max_length=200,
         blank=True,
-        help_text='Opcional. Formato #RRGGBB.',
+        help_text='Generada automáticamente a partir de las opciones seleccionadas.',
+    )
+    codigo_barras = models.CharField(
+        'Código de barras',
+        max_length=100,
+        blank=True,
+        help_text='Código de barras específico para esta combinación.',
     )
     sku_variante = models.CharField(
         'SKU variante',
         max_length=100,
         blank=True,
-        help_text='SKU específico de este color. Si está vacío se usa el SKU del producto.',
+        help_text='SKU específico de esta combinación. Si está vacío se usa el SKU del producto.',
     )
 
     # — Stock —
-    # PositiveIntegerField: siempre se compran/venden unidades enteras.
-    # stock_actual: actualizado por compras y ventas. No modificar directamente.
     stock_actual = models.PositiveIntegerField('Stock actual', default=0)
 
     # — Control —
@@ -493,22 +525,73 @@ class ProductoColor(models.Model):
     fecha_modificacion = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name        = 'Color de producto'
-        verbose_name_plural = 'Colores de producto'
-        ordering            = ['nombre']
-        unique_together     = [('producto', 'nombre')]
+        verbose_name        = 'Combinación de variante'
+        verbose_name_plural = 'Combinaciones de variantes'
+        ordering            = ['pk']
 
     def __str__(self):
-        return f'{self.producto.codigo} — {self.nombre}'
+        opciones = self.opciones.all()
+        nombres = [f"{op.variante.nombre}:{op.nombre}" for op in opciones]
+        return f'{self.producto.codigo} — {", ".join(nombres)}'
 
     @property
     def sku_efectivo(self):
-        """SKU de la variante o, si está vacío, el del producto padre."""
+        """SKU de la combinación o, si está vacío, el del producto padre."""
         return self.sku_variante or self.producto.sku
+
+    def construir_descripcion_desde_opciones(self):
+        """Descripción legible a partir de las opciones vinculadas."""
+        opciones = (
+            self.opciones
+            .select_related('opcion__variante')
+            .order_by('opcion__variante__orden', 'opcion__orden')
+        )
+        partes = [
+            f'{rel.opcion.variante.nombre}: {rel.opcion.nombre}'
+            for rel in opciones
+        ]
+        return ' | '.join(partes)
+
+    def descripcion_legible(self):
+        """Descripción persistida o generada desde las opciones."""
+        return self.descripcion_combinacion or self.construir_descripcion_desde_opciones()
+
+    def sincronizar_descripcion(self):
+        """Persiste descripcion_combinacion según las opciones actuales."""
+        desc = self.construir_descripcion_desde_opciones()
+        if desc and desc != self.descripcion_combinacion:
+            self.descripcion_combinacion = desc
+            CombinacionVariante.objects.filter(pk=self.pk).update(
+                descripcion_combinacion=desc,
+            )
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
-        self.producto.sincronizar_stock_desde_colores()
+        self.producto.sincronizar_stock_desde_combinaciones()
+
+
+class CombinacionVarianteOpcion(models.Model):
+    """
+    Tabla intermedia que relaciona una combinación con sus opciones específicas.
+    Permite que una combinación tenga múltiples opciones (ej: Color:Rojo + Talle:M).
+    """
+    combinacion = models.ForeignKey(
+        CombinacionVariante,
+        on_delete=models.CASCADE,
+        related_name='opciones',
+    )
+    opcion = models.ForeignKey(
+        OpcionVariante,
+        on_delete=models.CASCADE,
+    )
+
+    class Meta:
+        verbose_name        = 'Opción de combinación'
+        verbose_name_plural = 'Opciones de combinación'
+        unique_together     = [('combinacion', 'opcion')]
+
+    def __str__(self):
+        return f'{self.combinacion.producto.codigo} — {self.opcion}'
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -585,8 +668,7 @@ class MovimientoStock(models.Model):
       queryset.delete() sin disparar este delete() individual (intencional).
 
     FUTURO (sprint de compras/ventas):
-      - Agregar FK a ProductoColor (null=True, blank=True) para registrar
-        de qué color entró/salió el stock en cada movimiento.
+      - La FK a CombinacionVariante ya está implementada.
       - Agregar FK a Compra / Venta para trazabilidad completa.
     """
 
@@ -594,12 +676,12 @@ class MovimientoStock(models.Model):
         Producto, on_delete=models.CASCADE,
         related_name='movimientos_stock',
     )
-    # FK a color: null cuando el producto no tiene variantes de color,
-    # o cuando el movimiento afecta al stock general sin distinguir color.
-    color = models.ForeignKey(
-        'ProductoColor', on_delete=models.SET_NULL,
+    # FK a combinación: null cuando el producto no tiene variantes,
+    # o cuando el movimiento afecta al stock general sin distinguir combinación.
+    combinacion = models.ForeignKey(
+        'CombinacionVariante', on_delete=models.SET_NULL,
         null=True, blank=True, related_name='movimientos',
-        help_text='Color afectado. Null si el producto no tiene variantes de color.',
+        help_text='Combinación afectada. Null si el producto no tiene variantes.',
     )
     tipo            = models.CharField(max_length=20, choices=TipoMovimiento.choices)
     cantidad        = models.PositiveIntegerField(

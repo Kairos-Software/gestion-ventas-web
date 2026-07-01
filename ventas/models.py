@@ -3,7 +3,7 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from productos.models import Producto, Moneda, CondicionPago, ProductoColor
+from productos.models import Producto, Moneda, CondicionPago, CombinacionVariante
 from core.models import Cliente
 
 
@@ -32,19 +32,19 @@ class MedioPago(models.TextChoices):
 def _restar_stock_item(item):
     """
     Resta el stock correspondiente a un ítem al confirmar una venta.
-    - Si el producto gestiona variantes de color Y el ítem tiene un color
-      asignado: resta en ProductoColor y sincroniza el total del producto.
+    - Si el producto gestiona variantes Y el ítem tiene una combinación
+      asignada: resta en CombinacionVariante y sincroniza el total del producto.
     - Si no: resta directamente en Producto.stock_actual.
     """
     producto = item.producto
     if producto is None or not producto.gestiona_stock:
         return
 
-    if producto.tiene_variantes_color and item.color is not None:
-        color = item.color
-        color.stock_actual -= item.cantidad
-        color.save(update_fields=['stock_actual'])
-        producto.sincronizar_stock_desde_colores()
+    if producto.gestiona_variantes and item.combinacion is not None:
+        combinacion = item.combinacion
+        combinacion.stock_actual -= item.cantidad
+        combinacion.save(update_fields=['stock_actual'])
+        producto.sincronizar_stock_desde_combinaciones()
     else:
         producto.stock_actual -= item.cantidad
         producto.save(update_fields=['stock_actual'])
@@ -59,11 +59,11 @@ def _sumar_stock_item(item):
     if producto is None or not producto.gestiona_stock:
         return
 
-    if producto.tiene_variantes_color and item.color is not None:
-        color = item.color
-        color.stock_actual += item.cantidad
-        color.save(update_fields=['stock_actual'])
-        producto.sincronizar_stock_desde_colores()
+    if producto.gestiona_variantes and item.combinacion is not None:
+        combinacion = item.combinacion
+        combinacion.stock_actual += item.cantidad
+        combinacion.save(update_fields=['stock_actual'])
+        producto.sincronizar_stock_desde_combinaciones()
     else:
         producto.stock_actual += item.cantidad
         producto.save(update_fields=['stock_actual'])
@@ -172,7 +172,7 @@ class Venta(models.Model):
     def delete(self, *args, **kwargs):
         with transaction.atomic():
             if self.estado == EstadoVenta.CONFIRMADA:
-                for item in self.items.select_related('producto', 'color'):
+                for item in self.items.select_related('producto', 'combinacion'):
                     _sumar_stock_item(item)
             # Sincronizar movimiento de caja grande antes de borrar
             from caja.models import sincronizar_movimiento_venta
@@ -204,7 +204,7 @@ class Venta(models.Model):
         if self.estado != EstadoVenta.BORRADOR:
             raise ValueError('Solo se pueden confirmar ventas en estado Borrador.')
 
-        for item in self.items.select_related('producto', 'color'):
+        for item in self.items.select_related('producto', 'combinacion'):
             _restar_stock_item(item)
 
         self.calcular_total()
@@ -244,7 +244,7 @@ class Venta(models.Model):
         if self.estado == EstadoVenta.BORRADOR:
             raise ValueError('Las ventas en borrador no se anulan — simplemente no se confirman.')
 
-        for item in self.items.select_related('producto', 'color'):
+        for item in self.items.select_related('producto', 'combinacion'):
             _sumar_stock_item(item)
 
         self.estado         = EstadoVenta.ANULADA
@@ -282,7 +282,7 @@ class Venta(models.Model):
                 venta           = self,
                 producto        = d['producto'],
                 cliente         = d.get('cliente'),
-                color           = d.get('color'),
+                combinacion     = d.get('combinacion'),
                 cantidad        = d['cantidad'],
                 precio_unitario = d['precio_unitario'],
                 moneda          = d.get('moneda', 'ARS'),
@@ -314,9 +314,9 @@ class Venta(models.Model):
 
 class ItemVenta(models.Model):
     """
-    Línea de una venta. Un ítem = un producto (+ color opcional) + cantidad + precio.
+    Línea de una venta. Un ítem = un producto (+ combinación opcional) + cantidad + precio.
 
-    Snapshots: producto_nombre, producto_codigo, cliente_nombre y color_nombre
+    Snapshots: producto_nombre, producto_codigo, cliente_nombre y combinacion_descripcion
     se autocompletan al crear el ítem y nunca se modifican.
     """
 
@@ -330,17 +330,17 @@ class ItemVenta(models.Model):
                    Cliente, on_delete=models.SET_NULL,
                    null=True, blank=True, related_name='items_venta')
 
-    # ── Variante de color (opcional) ─────────────────────────────
-    color    = models.ForeignKey(
-                   ProductoColor, on_delete=models.SET_NULL,
+    # ── Variante genérica (opcional) ─────────────────────────────
+    combinacion = models.ForeignKey(
+                   CombinacionVariante, on_delete=models.SET_NULL,
                    null=True, blank=True, related_name='items_venta',
-                   verbose_name='Color / variante')
+                   verbose_name='Combinación de variantes')
 
     # ── Snapshots ────────────────────────────────────────────────
-    producto_nombre = models.CharField(max_length=255, blank=True)
-    producto_codigo = models.CharField(max_length=50,  blank=True)
-    cliente_nombre  = models.CharField(max_length=200, blank=True)
-    color_nombre    = models.CharField(max_length=50,  blank=True)
+    producto_nombre  = models.CharField(max_length=255, blank=True)
+    producto_codigo  = models.CharField(max_length=50,  blank=True)
+    cliente_nombre   = models.CharField(max_length=200, blank=True)
+    combinacion_descripcion = models.CharField(max_length=300, blank=True)
 
     # — Cantidades y precios —
     cantidad        = models.DecimalField(max_digits=12, decimal_places=3)
@@ -365,19 +365,19 @@ class ItemVenta(models.Model):
 
     def __str__(self):
         nombre = self.producto_nombre or (str(self.producto) if self.producto else '(producto eliminado)')
-        color  = f' [{self.color_nombre}]' if self.color_nombre else ''
-        return f'{nombre}{color} x{self.cantidad}'
+        combinacion = f' [{self.combinacion_descripcion}]' if self.combinacion_descripcion else ''
+        return f'{nombre}{combinacion} x{self.cantidad}'
 
     def save(self, *args, **kwargs):
-        """Solo al crear: captura snapshots de producto, cliente y color."""
+        """Solo al crear: captura snapshots de producto, cliente y combinación."""
         if not self.pk:
             if self.producto and not self.producto_nombre:
                 self.producto_nombre = self.producto.nombre or ''
                 self.producto_codigo = self.producto.codigo or ''
             if self.cliente and not self.cliente_nombre:
                 self.cliente_nombre = self.cliente.nombre or self.cliente.razon_social or ''
-            if self.color and not self.color_nombre:
-                self.color_nombre = self.color.nombre or ''
+            if self.combinacion and not self.combinacion_descripcion:
+                self.combinacion_descripcion = self.combinacion.descripcion_legible() or ''
         super().save(*args, **kwargs)
 
     @property
@@ -405,11 +405,11 @@ class ItemVenta(models.Model):
         return '(sin cliente)'
 
     @property
-    def nombre_color_display(self):
-        if self.color:
-            return self.color.nombre
-        if self.color_nombre:
-            return f'{self.color_nombre} (eliminado)'
+    def nombre_combinacion_display(self):
+        if self.combinacion:
+            return self.combinacion.descripcion_legible()
+        if self.combinacion_descripcion:
+            return f'{self.combinacion_descripcion} (eliminado)'
         return ''
 
 

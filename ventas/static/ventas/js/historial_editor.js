@@ -177,9 +177,9 @@ function accionEditar(pk, ventaData, listaContainer) {
     row.classList.add('open');
 
     // ── Reconstruir carrito agrupando items por producto_pk ──────────
-    // El backend guarda 1 ItemVenta por color; aquí los colapsamos de
-    // vuelta en 1 entrada de carrito con colores_dist, igual que en
-    // nueva_venta donde el usuario carga 1 fila con chips de color.
+    // El backend guarda 1 ItemVenta por combinación; aquí los colapsamos de
+    // vuelta en 1 entrada de carrito con combinaciones_dist, igual que en
+    // nueva_venta donde el usuario carga 1 fila con chips de combinación.
     const carritoMap = new Map();
 
     for (const item of (ventaData.items || [])) {
@@ -194,9 +194,9 @@ function accionEditar(pk, ventaData, listaContainer) {
                 unidad:           '',
                 cliente_pk:       item.cliente_pk || '',
                 cliente_nombre:   item.cliente    || '',
-                tiene_colores:    false,
-                colores_lista:    [],
-                colores_dist:     {},
+                tiene_combinaciones: false,
+                combinaciones_lista: [],
+                combinaciones_dist:  {},
                 cantidad:         0,
                 precio_unitario:  parseFloat(item.precio_unitario) || 0,
                 moneda:           item.moneda  || 'ARS',
@@ -208,30 +208,29 @@ function accionEditar(pk, ventaData, listaContainer) {
 
         const entry = carritoMap.get(key);
 
-        if (item.tiene_color && item.color_pk) {
-            // Producto con colores → acumular en colores_dist
-            entry.tiene_colores = true;
-            entry.colores_dist[item.color_pk] = (entry.colores_dist[item.color_pk] || 0)
+        if (item.tiene_combinacion && item.combinacion_pk) {
+            // Producto con combinaciones → acumular en combinaciones_dist
+            entry.tiene_combinaciones = true;
+            entry.combinaciones_dist[item.combinacion_pk] = (entry.combinaciones_dist[item.combinacion_pk] || 0)
                 + (parseFloat(item.cantidad) || 0);
-            // Agregar a colores_lista si no está
-            if (!entry.colores_lista.find(c => String(c.pk) === String(item.color_pk))) {
-                entry.colores_lista.push({
-                    pk:           item.color_pk,
-                    nombre:       item.color_nombre || `Color ${item.color_pk}`,
-                    codigo_hex:   '',
+            // Agregar a combinaciones_lista si no está
+            if (!entry.combinaciones_lista.find(c => String(c.pk) === String(item.combinacion_pk))) {
+                entry.combinaciones_lista.push({
+                    pk:           item.combinacion_pk,
+                    descripcion_combinacion: item.combinacion_descripcion || `Combinación ${item.combinacion_pk}`,
                     stock_actual: 0,
                 });
             }
         } else {
-            // Producto sin colores → cantidad directa
+            // Producto sin combinaciones → cantidad directa
             entry.cantidad += parseFloat(item.cantidad) || 0;
         }
     }
 
-    // Calcular cantidad_total para items con colores
+    // Calcular cantidad_total para items con combinaciones
     for (const entry of carritoMap.values()) {
-        if (entry.tiene_colores) {
-            entry.cantidad = Object.values(entry.colores_dist)
+        if (entry.tiene_combinaciones) {
+            entry.cantidad = Object.values(entry.combinaciones_dist)
                 .reduce((s, v) => s + (parseFloat(v) || 0), 0);
         }
     }
@@ -271,10 +270,10 @@ function accionEditar(pk, ventaData, listaContainer) {
     const btnAgregarPago = document.getElementById(`editBtnAgregarPago_${pk}`);
     if (btnAgregarPago) btnAgregarPago.addEventListener('click', _pagoAgregarLinea);
 
-    // Enriquecer colores con datos reales del servidor (hex, stock)
+    // Enriquecer combinaciones con datos reales del servidor (stock)
     carrito.forEach(item => {
-        if (item.tiene_colores && item.producto_pk) {
-            _cargarColoresProducto(item.producto_pk, item.id);
+        if (item.tiene_combinaciones && item.producto_pk) {
+            _cargarCombinacionesProducto(item.producto_pk, item.id);
         }
     });
 }
@@ -289,37 +288,37 @@ function cerrarEdicion(listaContainer) {
 }
 
 /* ════════════════════════════════════════════════════════════════
-   CARGAR COLORES DEL SERVIDOR
+   CARGAR COMBINACIONES DEL SERVIDOR
 ════════════════════════════════════════════════════════════════ */
-async function _cargarColoresProducto(productoPk, itemId) {
+async function _cargarCombinacionesProducto(productoPk, itemId) {
     if (!editState) return;
     try {
         const res    = await fetch(`${HISTORIAL_URLS.buscarProducto}?pk=${encodeURIComponent(productoPk)}`);
         const data   = await res.json();
-        const colores = (data.results && data.results[0])
-            ? data.results[0].colores
-            : (data.colores || []);
+        const combinaciones = (data.results && data.results[0])
+            ? data.results[0].combinaciones
+            : (data.combinaciones || []);
 
         const item = editState.carrito.find(i => i.id === itemId);
         if (!item) return;
 
-        // Enriquecer colores ya conocidos con hex y stock
-        item.colores_lista = item.colores_lista.map(local => {
-            const srv = colores.find(c => String(c.pk) === String(local.pk));
-            return srv ? { ...local, codigo_hex: srv.codigo_hex || '', stock_actual: srv.stock_actual || 0 }
+        // Enriquecer combinaciones ya conocidos con stock
+        item.combinaciones_lista = item.combinaciones_lista.map(local => {
+            const srv = combinaciones.find(c => String(c.pk) === String(local.pk));
+            return srv ? { ...local, stock_actual: srv.stock_actual || 0 }
                        : local;
         });
-        // Agregar colores del servidor que no estén en la dist (para poder cargarlos)
-        for (const c of colores) {
-            if (!item.colores_lista.find(l => String(l.pk) === String(c.pk))) {
-                item.colores_lista.push({ pk: c.pk, nombre: c.nombre, codigo_hex: c.codigo_hex || '', stock_actual: c.stock_actual || 0 });
-                if (!(c.pk in item.colores_dist)) {
-                    item.colores_dist[c.pk] = 0;
+        // Agregar combinaciones del servidor que no estén en la dist (para poder cargarlas)
+        for (const c of combinaciones) {
+            if (!item.combinaciones_lista.find(l => String(l.pk) === String(c.pk))) {
+                item.combinaciones_lista.push({ pk: c.pk, descripcion_combinacion: c.descripcion_combinacion, stock_actual: c.stock_actual || 0 });
+                if (!(c.pk in item.combinaciones_dist)) {
+                    item.combinaciones_dist[c.pk] = 0;
                 }
             }
         }
 
-        _actualizarFilaColores(itemId);
+        _actualizarFilaCombinaciones(itemId);
     } catch {
         // silencioso
     }
@@ -474,15 +473,15 @@ function _renderEditCarrito() {
 
         tbody.innerHTML = carrito.map(item => {
             const sub          = _calcEditSub(item);
-            const colorWarning = item.tiene_colores && !_coloresValidos(item)
-                ? `<span class="vta-color-warning" title="Distribuí todos los colores">
+            const combinacionWarning = item.tiene_combinaciones && !_combinacionesValidas(item)
+                ? `<span class="vta-color-warning" title="Distribuí todos las combinaciones">
                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                            <circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.3"/>
                            <path d="M6 4V6.5M6 8H6.01" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
                        </svg>
                    </span>` : '';
 
-            const filaColores = item.tiene_colores ? _renderFilaColores(item) : '';
+            const filaCombinaciones = item.tiene_combinaciones ? _renderFilaCombinaciones(item) : '';
 
             return `
             <tr data-edit-id="${item.id}" class="vta-row-main">
@@ -490,13 +489,14 @@ function _renderEditCarrito() {
                     <div class="vta-prod-cell">
                         <span class="vta-prod-nombre">${_esc(item.nombre)}</span>
                         <span class="vta-prod-meta">${_esc(item.codigo)}</span>
-                        ${item.tiene_colores
+                        ${item.tiene_combinaciones
                             ? `<span class="vta-prod-badge-colores">
                                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                                       <circle cx="5" cy="5" r="3.5" stroke="currentColor" stroke-width="1.2"/>
-                                       <circle cx="5" cy="5" r="1.2" fill="currentColor"/>
+                                       <rect x="1" y="1" width="8" height="8" rx="1" stroke="currentColor" stroke-width="1.2"/>
+                                       <circle cx="3" cy="3" r="1" fill="currentColor"/>
+                                       <circle cx="7" cy="7" r="1" fill="currentColor"/>
                                    </svg>
-                                   Por color
+                                   ${item.combinaciones_lista.length} combinación${item.combinaciones_lista.length !== 1 ? 'es' : ''}
                                </span>` : ''}
                     </div>
                 </td>
@@ -515,8 +515,8 @@ function _renderEditCarrito() {
                            class="vta-input-inline w-xs edit-field-input"
                            value="${item.cantidad}"
                            data-edit-id="${item.id}" data-campo="cantidad"
-                           ${item.tiene_colores ? 'readonly title="Se calcula automáticamente"' : ''}>
-                    ${colorWarning}
+                           ${item.tiene_combinaciones ? 'readonly title="Se calcula automáticamente"' : ''}>
+                    ${combinacionWarning}
                 </td>
                 <td>
                     <input type="number" min="0" step="any"
@@ -585,40 +585,38 @@ function _renderEditCarrito() {
 }
 
 /* ════════════════════════════════════════════════════════════════
-   FILA DE COLORES — idéntica a ventas.js
+   FILA DE COMBINACIONES — idéntica a ventas.js
 ════════════════════════════════════════════════════════════════ */
-function _renderFilaColores(item) {
-    const totalAsignado = _totalColoresDist(item);
+function _renderFilaCombinaciones(item) {
+    const totalAsignado = _totalCombinacionesDist(item);
     const totalItem     = parseFloat(item.cantidad) || 0;
     const ok            = Math.abs(totalAsignado - totalItem) < 0.001;
 
-    const chips = item.colores_lista.map(c => {
-        const val    = item.colores_dist[c.pk] || 0;
-        const swatch = c.codigo_hex
-            ? `<span class="vta-color-swatch" style="background:${_esc(c.codigo_hex)}"></span>` : '';
+    const chips = item.combinaciones_lista.map(c => {
+        const val = item.combinaciones_dist[c.pk] || 0;
         return `
         <div class="vta-color-chip">
-            ${swatch}
-            <span class="vta-color-chip-nombre">${_esc(c.nombre)}</span>
+            <span class="vta-color-chip-nombre">${_esc(c.descripcion_combinacion)}</span>
             <span class="vta-color-chip-stock">(stock: ${parseFloat(c.stock_actual||0).toLocaleString('es-AR')})</span>
             <input type="number" min="0" step="any"
                    class="vta-input-inline w-xs vta-color-qty"
                    value="${val}"
                    data-edit-id="${item.id}"
-                   data-color-pk="${c.pk}">
+                   data-combinacion-pk="${c.pk}">
         </div>`;
     }).join('');
 
     return `
-    <tr class="vta-row-colores" data-color-row="${item.id}">
+    <tr class="vta-row-colores" data-combinacion-row="${item.id}">
         <td colspan="10">
             <div class="vta-colores-panel">
                 <div class="vta-colores-panel-header">
                     <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-                        <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" stroke-width="1.3"/>
-                        <circle cx="6.5" cy="6.5" r="2" fill="currentColor"/>
+                        <rect x="1" y="1" width="11" height="11" rx="1" stroke="currentColor" stroke-width="1.3"/>
+                        <circle cx="3" cy="3" r="1" fill="currentColor"/>
+                        <circle cx="10" cy="10" r="1" fill="currentColor"/>
                     </svg>
-                    <span>Distribuir por color</span>
+                    <span>Distribuir por combinación</span>
                     <span class="vta-colores-panel-resumen ${ok ? 'ok' : 'error'}"
                           id="editColres_${editState.pk}_${item.id}">
                         ${ok
@@ -635,15 +633,15 @@ function _renderFilaColores(item) {
     </tr>`;
 }
 
-function _actualizarFilaColores(itemId) {
+function _actualizarFilaCombinaciones(itemId) {
     if (!editState) return;
     const item  = editState.carrito.find(i => i.id === itemId);
-    if (!item || !item.tiene_colores) return;
+    if (!item || !item.tiene_combinaciones) return;
     const tbody = document.getElementById(`editCartBody_${editState.pk}`);
     if (!tbody) return;
 
-    const filaVieja = tbody.querySelector(`tr[data-color-row="${itemId}"]`);
-    const nuevaHTML = _renderFilaColores(item);
+    const filaVieja = tbody.querySelector(`tr[data-combinacion-row="${itemId}"]`);
+    const nuevaHTML = _renderFilaCombinaciones(item);
     if (filaVieja) {
         filaVieja.outerHTML = nuevaHTML;
     } else {
@@ -651,31 +649,31 @@ function _actualizarFilaColores(itemId) {
         if (filaMain) filaMain.insertAdjacentHTML('afterend', nuevaHTML);
     }
 
-    // Re-bind inputs de color
+    // Re-bind inputs de combinación
     tbody.querySelectorAll(`.vta-color-qty[data-edit-id="${itemId}"]`).forEach(input => {
         input.addEventListener('change', () =>
-            _updateColorDist(parseInt(input.dataset.editId, 10), input.dataset.colorPk, input.value));
+            _updateCombinacionDist(parseInt(input.dataset.editId, 10), input.dataset.combinacionPk, input.value));
     });
 }
 
 /* ════════════════════════════════════════════════════════════════
-   COLOR HELPERS
+   COMBINACION HELPERS
 ════════════════════════════════════════════════════════════════ */
-function _totalColoresDist(item) {
-    return Object.values(item.colores_dist).reduce((s, v) => s + (parseFloat(v) || 0), 0);
+function _totalCombinacionesDist(item) {
+    return Object.values(item.combinaciones_dist).reduce((s, v) => s + (parseFloat(v) || 0), 0);
 }
-function _coloresValidos(item) {
-    if (!item.tiene_colores) return true;
-    return Math.abs(_totalColoresDist(item) - (parseFloat(item.cantidad) || 0)) < 0.001;
+function _combinacionesValidas(item) {
+    if (!item.tiene_combinaciones) return true;
+    return Math.abs(_totalCombinacionesDist(item) - (parseFloat(item.cantidad) || 0)) < 0.001;
 }
 
-function _updateColorDist(itemId, colorPk, valor) {
+function _updateCombinacionDist(itemId, combinacionPk, valor) {
     if (!editState) return;
     const item = editState.carrito.find(i => i.id === itemId);
     if (!item) return;
 
-    item.colores_dist[colorPk] = parseFloat(valor) || 0;
-    const totalAsignado = _totalColoresDist(item);
+    item.combinaciones_dist[combinacionPk] = parseFloat(valor) || 0;
+    const totalAsignado = _totalCombinacionesDist(item);
     item.cantidad = totalAsignado;
 
     const { pk } = editState;
@@ -746,10 +744,10 @@ function _editUpdateField(id, campo, valor) {
     const subEl  = document.getElementById(`editSub_${pk}_${id}`);
     if (subEl) subEl.textContent = fmtMoneda(_calcEditSub(item), item.moneda);
 
-    if (campo === 'cantidad' && item.tiene_colores) {
+    if (campo === 'cantidad' && item.tiene_combinaciones) {
         const resEl = document.getElementById(`editColres_${pk}_${id}`);
         if (resEl) {
-            const ta = _totalColoresDist(item), ti = parseFloat(item.cantidad) || 0;
+            const ta = _totalCombinacionesDist(item), ti = parseFloat(item.cantidad) || 0;
             const ok = Math.abs(ta - ti) < 0.001;
             resEl.className = `vta-colores-panel-resumen ${ok ? 'ok' : 'error'}`;
             resEl.innerHTML = ok
@@ -925,9 +923,9 @@ function _bindEditorEvents(row, ventaData, listaContainer) {
     }
 }
 
-function _editAgregarItem(d, colores) {
+function _editAgregarItem(d, combinaciones) {
     if (!editState) return;
-    const tieneColores = d['tiene-colores'] === '1' && colores && colores.length > 0;
+    const tieneCombinaciones = d['tiene-combinaciones'] === '1' && combinaciones && combinaciones.length > 0;
     const newId = editState.nextId++;
     editState.carrito.push({
         id:               newId,
@@ -937,10 +935,10 @@ function _editAgregarItem(d, colores) {
         unidad:           d.unidad || '',
         cliente_pk:       d['cli-pk'] || '',
         cliente_nombre:   d['cli-nombre'] || '',
-        tiene_colores:    tieneColores,
-        colores_lista:    tieneColores ? colores : [],
-        colores_dist:     tieneColores ? Object.fromEntries(colores.map(c => [c.pk, 0])) : {},
-        cantidad:         tieneColores ? 0 : 1,
+        tiene_combinaciones: tieneCombinaciones,
+        combinaciones_lista: tieneCombinaciones ? combinaciones : [],
+        combinaciones_dist: tieneCombinaciones ? Object.fromEntries(combinaciones.map(c => [c.pk, 0])) : {},
+        cantidad:         tieneCombinaciones ? 0 : 1,
         precio_unitario:  0,
         moneda:           'ARS',
         descuento:        0,
@@ -959,9 +957,9 @@ function _guardarEdicion(ventaData) {
 
     if (!carrito.length) { mostrarToastError('La venta debe tener al menos un ítem.'); return; }
 
-    const pendientes = carrito.filter(i => i.tiene_colores && !_coloresValidos(i));
+    const pendientes = carrito.filter(i => i.tiene_combinaciones && !_combinacionesValidas(i));
     if (pendientes.length) {
-        mostrarToastError(`Distribuí todos los colores antes de guardar. Pendientes: ${pendientes.map(i => i.nombre).join(', ')}`);
+        mostrarToastError(`Distribuí todos las combinaciones antes de guardar. Pendientes: ${pendientes.map(i => i.nombre).join(', ')}`);
         return;
     }
 

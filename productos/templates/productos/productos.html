@@ -185,16 +185,15 @@
                     <td>
                         <span class="prd-nombre">{{ p.nombre }}</span>
                         {% if p.marca %}<span class="prd-marca">{{ p.marca }}{% if p.modelo %} · {{ p.modelo }}{% endif %}</span>{% endif %}
-                        {% if p.tiene_variantes_color %}
-                            <span class="prd-badge prd-badge--color" title="Gestiona variantes por color">
+                        {% if p.gestiona_variantes %}
+                            <span class="prd-badge prd-badge--variantes" title="Gestiona variantes">
                                 <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style="vertical-align:middle">
-                                    <circle cx="5" cy="5" r="4" stroke="currentColor" stroke-width="1.2"/>
-                                    <circle cx="5" cy="5" r="2" fill="currentColor"/>
+                                    <rect x="1" y="1" width="8" height="8" rx="1" stroke="currentColor" stroke-width="1.2"/>
+                                    <circle cx="3" cy="3" r="1" fill="currentColor"/>
+                                    <circle cx="7" cy="7" r="1" fill="currentColor"/>
                                 </svg>
-                                Colores
+                                Variantes
                             </span>
-                        {% elif p.color_unico %}
-                            <span class="prd-color-unico-badge">{{ p.color_unico }}</span>
                         {% endif %}
                     </td>
                     <td>
@@ -313,9 +312,9 @@
                 <button class="prd-tab" data-tab="clasificacion">Clasificación</button>
                 <button class="prd-tab" data-tab="precios">Precios</button>
                 <button class="prd-tab" data-tab="logistica">Logística</button>
-                <button class="prd-tab" data-tab="colores">
-                    Colores
-                    <span class="prd-tab-badge" id="tabColorCount" style="display:none">0</span>
+                <button class="prd-tab" data-tab="variantes">
+                    Variantes
+                    <span class="prd-tab-badge" id="tabCombinacionCount" style="display:none">0</span>
                 </button>
                 <button class="prd-tab" data-tab="imagenes">
                     Imágenes
@@ -335,9 +334,10 @@
                         <label>SKU</label>
                         <input type="text" id="f_sku" class="prd-input" placeholder="Código interno">
                     </div>
-                    <div class="prd-field">
+                    <div class="prd-field" id="wrap_codigo_barras">
                         <label>Código de barras</label>
                         <input type="text" id="f_codigo_barras" class="prd-input" placeholder="EAN-13, UPC...">
+                        <small class="prd-field-hint" id="hint_codigo_barras">Para productos con variantes, el código de barras se define en cada combinación.</small>
                     </div>
                 </div>
                 <div class="prd-field prd-field--required">
@@ -400,12 +400,6 @@
                 <div class="prd-field">
                     <label>Descripción pública <span class="prd-hint">(catálogo / e-commerce)</span></label>
                     <textarea id="f_descripcion_publica" class="prd-input prd-textarea" rows="3" placeholder="Descripción para catálogo público..."></textarea>
-                </div>
-                {# Color único: solo visible cuando NO gestiona variantes de color #}
-                <div class="prd-field" id="campoColorUnico">
-                    <label>Color <span class="prd-hint">(opcional, solo informativo)</span></label>
-                    <input type="text" id="f_color_unico" class="prd-input" placeholder="Ej: Rojo, Azul marino, Negro mate" maxlength="50">
-                    <small class="prd-field-hint">Para registrar el color sin gestionar stock por color. Activá "Gestionar variantes por color" en el tab Colores si necesitás stock independiente por color.</small>
                 </div>
             </div>
 
@@ -565,85 +559,140 @@
                         <span class="prd-check-box"></span>
                         <span>Es peligroso / Hazmat</span>
                     </label>
+                    <label class="prd-check-label">
+                        <input type="checkbox" id="f_es_perecedero" class="prd-check">
+                        <span class="prd-check-box"></span>
+                        <span>Es perecedero</span>
+                    </label>
                 </div>
             </div>
 
-            {# — TAB: COLORES — #}
-            <div class="prd-tab-panel" id="tab-colores">
-                <div class="prd-color-toggle-row">
+            {# — TAB: VARIANTES — #}
+            <div class="prd-tab-panel" id="tab-variantes">
+                <div class="prd-variantes-toggle-row">
                     <label class="prd-check-label prd-check-label--lg">
-                        <input type="checkbox" id="f_tiene_variantes_color" class="prd-check">
+                        <input type="checkbox" id="f_gestiona_variantes" class="prd-check">
                         <span class="prd-check-box"></span>
                         <span>
-                            <strong>Gestionar variantes por color</strong>
-                            <small>El stock se lleva de forma independiente por cada color</small>
+                            <strong>Gestionar variantes</strong>
+                            <small>El stock se lleva de forma independiente por cada combinación de variantes (color, tamaño, sabor, etc.)</small>
                         </span>
                     </label>
                 </div>
-                <div class="prd-color-warning" id="colorWarningMovimientos" style="display:none">
+                <div class="prd-variantes-warning" id="combinacionWarningMovimientos" style="display:none">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                         <path d="M8 2L14 13H2L8 2Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
                         <path d="M8 6V9M8 11V11.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
                     </svg>
-                    Este producto ya tiene movimientos de stock registrados. Al activar variantes por color, el stock actual quedará en el producto y deberás asignarlo manualmente a los colores.
+                    Este producto ya tiene movimientos de stock registrados. Al activar variantes, el stock actual quedará en el producto y deberás asignarlo manualmente a las combinaciones.
                 </div>
                 <div id="panelSinVariantes">
-                    <div class="prd-color-empty-state">
+                    <div class="prd-variantes-empty-state">
                         <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-                            <circle cx="20" cy="20" r="14" stroke="currentColor" stroke-width="1.5" opacity=".3"/>
-                            <circle cx="12" cy="20" r="4" fill="currentColor" opacity=".2"/>
-                            <circle cx="20" cy="14" r="4" fill="currentColor" opacity=".4"/>
-                            <circle cx="28" cy="20" r="4" fill="currentColor" opacity=".6"/>
-                            <circle cx="20" cy="26" r="4" fill="currentColor" opacity=".8"/>
+                            <rect x="4" y="4" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5" opacity=".3"/>
+                            <rect x="22" y="4" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5" opacity=".3"/>
+                            <rect x="4" y="22" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5" opacity=".3"/>
+                            <rect x="22" y="22" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5" opacity=".3"/>
                         </svg>
-                        <p>Activá "Gestionar variantes por color" para definir los colores disponibles de este producto y llevar stock por color.</p>
-                        <p class="prd-color-empty-hint">Si el producto tiene un único color sin necesidad de stock por color, podés registrarlo en el campo "Color" del tab Identificación.</p>
+                        <p>Activá "Gestionar variantes" para definir las combinaciones disponibles de este producto (color, tamaño, sabor, etc.) y llevar stock por combinación.</p>
                     </div>
                 </div>
                 <div id="panelConVariantes" style="display:none">
-                    <div class="prd-img-aviso" id="colorNuevoAviso" style="display:none">
+                    <div class="prd-variantes-catalogo">
+                        <div class="prd-variantes-catalogo-title">Catálogo de variantes</div>
+                        <p class="prd-variantes-catalogo-hint">Definí los tipos (Color, Sabor, Talle…) y sus valores. Cada valor pertenece a un tipo y se reutiliza en todos los productos.</p>
+                        <div class="prd-form-grid prd-form-grid--2">
+                            <div class="prd-field">
+                                <label>Tipo de variante</label>
+                                <div class="prd-select-with-manager">
+                                    <select id="f_variante_tipo" class="prd-input prd-select">
+                                        <option value="">— Seleccionar tipo —</option>
+                                    </select>
+                                    <button type="button" class="prd-btn-inline-manager" onclick="toggleInlineManager('varianteTipoManager')" title="Agregar tipo de variante">
+                                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2V12M2 7H12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                                    </button>
+                                    <button type="button" class="prd-btn-inline-manager prd-btn-inline-manager--del" onclick="eliminarVarianteSeleccionada()" title="Eliminar tipo seleccionado">
+                                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 4H12M5 4V3H9V4M5.5 6.5V10.5M8.5 6.5V10.5M3 4L3.8 12H10.2L11 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                    </button>
+                                </div>
+                                <div class="prd-inline-manager" id="varianteTipoManager" style="display:none">
+                                    <div class="prd-inline-manager-add">
+                                        <input type="text" id="nuevaVarianteNombre" class="prd-input prd-input--sm" placeholder="Ej: Color, Sabor, Talle...">
+                                        <button type="button" class="prd-btn prd-btn-primary prd-btn--sm" onclick="crearVariante()">Agregar</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="prd-field">
+                                <label>Valor de variante</label>
+                                <div class="prd-select-with-manager">
+                                    <select id="f_variante_valor" class="prd-input prd-select" disabled>
+                                        <option value="">— Primero elegí un tipo —</option>
+                                    </select>
+                                    <button type="button" class="prd-btn-inline-manager" onclick="toggleInlineManager('varianteValorManager')" title="Agregar valor">
+                                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2V12M2 7H12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                                    </button>
+                                    <button type="button" class="prd-btn-inline-manager prd-btn-inline-manager--del" onclick="eliminarOpcionSeleccionada()" title="Eliminar valor seleccionado">
+                                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 4H12M5 4V3H9V4M5.5 6.5V10.5M8.5 6.5V10.5M3 4L3.8 12H10.2L11 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                    </button>
+                                </div>
+                                <div class="prd-inline-manager" id="varianteValorManager" style="display:none">
+                                    <div class="prd-inline-manager-add">
+                                        <input type="text" id="nuevaOpcionNombre" class="prd-input prd-input--sm" placeholder="Ej: Rojo, Manzana, M...">
+                                        <button type="button" class="prd-btn prd-btn-primary prd-btn--sm" onclick="crearOpcionVariante()">Agregar</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="prd-img-aviso" id="combinacionNuevoAviso" style="display:none">
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                             <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.2"/>
                             <path d="M8 7V11M8 5.5V6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
                         </svg>
-                        Guardá el producto primero para poder agregar colores.
+                        Guardá el producto primero para poder agregar combinaciones.
                     </div>
-                    <div id="colorListaWrap">
-                        <div class="prd-color-lista-header">
-                            <span class="prd-color-lista-title">Colores definidos</span>
-                            <span class="prd-color-stock-total">Stock total: <strong id="colorStockTotal">0</strong></span>
+                    <div id="combinacionListaWrap">
+                        <div class="prd-combinacion-lista-header">
+                            <span class="prd-combinacion-lista-title">Combinaciones definidas</span>
+                            <span class="prd-combinacion-stock-total">Stock total: <strong id="combinacionStockTotal">0</strong></span>
                         </div>
-                        <div id="colorLista" class="prd-color-lista">
-                            <div class="prd-manager-loading">Cargando colores...</div>
+                        <div id="combinacionLista" class="prd-combinacion-lista">
+                            <div class="prd-manager-loading">Cargando combinaciones...</div>
                         </div>
                     </div>
-                    <div class="prd-color-form" id="colorForm">
-                        <div class="prd-color-form-title" id="colorFormTitulo">Agregar color</div>
-                        <input type="hidden" id="f_color_pk" value="">
+                    <div class="prd-combinacion-form" id="combinacionForm">
+                        <div class="prd-combinacion-form-title" id="combinacionFormTitulo">Agregar combinación</div>
+                        <input type="hidden" id="f_combinacion_pk" value="">
+                        <div class="prd-field">
+                            <label>Opciones de la combinación <span class="prd-req">*</span></label>
+                            <small class="prd-field-hint">Elegí el tipo y el valor. Podés agregar más filas si el producto tiene varias dimensiones (ej: Color + Talle).</small>
+                            <div id="combinacionOpcionesContainer" class="prd-combinacion-opciones"></div>
+                            <button type="button" class="prd-btn prd-btn-ghost prd-btn--sm" id="btnAgregarFilaOpcion" onclick="agregarFilaOpcionCombinacion()">
+                                <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1.5V11.5M1.5 6.5H11.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                                Agregar dimensión
+                            </button>
+                        </div>
                         <div class="prd-form-grid prd-form-grid--3">
-                            <div class="prd-field prd-field--required">
-                                <label>Nombre del color <span class="prd-req">*</span></label>
-                                <input type="text" id="f_color_nombre" class="prd-input" placeholder="Ej: Rojo, Azul marino" maxlength="50">
-                            </div>
                             <div class="prd-field">
-                                <label>Color visual <span class="prd-hint">(hex, opcional)</span></label>
-                                <div class="prd-color-hex-wrap">
-                                    <input type="color" id="f_color_hex_picker" class="prd-color-picker" value="#000000">
-                                    <input type="text" id="f_color_hex" class="prd-input" placeholder="#RRGGBB" maxlength="7">
-                                </div>
+                                <label>Código de barras <span class="prd-hint">(por combinación)</span></label>
+                                <input type="text" id="f_combinacion_codigo_barras" class="prd-input" placeholder="EAN-13, UPC..." maxlength="100">
                             </div>
                             <div class="prd-field">
                                 <label>SKU variante <span class="prd-hint">(opcional)</span></label>
-                                <input type="text" id="f_color_sku" class="prd-input" placeholder="SKU específico del color" maxlength="100">
+                                <input type="text" id="f_combinacion_sku" class="prd-input" placeholder="SKU específico de la combinación" maxlength="100">
+                            </div>
+                            <div class="prd-field prd-field--required">
+                                <label>Stock inicial <span class="prd-req">*</span></label>
+                                <input type="number" id="f_combinacion_stock" class="prd-input" placeholder="0" min="0" value="0">
                             </div>
                         </div>
-                        <div class="prd-color-form-actions">
-                            <button type="button" class="prd-btn prd-btn-ghost prd-btn--sm" id="btnCancelarColor" onclick="cancelarFormColor()" style="display:none">Cancelar</button>
-                            <button type="button" class="prd-btn prd-btn-primary prd-btn--sm" onclick="guardarColor()">
+                        <div class="prd-combinacion-form-actions">
+                            <button type="button" class="prd-btn prd-btn-ghost prd-btn--sm" id="btnCancelarCombinacion" onclick="cancelarFormCombinacion()" style="display:none">Cancelar</button>
+                            <button type="button" class="prd-btn prd-btn-primary prd-btn--sm" onclick="guardarCombinacion()">
                                 <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
                                     <path d="M6.5 1.5V11.5M1.5 6.5H11.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                                 </svg>
-                                <span id="btnColorTxt">Agregar color</span>
+                                <span id="btnCombinacionTxt">Agregar combinación</span>
                             </button>
                         </div>
                     </div>
@@ -744,10 +793,16 @@ const URLS = {
     imagenSubir       : '{% url "productos:producto_imagen_subir" %}',
     imagenEliminar    : '{% url "productos:producto_imagen_eliminar" %}',
     imagenPortada     : '{% url "productos:producto_imagen_portada" %}',
-    colorLista        : '{% url "productos:producto_color_lista" %}',
-    colorAcciones     : '{% url "productos:producto_color_acciones" %}',
-    colorStock        : '{% url "productos:producto_color_stock" %}',
-    colorToggle       : '{% url "productos:producto_color_toggle" %}',
+    combinacionLista  : '{% url "productos:combinacion_variante_lista" %}',
+    combinacionAcciones: '{% url "productos:combinacion_variante_acciones" %}',
+    combinacionStock  : '{% url "productos:combinacion_variante_stock" %}',
+    combinacionToggle : '{% url "productos:combinacion_variante_toggle" %}',
+    varianteLista     : '{% url "productos:variante_lista" %}',
+    varianteAcciones  : '{% url "productos:variante_acciones" %}',
+    varianteEliminar  : '{% url "productos:variante_eliminar" %}',
+    opcionLista       : '{% url "productos:opcion_variante_lista" %}',
+    opcionAcciones    : '{% url "productos:opcion_variante_acciones" %}',
+    opcionEliminar    : '{% url "productos:opcion_variante_eliminar" %}',
 };
 </script>
 <script src="{% static 'productos/js/productos.js' %}"></script>

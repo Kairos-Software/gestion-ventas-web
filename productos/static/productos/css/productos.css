@@ -1332,3 +1332,220 @@
     line-height: 1.4;
     margin-top: 0.2rem;
 }
+
+/* ════════════════════════════════════════════════════════════
+   TAB VARIANTES — CATÁLOGO Y COMBINACIONES
+   ════════════════════════════════════════════════════════════ */
+.prd-variantes-catalogo {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    padding: 1rem 1.125rem;
+    margin-bottom: 1rem;
+}
+
+.prd-variantes-catalogo-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--brand-orange);
+    margin-bottom: 0.35rem;
+}
+
+.prd-variantes-catalogo-hint {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin: 0 0 0.875rem;
+    line-height: 1.45;
+}
+
+.prd-variantes-toggle-row {
+    margin-bottom: 1rem;
+}
+
+.prd-variantes-empty-state {
+    text-align: center;
+    padding: 2rem 1rem;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.prd-variantes-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.65rem 0.875rem;
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    border-radius: 0.625rem;
+    font-size: 0.78rem;
+    color: var(--warning);
+    margin-bottom: 1rem;
+    line-height: 1.45;
+}
+
+.prd-combinacion-lista-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+}
+
+.prd-combinacion-lista-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.prd-combinacion-stock-total {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.prd-combinacion-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-bottom: 1rem;
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.prd-combinacion-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.55rem 0.75rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 0.625rem;
+}
+
+.prd-combinacion-item--inactivo {
+    opacity: 0.55;
+}
+
+.prd-combinacion-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.prd-combinacion-item-datos {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.prd-combinacion-item-descripcion {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.prd-combinacion-item-opciones,
+.prd-combinacion-item-codigo,
+.prd-combinacion-item-sku {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+}
+
+.prd-combinacion-item-inactivo-badge {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 600;
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
+    border-radius: 0.3rem;
+    padding: 0.05rem 0.35rem;
+    width: fit-content;
+}
+
+.prd-combinacion-item-stock {
+    flex-shrink: 0;
+}
+
+.prd-combinacion-stock-num {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    min-width: 32px;
+    text-align: right;
+}
+
+.prd-combinacion-item-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex-shrink: 0;
+}
+
+.prd-combinacion-form {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    padding: 1rem 1.125rem;
+}
+
+.prd-combinacion-form-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--brand-orange);
+    margin-bottom: 0.875rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.prd-combinacion-opciones {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin: 0.5rem 0 0.75rem;
+}
+
+.prd-combinacion-opcion-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 0.5rem;
+    align-items: end;
+    padding: 0.65rem;
+    background: var(--bg-primary);
+    border: 1px dashed var(--border-color);
+    border-radius: 0.625rem;
+}
+
+.prd-combinacion-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.prd-manager-loading,
+.prd-manager-empty {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    padding: 0.75rem 0;
+    text-align: center;
+}
+
+.prd-badge--variantes {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    margin-left: 0.35rem;
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--brand-blue);
+    background: rgba(30, 111, 168, 0.08);
+    border: 1px solid rgba(30, 111, 168, 0.2);
+    border-radius: 0.35rem;
+    padding: 0.05rem 0.35rem;
+}

@@ -112,15 +112,12 @@ function buildItemsHTML(items) {
                 ${_esc(item.producto_cod)}
             </span>`;
 
-        // Color / variante
-        let colorCell;
-        if (item.tiene_color) {
-            const swatch = item.color_hex
-                ? `<span class="cmp-color-swatch" style="background:${_esc(item.color_hex)};width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:4px;vertical-align:middle;border:1px solid rgba(0,0,0,.15);"></span>`
-                : '';
-            colorCell = `<span class="color-badge">${swatch}${_esc(item.color_nombre)}</span>`;
+        // Combinación de variantes
+        let combinacionCell;
+        if (item.tiene_combinacion) {
+            combinacionCell = `<span class="combinacion-badge">${_esc(item.combinacion_descripcion)}</span>`;
         } else {
-            colorCell = `<span style="color:var(--text-muted);font-size:0.8rem;">—</span>`;
+            combinacionCell = `<span style="color:var(--text-muted);font-size:0.8rem;">—</span>`;
         }
 
         const urlProveedor  = item.proveedor_pk
@@ -137,7 +134,7 @@ function buildItemsHTML(items) {
         return `
         <tr>
             <td>${productoLink}</td>
-            <td>${colorCell}</td>
+            <td>${combinacionCell}</td>
             <td>${proveedorCell}</td>
             <td style="text-align:right;">${parseFloat(item.cantidad).toLocaleString('es-AR')}</td>
             <td style="text-align:right;">
@@ -156,7 +153,7 @@ function buildItemsHTML(items) {
         <thead>
             <tr>
                 <th>Producto</th>
-                <th>Color</th>
+                <th>Combinación</th>
                 <th>Proveedor</th>
                 <th style="text-align:right;">Cantidad</th>
                 <th style="text-align:right;">Costo unit.</th>

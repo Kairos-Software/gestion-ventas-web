@@ -59,8 +59,8 @@ function _calcSub(item) {
     const base = (parseFloat(item.cantidad) || 0) * (parseFloat(item.precio_unitario) || 0);
     return item.descuento ? base * (1 - parseFloat(item.descuento) / 100) : base;
 }
-function _totalColoresDist(item) {
-    return Object.values(item.colores_dist).reduce((s, v) => s + (parseFloat(v) || 0), 0);
+function _totalCombinacionesDist(item) {
+    return Object.values(item.combinaciones_dist).reduce((s, v) => s + (parseFloat(v) || 0), 0);
 }
 function _totalCarrito() {
     return carrito.reduce((s, i) => s + _calcSub(i), 0);
@@ -147,13 +147,13 @@ document.addEventListener('click', e => {
 /* ════════════════════════════════════════════════════════════════
    AGREGAR ÍTEM AL CARRITO
    ──────────────────────────────────────────────────────────────
-   Si el producto tiene colores, la cantidad arranca en 0 y se
-   autocompleta a medida que se distribuyen los colores (no es
+   Si el producto tiene combinaciones, la cantidad arranca en 0 y se
+   autocompleta a medida que se distribuyen las combinaciones (no es
    editable a mano — ver _renderCarrito).
-   Si NO tiene colores, la cantidad arranca en 1 y es editable.
+   Si NO tiene combinaciones, la cantidad arranca en 1 y es editable.
 ════════════════════════════════════════════════════════════════ */
-function _agregarItem(dataset, colores) {
-    const tieneColores = dataset.tieneColores === '1';
+function _agregarItem(dataset, combinaciones) {
+    const tieneCombinaciones = dataset.tieneCombinaciones === '1';
     const precio = dataset.precio !== '' ? parseFloat(dataset.precio) : 0;
     const item = {
         id:             nextId++,
@@ -163,10 +163,10 @@ function _agregarItem(dataset, colores) {
         unidad:         dataset.unidad || '',
         cliente_pk:     '',
         cliente_nombre: '',
-        tiene_colores:  tieneColores,
-        colores_lista:  colores,
-        colores_dist:   tieneColores ? Object.fromEntries(colores.map(c => [c.pk, 0])) : {},
-        cantidad:       tieneColores ? 0 : 1,
+        tiene_combinaciones: tieneCombinaciones,
+        combinaciones_lista: combinaciones,
+        combinaciones_dist:   tieneCombinaciones ? Object.fromEntries(combinaciones.map(c => [c.pk, 0])) : {},
+        cantidad:       tieneCombinaciones ? 0 : 1,
         precio_unitario: precio,
         moneda:         dataset.moneda || 'ARS',
         descuento:      0,
@@ -205,30 +205,30 @@ function _renderCarrito() {
     cartBody.innerHTML = carrito.map(item => {
         const sub = _calcSub(item);
 
-        const colorPanel = item.tiene_colores ? `
+        const colorPanel = item.tiene_combinaciones ? `
         <tr class="vta-row-colores" data-item-id="${item.id}">
             <td colspan="10">
                 <div class="vta-colores-panel">
                     <div class="vta-colores-panel-header">
                         <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                            <circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.2"/>
-                            <circle cx="6" cy="6" r="1.8" fill="currentColor"/>
+                            <rect x="1" y="1" width="10" height="10" rx="1" stroke="currentColor" stroke-width="1.2"/>
+                            <circle cx="3" cy="3" r="1" fill="currentColor"/>
+                            <circle cx="9" cy="9" r="1" fill="currentColor"/>
                         </svg>
-                        Distribuir por color
+                        Distribuir por combinación
                         <span class="vta-colores-panel-resumen ok" id="colRes_${item.id}">
-                            Total: ${_totalColoresDist(item).toLocaleString('es-AR')}
+                            Total: ${_totalCombinacionesDist(item).toLocaleString('es-AR')}
                         </span>
                     </div>
                     <div class="vta-colores-chips">
-                        ${item.colores_lista.map(c => `
+                        ${item.combinaciones_lista.map(c => `
                         <div class="vta-color-chip">
-                            ${c.codigo_hex ? `<span class="vta-color-swatch" style="background:${_esc(c.codigo_hex)}"></span>` : ''}
-                            <span class="vta-color-chip-nombre">${_esc(c.nombre)}</span>
+                            <span class="vta-color-chip-nombre">${_esc(c.descripcion_combinacion)}</span>
                             <span class="vta-color-chip-stock">(${parseFloat(c.stock_actual || 0).toLocaleString('es-AR')})</span>
                             <input type="number" class="vta-input-inline w-xs vta-color-qty"
                                    min="0" step="1" style="width:65px"
-                                   value="${parseFloat(item.colores_dist[c.pk] || 0)}"
-                                   data-item-id="${item.id}" data-color-pk="${c.pk}">
+                                   value="${parseFloat(item.combinaciones_dist[c.pk] || 0)}"
+                                   data-item-id="${item.id}" data-combinacion-pk="${c.pk}">
                         </div>`).join('')}
                     </div>
                 </div>
@@ -241,11 +241,13 @@ function _renderCarrito() {
                 <div class="vta-prod-cell">
                     <span class="vta-prod-nombre">${_esc(item.nombre)}</span>
                     <span class="vta-prod-meta">${_esc(item.codigo)}
-                        ${item.tiene_colores ? `<span class="vta-prod-badge-colores">
+                        ${item.tiene_combinaciones ? `<span class="vta-prod-badge-colores">
                             <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
-                                <circle cx="5" cy="5" r="3.5" stroke="currentColor" stroke-width="1.2"/>
+                                <rect x="1" y="1" width="8" height="8" rx="1" stroke="currentColor" stroke-width="1.2"/>
+                                <circle cx="3" cy="3" r="1" fill="currentColor"/>
+                                <circle cx="7" cy="7" r="1" fill="currentColor"/>
                             </svg>
-                            ${item.colores_lista.length} colores
+                            ${item.combinaciones_lista.length} combinación${item.combinaciones_lista.length !== 1 ? 'es' : ''}
                         </span>` : ''}
                     </span>
                 </div>
@@ -256,10 +258,10 @@ function _renderCarrito() {
                        data-item-id="${item.id}" autocomplete="off">
             </td>
             <td>
-                ${item.tiene_colores
+                ${item.tiene_combinaciones
                     ? `<input type="number" class="vta-input-inline w-xs" value="${item.cantidad}"
                               data-item-id="${item.id}" data-cantidad-auto="1" readonly
-                              title="Se calcula automáticamente según los colores distribuidos">`
+                              title="Se calcula automáticamente según las combinaciones distribuidas">`
                     : `<input type="number" class="vta-input-inline w-xs" min="0.001" step="0.001"
                               value="${item.cantidad}" data-campo="cantidad" data-item-id="${item.id}">`
                 }
@@ -315,18 +317,18 @@ function _renderCarrito() {
         });
     });
 
-    // Distribución de colores → autocompleta el campo "Cantidad" general
+    // Distribución de combinaciones → autocompleta el campo "Cantidad" general
     cartBody.querySelectorAll('.vta-color-qty').forEach(el => {
         el.addEventListener('input', () => {
             const id      = parseInt(el.dataset.itemId, 10);
-            const colorPk = el.dataset.colorPk;
+            const combinacionPk = el.dataset.combinacionPk;
             const item    = carrito.find(i => i.id === id);
             if (!item) return;
 
-            item.colores_dist[colorPk] = parseFloat(el.value) || 0;
+            item.combinaciones_dist[combinacionPk] = parseFloat(el.value) || 0;
 
-            // ── Autocompletar cantidad general = suma de todos los colores ──
-            const total = _totalColoresDist(item);
+            // ── Autocompletar cantidad general = suma de todas las combinaciones ──
+            const total = _totalCombinacionesDist(item);
             item.cantidad = total;
 
             const resumen = document.getElementById(`colRes_${id}`);
@@ -380,8 +382,8 @@ function _actualizarTotales() {
 function _actualizarBtnContinuar() {
     if (!btnContinuar) return;
     const hayItems = carrito.length > 0;
-    // Si tiene colores pero la cantidad autocompletada quedó en 0, no deja avanzar
-    const hayPendiente = carrito.some(i => i.tiene_colores && (parseFloat(i.cantidad) || 0) <= 0);
+    // Si tiene combinaciones pero la cantidad autocompletada quedó en 0, no deja avanzar
+    const hayPendiente = carrito.some(i => i.tiene_combinaciones && (parseFloat(i.cantidad) || 0) <= 0);
     btnContinuar.disabled = !hayItems || hayPendiente;
 }
 
@@ -491,9 +493,9 @@ if (btnContinuar) {
     btnContinuar.addEventListener('click', async () => {
         if (!carrito.length) return;
 
-        const sinDistribuir = carrito.filter(i => i.tiene_colores && (parseFloat(i.cantidad) || 0) <= 0);
+        const sinDistribuir = carrito.filter(i => i.tiene_combinaciones && (parseFloat(i.cantidad) || 0) <= 0);
         if (sinDistribuir.length) {
-            _toast('Colores sin distribuir', `Asigná cantidad a los colores de: ${sinDistribuir.map(i => i.nombre).join(', ')}`);
+            _toast('Combinaciones sin distribuir', `Asigná cantidad a las combinaciones de: ${sinDistribuir.map(i => i.nombre).join(', ')}`);
             return;
         }
 

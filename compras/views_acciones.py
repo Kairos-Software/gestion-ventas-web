@@ -6,9 +6,9 @@ from django.views import View
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 
-# ── IMPORTANTE: ProductoColor debe importarse para que editar_completa
+# ── IMPORTANTE: CombinacionVariante debe importarse para que editar_completa
 #    pueda resolver las variantes y _sumar_stock_item funcione correctamente ──
-from productos.models import Producto, Proveedor, ProductoColor
+from productos.models import Producto, Proveedor, CombinacionVariante
 from .models import Compra, EstadoCompra
 from core.permisos import chequear_permiso
 
@@ -98,8 +98,8 @@ class EditarCompraAjax(LoginRequiredMixin, View):
     """
     POST JSON — edita una compra ANULADA, reemplaza sus ítems y la re-confirma.
 
-    Cada ítem del body puede tener color_pk si el producto maneja variantes.
-    Para productos con colores, el frontend envía 1 item por cada color > 0.
+    Cada ítem del body puede tener combinacion_pk si el producto maneja variantes.
+    Para productos con variantes, el frontend envía 1 item por cada combinación > 0.
 
     Body:
     {
@@ -108,15 +108,15 @@ class EditarCompraAjax(LoginRequiredMixin, View):
         "notas": "...",
         "items": [
             {
-                "producto_pk":    1,
-                "proveedor_pk":   2,        // opcional
-                "color_pk":       3,        // para productos con variantes de color
-                "cantidad":       "3",
-                "costo_unitario": "12.00",
-                "moneda":         "ARS",
-                "descuento_pct":  "0",
-                "condicion_pago": "contado",
-                "referencia":     ""
+                "producto_pk":       1,
+                "proveedor_pk":      2,        // opcional
+                "combinacion_pk":    3,        // para productos con variantes
+                "cantidad":          "3",
+                "costo_unitario":    "12.00",
+                "moneda":            "ARS",
+                "descuento_pct":     "0",
+                "condicion_pago":    "contado",
+                "referencia":        ""
             },
             ...
         ]
@@ -188,20 +188,20 @@ class EditarCompraAjax(LoginRequiredMixin, View):
             if proveedor_pk:
                 proveedor = Proveedor.objects.filter(pk=proveedor_pk).first()
 
-            # ── Color (solo para productos con variantes) ────────────
-            color    = None
-            color_pk = raw.get('color_pk')
-            if color_pk:
-                color = ProductoColor.objects.filter(pk=color_pk, producto=producto).first()
-                if not color:
-                    errores.append(f'Ítem {idx}: el color seleccionado no pertenece a este producto.')
+            # ── Combinación (solo para productos con variantes) ───────
+            combinacion    = None
+            combinacion_pk = raw.get('combinacion_pk')
+            if combinacion_pk:
+                combinacion = CombinacionVariante.objects.filter(pk=combinacion_pk, producto=producto).first()
+                if not combinacion:
+                    errores.append(f'Ítem {idx}: la combinación seleccionada no pertenece a este producto.')
                     continue
 
-            # Si el producto requiere color pero no se mandó ninguno
-            if producto.tiene_variantes_color and color is None:
+            # Si el producto requiere combinación pero no se mandó ninguna
+            if producto.gestiona_variantes and combinacion is None:
                 errores.append(
-                    f'Ítem {idx}: "{producto.nombre}" maneja variantes de color. '
-                    f'Cada color debe enviarse como un ítem separado con su color_pk.'
+                    f'Ítem {idx}: "{producto.nombre}" maneja variantes. '
+                    f'Cada combinación debe enviarse como un ítem separado con su combinacion_pk.'
                 )
                 continue
             # ────────────────────────────────────────────────────────
@@ -209,7 +209,7 @@ class EditarCompraAjax(LoginRequiredMixin, View):
             items_data.append({
                 'producto':       producto,
                 'proveedor':      proveedor,
-                'color':          color,
+                'combinacion':    combinacion,
                 'cantidad':       cantidad,
                 'costo_unitario': costo_unitario,
                 'moneda':         raw.get('moneda', 'ARS'),

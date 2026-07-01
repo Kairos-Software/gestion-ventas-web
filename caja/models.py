@@ -40,6 +40,7 @@ class OrigenMovimiento(models.TextChoices):
     COMPRA  = 'compra',  'Compra'
     MANUAL  = 'manual',  'Carga manual'
     AJUSTE  = 'ajuste',  'Ajuste'
+    TRANSACCION = 'transaccion', 'Transacción interna'
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -179,7 +180,7 @@ class MovimientoCaja(models.Model):
                       help_text='N° de venta, compra, comprobante, etc.')
 
     # ── Trazabilidad: origen automático (opcional) ─────────────────
-    origen    = models.CharField(max_length=10, choices=OrigenMovimiento.choices,
+    origen    = models.CharField(max_length=15, choices=OrigenMovimiento.choices,
                     default=OrigenMovimiento.MANUAL)
     origen_app  = models.CharField(max_length=20, blank=True,
                       help_text="App del objeto origen, ej. 'ventas' o 'compras'.")
@@ -693,3 +694,258 @@ def sincronizar_movimiento_gasto(gasto):
             origen_id = gasto.pk,
             creado_por = gasto.creado_por,
         )
+
+
+# ══════════════════════════════════════════════════════════════════
+#  TRANSACCIONES DE CAJA GRANDE
+#  Agregar este bloque al final de models.py (antes de los helpers
+#  de sincronización si querés, o al final del archivo).
+#
+#  También agregar 'TRANSACCION' a OrigenMovimiento:
+#
+#  class OrigenMovimiento(models.TextChoices):
+#      VENTA       = 'venta',       'Venta'
+#      COMPRA      = 'compra',      'Compra'
+#      MANUAL      = 'manual',      'Carga manual'
+#      AJUSTE      = 'ajuste',      'Ajuste'
+#      TRANSACCION = 'transaccion', 'Transacción interna'   ← AGREGAR
+# ══════════════════════════════════════════════════════════════════
+
+
+class TipoTransaccion(models.TextChoices):
+    DEPOSITO      = 'deposito',      'Depósito bancario'
+    EXTRACCION    = 'extraccion',    'Extracción bancaria'
+    COMPRA_DIVISA = 'compra_divisa', 'Compra de divisa'
+    VENTA_DIVISA  = 'venta_divisa',  'Venta de divisa'
+
+
+class TransaccionCaja(models.Model):
+    """
+    Registra un movimiento entre dos cuentas de la caja grande.
+
+    Tipos soportados:
+    - DEPOSITO:      Efectivo → Banco (misma moneda)
+    - EXTRACCION:    Banco → Efectivo (misma moneda)
+    - COMPRA_DIVISA: Cuenta en moneda A → Cuenta en moneda B,
+                     con tipo de cambio y costos opcionales.
+    - VENTA_DIVISA:  Lo inverso de compra_divisa.
+
+    Genera atómicamente dos MovimientoCaja:
+    - mov_egreso:  egreso en cuenta_origen  por monto_origen
+    - mov_ingreso: ingreso en cuenta_destino por monto_destino
+
+    Los costos extra (impuestos, comisiones) se registran como un
+    tercer egreso opcional en cuenta_origen, también linkeado aquí.
+
+    La transacción es el "objeto padre"; los movimientos son sus
+    consecuencias y no deben editarse directamente.
+    """
+
+    tipo = models.CharField(
+        max_length=20,
+        choices=TipoTransaccion.choices,
+    )
+
+    cuenta_origen  = models.ForeignKey(
+        CuentaCaja, on_delete=models.PROTECT,
+        related_name='transacciones_como_origen',
+        help_text='Cuenta desde la que sale el dinero.',
+    )
+    cuenta_destino = models.ForeignKey(
+        CuentaCaja, on_delete=models.PROTECT,
+        related_name='transacciones_como_destino',
+        help_text='Cuenta hacia la que entra el dinero.',
+    )
+
+    # Montos
+    monto_origen   = models.DecimalField(
+        max_digits=14, decimal_places=2,
+        help_text='Monto que sale de cuenta_origen (en la moneda de esa cuenta).',
+    )
+    monto_destino  = models.DecimalField(
+        max_digits=14, decimal_places=2,
+        help_text='Monto que entra en cuenta_destino (en la moneda de esa cuenta). '
+                  'Para depósito/extracción es igual a monto_origen. '
+                  'Para compra/venta de divisa es monto_origen / tipo_cambio.',
+    )
+
+    # Solo para operaciones de cambio de divisa
+    tipo_cambio = models.DecimalField(
+        max_digits=14, decimal_places=6,
+        null=True, blank=True,
+        help_text='Precio de 1 unidad de la divisa destino en moneda origen. '
+                  'Ej: si comprás USD a 1.200 ARS, tipo_cambio=1200. '
+                  'Solo aplica para compra/venta de divisa.',
+    )
+
+    # Costo extra opcional (impuestos, comisiones bancarias, etc.)
+    costo_extra = models.DecimalField(
+        max_digits=14, decimal_places=2,
+        null=True, blank=True,
+        help_text='Monto adicional cobrado (impuesto, comisión, etc.), '
+                  'en la moneda de cuenta_origen.',
+    )
+    descripcion_costo = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text='Descripción del costo extra. Ej: "Impuesto PAIS 30%", "Comisión bancaria".',
+    )
+    # Si hay costo extra, puede salir de la misma cuenta origen u otra cuenta.
+    # Por simplicidad asumimos que siempre sale de cuenta_origen.
+    # mov_costo referencia ese tercer movimiento.
+    mov_costo = models.OneToOneField(
+        'MovimientoCaja',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='transaccion_como_costo',
+    )
+
+    # Metadata
+    fecha       = models.DateField(help_text='Fecha contable de la transacción.')
+    descripcion = models.CharField(max_length=300, blank=True)
+
+    # Referencias a los movimientos generados (se setean en ejecutar())
+    mov_egreso = models.OneToOneField(
+        'MovimientoCaja',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='transaccion_como_egreso',
+    )
+    mov_ingreso = models.OneToOneField(
+        'MovimientoCaja',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='transaccion_como_ingreso',
+    )
+
+    # Auditoría
+    creado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='transacciones_caja_creadas',
+    )
+    fecha_alta         = models.DateTimeField(auto_now_add=True)
+    fecha_modificacion = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name        = 'Transacción de caja'
+        verbose_name_plural = 'Transacciones de caja'
+        ordering            = ['-fecha', '-fecha_alta']
+
+    def __str__(self):
+        return (
+            f'{self.get_tipo_display()} | '
+            f'{self.monto_origen} {self.cuenta_origen.moneda} → '
+            f'{self.monto_destino} {self.cuenta_destino.moneda} | '
+            f'{self.fecha:%d/%m/%Y}'
+        )
+
+    # ──────────────────────────────────────────────────────────────
+    #  LÓGICA DE NEGOCIO
+    # ──────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def calcular_monto_destino(monto_origen, tipo_cambio):
+        """
+        Calcula el monto que llega a destino dados el monto origen
+        y el tipo de cambio.
+        Fórmula: monto_destino = monto_origen / tipo_cambio
+        Ej: 15.000 ARS / 1.200 (ARS por USD) = 12,5 USD
+        """
+        if not tipo_cambio or tipo_cambio == 0:
+            return monto_origen
+        from decimal import Decimal, ROUND_HALF_UP
+        return (Decimal(str(monto_origen)) / Decimal(str(tipo_cambio))).quantize(
+            Decimal('0.01'), rounding=ROUND_HALF_UP
+        )
+
+    @transaction.atomic
+    def ejecutar(self):
+        """
+        Crea los MovimientoCaja correspondientes y los linkea a esta
+        transacción. Debe llamarse justo después de crear la instancia
+        (save() sin ejecutar() deja la transacción incompleta).
+
+        Flujo:
+        1. Egreso en cuenta_origen por monto_origen
+        2. Ingreso en cuenta_destino por monto_destino
+        3. (Opcional) Egreso en cuenta_origen por costo_extra
+        """
+        concepto_egreso  = _concepto_default('Transacción - Egreso',  TipoMovimientoCaja.EGRESO)
+        concepto_ingreso = _concepto_default('Transacción - Ingreso', TipoMovimientoCaja.INGRESO)
+        concepto_costo   = _concepto_default('Transacción - Costo',   TipoMovimientoCaja.EGRESO)
+
+        desc = self.descripcion or self.get_tipo_display()
+
+        # 1. Egreso en origen
+        mov_egreso = MovimientoCaja.objects.create(
+            caja        = TipoCaja.GRANDE,
+            cuenta      = self.cuenta_origen,
+            concepto    = concepto_egreso,
+            tipo        = TipoMovimientoCaja.EGRESO,
+            monto       = self.monto_origen,
+            moneda      = self.cuenta_origen.moneda,
+            fecha       = self.fecha,
+            descripcion = f'{desc} [origen]',
+            referencia  = f'Transacción #{self.pk}',
+            origen      = 'transaccion',
+            origen_app  = 'caja',
+            origen_id   = self.pk,
+            creado_por  = self.creado_por,
+        )
+
+        # 2. Ingreso en destino
+        mov_ingreso = MovimientoCaja.objects.create(
+            caja        = TipoCaja.GRANDE,
+            cuenta      = self.cuenta_destino,
+            concepto    = concepto_ingreso,
+            tipo        = TipoMovimientoCaja.INGRESO,
+            monto       = self.monto_destino,
+            moneda      = self.cuenta_destino.moneda,
+            fecha       = self.fecha,
+            descripcion = f'{desc} [destino]',
+            referencia  = f'Transacción #{self.pk}',
+            origen      = 'transaccion',
+            origen_app  = 'caja',
+            origen_id   = self.pk,
+            creado_por  = self.creado_por,
+        )
+
+        self.mov_egreso  = mov_egreso
+        self.mov_ingreso = mov_ingreso
+
+        # 3. Costo extra opcional
+        if self.costo_extra and self.costo_extra > 0:
+            mov_costo = MovimientoCaja.objects.create(
+                caja        = TipoCaja.GRANDE,
+                cuenta      = self.cuenta_origen,
+                concepto    = concepto_costo,
+                tipo        = TipoMovimientoCaja.EGRESO,
+                monto       = self.costo_extra,
+                moneda      = self.cuenta_origen.moneda,
+                fecha       = self.fecha,
+                descripcion = self.descripcion_costo or f'Costo extra: {desc}',
+                referencia  = f'Transacción #{self.pk}',
+                origen      = 'transaccion',
+                origen_app  = 'caja',
+                origen_id   = self.pk,
+                creado_por  = self.creado_por,
+            )
+            self.mov_costo = mov_costo
+
+        self.save(update_fields=['mov_egreso', 'mov_ingreso', 'mov_costo'])
+
+    @transaction.atomic
+    def revertir(self):
+        """
+        Elimina todos los movimientos asociados a esta transacción
+        y luego elimina la transacción misma.
+        Úsalo para "anular" una transacción registrada por error.
+        """
+        MovimientoCaja.objects.filter(
+            origen='transaccion',
+            origen_app='caja',
+            origen_id=self.pk,
+        ).delete()
+        self.delete()

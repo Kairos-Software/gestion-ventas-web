@@ -57,7 +57,7 @@ document.getElementById('btnNuevoProducto').addEventListener('click', () => {
     document.querySelector('.prd-tab[data-tab="identificacion"]').click();
     document.getElementById('imgNuevoAviso').style.display = '';
     document.getElementById('imgPanel').style.display = 'none';
-    _actualizarPanelColores(false);
+    _actualizarPanelVariantes(false);
     abrirModal('modalProducto');
 });
 
@@ -69,7 +69,7 @@ function limpiarFormProducto() {
         'f_precio_venta',
         'f_notas','f_tags',
         'f_peso_kg','f_alto_cm','f_ancho_cm','f_profundidad_cm',
-        'f_color_unico', 'f_stock_minimo', 'f_posicion_deposito',
+        'f_stock_minimo', 'f_posicion_deposito',
     ].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
 
     document.getElementById('f_unidad_medida').value    = 'unidad';
@@ -78,7 +78,7 @@ function limpiarFormProducto() {
     document.getElementById('f_tipo').value             = '';
 
     ['f_destacado','f_requiere_refrigeracion','f_es_fragil',
-     'f_es_peligroso','f_tiene_variantes_color',
+     'f_es_peligroso','f_gestiona_variantes',
      'f_gestiona_stock','f_permite_stock_negativo'].forEach(id => {
         document.getElementById(id).checked = false;
     });
@@ -88,15 +88,18 @@ function limpiarFormProducto() {
     document.getElementById('prdFormError').style.display   = 'none';
     document.getElementById('categManager').style.display   = 'none';
     document.getElementById('tipoManager').style.display    = 'none';
-    document.getElementById('colorWarningMovimientos').style.display = 'none';
-    // Limpiar lista de colores para que no queden los del producto anterior
-    const colorLista = document.getElementById('colorLista');
-    if (colorLista) colorLista.innerHTML = '<div class="prd-manager-loading">Cargando colores...</div>';
-    document.getElementById('colorStockTotal').textContent = '0';
-    const badge = document.getElementById('tabColorCount');
+    document.getElementById('varianteTipoManager').style.display = 'none';
+    document.getElementById('varianteValorManager').style.display = 'none';
+    document.getElementById('combinacionWarningMovimientos').style.display = 'none';
+    // Limpiar lista de combinaciones para que no queden las del producto anterior
+    const combinacionLista = document.getElementById('combinacionLista');
+    if (combinacionLista) combinacionLista.innerHTML = '<div class="prd-manager-loading">Cargando combinaciones...</div>';
+    document.getElementById('combinacionStockTotal').textContent = '0';
+    const badge = document.getElementById('tabCombinacionCount');
     badge.textContent = '0'; badge.style.display = 'none';
-    cancelarFormColor();
-    _actualizarPanelColores(false);
+    cancelarFormCombinacion();
+    _actualizarPanelVariantes(false);
+    _actualizarCampoCodigoBarras(false);
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -140,25 +143,26 @@ async function abrirEditar(pk) {
     document.getElementById('f_alto_cm').value                 = data.alto_cm || '';
     document.getElementById('f_ancho_cm').value                = data.ancho_cm || '';
     document.getElementById('f_profundidad_cm').value          = data.profundidad_cm || '';
-    document.getElementById('f_color_unico').value             = data.color_unico || '';
     document.getElementById('f_stock_minimo').value            = data.stock_minimo || '0';
     document.getElementById('f_posicion_deposito').value       = data.posicion_deposito || '';
     document.getElementById('f_destacado').checked             = data.destacado;
     document.getElementById('f_requiere_refrigeracion').checked = data.requiere_refrigeracion;
     document.getElementById('f_es_fragil').checked             = data.es_fragil;
     document.getElementById('f_es_peligroso').checked          = data.es_peligroso;
-    document.getElementById('f_tiene_variantes_color').checked  = data.tiene_variantes_color;
+    document.getElementById('f_gestiona_variantes').checked  = data.gestiona_variantes;
     document.getElementById('f_gestiona_stock').checked          = data.gestiona_stock;
     document.getElementById('f_permite_stock_negativo').checked  = data.permite_stock_negativo;
 
     if (data.tiene_movimientos) {
-        document.getElementById('colorWarningMovimientos').style.display = '';
+        document.getElementById('combinacionWarningMovimientos').style.display = '';
     }
 
-    _actualizarPanelColores(data.tiene_variantes_color);
-    if (data.tiene_variantes_color) {
-        document.getElementById('colorNuevoAviso').style.display = 'none';
-        cargarColores(data.pk);
+    _actualizarPanelVariantes(data.gestiona_variantes);
+    _actualizarCampoCodigoBarras(data.gestiona_variantes);
+    if (data.gestiona_variantes) {
+        await cargarCatalogoVariantes();
+        document.getElementById('combinacionNuevoAviso').style.display = 'none';
+        cargarCombinaciones(data.pk);
     }
 
     document.getElementById('imgNuevoAviso').style.display = 'none';
@@ -181,7 +185,7 @@ async function guardarProducto() {
     spin.style.display = '';
     errBox.style.display = 'none';
 
-    const tieneVariantes = document.getElementById('f_tiene_variantes_color').checked;
+    const tieneVariantes = document.getElementById('f_gestiona_variantes').checked;
 
     const payload = {
         pk:                     document.getElementById('prdPk').value || null,
@@ -212,8 +216,8 @@ async function guardarProducto() {
         es_peligroso:           document.getElementById('f_es_peligroso').checked,
         notas:                  document.getElementById('f_notas').value,
         tags:                   document.getElementById('f_tags').value,
-        tiene_variantes_color:  tieneVariantes,
-        color_unico:            tieneVariantes ? '' : document.getElementById('f_color_unico').value,
+        gestiona_variantes:     tieneVariantes,
+        es_perecedero:          document.getElementById('f_es_perecedero').checked,
         gestiona_stock:         document.getElementById('f_gestiona_stock').checked,
         permite_stock_negativo: document.getElementById('f_permite_stock_negativo').checked,
         stock_minimo:           parseInt(document.getElementById('f_stock_minimo').value) || 0,
@@ -244,11 +248,13 @@ async function guardarProducto() {
                 document.getElementById('imgPanel').style.display      = '';
                 cargarImagenes(data.pk);
 
-                // Habilitar colores si corresponde
+                // Habilitar variantes si corresponde
                 if (tieneVariantes) {
-                    document.getElementById('colorNuevoAviso').style.display = 'none';
-                    cargarColores(data.pk);
+                    document.getElementById('combinacionNuevoAviso').style.display = 'none';
+                    await cargarCatalogoVariantes();
+                    cargarCombinaciones(data.pk);
                 }
+                _actualizarCampoCodigoBarras(tieneVariantes);
 
                 // Agregar la fila nueva a la tabla sin recargar
                 agregarFilaTabla(data);
@@ -320,8 +326,7 @@ async function togglePublicar(pk, publicadoActual, btn) {
             publicado:            nuevoEstado,
             categoria:            data.categoria || null,
             tipo:                 data.tipo || null,
-            tiene_variantes_color: data.tiene_variantes_color,
-            color_unico:          data.color_unico || '',
+            gestiona_variantes: data.gestiona_variantes,
         };
         const res2  = await fetch(URLS.productoAcciones, {
             method: 'POST',
@@ -350,9 +355,10 @@ async function togglePublicar(pk, publicadoActual, btn) {
 function toggleInlineManager(id) {
     const el      = document.getElementById(id);
     const abierto = el.style.display !== 'none';
-    // Cerrar ambos primero
-    document.getElementById('categManager').style.display = 'none';
-    document.getElementById('tipoManager').style.display  = 'none';
+    ['categManager', 'tipoManager', 'varianteTipoManager', 'varianteValorManager'].forEach(mid => {
+        const node = document.getElementById(mid);
+        if (node) node.style.display = 'none';
+    });
     if (!abierto) el.style.display = '';
 }
 
@@ -562,90 +568,268 @@ async function eliminarImagen(pk) {
 }
 
 // ════════════════════════════════════════════════════════════════════
-//  COLORES — PANEL Y TOGGLE
+//  VARIANTES — CATÁLOGO GLOBAL (tipos y valores)
 // ════════════════════════════════════════════════════════════════════
-function _actualizarPanelColores(tieneVariantes) {
+let _cacheVariantes = [];
+let _cacheOpciones  = [];
+let _combinacionesCache = {};
+
+async function cargarCatalogoVariantes() {
+    try {
+        const [resVar, resOpc] = await Promise.all([
+            fetch(URLS.varianteLista),
+            fetch(URLS.opcionLista),
+        ]);
+        const dataVar = await resVar.json();
+        const dataOpc = await resOpc.json();
+        _cacheVariantes = dataVar.results || [];
+        _cacheOpciones  = dataOpc.results || [];
+        poblarSelectVariantes(document.getElementById('f_variante_tipo'));
+        actualizarSelectValoresCatalogo();
+    } catch {
+        showToast('Error al cargar el catálogo de variantes.', 'error');
+    }
+}
+
+function poblarSelectVariantes(selectEl, selectedPk = '') {
+    if (!selectEl) return;
+    const prev = selectedPk || selectEl.value;
+    selectEl.innerHTML = '<option value="">— Seleccionar tipo —</option>';
+    _cacheVariantes.filter(v => v.activo).forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v.pk;
+        opt.textContent = v.nombre;
+        selectEl.appendChild(opt);
+    });
+    if (prev) selectEl.value = String(prev);
+}
+
+function opcionesDeVariante(variantePk) {
+    return _cacheOpciones.filter(
+        o => o.activo && String(o.variante_pk) === String(variantePk),
+    );
+}
+
+function poblarSelectOpciones(selectEl, variantePk, selectedPk = '') {
+    if (!selectEl) return;
+    const prev = selectedPk || selectEl.value;
+    selectEl.innerHTML = '<option value="">— Seleccionar valor —</option>';
+    if (!variantePk) {
+        selectEl.disabled = true;
+        selectEl.innerHTML = '<option value="">— Primero elegí un tipo —</option>';
+        return;
+    }
+    selectEl.disabled = false;
+    opcionesDeVariante(variantePk).forEach(o => {
+        const opt = document.createElement('option');
+        opt.value = o.pk;
+        opt.textContent = o.nombre;
+        selectEl.appendChild(opt);
+    });
+    if (prev) selectEl.value = String(prev);
+}
+
+function actualizarSelectValoresCatalogo() {
+    const tipoPk = document.getElementById('f_variante_tipo').value;
+    poblarSelectOpciones(document.getElementById('f_variante_valor'), tipoPk);
+}
+
+document.getElementById('f_variante_tipo')?.addEventListener('change', actualizarSelectValoresCatalogo);
+
+async function crearVariante() {
+    const input  = document.getElementById('nuevaVarianteNombre');
+    const nombre = input.value.trim();
+    if (!nombre) return;
+    const res  = await fetch(URLS.varianteAcciones, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify({ nombre }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+        input.value = '';
+        document.getElementById('varianteTipoManager').style.display = 'none';
+        showToast(`Tipo de variante "${data.nombre}" creado.`);
+        await cargarCatalogoVariantes();
+        document.getElementById('f_variante_tipo').value = data.pk;
+        actualizarSelectValoresCatalogo();
+        document.querySelectorAll('.prd-combinacion-opcion-row select[data-rol="tipo"]').forEach(sel => poblarSelectVariantes(sel));
+    } else {
+        showToast(data.errors?.nombre?.[0] || data.error || 'Error', 'error');
+    }
+}
+
+async function eliminarVarianteSeleccionada() {
+    const sel = document.getElementById('f_variante_tipo');
+    const pk  = sel.value;
+    const nombre = sel.options[sel.selectedIndex]?.text;
+    if (!pk) { showToast('Seleccioná un tipo de variante para eliminar.', 'error'); return; }
+    if (!confirm(`¿Eliminar el tipo "${nombre}"? Solo se puede si no tiene valores asociados.`)) return;
+    const res  = await fetch(URLS.varianteEliminar, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify({ pk }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+        showToast(`Tipo "${nombre}" eliminado.`);
+        await cargarCatalogoVariantes();
+    } else {
+        showToast(data.error || 'Error', 'error');
+    }
+}
+
+async function crearOpcionVariante() {
+    const variantePk = document.getElementById('f_variante_tipo').value;
+    if (!variantePk) {
+        showToast('Seleccioná primero un tipo de variante.', 'error');
+        return;
+    }
+    const input  = document.getElementById('nuevaOpcionNombre');
+    const nombre = input.value.trim();
+    if (!nombre) return;
+    const res  = await fetch(URLS.opcionAcciones, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify({ variante_pk: variantePk, nombre }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+        input.value = '';
+        document.getElementById('varianteValorManager').style.display = 'none';
+        showToast(`Valor "${data.nombre}" creado.`);
+        await cargarCatalogoVariantes();
+        document.getElementById('f_variante_tipo').value = variantePk;
+        actualizarSelectValoresCatalogo();
+        document.getElementById('f_variante_valor').value = data.pk;
+    } else {
+        showToast(data.errors?.nombre?.[0] || data.error || 'Error', 'error');
+    }
+}
+
+async function eliminarOpcionSeleccionada() {
+    const sel = document.getElementById('f_variante_valor');
+    const pk  = sel.value;
+    const nombre = sel.options[sel.selectedIndex]?.text;
+    if (!pk) { showToast('Seleccioná un valor para eliminar.', 'error'); return; }
+    if (!confirm(`¿Eliminar el valor "${nombre}"?`)) return;
+    const res  = await fetch(URLS.opcionEliminar, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify({ pk }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+        showToast(`Valor "${nombre}" eliminado.`);
+        await cargarCatalogoVariantes();
+    } else {
+        showToast(data.error || 'Error', 'error');
+    }
+}
+
+document.getElementById('nuevaVarianteNombre')?.addEventListener('keydown', e => { if (e.key === 'Enter') crearVariante(); });
+document.getElementById('nuevaOpcionNombre')?.addEventListener('keydown', e => { if (e.key === 'Enter') crearOpcionVariante(); });
+
+// ════════════════════════════════════════════════════════════════════
+//  VARIANTES — PANEL Y TOGGLE
+// ════════════════════════════════════════════════════════════════════
+function _actualizarCampoCodigoBarras(tieneVariantes) {
+    const wrap = document.getElementById('wrap_codigo_barras');
+    const input = document.getElementById('f_codigo_barras');
+    const hint  = document.getElementById('hint_codigo_barras');
+    if (!wrap || !input) return;
+    if (tieneVariantes) {
+        wrap.style.opacity = '0.45';
+        input.disabled = true;
+        input.value = '';
+        input.placeholder = 'Se define por combinación';
+        if (hint) hint.style.display = '';
+    } else {
+        wrap.style.opacity = '';
+        input.disabled = false;
+        input.placeholder = 'EAN-13, UPC...';
+        if (hint) hint.style.display = 'none';
+    }
+}
+
+function _actualizarPanelVariantes(tieneVariantes) {
     document.getElementById('panelSinVariantes').style.display = tieneVariantes ? 'none' : '';
     document.getElementById('panelConVariantes').style.display = tieneVariantes ? '' : 'none';
-    document.getElementById('campoColorUnico').style.display   = tieneVariantes ? 'none' : '';
-    const badge = document.getElementById('tabColorCount');
+    const badge = document.getElementById('tabCombinacionCount');
     if (!tieneVariantes) { badge.style.display = 'none'; badge.textContent = '0'; }
 }
 
-document.getElementById('f_tiene_variantes_color').addEventListener('change', function () {
-    _actualizarPanelColores(this.checked);
+document.getElementById('f_gestiona_variantes').addEventListener('change', async function () {
+    _actualizarPanelVariantes(this.checked);
+    _actualizarCampoCodigoBarras(this.checked);
     const pk = document.getElementById('prdPk').value;
     if (this.checked) {
+        await cargarCatalogoVariantes();
+        resetFormCombinacionOpciones();
         if (pk) {
-            document.getElementById('colorNuevoAviso').style.display = 'none';
-            cargarColores(pk);
+            document.getElementById('combinacionNuevoAviso').style.display = 'none';
+            cargarCombinaciones(pk);
         } else {
-            document.getElementById('colorNuevoAviso').style.display = '';
+            document.getElementById('combinacionNuevoAviso').style.display = '';
         }
     }
 });
 
-// Sincronizar color picker ↔ input hex
-document.getElementById('f_color_hex_picker').addEventListener('input', function () {
-    document.getElementById('f_color_hex').value = this.value.toUpperCase();
-});
-document.getElementById('f_color_hex').addEventListener('input', function () {
-    if (/^#[0-9A-Fa-f]{6}$/.test(this.value.trim())) {
-        document.getElementById('f_color_hex_picker').value = this.value.trim();
-    }
-});
-
 // ════════════════════════════════════════════════════════════════════
-//  COLORES — CARGA Y RENDER DE LISTA
+//  VARIANTES — CARGA Y RENDER DE LISTA
 // ════════════════════════════════════════════════════════════════════
-async function cargarColores(productoPk) {
-    const lista = document.getElementById('colorLista');
-    lista.innerHTML = '<div class="prd-manager-loading">Cargando colores...</div>';
+async function cargarCombinaciones(productoPk) {
+    const lista = document.getElementById('combinacionLista');
+    lista.innerHTML = '<div class="prd-manager-loading">Cargando combinaciones...</div>';
 
-    const res  = await fetch(`${URLS.colorLista}?producto_pk=${productoPk}`);
+    const res  = await fetch(`${URLS.combinacionLista}?producto_pk=${productoPk}`);
     const data = await res.json();
 
-    document.getElementById('colorStockTotal').textContent = parseFloat(data.stock_total || 0).toFixed(0);
+    document.getElementById('combinacionStockTotal').textContent = parseFloat(data.stock_total || 0).toFixed(0);
 
-    const activos = (data.colores || []).filter(c => c.activo).length;
-    const badge   = document.getElementById('tabColorCount');
+    _combinacionesCache = {};
+    (data.combinaciones || []).forEach(c => { _combinacionesCache[c.pk] = c; });
+
+    const activos = (data.combinaciones || []).filter(c => c.activo).length;
+    const badge   = document.getElementById('tabCombinacionCount');
     badge.textContent   = activos;
     badge.style.display = activos > 0 ? '' : 'none';
 
-    if (!data.colores || !data.colores.length) {
-        lista.innerHTML = '<div class="prd-manager-empty">Sin colores definidos. Agregá el primero abajo.</div>';
+    if (!data.combinaciones || !data.combinaciones.length) {
+        lista.innerHTML = '<div class="prd-manager-empty">Sin combinaciones definidas. Agregá la primera abajo.</div>';
         return;
     }
-    lista.innerHTML = data.colores.map(_renderColorItem).join('');
+    lista.innerHTML = data.combinaciones.map(_renderCombinacionItem).join('');
 }
 
-function _renderColorItem(c) {
-    const pastilla = c.codigo_hex
-        ? `<span class="prd-color-pastilla" style="background:${c.codigo_hex}" title="${c.codigo_hex}"></span>`
-        : `<span class="prd-color-pastilla prd-color-pastilla--vacia"></span>`;
-    const inactivoClass  = !c.activo ? 'prd-color-item--inactivo' : '';
+function _renderCombinacionItem(c) {
+    const inactivoClass = !c.activo ? 'prd-combinacion-item--inactivo' : '';
+    const desc = c.descripcion_combinacion || c.descripcion || 'Sin descripción';
+    const opcionesLabel = (c.opciones || [])
+        .map(o => `${o.variante_nombre}: ${o.nombre}`)
+        .join(' · ');
     return `
-    <div class="prd-color-item ${inactivoClass}" id="color-${c.pk}">
-        <div class="prd-color-item-info">
-            ${pastilla}
-            <div class="prd-color-item-datos">
-                <span class="prd-color-item-nombre">${c.nombre}</span>
-                ${c.sku_variante ? `<span class="prd-color-item-sku">${c.sku_variante}</span>` : ''}
-                ${!c.activo ? '<span class="prd-color-item-inactivo-badge">Inactivo</span>' : ''}
+    <div class="prd-combinacion-item ${inactivoClass}" id="combinacion-${c.pk}">
+        <div class="prd-combinacion-item-info">
+            <div class="prd-combinacion-item-datos">
+                <span class="prd-combinacion-item-descripcion">${desc}</span>
+                ${opcionesLabel ? `<span class="prd-combinacion-item-opciones">${opcionesLabel}</span>` : ''}
+                ${c.codigo_barras ? `<span class="prd-combinacion-item-codigo">CB: ${c.codigo_barras}</span>` : ''}
+                ${c.sku_variante ? `<span class="prd-combinacion-item-sku">SKU: ${c.sku_variante}</span>` : ''}
+                ${!c.activo ? '<span class="prd-combinacion-item-inactivo-badge">Inactivo</span>' : ''}
             </div>
         </div>
-        <div class="prd-color-item-stock">
-            <span class="prd-color-stock-num">${c.stock_actual}</span>
+        <div class="prd-combinacion-item-stock">
+            <span class="prd-combinacion-stock-num">${c.stock_actual}</span>
         </div>
-        <div class="prd-color-item-actions">
-            <button class="prd-img-btn" title="Editar color"
-                onclick="editarColor(${c.pk}, '${c.nombre.replace(/'/g,"\\'")}', '${c.codigo_hex}', '${c.sku_variante}')">
+        <div class="prd-combinacion-item-actions">
+            <button class="prd-img-btn" title="Editar combinación" onclick="editarCombinacion(${c.pk})">
                 <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
                     <path d="M9 2L11 4L4.5 10.5H2.5V8.5L9 2Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
                 </svg>
             </button>
             <button class="prd-img-btn ${!c.activo ? 'prd-img-btn--activar' : ''}" title="${c.activo ? 'Desactivar' : 'Activar'}"
-                onclick="toggleColor(${c.pk})">
+                onclick="toggleCombinacion(${c.pk})">
                 ${c.activo
                     ? `<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 2L11 11M11 2L2 11" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`
                     : `<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 7L5 10L11 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`
@@ -655,33 +839,98 @@ function _renderColorItem(c) {
     </div>`;
 }
 
-// ════════════════════════════════════════════════════════════════════
-//  COLORES — GUARDAR (CREAR O EDITAR)
-//
-//  FIX: se eliminó la validación "tiene_variantes_color" del backend.
-//  El frontend controla el flujo — si el panel está visible y el usuario
-//  guarda un color, el producto YA tiene tiene_variantes_color=true en la BD
-//  (fue guardado antes). El backend solo verifica que el producto exista.
-// ════════════════════════════════════════════════════════════════════
-async function guardarColor() {
-    const pk     = document.getElementById('f_color_pk').value;
-    const nombre = document.getElementById('f_color_nombre').value.trim();
-    if (!nombre) { showToast('El nombre del color es obligatorio.', 'error'); return; }
+function resetFormCombinacionOpciones(opciones = null) {
+    const container = document.getElementById('combinacionOpcionesContainer');
+    if (!container) return;
+    container.innerHTML = '';
+    if (opciones && opciones.length) {
+        opciones.forEach(op => agregarFilaOpcionCombinacion(op.variante_pk, op.pk));
+    } else {
+        agregarFilaOpcionCombinacion();
+    }
+}
 
-    const hex = document.getElementById('f_color_hex').value.trim();
-    if (hex && !/^#[0-9A-Fa-f]{6}$/.test(hex)) {
-        showToast('El color hex debe tener formato #RRGGBB.', 'error'); return;
+function agregarFilaOpcionCombinacion(variantePk = '', opcionPk = '') {
+    const container = document.getElementById('combinacionOpcionesContainer');
+    const row = document.createElement('div');
+    row.className = 'prd-combinacion-opcion-row';
+    row.innerHTML = `
+        <div class="prd-field">
+            <label>Tipo</label>
+            <select class="prd-input prd-select" data-rol="tipo"></select>
+        </div>
+        <div class="prd-field">
+            <label>Valor</label>
+            <select class="prd-input prd-select" data-rol="valor" disabled>
+                <option value="">— Primero elegí un tipo —</option>
+            </select>
+        </div>
+        <button type="button" class="prd-btn-inline-manager prd-btn-inline-manager--del" title="Quitar fila"
+            onclick="this.closest('.prd-combinacion-opcion-row').remove()">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M2 4H12M5 4V3H9V4M5.5 6.5V10.5M8.5 6.5V10.5M3 4L3.8 12H10.2L11 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>`;
+
+    const selTipo  = row.querySelector('[data-rol="tipo"]');
+    const selValor = row.querySelector('[data-rol="valor"]');
+    poblarSelectVariantes(selTipo, variantePk);
+    poblarSelectOpciones(selValor, variantePk || selTipo.value, opcionPk);
+
+    selTipo.addEventListener('change', () => {
+        poblarSelectOpciones(selValor, selTipo.value);
+    });
+
+    container.appendChild(row);
+}
+
+function _obtenerOpcionesFormCombinacion() {
+    const rows = document.querySelectorAll('#combinacionOpcionesContainer .prd-combinacion-opcion-row');
+    const opciones = [];
+    const tiposUsados = new Set();
+
+    for (const row of rows) {
+        const tipoPk  = row.querySelector('[data-rol="tipo"]').value;
+        const valorPk = row.querySelector('[data-rol="valor"]').value;
+        if (!tipoPk && !valorPk) continue;
+        if (!tipoPk || !valorPk) {
+            return { error: 'Completá tipo y valor en cada fila de la combinación.' };
+        }
+        if (tiposUsados.has(tipoPk)) {
+            return { error: 'No podés repetir el mismo tipo de variante en una combinación.' };
+        }
+        tiposUsados.add(tipoPk);
+        opciones.push(parseInt(valorPk, 10));
     }
 
+    if (!opciones.length) {
+        return { error: 'Seleccioná al menos una opción de variante.' };
+    }
+    return { opciones };
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  VARIANTES — GUARDAR (CREAR O EDITAR)
+// ════════════════════════════════════════════════════════════════════
+async function guardarCombinacion() {
+    const pk = document.getElementById('f_combinacion_pk').value;
     const productoPk = document.getElementById('prdPk').value;
     if (!productoPk) {
-        showToast('Guardá el producto primero antes de agregar colores.', 'error'); return;
+        showToast('Guardá el producto primero antes de agregar combinaciones.', 'error');
+        return;
+    }
+
+    const opcionesResult = _obtenerOpcionesFormCombinacion();
+    if (opcionesResult.error) {
+        showToast(opcionesResult.error, 'error');
+        return;
     }
 
     const payload = {
-        nombre,
-        codigo_hex:   hex,
-        sku_variante: document.getElementById('f_color_sku').value.trim(),
+        opciones: opcionesResult.opciones,
+        codigo_barras: document.getElementById('f_combinacion_codigo_barras').value.trim(),
+        sku_variante: document.getElementById('f_combinacion_sku').value.trim(),
+        stock_actual: parseInt(document.getElementById('f_combinacion_stock').value, 10) || 0,
     };
 
     if (pk) {
@@ -690,7 +939,7 @@ async function guardarColor() {
         payload.producto_pk = productoPk;
     }
 
-    const res  = await fetch(URLS.colorAcciones, {
+    const res  = await fetch(URLS.combinacionAcciones, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
         body: JSON.stringify(payload),
@@ -698,59 +947,70 @@ async function guardarColor() {
     const data = await res.json();
 
     if (data.ok) {
-        showToast(data.creado ? `Color "${nombre}" agregado.` : `Color "${nombre}" actualizado.`);
-        cancelarFormColor();
-        cargarColores(productoPk);
+        const desc = data.combinacion?.descripcion_combinacion || data.combinacion?.descripcion || 'Combinación';
+        showToast(data.creado ? `Combinación "${desc}" agregada.` : `Combinación "${desc}" actualizada.`);
+        cancelarFormCombinacion();
+        cargarCombinaciones(productoPk);
     } else {
         const msg = Object.values(data.errors || {}).flat().join(', ') || data.error || 'Error al guardar.';
         showToast(msg, 'error');
     }
 }
 
-function editarColor(pk, nombre, hex, sku) {
-    document.getElementById('f_color_pk').value          = pk;
-    document.getElementById('f_color_nombre').value      = nombre;
-    document.getElementById('f_color_hex').value         = hex || '';
-    document.getElementById('f_color_hex_picker').value  = hex || '#000000';
-    document.getElementById('f_color_sku').value         = sku || '';
-    document.getElementById('colorFormTitulo').textContent = `Editar color: ${nombre}`;
-    document.getElementById('btnColorTxt').textContent     = 'Guardar cambios';
-    document.getElementById('btnCancelarColor').style.display = '';
-    document.getElementById('colorForm').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+async function editarCombinacion(pk) {
+    const c = _combinacionesCache[pk];
+    if (!c) return;
+
+    if (!_cacheVariantes.length) await cargarCatalogoVariantes();
+
+    document.getElementById('f_combinacion_pk').value = pk;
+    document.getElementById('f_combinacion_codigo_barras').value = c.codigo_barras || '';
+    document.getElementById('f_combinacion_sku').value = c.sku_variante || '';
+    document.getElementById('f_combinacion_stock').value = c.stock_actual || 0;
+    document.getElementById('f_combinacion_stock').closest('.prd-field').style.display = 'none';
+
+    const desc = c.descripcion_combinacion || c.descripcion || '';
+    document.getElementById('combinacionFormTitulo').textContent = `Editar combinación: ${desc}`;
+    document.getElementById('btnCombinacionTxt').textContent = 'Guardar cambios';
+    document.getElementById('btnCancelarCombinacion').style.display = '';
+
+    resetFormCombinacionOpciones(c.opciones || []);
+    document.getElementById('combinacionForm').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-function cancelarFormColor() {
-    document.getElementById('f_color_pk').value          = '';
-    document.getElementById('f_color_nombre').value      = '';
-    document.getElementById('f_color_hex').value         = '';
-    document.getElementById('f_color_hex_picker').value  = '#000000';
-    document.getElementById('f_color_sku').value         = '';
-    document.getElementById('colorFormTitulo').textContent = 'Agregar color';
-    document.getElementById('btnColorTxt').textContent     = 'Agregar color';
-    document.getElementById('btnCancelarColor').style.display = 'none';
+function cancelarFormCombinacion() {
+    document.getElementById('f_combinacion_pk').value = '';
+    document.getElementById('f_combinacion_codigo_barras').value = '';
+    document.getElementById('f_combinacion_sku').value = '';
+    document.getElementById('f_combinacion_stock').value = '0';
+    document.getElementById('f_combinacion_stock').closest('.prd-field').style.display = '';
+    document.getElementById('combinacionFormTitulo').textContent = 'Agregar combinación';
+    document.getElementById('btnCombinacionTxt').textContent = 'Agregar combinación';
+    document.getElementById('btnCancelarCombinacion').style.display = 'none';
+    resetFormCombinacionOpciones();
 }
 
-async function toggleColor(pk) {
-    const res  = await fetch(URLS.colorToggle, {
+async function toggleCombinacion(pk) {
+    const res  = await fetch(URLS.combinacionToggle, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
         body: JSON.stringify({ pk }),
     });
     const data = await res.json();
     if (data.ok) {
-        showToast(`Color ${data.activo ? 'activado' : 'desactivado'}.`);
-        cargarColores(document.getElementById('prdPk').value);
+        showToast(`Combinación ${data.activo ? 'activada' : 'desactivada'}.`);
+        cargarCombinaciones(document.getElementById('prdPk').value);
     } else {
         showToast(data.error || 'Error', 'error');
     }
 }
 
 // ════════════════════════════════════════════════════════════════════
-//  COLORES — AJUSTE DE STOCK
+//  VARIANTES — AJUSTE DE STOCK
 // ════════════════════════════════════════════════════════════════════
-function abrirAjusteStock(pk, nombre, stockActual) {
+function abrirAjusteStock(pk, descripcion, stockActual) {
     const nuevoStock = prompt(
-        `Ajustar stock de "${nombre}"\nStock actual: ${parseFloat(stockActual).toFixed(0)}\n\nIngresá el nuevo stock total:`
+        `Ajustar stock de "${descripcion}"\nStock actual: ${parseFloat(stockActual).toFixed(0)}\n\nIngresá el nuevo stock total:`
     );
     if (nuevoStock === null) return;
     const val = parseFloat(nuevoStock);
@@ -759,7 +1019,7 @@ function abrirAjusteStock(pk, nombre, stockActual) {
 }
 
 async function _ejecutarAjusteStock(pk, nuevoStock) {
-    const res  = await fetch(URLS.colorStock, {
+    const res  = await fetch(URLS.combinacionStock, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
         body: JSON.stringify({ pk, stock_actual: nuevoStock }),
@@ -767,7 +1027,7 @@ async function _ejecutarAjusteStock(pk, nuevoStock) {
     const data = await res.json();
     if (data.ok) {
         showToast(`Stock actualizado: ${parseFloat(data.stock_posterior).toFixed(0)} unidades.`);
-        cargarColores(document.getElementById('prdPk').value);
+        cargarCombinaciones(document.getElementById('prdPk').value);
     } else {
         showToast(data.error || 'Error al ajustar stock.', 'error');
     }
@@ -795,14 +1055,13 @@ function _buildRowHtml(d) {
     // Nombre + marca + variantes
     let nombreHtml = `<span class="prd-nombre">${d.nombre}</span>`;
     if (d.marca) nombreHtml += `<span class="prd-marca">${d.marca}${d.modelo ? ' · ' + d.modelo : ''}</span>`;
-    if (d.tiene_variantes_color) {
-        nombreHtml += `<span class="prd-badge prd-badge--color">
+    if (d.gestiona_variantes) {
+        nombreHtml += `<span class="prd-badge prd-badge--variantes">
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style="vertical-align:middle">
-                <circle cx="5" cy="5" r="4" stroke="currentColor" stroke-width="1.2"/>
-                <circle cx="5" cy="5" r="2" fill="currentColor"/>
-            </svg> Colores</span>`;
-    } else if (d.color_unico) {
-        nombreHtml += `<span class="prd-color-unico-badge">${d.color_unico}</span>`;
+                <rect x="1" y="1" width="8" height="8" rx="1" stroke="currentColor" stroke-width="1.2"/>
+                <circle cx="3" cy="3" r="1" fill="currentColor"/>
+                <circle cx="7" cy="7" r="1" fill="currentColor"/>
+            </svg> Variantes</span>`;
     }
 
     // Categoría
@@ -946,8 +1205,11 @@ document.getElementById('f_codigo')?.addEventListener('input', function () {
     this.setSelectionRange(pos, pos);
 });
 
-// EAN-13: solo dígitos
+// EAN-13: solo dígitos (producto y combinaciones)
 document.getElementById('f_codigo_barras')?.addEventListener('input', function () {
+    this.value = this.value.replace(/[^\d]/g, '').slice(0, 13);
+});
+document.getElementById('f_combinacion_codigo_barras')?.addEventListener('input', function () {
     this.value = this.value.replace(/[^\d]/g, '').slice(0, 13);
 });
 

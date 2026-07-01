@@ -9,8 +9,7 @@ from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Q, F
 
-from .models import Producto, MovimientoStock, TipoMovimiento, MOVIMIENTOS_ENTRADA
-from productos.models import ProductoColor
+from .models import Producto, MovimientoStock, TipoMovimiento, MOVIMIENTOS_ENTRADA, CombinacionVariante
 from core.permisos import chequear_permiso
 
 TIPOS_AJUSTE = {
@@ -19,27 +18,28 @@ TIPOS_AJUSTE = {
 }
 
 
-def _serializar_colores(producto):
+def _serializar_combinaciones(producto):
     """
-    Devuelve un string JSON con los colores activos del producto,
-    listo para inyectar en data-colores del <tr>.
+    Devuelve un string JSON con las combinaciones activas del producto,
+    listo para inyectar en data-combinaciones del <tr>.
     Igual que hace BuscarProductoAjax en compras.
-    Ejemplo: '[{"pk":1,"nombre":"Rojo","codigo_hex":"#e00","stock_actual":"3"}]'
-    Si el producto no tiene variantes de color devuelve '[]'.
+    Ejemplo: '[{"pk":1,"descripcion":"Color:Rojo | Talle:M","stock_actual":"3"}]'
+    Si el producto no tiene variantes devuelve '[]'.
     """
-    if not producto.tiene_variantes_color:
+    if not producto.gestiona_variantes:
         return '[]'
-    colores = [
+    combinaciones = [
         {
-            'pk':          c.pk,
-            'nombre':      c.nombre,
-            'codigo_hex':  c.codigo_hex or '',
-            'stock_actual': str(c.stock_actual),
+            'pk':                    c.pk,
+            'descripcion':           c.descripcion_legible(),
+            'descripcion_combinacion': c.descripcion_legible(),
+            'codigo_barras':         c.codigo_barras or '',
+            'stock_actual':          str(c.stock_actual),
         }
-        for c in producto.colores.all()   # ya viene del prefetch_related
+        for c in producto.combinaciones.all()
         if c.activo
     ]
-    return json.dumps(colores, ensure_ascii=False)
+    return json.dumps(combinaciones, ensure_ascii=False)
 
 
 class StockView(LoginRequiredMixin, TemplateView):
@@ -56,7 +56,7 @@ class StockView(LoginRequiredMixin, TemplateView):
 
         qs = Producto.objects.filter(
             gestiona_stock=True
-        ).select_related('categoria').prefetch_related('colores').order_by('nombre')
+        ).select_related('categoria').prefetch_related('combinaciones').order_by('nombre')
 
         q = self.request.GET.get('q', '').strip()
         if q:
@@ -77,11 +77,11 @@ class StockView(LoginRequiredMixin, TemplateView):
         paginator = Paginator(qs, 25)
         page_obj  = paginator.get_page(self.request.GET.get('page', 1))
 
-        # ── Adjuntar colores serializados a cada producto de la página ──
+        # ── Adjuntar combinaciones serializadas a cada producto de la página ──
         # Se hace aquí en Python para evitar construir JSON con el sistema
         # de templates de Django (frágil con {% for %} + {% if %} anidados).
         for p in page_obj:
-            p.colores_json_str = _serializar_colores(p)
+            p.combinaciones_json_str = _serializar_combinaciones(p)
 
         todos = Producto.objects.filter(gestiona_stock=True)
 
@@ -145,21 +145,21 @@ class StockAjusteAjax(LoginRequiredMixin, View):
     """
     POST — registra un ajuste manual de stock.
 
-    Soporta productos con y sin variantes de color:
+    Soporta productos con y sin variantes:
 
-    - Sin colores: ajusta Producto.stock_actual vía MovimientoStock.save().
-    - Con colores: requiere color_pk. Registra el MovimientoStock a nivel
-      producto (auditoría), ajusta ProductoColor.stock_actual, y luego
-      llama sincronizar_stock_desde_colores() para que el total del
+    - Sin variantes: ajusta Producto.stock_actual vía MovimientoStock.save().
+    - Con variantes: requiere combinacion_pk. Registra el MovimientoStock a nivel
+      producto (auditoría), ajusta CombinacionVariante.stock_actual, y luego
+      llama sincronizar_stock_desde_combinaciones() para que el total del
       producto quede consistente.
 
     Body JSON:
     {
-        "producto_pk": 12,
-        "tipo":        "ajuste_pos" | "ajuste_neg",
-        "cantidad":    3,
-        "motivo":      "Conteo físico mayo",   // opcional
-        "color_pk":    5                        // requerido si tiene_variantes_color
+        "producto_pk":     12,
+        "tipo":            "ajuste_pos" | "ajuste_neg",
+        "cantidad":        3,
+        "motivo":          "Conteo físico mayo",   // opcional
+        "combinacion_pk":  5                        // requerido si gestiona_variantes
     }
     """
 
@@ -172,10 +172,10 @@ class StockAjusteAjax(LoginRequiredMixin, View):
         except json.JSONDecodeError:
             return JsonResponse({'error': 'JSON inválido.'}, status=400)
 
-        producto_pk = body.get('producto_pk')
-        tipo        = body.get('tipo', '').strip()
-        motivo      = body.get('motivo', '').strip()
-        color_pk    = body.get('color_pk')  # None si el producto no maneja colores
+        producto_pk     = body.get('producto_pk')
+        tipo            = body.get('tipo', '').strip()
+        motivo          = body.get('motivo', '').strip()
+        combinacion_pk  = body.get('combinacion_pk')  # None si el producto no maneja variantes
 
         if not producto_pk:
             return JsonResponse({'ok': False, 'error': 'Falta producto_pk.'}, status=400)
@@ -195,20 +195,20 @@ class StockAjusteAjax(LoginRequiredMixin, View):
         except (TypeError, ValueError, InvalidOperation):
             return JsonResponse({'ok': False, 'error': 'La cantidad debe ser un número positivo.'}, status=400)
 
-        # ── Validar / resolver color ──────────────────────────────
-        color = None
-        if producto.tiene_variantes_color:
-            if not color_pk:
+        # ── Validar / resolver combinación ──────────────────────────────
+        combinacion = None
+        if producto.gestiona_variantes:
+            if not combinacion_pk:
                 return JsonResponse({
                     'ok':    False,
-                    'error': 'Este producto tiene variantes de color. Seleccioná un color para ajustar.'
+                    'error': 'Este producto tiene variantes. Seleccioná una combinación para ajustar.'
                 }, status=400)
-            color = get_object_or_404(ProductoColor, pk=color_pk, producto=producto)
+            combinacion = get_object_or_404(CombinacionVariante, pk=combinacion_pk, producto=producto)
         else:
-            if color_pk:
+            if combinacion_pk:
                 return JsonResponse({
                     'ok':    False,
-                    'error': 'Este producto no maneja variantes de color.'
+                    'error': 'Este producto no maneja variantes.'
                 }, status=400)
 
         # ── Registrar movimiento y ajustar stock ──────────────────
@@ -223,35 +223,35 @@ class StockAjusteAjax(LoginRequiredMixin, View):
                 )
                 mov.save()  # ajusta Producto.stock_actual internamente
 
-                if color is not None:
-                    # Ajustar el color específico y resincronizar el total
+                if combinacion is not None:
+                    # Ajustar la combinación específica y resincronizar el total
                     # (igual que hace _sumar_stock_item / _restar_stock_item en compras)
                     es_entrada = tipo in MOVIMIENTOS_ENTRADA
                     if es_entrada:
-                        color.stock_actual += cantidad
+                        combinacion.stock_actual += cantidad
                     else:
-                        color.stock_actual -= cantidad
-                    color.save(update_fields=['stock_actual'])
-                    producto.sincronizar_stock_desde_colores()
+                        combinacion.stock_actual -= cantidad
+                    combinacion.save(update_fields=['stock_actual'])
+                    producto.sincronizar_stock_desde_combinaciones()
 
         except ValueError as e:
             return JsonResponse({'ok': False, 'error': str(e)}, status=400)
 
         producto.refresh_from_db()
 
-        color_stock = None
-        if color is not None:
-            color.refresh_from_db()
-            color_stock = str(color.stock_actual)
+        combinacion_stock = None
+        if combinacion is not None:
+            combinacion.refresh_from_db()
+            combinacion_stock = str(combinacion.stock_actual)
 
         return JsonResponse({
-            'ok':              True,
-            'stock_anterior':  str(mov.stock_anterior),
-            'stock_posterior': str(mov.stock_posterior),
-            'stock_actual':    str(producto.stock_actual),
-            'stock_bajo':      producto.stock_bajo,
-            'es_entrada':      mov.es_entrada,
-            'tipo_display':    mov.get_tipo_display(),
-            'color_pk':        color.pk if color else None,
-            'color_stock':     color_stock,
+            'ok':                  True,
+            'stock_anterior':      str(mov.stock_anterior),
+            'stock_posterior':     str(mov.stock_posterior),
+            'stock_actual':        str(producto.stock_actual),
+            'stock_bajo':          producto.stock_bajo,
+            'es_entrada':          mov.es_entrada,
+            'tipo_display':        mov.get_tipo_display(),
+            'combinacion_pk':      combinacion.pk if combinacion else None,
+            'combinacion_stock':   combinacion_stock,
         })

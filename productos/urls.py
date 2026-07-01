@@ -26,11 +26,19 @@ urlpatterns = [
     path('imagenes/eliminar/',    views_productos.ProductoImagenEliminarAjax.as_view(), name='producto_imagen_eliminar'),
     path('imagenes/portada/',     views_productos.ProductoImagenPortadaAjax.as_view(),  name='producto_imagen_portada'),
 
-    # — Colores —
-    path('colores/',              views_productos.ProductoColorListaAjax.as_view(),         name='producto_color_lista'),
-    path('colores/acciones/',     views_productos.ProductoColorAccionesAjax.as_view(),      name='producto_color_acciones'),
-    path('colores/stock/',        views_productos.ProductoColorStockAjax.as_view(),         name='producto_color_stock'),
-    path('colores/toggle/',       views_productos.ProductoColorToggleActivoAjax.as_view(),  name='producto_color_toggle'),
+    # — Variantes genéricas —
+    path('variantes/',                 views_productos.VarianteListaAjax.as_view(),            name='variante_lista'),
+    path('variantes/acciones/',        views_productos.VarianteAccionesAjax.as_view(),         name='variante_acciones'),
+    path('variantes/eliminar/',        views_productos.VarianteEliminarAjax.as_view(),         name='variante_eliminar'),
+
+    path('opciones-variantes/',       views_productos.OpcionVarianteListaAjax.as_view(),      name='opcion_variante_lista'),
+    path('opciones-variantes/acciones/', views_productos.OpcionVarianteAccionesAjax.as_view(),   name='opcion_variante_acciones'),
+    path('opciones-variantes/eliminar/', views_productos.OpcionVarianteEliminarAjax.as_view(),   name='opcion_variante_eliminar'),
+
+    path('combinaciones/',            views_productos.CombinacionVarianteListaAjax.as_view(),  name='combinacion_variante_lista'),
+    path('combinaciones/acciones/',   views_productos.CombinacionVarianteAccionesAjax.as_view(), name='combinacion_variante_acciones'),
+    path('combinaciones/stock/',      views_productos.CombinacionVarianteStockAjax.as_view(),    name='combinacion_variante_stock'),
+    path('combinaciones/toggle/',     views_productos.CombinacionVarianteToggleActivoAjax.as_view(), name='combinacion_variante_toggle'),
 
     # ══════════════════════════════════════════════════════════════════
     #  CATEGORÍAS

@@ -20,7 +20,15 @@ from .views_caja_diaria import (
     EliminarHistorialAjax,
 )
 
-# Exportar todas las vistas para que urls.py pueda importarlas
+from .views_transacciones import (
+    CuentasDisponiblesAjax,
+    CalcularTransaccionAjax,
+    CrearTransaccionAjax,
+    ListarTransaccionesAjax,
+    DetalleTransaccionAjax,
+    AnularTransaccionAjax,
+)
+
 __all__ = [
     # Caja grande
     'CajaGrandeView',
@@ -35,4 +43,11 @@ __all__ = [
     'HistorialTurnosView',
     'HistorialDiarioView',
     'EliminarHistorialAjax',
+    # Transacciones
+    'CuentasDisponiblesAjax',
+    'CalcularTransaccionAjax',
+    'CrearTransaccionAjax',
+    'ListarTransaccionesAjax',
+    'DetalleTransaccionAjax',
+    'AnularTransaccionAjax',
 ]

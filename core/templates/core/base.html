@@ -233,6 +233,17 @@
                             </svg>
                             <span>Gastos</span>
                         </a>
+                        <a href="{% url 'caja:transacciones_listar_page' %}"
+                           class="nav-subitem {% if request.resolver_match.url_name == 'transacciones_listar_page' %}active{% endif %}">
+                            <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                                <path d="M2 5H10M2 8H10M2 11H7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                                <path d="M12 7L14 5L12 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M14 5H10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                                <path d="M12 11L14 13L12 15" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M10 13H14" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                            </svg>
+                            <span>Transacciones</span>
+                        </a>
                     </div>
                 </div>
             </div>

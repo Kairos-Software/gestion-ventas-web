@@ -3,6 +3,7 @@ from .models import (
     Proveedor,
     Producto, ProductoImagen,
     CategoriaProducto, TipoProducto,
+    Variante, OpcionVariante, CombinacionVariante,
 )
 
 class ProveedorForm(forms.ModelForm):
@@ -126,9 +127,103 @@ class TipoProductoForm(forms.ModelForm):
  
  
 # ══════════════════════════════════════════════════════════════════
+#  VARIANTES GENÉRICAS  (AJAX — crear/editar desde modal)
+# ══════════════════════════════════════════════════════════════════
+
+class VarianteForm(forms.ModelForm):
+    class Meta:
+        model  = Variante
+        fields = ['nombre', 'descripcion', 'orden', 'activo']
+        widgets = {
+            'nombre':      forms.TextInput(attrs={
+                'class': 'form-control nx-input',
+                'placeholder': 'Ej: Color, Sabor, Talle, Aroma...',
+                'autofocus': True,
+            }),
+            'descripcion': forms.TextInput(attrs={
+                'class': 'form-control nx-input',
+                'placeholder': 'Descripción breve (opcional)',
+            }),
+            'orden':       forms.NumberInput(attrs={
+                'class': 'form-control nx-input',
+                'min': 0,
+            }),
+            'activo':      forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+
+    def clean_nombre(self):
+        nombre = self.cleaned_data.get('nombre', '').strip()
+        qs = Variante.objects.filter(nombre__iexact=nombre)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError('Ya existe una variante con ese nombre.')
+        return nombre
+
+
+class OpcionVarianteForm(forms.ModelForm):
+    class Meta:
+        model  = OpcionVariante
+        fields = ['variante', 'nombre', 'descripcion', 'orden', 'activo']
+        widgets = {
+            'variante':    forms.Select(attrs={'class': 'form-select nx-input'}),
+            'nombre':      forms.TextInput(attrs={
+                'class': 'form-control nx-input',
+                'placeholder': 'Ej: Rojo, Verde, S, M, L, Naranja...',
+                'autofocus': True,
+            }),
+            'descripcion': forms.TextInput(attrs={
+                'class': 'form-control nx-input',
+                'placeholder': 'Descripción breve (opcional)',
+            }),
+            'orden':       forms.NumberInput(attrs={
+                'class': 'form-control nx-input',
+                'min': 0,
+            }),
+            'activo':      forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Solo mostrar variantes activas
+        self.fields['variante'].queryset = Variante.objects.filter(activo=True).order_by('orden', 'nombre')
+
+    def clean_nombre(self):
+        nombre = self.cleaned_data.get('nombre', '').strip()
+        variante = self.cleaned_data.get('variante')
+        qs = OpcionVariante.objects.filter(variante=variante, nombre__iexact=nombre)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError('Ya existe una opción con ese nombre para esta variante.')
+        return nombre
+
+
+class CombinacionVarianteForm(forms.ModelForm):
+    class Meta:
+        model  = CombinacionVariante
+        fields = ['codigo_barras', 'sku_variante', 'stock_actual', 'activo']
+        widgets = {
+            'codigo_barras': forms.TextInput(attrs={
+                'class': 'form-control nx-input',
+                'placeholder': 'Código de barras específico para esta combinación',
+            }),
+            'sku_variante': forms.TextInput(attrs={
+                'class': 'form-control nx-input',
+                'placeholder': 'SKU específico (opcional)',
+            }),
+            'stock_actual': forms.NumberInput(attrs={
+                'class': 'form-control nx-input',
+                'min': 0,
+            }),
+            'activo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+
+
+# ══════════════════════════════════════════════════════════════════
 #  PRODUCTO  (form principal)
 # ══════════════════════════════════════════════════════════════════
- 
+
 class ProductoForm(forms.ModelForm):
     class Meta:
         model  = Producto
@@ -154,8 +249,10 @@ class ProductoForm(forms.ModelForm):
             'posicion_deposito',
             # Stock
             'gestiona_stock', 'permite_stock_negativo',
-            # Colores
-            'tiene_variantes_color', 'color_unico',
+            # Variantes
+            'gestiona_variantes',
+            # Perecedero
+            'es_perecedero',
             # Notas
             'notas', 'tags',
         ]
@@ -229,15 +326,15 @@ class ProductoForm(forms.ModelForm):
             'requiere_refrigeracion': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'es_fragil':              forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'es_peligroso':           forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'es_perecedero':          forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'posicion_deposito':      forms.TextInput(attrs={'class': 'form-control nx-input', 'placeholder': 'Ej: A3-P2'}),
 
             # — Stock —
             'gestiona_stock':         forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'permite_stock_negativo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
 
-            # — Colores —
-            'tiene_variantes_color':  forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'color_unico':            forms.TextInput(attrs={'class': 'form-control nx-input', 'placeholder': 'Ej: Azul marino'}),
+            # — Variantes genéricas —
+            'gestiona_variantes':     forms.CheckboxInput(attrs={'class': 'form-check-input'}),
 
             # — Notas —
             'notas': forms.Textarea(attrs={

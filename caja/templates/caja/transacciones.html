@@ -1,0 +1,340 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Transacciones – Caja Grande{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'caja/css/transacciones.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}Finanzas / <strong>Transacciones</strong>{% endblock %}
+
+{% block content %}
+
+{# ── URLs para JS ─────────────────────────────────────────────────── #}
+<script>
+  window.URL_TRANSACCIONES_CUENTAS  = "{% url 'caja:transacciones_cuentas' %}";
+  window.URL_TRANSACCIONES_CALCULAR = "{% url 'caja:transacciones_calcular' %}";
+  window.URL_TRANSACCIONES_CREAR    = "{% url 'caja:transacciones_crear' %}";
+  window.URL_TRANSACCIONES_LISTAR   = "{% url 'caja:transacciones_listar' %}";
+  window.URL_TRANSACCIONES_DETALLE  = "{% url 'caja:transacciones_detalle' pk=0 %}".replace('/0/', '/__pk__/');
+  window.URL_TRANSACCIONES_ANULAR   = "{% url 'caja:transacciones_anular' pk=0 %}".replace('/0/', '/__pk__/');
+</script>
+
+{# ── Encabezado ───────────────────────────────────────────────────── #}
+<div class="trx-page-header">
+  <div class="trx-page-title">
+    <div class="trx-page-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M7 16l-4-4 4-4"/><path d="M17 8l4 4-4 4"/><path d="M3 12h18"/>
+      </svg>
+    </div>
+    <div class="trx-page-title-text">
+      <p>FINANZAS</p>
+      <h4>Transacciones</h4>
+      <small>Movimientos entre cuentas de la caja grande.</small>
+    </div>
+  </div>
+  <button class="btn btn-primary" onclick="Transacciones.abrirModalCrear()">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="margin-right:.4rem">
+      <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/>
+      <path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+    </svg>
+    Nueva transacción
+  </button>
+</div>
+
+{# ── Filtros ──────────────────────────────────────────────────────── #}
+<div class="trx-filtros">
+  <div class="trx-filtros-grid">
+
+    <div>
+      <label class="trx-label">Tipo</label>
+      <select id="filtro-tipo" class="form-select form-select-sm">
+        <option value="">Todos los tipos</option>
+        <option value="deposito">Depósito bancario</option>
+        <option value="extraccion">Extracción bancaria</option>
+        <option value="compra_divisa">Compra de divisa</option>
+        <option value="venta_divisa">Venta de divisa</option>
+      </select>
+    </div>
+
+    <div>
+      <label class="trx-label">Cuenta</label>
+      <select id="filtro-cuenta" class="form-select form-select-sm">
+        <option value="">Todas las cuentas</option>
+      </select>
+    </div>
+
+    <div>
+      <label class="trx-label">Desde</label>
+      <input type="date" id="filtro-desde" class="form-control form-control-sm">
+    </div>
+
+    <div>
+      <label class="trx-label">Hasta</label>
+      <input type="date" id="filtro-hasta" class="form-control form-control-sm">
+    </div>
+
+    <div class="trx-filtros-acciones">
+      <button id="trx-btn-filtrar" class="btn btn-sm btn-primary">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="margin-right:.3rem">
+          <path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        </svg>Filtrar
+      </button>
+      <button id="trx-btn-limpiar-filtros" class="btn btn-sm btn-outline-secondary">
+        Limpiar
+      </button>
+    </div>
+
+  </div>
+</div>
+
+{# ── Tabla ────────────────────────────────────────────────────────── #}
+<div class="trx-card">
+  <div class="trx-table-wrap">
+    <table class="trx-table">
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Tipo</th>
+          <th>Origen</th>
+          <th>Destino</th>
+          <th>Debitado</th>
+          <th>Acreditado</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="trx-tbody">
+        <tr>
+          <td colspan="7" class="text-center py-5 text-muted">
+            <div class="spinner-border spinner-border-sm me-2"></div> Cargando…
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="trx-card-footer">
+    <div id="trx-paginacion"></div>
+  </div>
+</div>
+
+
+<div class="modal fade" id="modalTransaccion" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content border-0" style="box-shadow:var(--shadow-lg);border-radius:var(--radius-xl);">
+
+      <div class="modal-header border-0 pb-0 pt-0" style="padding:0">
+        <div class="trx-modal-header" style="flex:1">
+          <div class="trx-modal-header-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M7 16l-4-4 4-4"/><path d="M17 8l4 4-4 4"/><path d="M3 12h18"/>
+            </svg>
+          </div>
+          <h5>Nueva transacción</h5>
+          <button type="button" class="btn-close ms-2" data-bs-dismiss="modal" style="margin-top:2px"></button>
+        </div>
+      </div>
+
+      <div class="modal-body pt-3 px-4 pb-2">
+
+        {# Error global #}
+        <div id="trx-error" class="trx-error trx-hidden mb-3">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0">
+            <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.3"/>
+            <path d="M8 5v3.5M8 10.5v.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+          </svg>
+          <span id="trx-error-texto"></span>
+        </div>
+
+        <div class="row g-3">
+
+          {# Tipo #}
+          <div class="col-12">
+            <label class="trx-label" for="trx-tipo">
+              Tipo de transacción <span class="trx-required">*</span>
+            </label>
+            <select id="trx-tipo" class="form-select">
+              <option value="">— Seleccionar —</option>
+              <option value="deposito">💰  Depósito bancario (Efectivo → Banco)</option>
+              <option value="extraccion">🏧  Extracción bancaria (Banco → Efectivo)</option>
+              <option value="compra_divisa">💱  Compra de divisa  (ej: ARS → USD / EUR)</option>
+              <option value="venta_divisa">💱  Venta de divisa   (ej: USD / EUR → ARS)</option>
+            </select>
+          </div>
+
+          {# Cuentas #}
+          <div class="col-12 col-md-6">
+            <label class="trx-label" id="trx-label-origen" for="trx-cuenta-origen">
+              Cuenta origen <span class="trx-required">*</span>
+            </label>
+            <select id="trx-cuenta-origen" class="form-select">
+              <option value="">— Seleccionar —</option>
+            </select>
+          </div>
+
+          <div class="col-12 col-md-6">
+            <label class="trx-label" id="trx-label-destino" for="trx-cuenta-destino">
+              Cuenta destino <span class="trx-required">*</span>
+            </label>
+            <select id="trx-cuenta-destino" class="form-select">
+              <option value="">— Seleccionar —</option>
+            </select>
+          </div>
+
+          {# Monto y fecha #}
+          <div class="col-12 col-md-6">
+            <label class="trx-label" for="trx-monto-origen">
+              Monto a transferir <span class="trx-required">*</span>
+            </label>
+            <div class="input-group">
+              <span class="input-group-text">$</span>
+              <input type="number" id="trx-monto-origen" class="form-control"
+                     min="0.01" step="0.01" placeholder="0,00">
+            </div>
+          </div>
+
+          <div class="col-12 col-md-6">
+            <label class="trx-label" for="trx-fecha">
+              Fecha <span class="trx-required">*</span>
+            </label>
+            <input type="date" id="trx-fecha" class="form-control">
+          </div>
+
+          {# Sección divisa (oculta por defecto) #}
+          <div class="col-12" id="trx-seccion-divisa" style="display:none">
+            <div class="trx-seccion-divisa">
+              <p class="trx-seccion-divisa-titulo">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                  <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.3"/>
+                  <path d="M5.5 9.5C5.5 9.5 6.2 11 8 11s2.5-1 2.5-2-1-1.5-2.5-2-2.5-1-2.5-2S5.5 3 8 3s2.5 1.5 2.5 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                  <path d="M8 2v1.2M8 12.8V14" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                </svg>
+                Datos de la operación cambiaria
+              </p>
+              <div class="row g-3">
+
+                <div class="col-12 col-md-4">
+                  <label class="trx-label" for="trx-tipo-cambio">
+                    Precio por unidad de divisa <span class="trx-required">*</span>
+                  </label>
+                  <input type="number" id="trx-tipo-cambio" class="form-control"
+                         min="0.000001" step="0.01" placeholder="ej: 1200">
+                  <div class="form-text">Costo de 1 unidad de la divisa destino.</div>
+                </div>
+
+                <div class="col-12 col-md-4">
+                  <label class="trx-label" for="trx-costo-extra">Costo extra (opcional)</label>
+                  <div class="input-group">
+                    <span class="input-group-text">$</span>
+                    <input type="number" id="trx-costo-extra" class="form-control"
+                           min="0" step="0.01" placeholder="0,00">
+                  </div>
+                  <div class="form-text">Impuesto, comisión, etc.</div>
+                </div>
+
+                <div class="col-12 col-md-4">
+                  <label class="trx-label" for="trx-descripcion-costo">Detalle del costo</label>
+                  <input type="text" id="trx-descripcion-costo" class="form-control"
+                         placeholder='ej: "Impuesto PAIS 30%"' maxlength="200">
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          {# Preview #}
+          <div class="col-12">
+            <div id="trx-preview" class="trx-preview trx-preview--hidden"></div>
+          </div>
+
+          {# Descripción #}
+          <div class="col-12">
+            <label class="trx-label" for="trx-descripcion">Descripción (opcional)</label>
+            <input type="text" id="trx-descripcion" class="form-control"
+                   placeholder="Notas adicionales…" maxlength="300">
+          </div>
+
+        </div>
+      </div>
+
+      <div class="modal-footer border-0 px-4 pb-4 pt-2">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" id="trx-btn-guardar" class="btn btn-primary px-4">Guardar</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+<div class="modal fade" id="modalTransaccionDetalle" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0" style="box-shadow:var(--shadow-lg);border-radius:var(--radius-xl);">
+
+      <div class="modal-header border-0 pb-0">
+        <div class="d-flex align-items-center gap-2">
+          <div class="trx-modal-header-icon" style="width:32px;height:32px;border-radius:var(--radius-sm);">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+              <path d="M2 4h12M2 7h12M2 10h8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <h5 class="modal-title fw-bold" style="font-size:1rem;">Detalle de transacción</h5>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body px-4" id="trx-detalle-body">
+        <div class="text-center py-4">
+          <div class="spinner-border spinner-border-sm text-secondary"></div>
+        </div>
+      </div>
+
+      <div class="modal-footer border-0 px-4 pb-4 pt-1">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+        {% if user.is_staff or user.is_superuser %}
+        <button type="button" id="trx-detalle-btn-anular" class="btn btn-outline-danger">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="margin-right:.35rem">
+            <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3"/>
+            <path d="M5.5 5.5L10.5 10.5M10.5 5.5L5.5 10.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+          </svg>Anular
+        </button>
+        {% endif %}
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+<div class="modal fade" id="modalConfirmarAnular" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content border-0" style="box-shadow:var(--shadow-lg);border-radius:var(--radius-xl);">
+      <div class="modal-body p-0">
+        <div class="trx-confirm-body">
+          <div class="trx-confirm-icon">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </div>
+          <h6>¿Anular transacción?</h6>
+          <p>Se eliminarán todos los movimientos de caja generados. Esta acción no se puede deshacer.</p>
+          <input type="hidden" id="trx-anular-pk">
+        </div>
+      </div>
+      <div class="modal-footer border-0 justify-content-center px-4 pb-4 pt-0" style="gap:.5rem">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" id="trx-btn-confirmar-anular" class="btn btn-danger px-4">
+          Sí, anular
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'caja/js/transacciones.js' %}"></script>
+{% endblock %}

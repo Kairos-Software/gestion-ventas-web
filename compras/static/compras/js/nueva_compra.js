@@ -18,9 +18,9 @@ const CFG = window.CMP_CONFIG || {};
 ════════════════════════════════════════════════════════════════ */
 let carrito      = [];   // [{ id, producto_pk, nombre, codigo, unidad,
                          //    proveedor_pk, proveedor_nombre,
-                         //    tiene_colores, colores_lista, colores_dist,
+                         //    tiene_combinaciones, combinaciones_lista, combinaciones_dist,
                          //    cantidad, costo, moneda, descuento,
-                         //    condicion, referencia }]
+                         //    condicion, referencia, fecha_vencimiento }]
 let nextId       = 0;
 let provTimers   = {};
 let provGlobalDD = null;
@@ -64,13 +64,13 @@ function _calcSub(item) {
     return item.descuento ? base * (1 - parseFloat(item.descuento) / 100) : base;
 }
 
-function _totalColoresDist(item) {
-    return Object.values(item.colores_dist).reduce((s, v) => s + (parseFloat(v) || 0), 0);
+function _totalCombinacionesDist(item) {
+    return Object.values(item.combinaciones_dist).reduce((s, v) => s + (parseFloat(v) || 0), 0);
 }
 
-function _coloresValidos(item) {
-    if (!item.tiene_colores) return true;
-    return Math.abs(_totalColoresDist(item) - (parseFloat(item.cantidad) || 0)) < 0.001;
+function _combinacionesValidas(item) {
+    if (!item.tiene_combinaciones) return true;
+    return Math.abs(_totalCombinacionesDist(item) - (parseFloat(item.cantidad) || 0)) < 0.001;
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -107,9 +107,9 @@ searchInput.addEventListener('input', () => {
                 searchDropdown.innerHTML = '<div class="cmp-dropdown-empty">Sin resultados</div>';
             } else {
                 searchDropdown.innerHTML = results.map(p => {
-                    const tieneColores = p.tiene_variantes_color && p.colores && p.colores.length > 0;
-                    const coloresAttr  = tieneColores
-                        ? `data-colores="${_esc(btoa(unescape(encodeURIComponent(JSON.stringify(p.colores)))))}"` : '';
+                    const tieneCombinaciones = p.gestiona_variantes && p.combinaciones && p.combinaciones.length > 0;
+                    const combinacionesAttr  = tieneCombinaciones
+                        ? `data-combinaciones="${_esc(btoa(unescape(encodeURIComponent(JSON.stringify(p.combinaciones)))))}"` : '';
                     return `
                     <div class="cmp-dropdown-item"
                          data-pk="${p.pk}"
@@ -118,8 +118,8 @@ searchInput.addEventListener('input', () => {
                          data-unidad="${_esc(p.unidad_medida || '')}"
                          data-prov-pk="${p.proveedor_pk || ''}"
                          data-prov-nombre="${_esc(p.proveedor || '')}"
-                         data-tiene-colores="${tieneColores ? '1' : '0'}"
-                         ${coloresAttr}>
+                         data-tiene-combinaciones="${tieneCombinaciones ? '1' : '0'}"
+                         ${combinacionesAttr}>
                         <div class="cmp-dropdown-item-top">
                             <span class="cmp-dropdown-item-nombre">${_esc(p.nombre)}</span>
                             <span class="cmp-dropdown-item-codigo">${_esc(p.codigo)}</span>
@@ -127,12 +127,13 @@ searchInput.addEventListener('input', () => {
                         <div class="cmp-dropdown-item-meta">
                             <span class="cmp-meta-chip">Stock: <strong>${parseFloat(p.stock_actual || 0).toLocaleString('es-AR')}</strong></span>
                             ${p.proveedor ? `<span class="cmp-meta-chip">Prov: <strong>${_esc(p.proveedor)}</strong></span>` : ''}
-                            ${tieneColores ? `<span class="cmp-meta-chip cmp-meta-chip--colores">
+                            ${tieneCombinaciones ? `<span class="cmp-meta-chip cmp-meta-chip--colores">
                                 <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                                    <circle cx="5" cy="5" r="3.5" stroke="currentColor" stroke-width="1.2"/>
-                                    <circle cx="5" cy="5" r="1.2" fill="currentColor"/>
+                                    <rect x="1" y="1" width="8" height="8" rx="1" stroke="currentColor" stroke-width="1.2"/>
+                                    <circle cx="3" cy="3" r="1" fill="currentColor"/>
+                                    <circle cx="7" cy="7" r="1" fill="currentColor"/>
                                 </svg>
-                                <strong>${p.colores.length} color${p.colores.length !== 1 ? 'es' : ''}</strong>
+                                <strong>${p.combinaciones.length} combinación${p.combinaciones.length !== 1 ? 'es' : ''}</strong>
                             </span>` : ''}
                         </div>
                     </div>`;
@@ -140,12 +141,12 @@ searchInput.addEventListener('input', () => {
 
                 searchDropdown.querySelectorAll('.cmp-dropdown-item').forEach(el => {
                     el.addEventListener('click', () => {
-                        let colores = [];
-                        if (el.dataset.colores) {
-                            try { colores = JSON.parse(decodeURIComponent(escape(atob(el.dataset.colores)))); }
-                            catch { colores = []; }
+                        let combinaciones = [];
+                        if (el.dataset.combinaciones) {
+                            try { combinaciones = JSON.parse(decodeURIComponent(escape(atob(el.dataset.combinaciones)))); }
+                            catch { combinaciones = []; }
                         }
-                        _agregarItem(el.dataset, colores);
+                        _agregarItem(el.dataset, combinaciones);
                         searchDropdown.classList.remove('open');
                         searchDropdown.innerHTML = '';
                         searchInput.value = '';
@@ -175,13 +176,13 @@ document.addEventListener('click', e => {
 /* ════════════════════════════════════════════════════════════════
    AGREGAR ÍTEM AL CARRITO
 ════════════════════════════════════════════════════════════════ */
-function _agregarItem(d, colores) {
-    // dataset convierte data-tiene-colores → tieneColores (camelCase automático)
-    const tieneColores = (d['tieneColores'] === '1' || d['tiene-colores'] === '1') && colores && colores.length > 0;
+function _agregarItem(d, combinaciones) {
+    // dataset convierte data-tiene-combinaciones → tieneCombinaciones (camelCase automático)
+    const tieneCombinaciones = (d['tieneCombinaciones'] === '1' || d['tiene-combinaciones'] === '1') && combinaciones && combinaciones.length > 0;
 
-    // Si ya existe el producto (sin colores), solo incrementa cantidad
-    if (!tieneColores) {
-        const existente = carrito.find(i => String(i.producto_pk) === String(d.pk) && !i.tiene_colores);
+    // Si ya existe el producto (sin combinaciones), solo incrementa cantidad
+    if (!tieneCombinaciones) {
+        const existente = carrito.find(i => String(i.producto_pk) === String(d.pk) && !i.tiene_combinaciones);
         if (existente) {
             existente.cantidad++;
             _renderCarrito();
@@ -198,15 +199,16 @@ function _agregarItem(d, colores) {
         unidad:           d.unidad || '',
         proveedor_pk:     d['prov-pk'] || '',
         proveedor_nombre: d['prov-nombre'] || '',
-        tiene_colores:    tieneColores,
-        colores_lista:    tieneColores ? colores : [],
-        colores_dist:     tieneColores ? Object.fromEntries(colores.map(c => [c.pk, 0])) : {},
-        cantidad:         tieneColores ? 0 : 1,
+        tiene_combinaciones: tieneCombinaciones,
+        combinaciones_lista: tieneCombinaciones ? combinaciones : [],
+        combinaciones_dist: tieneCombinaciones ? Object.fromEntries(combinaciones.map(c => [c.pk, 0])) : {},
+        cantidad:         tieneCombinaciones ? 0 : 1,
         costo:            0,
         moneda:           'ARS',
         descuento:        0,
         condicion:        'contado',
         referencia:       '',
+        fecha_vencimiento: '',
     });
 
     _renderCarrito();
@@ -232,15 +234,15 @@ function _renderCarrito() {
 
     cartBody.innerHTML = carrito.map(item => {
         const sub          = _calcSub(item);
-        const colorWarning = item.tiene_colores && !_coloresValidos(item)
-            ? `<span class="cmp-color-warning" title="Distribuí todos los colores">
+        const combinacionWarning = item.tiene_combinaciones && !_combinacionesValidas(item)
+            ? `<span class="cmp-color-warning" title="Distribuí todas las combinaciones">
                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                        <circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.3"/>
                        <path d="M6 4V6.5M6 8H6.01" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
                    </svg>
                </span>` : '';
 
-        const filaColores = item.tiene_colores ? _renderFilaColores(item) : '';
+        const filaCombinaciones = item.tiene_combinaciones ? _renderFilaCombinaciones(item) : '';
 
         return `
         <tr data-item-id="${item.id}" class="cmp-row-main">
@@ -248,13 +250,14 @@ function _renderCarrito() {
                 <div class="cmp-prod-cell">
                     <span class="cmp-prod-nombre">${_esc(item.nombre)}</span>
                     <span class="cmp-prod-meta">${_esc(item.codigo)}</span>
-                    ${item.tiene_colores
+                    ${item.tiene_combinaciones
                         ? `<span class="cmp-prod-badge-colores">
                                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                                   <circle cx="5" cy="5" r="3.5" stroke="currentColor" stroke-width="1.2"/>
-                                   <circle cx="5" cy="5" r="1.2" fill="currentColor"/>
+                                   <rect x="1" y="1" width="8" height="8" rx="1" stroke="currentColor" stroke-width="1.2"/>
+                                   <circle cx="3" cy="3" r="1" fill="currentColor"/>
+                                   <circle cx="7" cy="7" r="1" fill="currentColor"/>
                                </svg>
-                               Por color
+                               ${item.combinaciones_lista.length} combinación${item.combinaciones_lista.length !== 1 ? 'es' : ''}
                            </span>` : ''}
                 </div>
             </td>
@@ -273,8 +276,8 @@ function _renderCarrito() {
                        class="cmp-input-inline w-xs cmp-field-input"
                        value="${item.cantidad}"
                        data-item-id="${item.id}" data-campo="cantidad"
-                       ${item.tiene_colores ? 'readonly title="Se calcula automáticamente desde la distribución"' : ''}>
-                ${colorWarning}
+                       ${item.tiene_combinaciones ? 'readonly title="Se calcula automáticamente desde la distribución"' : ''}>
+                ${combinacionWarning}
             </td>
             <td>
                 <input type="number" min="0" step="any"
@@ -314,6 +317,13 @@ function _renderCarrito() {
                        value="${_esc(item.referencia)}"
                        data-item-id="${item.id}" data-campo="referencia">
             </td>
+            <td>
+                <input type="date"
+                       class="cmp-input-inline w-md cmp-field-input"
+                       value="${item.fecha_vencimiento || ''}"
+                       data-item-id="${item.id}" data-campo="fecha_vencimiento"
+                       title="Fecha de vencimiento (requerido para productos perecederos)">
+            </td>
             <td class="cmp-subtotal-cell" id="cmpSub_${item.id}">
                 ${_fmt(sub, item.moneda)}
             </td>
@@ -325,7 +335,7 @@ function _renderCarrito() {
                 </button>
             </td>
         </tr>
-        ${filaColores}`;
+        ${filaCombinaciones}`;
     }).join('');
 
     _bindCartBodyEvents();
@@ -333,40 +343,38 @@ function _renderCarrito() {
 }
 
 /* ════════════════════════════════════════════════════════════════
-   FILA DE COLORES
+   FILA DE COMBINACIONES
 ════════════════════════════════════════════════════════════════ */
-function _renderFilaColores(item) {
-    const totalAsignado = _totalColoresDist(item);
+function _renderFilaCombinaciones(item) {
+    const totalAsignado = _totalCombinacionesDist(item);
     const totalItem     = parseFloat(item.cantidad) || 0;
     const ok            = Math.abs(totalAsignado - totalItem) < 0.001;
 
-    const chips = item.colores_lista.map(c => {
-        const val    = item.colores_dist[c.pk] || 0;
-        const swatch = c.codigo_hex
-            ? `<span class="cmp-color-swatch" style="background:${_esc(c.codigo_hex)}"></span>` : '';
+    const chips = item.combinaciones_lista.map(c => {
+        const val = item.combinaciones_dist[c.pk] || 0;
         return `
         <div class="cmp-color-chip">
-            ${swatch}
-            <span class="cmp-color-chip-nombre">${_esc(c.nombre)}</span>
+            <span class="cmp-color-chip-nombre">${_esc(c.descripcion_combinacion)}</span>
             <span class="cmp-color-chip-stock">(stock: ${parseFloat(c.stock_actual || 0).toLocaleString('es-AR')})</span>
             <input type="number" min="0" step="any"
                    class="cmp-input-inline w-xs cmp-color-qty"
                    value="${val}"
                    data-item-id="${item.id}"
-                   data-color-pk="${c.pk}">
+                   data-combinacion-pk="${c.pk}">
         </div>`;
     }).join('');
 
     return `
-    <tr class="cmp-row-colores" data-color-row="${item.id}">
+    <tr class="cmp-row-colores" data-combinacion-row="${item.id}">
         <td colspan="10">
             <div class="cmp-colores-panel">
                 <div class="cmp-colores-panel-header">
                     <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-                        <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" stroke-width="1.3"/>
-                        <circle cx="6.5" cy="6.5" r="2" fill="currentColor"/>
+                        <rect x="1" y="1" width="11" height="11" rx="1" stroke="currentColor" stroke-width="1.3"/>
+                        <circle cx="3" cy="3" r="1" fill="currentColor"/>
+                        <circle cx="10" cy="10" r="1" fill="currentColor"/>
                     </svg>
-                    <span>Distribuir por color</span>
+                    <span>Distribuir por combinación</span>
                     <span class="cmp-colores-panel-resumen ${ok ? 'ok' : 'error'}"
                           id="cmpColRes_${item.id}">
                         ${ok
@@ -383,12 +391,12 @@ function _renderFilaColores(item) {
     </tr>`;
 }
 
-function _actualizarFilaColores(itemId) {
+function _actualizarFilaCombinaciones(itemId) {
     const item = carrito.find(i => i.id === itemId);
-    if (!item || !item.tiene_colores) return;
+    if (!item || !item.tiene_combinaciones) return;
 
-    const filaVieja = cartBody.querySelector(`tr[data-color-row="${itemId}"]`);
-    const nuevaHTML = _renderFilaColores(item);
+    const filaVieja = cartBody.querySelector(`tr[data-combinacion-row="${itemId}"]`);
+    const nuevaHTML = _renderFilaCombinaciones(item);
     if (filaVieja) {
         filaVieja.outerHTML = nuevaHTML;
     } else {
@@ -452,11 +460,11 @@ function _updateField(id, campo, valor) {
     const subEl = document.getElementById(`cmpSub_${id}`);
     if (subEl) subEl.textContent = _fmt(_calcSub(item), item.moneda);
 
-    // Si cambia la cantidad en un item con colores, actualizar resumen
-    if (campo === 'cantidad' && item.tiene_colores) {
+    // Si cambia la cantidad en un item con combinaciones, actualizar resumen
+    if (campo === 'cantidad' && item.tiene_combinaciones) {
         const resEl = document.getElementById(`cmpColRes_${id}`);
         if (resEl) {
-            const ta = _totalColoresDist(item), ti = parseFloat(item.cantidad) || 0;
+            const ta = _totalCombinacionesDist(item), ti = parseFloat(item.cantidad) || 0;
             const ok = Math.abs(ta - ti) < 0.001;
             resEl.className = `cmp-colores-panel-resumen ${ok ? 'ok' : 'error'}`;
             resEl.innerHTML = ok
@@ -522,7 +530,7 @@ function _actualizarTotales() {
 function _actualizarBtnContinuar() {
     if (!btnContinuar) return;
     const hayItems    = carrito.length > 0;
-    const hayInvalido = carrito.some(i => i.tiene_colores && !_coloresValidos(i));
+    const hayInvalido = carrito.some(i => i.tiene_combinaciones && !_combinacionesValidas(i));
     btnContinuar.disabled = !hayItems || hayInvalido;
 }
 
@@ -618,10 +626,10 @@ if (btnContinuar) {
     btnContinuar.addEventListener('click', async () => {
         if (!carrito.length) return;
 
-        const pendientes = carrito.filter(i => i.tiene_colores && !_coloresValidos(i));
+        const pendientes = carrito.filter(i => i.tiene_combinaciones && !_combinacionesValidas(i));
         if (pendientes.length) {
             _toast(
-                'Colores incompletos',
+                'Combinaciones incompletas',
                 `Distribuí todos los colores antes de continuar: ${pendientes.map(i => i.nombre).join(', ')}`
             );
             return;
@@ -632,36 +640,38 @@ if (btnContinuar) {
             <circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.5" stroke-dasharray="20 15"/>
         </svg> Guardando…`;
 
-        // Expandir colores → 1 item por color con cantidad > 0
+        // Expandir combinaciones → 1 item por combinación con cantidad > 0
         const itemsPayload = [];
         for (const item of carrito) {
-            if (item.tiene_colores) {
-                for (const [colorPk, cant] of Object.entries(item.colores_dist)) {
+            if (item.tiene_combinaciones) {
+                for (const [combinacionPk, cant] of Object.entries(item.combinaciones_dist)) {
                     const cantidad = parseFloat(cant) || 0;
                     if (cantidad <= 0) continue;
                     itemsPayload.push({
                         producto_pk:    item.producto_pk,
                         proveedor_pk:   item.proveedor_pk || null,
-                        color_pk:       parseInt(colorPk, 10),
+                        combinacion_pk: parseInt(combinacionPk, 10),
                         cantidad,
                         costo_unitario: item.costo,
                         moneda:         item.moneda,
                         descuento_pct:  item.descuento,
                         condicion_pago: item.condicion,
                         referencia:     item.referencia,
+                        fecha_vencimiento: item.fecha_vencimiento || null,
                     });
                 }
             } else {
                 itemsPayload.push({
                     producto_pk:    item.producto_pk,
                     proveedor_pk:   item.proveedor_pk || null,
-                    color_pk:       null,
+                    combinacion_pk: null,
                     cantidad:       item.cantidad,
                     costo_unitario: item.costo,
                     moneda:         item.moneda,
                     descuento_pct:  item.descuento,
                     condicion_pago: item.condicion,
                     referencia:     item.referencia,
+                    fecha_vencimiento: item.fecha_vencimiento || null,
                 });
             }
         }

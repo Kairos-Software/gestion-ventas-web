@@ -8,12 +8,14 @@ from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator
 
 from .models import (
-    Producto, ProductoImagen, ProductoColor,
+    Producto, ProductoImagen,
+    Variante, OpcionVariante, CombinacionVariante,
     CategoriaProducto, TipoProducto,
 )
 from .forms import (
     ProductoForm, ProductoImagenForm,
     CategoriaProductoForm, TipoProductoForm,
+    VarianteForm, OpcionVarianteForm, CombinacionVarianteForm,
 )
 from core.permisos import chequear_permiso
 
@@ -53,34 +55,127 @@ def _serializar_producto(p):
         'stock_maximo':          str(p.stock_maximo) if p.stock_maximo else '',
         'permite_stock_negativo': p.permite_stock_negativo,
         'gestiona_stock':        p.gestiona_stock,
-        'tiene_variantes_color': p.tiene_variantes_color,
-        'color_unico':           p.color_unico,
+        'gestiona_variantes':    p.gestiona_variantes,
         'estado':                p.estado,
         'publicado':             p.publicado,
         'destacado':             p.destacado,
         'requiere_refrigeracion': p.requiere_refrigeracion,
         'es_fragil':             p.es_fragil,
         'es_peligroso':          p.es_peligroso,
+        'es_perecedero':         p.es_perecedero,
         'posicion_deposito':     p.posicion_deposito,
         'notas':                 p.notas,
         'tags':                  p.tags,
         # Indicadores útiles para el frontend
         'tiene_movimientos':     p.movimientos_stock.exists(),
-        'total_colores':         p.colores.filter(activo=True).count() if p.tiene_variantes_color else 0,
+        'total_combinaciones':   p.combinaciones.filter(activo=True).count() if p.gestiona_variantes else 0,
     }
 
 
-def _serializar_color(c):
-    """Serializa un ProductoColor para respuestas JSON."""
+def _serializar_variante(v):
+    """Serializa una Variante para respuestas JSON."""
     return {
-        'pk':           c.pk,
-        'producto_pk':  c.producto_id,
-        'nombre':       c.nombre,
-        'codigo_hex':   c.codigo_hex,
-        'sku_variante': c.sku_variante,
-        'sku_efectivo': c.sku_efectivo,
-        'stock_actual': c.stock_actual,
-        'activo':       c.activo,
+        'pk':           v.pk,
+        'nombre':       v.nombre,
+        'descripcion':  v.descripcion,
+        'orden':        v.orden,
+        'activo':       v.activo,
+        'total':        v.total_opciones,
+    }
+
+
+def _serializar_opcion_variante(o):
+    """Serializa una OpcionVariante para respuestas JSON."""
+    return {
+        'pk':           o.pk,
+        'variante_pk':  o.variante_id,
+        'variante_nombre': o.variante.nombre,
+        'nombre':       o.nombre,
+        'descripcion':  o.descripcion,
+        'orden':        o.orden,
+        'activo':       o.activo,
+    }
+
+
+def _descripcion_combinacion(c):
+    """Descripción legible de una combinación (campo o generada desde opciones)."""
+    return c.descripcion_legible()
+
+
+def _validar_payload_combinacion(producto, opciones_pks, combinacion_pk=None, codigo_barras=''):
+    """Valida opciones, duplicados y código de barras único."""
+    if not opciones_pks:
+        return {'opciones': ['Debe seleccionar al menos una opción de variante.']}
+
+    try:
+        opciones_pks = [int(pk) for pk in opciones_pks]
+    except (TypeError, ValueError):
+        return {'opciones': ['Opciones de variante inválidas.']}
+
+    opciones = list(
+        OpcionVariante.objects.filter(pk__in=opciones_pks, activo=True)
+        .select_related('variante')
+    )
+    if len(opciones) != len(set(opciones_pks)):
+        return {'opciones': ['Una o más opciones no existen o están inactivas.']}
+
+    variantes_ids = [op.variante_id for op in opciones]
+    if len(variantes_ids) != len(set(variantes_ids)):
+        return {
+            'opciones': [
+                'No puede haber dos valores del mismo tipo de variante en una combinación.'
+            ],
+        }
+
+    objetivo = set(opciones_pks)
+    for comb in producto.combinaciones.exclude(pk=combinacion_pk):
+        existentes = set(comb.opciones.values_list('opcion_id', flat=True))
+        if existentes == objetivo:
+            return {'opciones': ['Ya existe una combinación con esas mismas opciones.']}
+
+    codigo_barras = (codigo_barras or '').strip()
+    if codigo_barras:
+        qs = CombinacionVariante.objects.filter(codigo_barras=codigo_barras)
+        if combinacion_pk:
+            qs = qs.exclude(pk=combinacion_pk)
+        if qs.exists():
+            return {'codigo_barras': ['Ya existe otra combinación con ese código de barras.']}
+
+        qs_prod = Producto.objects.filter(codigo_barras=codigo_barras)
+        if qs_prod.exists():
+            return {'codigo_barras': ['Ese código de barras ya está asignado a otro producto.']}
+
+    return None
+
+
+def _aplicar_opciones_combinacion(combinacion, opciones_pks):
+    """Reemplaza las opciones de una combinación y sincroniza su descripción."""
+    from .models import CombinacionVarianteOpcion
+
+    combinacion.opciones.all().delete()
+    for opcion_pk in opciones_pks:
+        opcion = get_object_or_404(OpcionVariante, pk=opcion_pk)
+        CombinacionVarianteOpcion.objects.create(combinacion=combinacion, opcion=opcion)
+    combinacion.sincronizar_descripcion()
+
+
+def _serializar_combinacion(c):
+    """Serializa una CombinacionVariante para respuestas JSON."""
+    desc = _descripcion_combinacion(c)
+    return {
+        'pk':                c.pk,
+        'producto_pk':       c.producto_id,
+        'codigo_barras':     c.codigo_barras,
+        'sku_variante':      c.sku_variante,
+        'sku_efectivo':      c.sku_efectivo,
+        'stock_actual':      c.stock_actual,
+        'activo':            c.activo,
+        'descripcion':       desc,
+        'descripcion_combinacion': desc,
+        'opciones':          [
+            _serializar_opcion_variante(op.opcion)
+            for op in c.opciones.select_related('opcion__variante').all()
+        ],
     }
 
 
@@ -204,20 +299,20 @@ class ProductoCrearEditarAjax(LoginRequiredMixin, View):
             return JsonResponse({'error': 'Sin permiso.'}, status=403)
 
         # Validar intento de activar variantes en producto con movimientos de stock
-        if inst and body.get('tiene_variantes_color') and not inst.tiene_variantes_color:
+        if inst and body.get('gestiona_variantes') and not inst.gestiona_variantes:
             if inst.movimientos_stock.exists():
                 # No bloqueamos, pero el frontend ya mostró la advertencia.
                 # El backend acepta el cambio — el stock existente queda en stock_actual
-                # y el usuario deberá asignarlo manualmente a los colores.
+                # y el usuario deberá asignarlo manualmente a las combinaciones.
                 pass
 
         # Django's CheckboxInput no reconoce True/False nativos de JSON —
         # espera 'on', 'true' o '1'. Normalizamos todos los booleanos del payload.
         BOOL_FIELDS = [
             'publicado', 'destacado',
-            'requiere_refrigeracion', 'es_fragil', 'es_peligroso',
+            'requiere_refrigeracion', 'es_fragil', 'es_peligroso', 'es_perecedero',
             'gestiona_stock', 'permite_stock_negativo',
-            'tiene_variantes_color',
+            'gestiona_variantes',
         ]
         form_data = dict(body)
         for f in BOOL_FIELDS:
@@ -231,6 +326,10 @@ class ProductoCrearEditarAjax(LoginRequiredMixin, View):
 
         if form.is_valid():
             producto = form.save()
+
+            if producto.gestiona_variantes and producto.codigo_barras:
+                producto.codigo_barras = ''
+                producto.save(update_fields=['codigo_barras'])
 
             # stock_minimo y stock_maximo se asignan aqui explicitamente porque
             # pueden no estar en los fields del ProductoForm (se ignoran en silence).
@@ -303,7 +402,7 @@ class ProductoEliminarAjax(LoginRequiredMixin, View):
 class ProductoBuscarAjax(LoginRequiredMixin, View):
     """
     GET → búsqueda rápida para selects/autocomplete (ej: en compras).
-    Incluye colores activos cuando el producto tiene variantes de color.
+    Incluye combinaciones activas cuando el producto tiene variantes.
     """
 
     def get(self, request):
@@ -318,17 +417,17 @@ class ProductoBuscarAjax(LoginRequiredMixin, View):
         data = []
         for p in qs[:20]:
             item = {
-                'pk':                    p.pk,
-                'codigo':                p.codigo,
-                'nombre':                p.nombre,
-                'precio':                str(p.precio_venta) if p.precio_venta else '',
-                'tiene_variantes_color': p.tiene_variantes_color,
-                'colores':               [],
+                'pk':                   p.pk,
+                'codigo':               p.codigo,
+                'nombre':               p.nombre,
+                'precio':               str(p.precio_venta) if p.precio_venta else '',
+                'gestiona_variantes':   p.gestiona_variantes,
+                'combinaciones':        [],
             }
-            if p.tiene_variantes_color:
-                item['colores'] = [
-                    _serializar_color(c)
-                    for c in p.colores.filter(activo=True).order_by('nombre')
+            if p.gestiona_variantes:
+                item['combinaciones'] = [
+                    _serializar_combinacion(c)
+                    for c in p.combinaciones.filter(activo=True).order_by('pk')
                 ]
             data.append(item)
 
@@ -336,13 +435,185 @@ class ProductoBuscarAjax(LoginRequiredMixin, View):
 
 
 # ══════════════════════════════════════════════════════════════════
-#  VARIANTES DE COLOR — AJAX
+#  VARIANTES GENÉRICAS — AJAX
 # ══════════════════════════════════════════════════════════════════
 
-class ProductoColorListaAjax(LoginRequiredMixin, View):
+class VarianteListaAjax(LoginRequiredMixin, View):
+    """GET → lista todas las variantes."""
+
+    def get(self, request):
+        if not chequear_permiso(request.user, 'ver_productos'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        qs   = Variante.objects.all().order_by('orden', 'nombre')
+        data = [_serializar_variante(v) for v in qs]
+        return JsonResponse({'results': data})
+
+
+class VarianteAccionesAjax(LoginRequiredMixin, View):
+    """POST → crea o edita una variante."""
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'gestionar_categorias'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        nombre = body.get('nombre', '').strip()
+        if not nombre:
+            return JsonResponse({'ok': False, 'errors': {'nombre': ['El nombre es obligatorio.']}}, status=400)
+
+        pk = body.get('pk')
+        if pk:
+            variante = get_object_or_404(Variante, pk=pk)
+        else:
+            variante = Variante()
+
+        qs = Variante.objects.filter(nombre__iexact=nombre)
+        if variante.pk:
+            qs = qs.exclude(pk=variante.pk)
+        if qs.exists():
+            return JsonResponse({'ok': False, 'errors': {'nombre': ['Ya existe una variante con ese nombre.']}}, status=400)
+
+        variante.nombre      = nombre
+        variante.descripcion = body.get('descripcion', variante.descripcion if variante.pk else '')
+        variante.orden       = int(body.get('orden', variante.orden if variante.pk else 0))
+        variante.activo      = body.get('activo', True)
+        variante.save()
+
+        return JsonResponse({
+            'ok':    True,
+            'pk':    variante.pk,
+            'nombre': variante.nombre,
+            'creado': pk is None,
+            'data':  _serializar_variante(variante),
+        })
+
+
+class VarianteEliminarAjax(LoginRequiredMixin, View):
+    """POST → elimina una variante. Bloquea si tiene opciones asociadas."""
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'gestionar_categorias'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        pk = body.get('pk')
+        if not pk:
+            return JsonResponse({'error': 'PK requerido.'}, status=400)
+
+        variante = get_object_or_404(Variante, pk=pk)
+        total    = variante.opciones.count()
+        if total > 0:
+            return JsonResponse({
+                'ok':    False,
+                'error': f'No se puede eliminar. Tiene {total} opción{"es" if total != 1 else ""} asociada{"s" if total != 1 else ""}.',
+            }, status=400)
+
+        nombre = variante.nombre
+        variante.delete()
+        return JsonResponse({'ok': True, 'nombre': nombre})
+
+
+class OpcionVarianteListaAjax(LoginRequiredMixin, View):
+    """GET ?variante_pk=<pk> → lista todas las opciones de una variante."""
+
+    def get(self, request):
+        if not chequear_permiso(request.user, 'ver_productos'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        variante_pk = request.GET.get('variante_pk')
+        if variante_pk:
+            qs = OpcionVariante.objects.filter(variante_id=variante_pk).order_by('orden', 'nombre')
+        else:
+            qs = OpcionVariante.objects.all().order_by('variante__orden', 'variante__nombre', 'orden', 'nombre')
+
+        data = [_serializar_opcion_variante(o) for o in qs]
+        return JsonResponse({'results': data})
+
+
+class OpcionVarianteAccionesAjax(LoginRequiredMixin, View):
+    """POST → crea o edita una opción de variante."""
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'gestionar_categorias'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        variante_pk = body.get('variante_pk')
+        if not variante_pk:
+            return JsonResponse({'error': 'variante_pk requerido.'}, status=400)
+
+        variante = get_object_or_404(Variante, pk=variante_pk)
+
+        nombre = body.get('nombre', '').strip()
+        if not nombre:
+            return JsonResponse({'ok': False, 'errors': {'nombre': ['El nombre es obligatorio.']}}, status=400)
+
+        pk = body.get('pk')
+        if pk:
+            opcion = get_object_or_404(OpcionVariante, pk=pk)
+        else:
+            opcion = OpcionVariante(variante=variante)
+
+        qs = OpcionVariante.objects.filter(variante=variante, nombre__iexact=nombre)
+        if opcion.pk:
+            qs = qs.exclude(pk=opcion.pk)
+        if qs.exists():
+            return JsonResponse({'ok': False, 'errors': {'nombre': ['Ya existe una opción con ese nombre para esta variante.']}}, status=400)
+
+        opcion.nombre      = nombre
+        opcion.descripcion = body.get('descripcion', opcion.descripcion if opcion.pk else '')
+        opcion.orden       = int(body.get('orden', opcion.orden if opcion.pk else 0))
+        opcion.activo      = body.get('activo', True)
+        opcion.save()
+
+        return JsonResponse({
+            'ok':    True,
+            'pk':    opcion.pk,
+            'nombre': opcion.nombre,
+            'creado': pk is None,
+            'data':  _serializar_opcion_variante(opcion),
+        })
+
+
+class OpcionVarianteEliminarAjax(LoginRequiredMixin, View):
+    """POST → elimina una opción de variante."""
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'gestionar_categorias'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        pk = body.get('pk')
+        if not pk:
+            return JsonResponse({'error': 'PK requerido.'}, status=400)
+
+        opcion = get_object_or_404(OpcionVariante, pk=pk)
+        nombre = opcion.nombre
+        opcion.delete()
+        return JsonResponse({'ok': True, 'nombre': nombre})
+
+
+class CombinacionVarianteListaAjax(LoginRequiredMixin, View):
     """
-    GET ?producto_pk=<pk> → lista todos los colores de un producto.
-    Incluye activos e inactivos para que el formulario pueda mostrarlos todos.
+    GET ?producto_pk=<pk> → lista todas las combinaciones de un producto.
+    Incluye activas e inactivas para que el formulario pueda mostrarlas todas.
     """
 
     def get(self, request):
@@ -353,34 +624,30 @@ class ProductoColorListaAjax(LoginRequiredMixin, View):
         if not pk:
             return JsonResponse({'error': 'producto_pk requerido.'}, status=400)
 
-        producto = get_object_or_404(Producto, pk=pk)
-        colores  = producto.colores.all().order_by('nombre')
+        producto      = get_object_or_404(Producto, pk=pk)
+        combinaciones = producto.combinaciones.all().order_by('pk')
 
         return JsonResponse({
-            'colores':               [_serializar_color(c) for c in colores],
-            'tiene_variantes_color': producto.tiene_variantes_color,
-            'stock_total':           str(producto.stock_actual),
+            'combinaciones':       [_serializar_combinacion(c) for c in combinaciones],
+            'gestiona_variantes':  producto.gestiona_variantes,
+            'stock_total':         str(producto.stock_actual),
         })
 
 
-class ProductoColorAccionesAjax(LoginRequiredMixin, View):
+class CombinacionVarianteAccionesAjax(LoginRequiredMixin, View):
     """
-    POST → crea o edita un color de producto.
+    POST → crea o edita una combinación de variantes.
 
     Payload JSON:
       {
         pk           (int, opcional — si viene, edita; si no, crea),
         producto_pk  (int, requerido al crear),
-        nombre       (str, requerido),
-        codigo_hex   (str, opcional, formato #RRGGBB),
+        codigo_barras (str, opcional),
         sku_variante (str, opcional),
-        stock_actual (decimal, requerido al crear, ignorado en edición de datos),
-        stock_minimo (decimal, opcional),
-        orden        (int, opcional),
+        stock_actual (decimal, requerido al crear),
+        opciones     (list, requerido — lista de pk de OpcionVariante),
+        activo       (bool, opcional),
       }
-
-    Al crear, stock_actual se aplica directamente y dispara la sincronización
-    en Producto.stock_actual via ProductoColor.save().
     """
 
     def post(self, request):
@@ -396,29 +663,34 @@ class ProductoColorAccionesAjax(LoginRequiredMixin, View):
 
         # ── Edición ──────────────────────────────────────────────
         if pk:
-            color = get_object_or_404(ProductoColor, pk=pk)
+            combinacion = get_object_or_404(CombinacionVariante, pk=pk)
+            codigo_barras = body.get('codigo_barras', combinacion.codigo_barras).strip()
 
-            nombre = body.get('nombre', '').strip()
-            if not nombre:
-                return JsonResponse({
-                    'ok': False, 'errors': {'nombre': ['El nombre es obligatorio.']}
-                }, status=400)
+            opciones_pks = body.get('opciones')
+            if opciones_pks is not None:
+                errores = _validar_payload_combinacion(
+                    combinacion.producto,
+                    opciones_pks,
+                    combinacion_pk=combinacion.pk,
+                    codigo_barras=codigo_barras,
+                )
+                if errores:
+                    return JsonResponse({'ok': False, 'errors': errores}, status=400)
 
-            # Verificar unicidad dentro del producto (excluyendo el actual)
-            if (ProductoColor.objects
-                    .filter(producto=color.producto, nombre__iexact=nombre)
-                    .exclude(pk=pk)
-                    .exists()):
-                return JsonResponse({
-                    'ok': False, 'errors': {'nombre': ['Ya existe un color con ese nombre para este producto.']}
-                }, status=400)
+            combinacion.codigo_barras = codigo_barras
+            combinacion.sku_variante = body.get('sku_variante', combinacion.sku_variante).strip()
+            combinacion.activo = body.get('activo', combinacion.activo)
 
-            color.nombre       = nombre
-            color.codigo_hex   = body.get('codigo_hex', color.codigo_hex).strip()
-            color.sku_variante = body.get('sku_variante', color.sku_variante).strip()
+            if opciones_pks is not None:
+                _aplicar_opciones_combinacion(combinacion, opciones_pks)
 
-            color.save()  # dispara sincronización en Producto.stock_actual
-            return JsonResponse({'ok': True, 'creado': False, 'color': _serializar_color(color)})
+            combinacion.save()
+            combinacion.refresh_from_db()
+            return JsonResponse({
+                'ok': True,
+                'creado': False,
+                'combinacion': _serializar_combinacion(combinacion),
+            })
 
         # ── Creación ─────────────────────────────────────────────
         producto_pk = body.get('producto_pk')
@@ -426,24 +698,16 @@ class ProductoColorAccionesAjax(LoginRequiredMixin, View):
             return JsonResponse({'error': 'producto_pk requerido.'}, status=400)
 
         producto = get_object_or_404(Producto, pk=producto_pk)
+        opciones_pks = body.get('opciones', [])
+        codigo_barras = body.get('codigo_barras', '').strip()
 
-        nombre = body.get('nombre', '').strip()
-        if not nombre:
-            return JsonResponse({
-                'ok': False, 'errors': {'nombre': ['El nombre es obligatorio.']}
-            }, status=400)
-
-        if ProductoColor.objects.filter(producto=producto, nombre__iexact=nombre).exists():
-            return JsonResponse({
-                'ok': False, 'errors': {'nombre': ['Ya existe un color con ese nombre para este producto.']}
-            }, status=400)
-
-        # Validar hex si viene
-        codigo_hex = body.get('codigo_hex', '').strip()
-        if codigo_hex and (len(codigo_hex) != 7 or not codigo_hex.startswith('#')):
-            return JsonResponse({
-                'ok': False, 'errors': {'codigo_hex': ['Formato inválido. Use #RRGGBB.']}
-            }, status=400)
+        errores = _validar_payload_combinacion(
+            producto,
+            opciones_pks,
+            codigo_barras=codigo_barras,
+        )
+        if errores:
+            return JsonResponse({'ok': False, 'errors': errores}, status=400)
 
         try:
             stock_actual = int(body.get('stock_actual', 0))
@@ -451,35 +715,37 @@ class ProductoColorAccionesAjax(LoginRequiredMixin, View):
                 raise ValueError
         except (TypeError, ValueError):
             return JsonResponse({
-                'ok': False, 'errors': {'stock_actual': ['La cantidad no puede ser negativa.']}
+                'ok': False, 'errors': {'stock_actual': ['La cantidad no puede ser negativa.']},
             }, status=400)
 
-        color = ProductoColor(
-            producto     = producto,
-            nombre       = nombre,
-            codigo_hex   = codigo_hex,
-            sku_variante = body.get('sku_variante', '').strip(),
-            stock_actual = stock_actual,
+        combinacion = CombinacionVariante(
+            producto=producto,
+            codigo_barras=codigo_barras,
+            sku_variante=body.get('sku_variante', '').strip(),
+            stock_actual=stock_actual,
+            activo=body.get('activo', True),
         )
-        color.save()  # dispara sincronización en Producto.stock_actual
+        combinacion.save()
+        _aplicar_opciones_combinacion(combinacion, opciones_pks)
+        combinacion.refresh_from_db()
 
-        return JsonResponse({'ok': True, 'creado': True, 'color': _serializar_color(color)})
+        return JsonResponse({
+            'ok': True,
+            'creado': True,
+            'combinacion': _serializar_combinacion(combinacion),
+        })
 
 
-class ProductoColorStockAjax(LoginRequiredMixin, View):
+class CombinacionVarianteStockAjax(LoginRequiredMixin, View):
     """
-    POST → ajusta el stock_actual de un color específico.
+    POST → ajusta el stock_actual de una combinación específica.
     No pasa por MovimientoStock (sprint actual).
 
     Payload JSON:
       {
-        pk           (int, requerido — pk del ProductoColor),
+        pk           (int, requerido — pk del CombinacionVariante),
         stock_actual (decimal, requerido — nuevo valor absoluto de stock),
       }
-
-    FUTURO: cuando MovimientoStock tenga FK a ProductoColor, este endpoint
-    deberá crear un MovimientoStock de tipo AJUSTE_POS o AJUSTE_NEG según
-    la diferencia, para mantener el historial completo.
     """
 
     def post(self, request):
@@ -495,11 +761,11 @@ class ProductoColorStockAjax(LoginRequiredMixin, View):
         if not pk:
             return JsonResponse({'error': 'pk requerido.'}, status=400)
 
-        color = get_object_or_404(ProductoColor, pk=pk)
+        combinacion = get_object_or_404(CombinacionVariante, pk=pk)
 
         try:
             nuevo_stock = int(body.get('stock_actual'))
-            if nuevo_stock < 0 and not color.producto.permite_stock_negativo:
+            if nuevo_stock < 0 and not combinacion.producto.permite_stock_negativo:
                 raise ValueError('Stock negativo no permitido para este producto.')
         except (TypeError, ValueError) as e:
             if 'negativo' in str(e):
@@ -508,25 +774,25 @@ class ProductoColorStockAjax(LoginRequiredMixin, View):
                 'ok': False, 'error': 'La cantidad debe ser un número entero válido.'
             }, status=400)
 
-        stock_anterior   = color.stock_actual
-        color.stock_actual = nuevo_stock
-        color.save()  # dispara sincronización en Producto.stock_actual
+        stock_anterior   = combinacion.stock_actual
+        combinacion.stock_actual = nuevo_stock
+        combinacion.save()  # dispara sincronización en Producto.stock_actual
 
-        color.producto.refresh_from_db()
+        combinacion.producto.refresh_from_db()
 
         return JsonResponse({
             'ok':              True,
             'stock_anterior':  str(stock_anterior),
             'stock_posterior': str(nuevo_stock),
-            'stock_total':     str(color.producto.stock_actual),
-            'color':           _serializar_color(color),
+            'stock_total':     str(combinacion.producto.stock_actual),
+            'combinacion':     _serializar_combinacion(combinacion),
         })
 
 
-class ProductoColorToggleActivoAjax(LoginRequiredMixin, View):
+class CombinacionVarianteToggleActivoAjax(LoginRequiredMixin, View):
     """
-    POST → activa o desactiva un color (no lo elimina).
-    Desactivar un color lo excluye del stock total del producto.
+    POST → activa o desactiva una combinación (no la elimina).
+    Desactivar una combinación la excluye del stock total del producto.
 
     Payload JSON: { pk (int) }
     """
@@ -544,14 +810,14 @@ class ProductoColorToggleActivoAjax(LoginRequiredMixin, View):
         if not pk:
             return JsonResponse({'error': 'pk requerido.'}, status=400)
 
-        color        = get_object_or_404(ProductoColor, pk=pk)
-        color.activo = not color.activo
-        color.save()  # dispara sincronización en Producto.stock_actual
+        combinacion        = get_object_or_404(CombinacionVariante, pk=pk)
+        combinacion.activo = not combinacion.activo
+        combinacion.save()  # dispara sincronización en Producto.stock_actual
 
         return JsonResponse({
-            'ok':    True,
-            'activo': color.activo,
-            'color':  _serializar_color(color),
+            'ok':          True,
+            'activo':      combinacion.activo,
+            'combinacion': _serializar_combinacion(combinacion),
         })
 
 

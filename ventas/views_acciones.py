@@ -6,7 +6,7 @@ from django.views import View
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 
-from productos.models import Producto, ProductoColor
+from productos.models import Producto, CombinacionVariante
 from core.models import Cliente
 from .models import Venta, EstadoVenta
 from core.permisos import chequear_permiso
@@ -106,15 +106,15 @@ class EditarVentaAjax(LoginRequiredMixin, View):
         "medio_pago": "efectivo",
         "items": [
             {
-                "producto_pk":     1,
-                "cliente_pk":      2,
-                "color_pk":        3,
-                "cantidad":        "3",
-                "precio_unitario": "12.00",
-                "moneda":          "ARS",
-                "descuento_pct":   "0",
-                "condicion_pago":  "contado",
-                "referencia":      ""
+                "producto_pk":       1,
+                "cliente_pk":        2,
+                "combinacion_pk":    3,
+                "cantidad":          "3",
+                "precio_unitario":   "12.00",
+                "moneda":            "ARS",
+                "descuento_pct":     "0",
+                "condicion_pago":    "contado",
+                "referencia":        ""
             }
         ]
     }
@@ -186,26 +186,26 @@ class EditarVentaAjax(LoginRequiredMixin, View):
             if cliente_pk:
                 cliente = Cliente.objects.filter(pk=cliente_pk).first()
 
-            # ── Color (solo para productos con variantes) ──────────
-            color    = None
-            color_pk = raw.get('color_pk')
-            if color_pk:
-                color = ProductoColor.objects.filter(pk=color_pk, producto=producto).first()
-                if not color:
-                    errores.append(f'Ítem {idx}: el color seleccionado no pertenece a este producto.')
+            # ── Combinación (solo para productos con variantes) ───────
+            combinacion    = None
+            combinacion_pk = raw.get('combinacion_pk')
+            if combinacion_pk:
+                combinacion = CombinacionVariante.objects.filter(pk=combinacion_pk, producto=producto).first()
+                if not combinacion:
+                    errores.append(f'Ítem {idx}: la combinación seleccionada no pertenece a este producto.')
                     continue
 
-            if producto.tiene_variantes_color and color is None:
+            if producto.gestiona_variantes and combinacion is None:
                 errores.append(
-                    f'Ítem {idx}: "{producto.nombre}" maneja variantes de color. '
-                    f'Cada color debe enviarse como un ítem separado con su color_pk.'
+                    f'Ítem {idx}: "{producto.nombre}" maneja variantes. '
+                    f'Cada combinación debe enviarse como un ítem separado con su combinacion_pk.'
                 )
                 continue
 
             items_data.append({
                 'producto':        producto,
                 'cliente':         cliente,
-                'color':           color,
+                'combinacion':    combinacion,
                 'cantidad':        cantidad,
                 'precio_unitario': precio_unitario,
                 'moneda':          raw.get('moneda', 'ARS'),

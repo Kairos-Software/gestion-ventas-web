@@ -110,7 +110,7 @@
                         data-minimo="{{ p.stock_minimo }}"
                         data-maximo="{{ p.stock_maximo|default:'' }}"
                         data-unidad="{{ p.get_unidad_medida_display }}"
-                        data-colores="{{ p.colores_json_str }}">
+                        data-colores="{{ p.combinaciones_json_str }}">
 
                         <td>
                             <div class="prod-info">
@@ -143,19 +143,16 @@
                             </div>
                             {% endwith %}
 
-                            {# Chips de color: id="colorChip-<productoPk>-<colorPk>" para actualización JS #}
-                            {% if p.tiene_variantes_color %}
-                            <div class="stock-colores">
-                                {% for c in p.colores.all %}
+                            {# Chips de combinación: id="combinacionChip-<productoPk>-<combinacionPk>" para actualización JS #}
+                            {% if p.gestiona_variantes %}
+                            <div class="stock-combinaciones">
+                                {% for c in p.combinaciones.all %}
                                     {% if c.activo %}
-                                    <span class="stock-color-chip"
-                                          id="colorChip-{{ p.pk }}-{{ c.pk }}"
+                                    <span class="stock-combinacion-chip"
+                                          id="combinacionChip-{{ p.pk }}-{{ c.pk }}"
                                           data-stock="{{ c.stock_actual }}"
                                           {% if c.stock_actual <= 0 %}style="display:none"{% endif %}>
-                                        {% if c.codigo_hex %}
-                                        <span class="stock-color-swatch" style="background:{{ c.codigo_hex }}"></span>
-                                        {% endif %}
-                                        <span class="chip-nombre">{{ c.nombre }}:</span>
+                                        <span class="chip-nombre">{{ c.descripcion_combinacion }}:</span>
                                         <span class="chip-stock">{{ c.stock_actual|floatformat:"-3" }}</span>
                                     </span>
                                     {% endif %}
@@ -287,20 +284,20 @@
             </div>
 
             <!--
-                Selector de color — solo visible para productos con variantes.
+                Selector de combinación — solo visible para productos con variantes.
                 Se muestra/oculta y se popula dinámicamente desde abrirAjuste() en stock.js,
-                usando el JSON de p.colores_json_str que está en data-colores del <tr>.
+                usando el JSON de p.combinaciones_json_str que está en data-colores del <tr>.
             -->
-            <div class="form-group" id="ajusteColorWrap" style="margin:0; display:none;">
+            <div class="form-group" id="ajusteCombinacionWrap" style="margin:0; display:none;">
                 <label class="form-label">
-                    Color / variante
+                    Combinación de variantes
                     <span style="color:var(--danger); font-weight:600;">*</span>
                 </label>
-                <select id="ajusteColorSelect" class="form-control">
-                    <option value="">— Seleccioná un color —</option>
+                <select id="ajusteCombinacionSelect" class="form-control">
+                    <option value="">— Seleccioná una combinación —</option>
                 </select>
                 <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.3rem;">
-                    El ajuste se aplica solo a este color. El stock total del producto se actualiza automáticamente.
+                    El ajuste se aplica solo a esta combinación. El stock total del producto se actualiza automáticamente.
                 </div>
             </div>
 

@@ -1,0 +1,465 @@
+/* ══════════════════════════════════════════════════════════════════
+   transacciones.css — Kai-Cart
+   Estilos del módulo de Transacciones de Caja Grande.
+   Usa los tokens de base.css, no los redefine.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── Animaciones de toast ───────────────────────────────────────── */
+@keyframes trxToastIn  { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+@keyframes trxToastOut { from { opacity:1; transform:translateY(0); }  to { opacity:0; transform:translateY(8px); } }
+
+/* ══════════════════════════════════════════════════════════════════
+   ENCABEZADO DE PÁGINA
+   ══════════════════════════════════════════════════════════════════ */
+.trx-page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1.75rem;
+}
+
+.trx-page-title {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.trx-page-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: var(--radius-md);
+    background: var(--brand-orange);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(242,106,27,0.3);
+}
+
+.trx-page-icon svg { color: white; }
+
+.trx-page-title-text p {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+    color: var(--brand-orange);
+    text-transform: uppercase;
+    margin-bottom: 0.125rem;
+}
+
+.trx-page-title-text h4 {
+    font-family: var(--font-heading);
+    font-size: 1.375rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.3px;
+    margin-bottom: 0.125rem;
+}
+
+.trx-page-title-text small {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   FILTROS
+   ══════════════════════════════════════════════════════════════════ */
+.trx-filtros {
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.25rem;
+    box-shadow: var(--shadow-sm);
+}
+
+.trx-filtros-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 160px 160px auto;
+    gap: 0.75rem;
+    align-items: end;
+}
+
+.trx-filtros-acciones {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   TABLA
+   ══════════════════════════════════════════════════════════════════ */
+.trx-card {
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+
+.trx-table-wrap { overflow-x: auto; }
+
+.trx-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.trx-table thead tr {
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+}
+
+.trx-table th {
+    padding: 0.75rem 1rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.trx-table th:first-child { padding-left: 1.5rem; }
+.trx-table th:last-child  { padding-right: 1.5rem; text-align: right; }
+
+.trx-table tbody tr {
+    border-bottom: 1px solid var(--border-color);
+    transition: background var(--transition-fast);
+}
+
+.trx-table tbody tr:last-child { border-bottom: none; }
+.trx-table tbody tr:hover      { background: var(--bg-secondary); }
+
+.trx-table td {
+    padding: 0.875rem 1rem;
+    color: var(--text-secondary);
+    vertical-align: middle;
+}
+
+.trx-table td:first-child { padding-left: 1.5rem; color: var(--text-primary); font-weight: 500; }
+.trx-table td:last-child  { padding-right: 1.5rem; }
+
+/* ── Badges de tipo ─────────────────────────────────────────────── */
+.trx-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.625rem;
+    border-radius: 2rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    white-space: nowrap;
+}
+
+.trx-badge.badge-success {
+    background: rgba(16,185,129,0.1);
+    color: #065F46;
+    border: 1px solid rgba(16,185,129,0.2);
+}
+
+.trx-badge.badge-warning {
+    background: rgba(245,158,11,0.1);
+    color: #92400E;
+    border: 1px solid rgba(245,158,11,0.2);
+}
+
+.trx-badge.badge-info {
+    background: rgba(59,130,246,0.1);
+    color: #1E40AF;
+    border: 1px solid rgba(59,130,246,0.2);
+}
+
+.trx-badge.badge-primary {
+    background: rgba(242,106,27,0.1);
+    color: var(--brand-orange-dark);
+    border: 1px solid rgba(242,106,27,0.2);
+}
+
+/* ── Montos ─────────────────────────────────────────────────────── */
+.trx-monto {
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+.trx-monto--egreso  { color: var(--danger); }
+.trx-monto--ingreso { color: var(--success); }
+
+.trx-costo-extra {
+    font-size: 0.75rem;
+    color: var(--danger);
+    opacity: 0.8;
+    margin-top: 0.15rem;
+}
+
+.trx-costo-extra span {
+    color: var(--text-muted);
+    font-weight: 400;
+}
+
+/* ── Botones de acción en tabla ─────────────────────────────────── */
+.trx-btn-accion {
+    width: 30px;
+    height: 30px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-fast);
+    margin-left: 0.25rem;
+}
+
+.trx-btn-accion:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border-color: var(--border-strong);
+}
+
+.trx-btn-accion--danger:hover {
+    background: rgba(239,68,68,0.07);
+    color: var(--danger);
+    border-color: rgba(239,68,68,0.25);
+}
+
+/* ── Paginación ─────────────────────────────────────────────────── */
+.trx-card-footer {
+    padding: 0.875rem 1.5rem;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: center;
+}
+
+.trx-paginacion {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.trx-pag-btn {
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    transition: all var(--transition-fast);
+}
+
+.trx-pag-btn:hover { background: var(--bg-secondary); border-color: var(--border-strong); }
+
+.trx-pag-btn.active {
+    background: var(--brand-orange);
+    border-color: var(--brand-orange);
+    color: white;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   MODAL — CREAR
+   ══════════════════════════════════════════════════════════════════ */
+.trx-modal-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1.25rem 1.5rem 0;
+}
+
+.trx-modal-header-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: var(--radius-md);
+    background: var(--accent-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--brand-orange);
+    flex-shrink: 0;
+}
+
+.trx-modal-header h5 {
+    font-family: var(--font-heading);
+    font-size: 1.0625rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    flex: 1;
+}
+
+/* ── Label de campo dentro del modal ───────────────────────────── */
+.trx-label {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 0.375rem;
+}
+
+.trx-required { color: var(--danger); margin-left: 2px; }
+
+/* ── Sección de divisa ──────────────────────────────────────────── */
+.trx-seccion-divisa {
+    background: rgba(242,106,27,0.04);
+    border: 1px solid rgba(242,106,27,0.18);
+    border-radius: var(--radius-md);
+    padding: 1rem 1.125rem;
+}
+
+.trx-seccion-divisa-titulo {
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: .05em;
+    color: var(--brand-orange-dark);
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.875rem;
+}
+
+/* ── Preview calculado ──────────────────────────────────────────── */
+.trx-preview {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 0.875rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    font-size: 0.8125rem;
+    transition: opacity var(--transition-fast);
+}
+
+.trx-preview--hidden { display: none; }
+
+.trx-preview-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+}
+
+.trx-preview-row span  { color: var(--text-muted); }
+.trx-preview-row strong { font-weight: 600; }
+
+/* ── Error inline en modal ──────────────────────────────────────── */
+.trx-error {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    background: rgba(239,68,68,0.07);
+    border: 1px solid rgba(239,68,68,0.2);
+    border-radius: var(--radius-md);
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    color: #991B1B;
+}
+
+.trx-hidden { display: none !important; }
+
+/* ══════════════════════════════════════════════════════════════════
+   MODAL — DETALLE
+   ══════════════════════════════════════════════════════════════════ */
+.trx-detalle-dl {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.trx-detalle-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    padding: 0.625rem 0;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.875rem;
+}
+
+.trx-detalle-row:last-child { border-bottom: none; }
+
+.trx-detalle-row dt {
+    width: 140px;
+    flex-shrink: 0;
+    font-weight: 600;
+    color: var(--text-muted);
+    font-size: 0.8125rem;
+}
+
+.trx-detalle-row dd {
+    flex: 1;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   MODAL — CONFIRMAR ANULAR
+   ══════════════════════════════════════════════════════════════════ */
+.trx-confirm-body {
+    text-align: center;
+    padding: 2rem 1.5rem 1.25rem;
+}
+
+.trx-confirm-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: rgba(239,68,68,0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+    color: var(--danger);
+}
+
+.trx-confirm-body h6 {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.trx-confirm-body p {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    max-width: 280px;
+    margin: 0 auto;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   UTILIDADES COMUNES
+   ══════════════════════════════════════════════════════════════════ */
+.color-success { color: var(--success); }
+.color-danger  { color: var(--danger); }
+.fw-600        { font-weight: 600; }
+
+/* ══════════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ══════════════════════════════════════════════════════════════════ */
+@media (max-width: 1023px) {
+    .trx-filtros-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+    .trx-filtros-acciones {
+        grid-column: span 2;
+    }
+}
+
+@media (max-width: 767px) {
+    .trx-page-header { flex-direction: column; align-items: flex-start; }
+    .trx-filtros-grid { grid-template-columns: 1fr; }
+    .trx-filtros-acciones { grid-column: span 1; }
+
+    .trx-table th,
+    .trx-table td { font-size: 0.8125rem; padding: 0.625rem 0.75rem; }
+    .trx-table th:first-child,
+    .trx-table td:first-child { padding-left: 1rem; }
+    .trx-table th:last-child,
+    .trx-table td:last-child  { padding-right: 1rem; }
+
+    .trx-detalle-row dt { width: 110px; }
+}

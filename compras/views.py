@@ -8,7 +8,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
-from productos.models import Producto, Proveedor, ProductoColor
+from productos.models import Producto, Proveedor, CombinacionVariante
 from .models import Compra, ItemCompra, EstadoCompra
 from core.permisos import chequear_permiso
 
@@ -39,16 +39,16 @@ class BuscarProductoAjax(LoginRequiredMixin, View):
     """
     GET ?q=texto → lista de productos para el autocomplete.
 
-    Cuando el producto tiene tiene_variantes_color=True se incluye
-    la lista de colores activos con su stock, para que el frontend
-    pueda mostrar el selector de distribución por color.
+    Cuando el producto tiene gestiona_variantes=True se incluye
+    la lista de combinaciones activas con su stock, para que el frontend
+    pueda mostrar el selector de distribución por combinación.
     """
 
     def get(self, request):
         if not chequear_permiso(request.user, 'crear_compras'):
             return JsonResponse({'error': 'Sin permiso.'}, status=403)
 
-        # ── Modo ?pk= : producto específico con colores.
+        # ── Modo ?pk= : producto específico con combinaciones.
         #    Usado por el editor del historial para enriquecer swatches
         #    al abrir el panel de edición de una compra anulada.
         pk_param = request.GET.get('pk', '').strip()
@@ -56,7 +56,7 @@ class BuscarProductoAjax(LoginRequiredMixin, View):
             try:
                 p = (Producto.objects
                      .select_related('categoria', 'tipo', 'proveedor')
-                     .prefetch_related('colores')
+                     .prefetch_related('combinaciones')
                      .get(pk=pk_param))
             except Producto.DoesNotExist:
                 return JsonResponse({'results': []})
@@ -67,43 +67,50 @@ class BuscarProductoAjax(LoginRequiredMixin, View):
         qs = (
             Producto.objects
             .select_related('categoria', 'tipo', 'proveedor')
-            .prefetch_related('colores')
+            .prefetch_related('combinaciones')
             .filter(estado='activo')
             .order_by('nombre')
         )
         if q:
-            qs = qs.filter(nombre__icontains=q) | qs.filter(codigo__icontains=q)
+            # Buscar por nombre, código, código de barras global o código de barras de variante
+            qs = (
+                qs.filter(nombre__icontains=q) |
+                qs.filter(codigo__icontains=q) |
+                qs.filter(codigo_barras__icontains=q) |
+                qs.filter(combinaciones__codigo_barras__icontains=q)
+            ).distinct()
 
         return JsonResponse({'results': [self._serializar(p) for p in qs[:30]]})
 
     def _serializar(self, p):
-        colores = []
-        if p.tiene_variantes_color:
-            colores = [
+        combinaciones = []
+        if p.gestiona_variantes:
+            combinaciones = [
                 {
-                    'pk':           c.pk,
-                    'nombre':       c.nombre,
-                    'codigo_hex':   c.codigo_hex,
-                    'sku_variante': c.sku_variante,
-                    'stock_actual': float(c.stock_actual),
+                    'pk':                    c.pk,
+                    'descripcion':           c.descripcion_legible(),
+                    'descripcion_combinacion': c.descripcion_legible(),
+                    'codigo_barras':         c.codigo_barras,
+                    'sku_variante':          c.sku_variante,
+                    'stock_actual':          float(c.stock_actual),
                 }
-                for c in p.colores.filter(activo=True).order_by('nombre')
+                for c in p.combinaciones.filter(activo=True).order_by('pk')
             ]
         return {
-            'pk':                    p.pk,
-            'codigo':                p.codigo,
-            'nombre':                p.nombre,
-            'unidad_medida':         p.get_unidad_medida_display(),
-            'stock_actual':          float(p.stock_actual),
-            'stock_minimo':          float(p.stock_minimo),
-            'categoria':             p.categoria.nombre if p.categoria else '',
-            'tipo':                  p.tipo.nombre if p.tipo else '',
-            'marca':                 p.marca,
-            'modelo':                p.modelo,
-            'proveedor_pk':          p.proveedor_id or '',
-            'proveedor':             p.proveedor.nombre if p.proveedor else '',
-            'tiene_variantes_color': p.tiene_variantes_color,
-            'colores':               colores,
+            'pk':                   p.pk,
+            'codigo':               p.codigo,
+            'nombre':               p.nombre,
+            'unidad_medida':        p.get_unidad_medida_display(),
+            'stock_actual':        float(p.stock_actual),
+            'stock_minimo':        float(p.stock_minimo),
+            'categoria':           p.categoria.nombre if p.categoria else '',
+            'tipo':                p.tipo.nombre if p.tipo else '',
+            'marca':               p.marca,
+            'modelo':              p.modelo,
+            'proveedor_pk':        p.proveedor_id or '',
+            'proveedor':           p.proveedor.nombre if p.proveedor else '',
+            'gestiona_variantes':  p.gestiona_variantes,
+            'combinaciones':       combinaciones,
         }
 
 
@@ -148,15 +155,15 @@ class GuardarBorradorAjax(LoginRequiredMixin, View):
         "notas": "...",
         "items": [
             {
-                "producto_pk":    1,
-                "proveedor_pk":   2,        // opcional
-                "color_pk":       5,        // solo si tiene variantes color
-                "cantidad":       "10.000",
-                "costo_unitario": "150.00",
-                "moneda":         "ARS",
-                "descuento_pct":  "0",
-                "condicion_pago": "contado",
-                "referencia":     "FA-0001"
+                "producto_pk":       1,
+                "proveedor_pk":      2,        // opcional
+                "combinacion_pk":    5,        // solo si tiene variantes
+                "cantidad":          "10.000",
+                "costo_unitario":    "150.00",
+                "moneda":            "ARS",
+                "descuento_pct":     "0",
+                "condicion_pago":    "contado",
+                "referencia":        "FA-0001"
             },
             ...
         ]
@@ -224,24 +231,34 @@ class GuardarBorradorAjax(LoginRequiredMixin, View):
             if proveedor_pk:
                 proveedor = Proveedor.objects.filter(pk=proveedor_pk).first()
 
-            # — Color (solo si el producto gestiona variantes de color) —
-            color = None
-            color_pk = raw.get('color_pk')
-            if producto.tiene_variantes_color and color_pk:
-                color = ProductoColor.objects.filter(
-                    pk=color_pk, producto=producto, activo=True
+            # — Combinación (solo si el producto gestiona variantes) —
+            combinacion = None
+            combinacion_pk = raw.get('combinacion_pk')
+            if producto.gestiona_variantes and combinacion_pk:
+                combinacion = CombinacionVariante.objects.filter(
+                    pk=combinacion_pk, producto=producto, activo=True
                 ).first()
-                if color is None:
+                if combinacion is None:
                     errores.append(
-                        f'Ítem {idx}: el color indicado no existe o no pertenece al producto.'
+                        f'Ítem {idx}: la combinación indicada no existe o no pertenece al producto.'
                     )
                     continue
+
+            # — Fecha de vencimiento (opcional, requerida para perecederos) —
+            fecha_vencimiento = None
+            fv_raw = raw.get('fecha_vencimiento')
+            if fv_raw:
+                try:
+                    from datetime import datetime
+                    fecha_vencimiento = datetime.strptime(fv_raw, '%Y-%m-%d').date()
+                except (ValueError, TypeError):
+                    pass  # Si el formato es inválido, se deja como None
 
             ItemCompra.objects.create(
                 compra         = compra,
                 producto       = producto,
                 proveedor      = proveedor,
-                color          = color,
+                combinacion    = combinacion,
                 cantidad       = cantidad,
                 costo_unitario = costo_unitario,
                 moneda         = raw.get('moneda', 'ARS'),
@@ -249,6 +266,7 @@ class GuardarBorradorAjax(LoginRequiredMixin, View):
                 condicion_pago = raw.get('condicion_pago', 'contado'),
                 referencia     = raw.get('referencia', ''),
                 notas          = raw.get('notas', ''),
+                fecha_vencimiento = fecha_vencimiento,
             )
 
         if errores:
@@ -486,7 +504,7 @@ class DetalleCompraView(LoginRequiredMixin, View):
             Compra.objects.prefetch_related(
                 'items__producto',
                 'items__proveedor',
-                'items__color',
+                'items__combinacion',
                 'documentos',
             ),
             pk=pk
@@ -495,7 +513,7 @@ class DetalleCompraView(LoginRequiredMixin, View):
         from django.urls import reverse
         return _render(request, self.template_name, {
             'compra':     compra,
-            'items':      compra.items.select_related('producto', 'proveedor', 'color').all(),
+            'items':      compra.items.select_related('producto', 'proveedor', 'combinacion').all(),
             'documentos': compra.documentos.all(),
             # — Flags para el template —
             'es_borrador': compra.estado == EstadoCompra.BORRADOR,

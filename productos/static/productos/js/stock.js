@@ -19,13 +19,13 @@ function abrirAjuste(btn) {
     const stock  = row.dataset.stock;
     const unidad = row.dataset.unidad;
 
-    // Colores del producto: JSON inyectado en data-colores del <tr>.
-    // Si el producto no tiene variantes de color, el array estará vacío.
-    let colores = [];
+    // Combinaciones del producto: JSON inyectado en data-colores del <tr>.
+    // Si el producto no tiene variantes, el array estará vacío.
+    let combinaciones = [];
     try {
-        colores = JSON.parse(row.dataset.colores || '[]');
+        combinaciones = JSON.parse(row.dataset.colores || '[]');
     } catch (e) {
-        colores = [];
+        combinaciones = [];
     }
 
     // ── Resetear campos ────────────────────────────────────────────
@@ -43,22 +43,22 @@ function abrirAjuste(btn) {
     btnAjuste.disabled    = false;
     btnAjuste.textContent = 'Confirmar ajuste';
 
-    // ── Selector de color ───────────────────────────────────────────
-    const colorWrap   = document.getElementById('ajusteColorWrap');
-    const colorSelect = document.getElementById('ajusteColorSelect');
+    // ── Selector de combinación ───────────────────────────────────────────
+    const combinacionWrap   = document.getElementById('ajusteCombinacionWrap');
+    const combinacionSelect = document.getElementById('ajusteCombinacionSelect');
 
-    if (colores.length > 0) {
-        colorSelect.innerHTML =
-            '<option value="">— Seleccioná un color —</option>' +
-            colores.map(c => {
-                const stockColor = parseFloat(c.stock_actual);
-                const stockFmt   = (stockColor % 1 === 0 ? parseInt(stockColor) : stockColor).toString();
-                return `<option value="${c.pk}">${c.nombre} (stock: ${stockFmt})</option>`;
+    if (combinaciones.length > 0) {
+        combinacionSelect.innerHTML =
+            '<option value="">— Seleccioná una combinación —</option>' +
+            combinaciones.map(c => {
+                const stockCombinacion = parseFloat(c.stock_actual);
+                const stockFmt         = (stockCombinacion % 1 === 0 ? parseInt(stockCombinacion) : stockCombinacion).toString();
+                return `<option value="${c.pk}">${c.descripcion_combinacion} (stock: ${stockFmt})</option>`;
             }).join('');
-        colorWrap.style.display = 'block';
+        combinacionWrap.style.display = 'block';
     } else {
-        colorSelect.innerHTML   = '';
-        colorWrap.style.display = 'none';
+        combinacionSelect.innerHTML   = '';
+        combinacionWrap.style.display = 'none';
     }
 
     document.getElementById('modalAjuste').classList.add('visible');
@@ -81,12 +81,12 @@ async function registrarAjuste() {
     const cantidad = document.getElementById('ajusteCantidad').value;
     const motivo   = document.getElementById('ajusteMotivo').value;
 
-    // color_pk: presente solo si el producto tiene colores y el select está visible
-    const colorWrap   = document.getElementById('ajusteColorWrap');
-    const colorSelect = document.getElementById('ajusteColorSelect');
-    const colorPk     = (colorWrap.style.display !== 'none' && colorSelect.value)
-                        ? colorSelect.value
-                        : null;
+    // combinacion_pk: presente solo si el producto tiene variantes y el select está visible
+    const combinacionWrap   = document.getElementById('ajusteCombinacionWrap');
+    const combinacionSelect = document.getElementById('ajusteCombinacionSelect');
+    const combinacionPk     = (combinacionWrap.style.display !== 'none' && combinacionSelect.value)
+                                ? combinacionSelect.value
+                                : null;
 
     // ── Validaciones cliente ────────────────────────────────────────
     if (!tipo) {
@@ -95,8 +95,8 @@ async function registrarAjuste() {
     if (!cantidad || parseFloat(cantidad) <= 0) {
         return mostrarFeedbackAjuste('Ingresá una cantidad válida.', false);
     }
-    if (colorWrap.style.display !== 'none' && !colorPk) {
-        return mostrarFeedbackAjuste('Seleccioná el color a ajustar.', false);
+    if (combinacionWrap.style.display !== 'none' && !combinacionPk) {
+        return mostrarFeedbackAjuste('Seleccioná la combinación a ajustar.', false);
     }
 
     const btn = document.getElementById('btnAjuste');
@@ -111,7 +111,7 @@ async function registrarAjuste() {
             cantidad:    parseFloat(cantidad),
             motivo,
         };
-        if (colorPk) payload.color_pk = colorPk;
+        if (combinacionPk) payload.combinacion_pk = combinacionPk;
 
         const res  = await fetch(URLS.ajuste, {
             method:  'POST',
@@ -127,10 +127,10 @@ async function registrarAjuste() {
             // Actualizar KPIs del header (stock bajo, sin stock, total)
             actualizarKPIs();
 
-            // Si el ajuste fue por color, actualizar stock en memoria y chip visual
-            if (data.color_pk != null && data.color_stock != null) {
-                actualizarStockColorEnRow(pk, data.color_pk, data.color_stock);
-                actualizarChipColor(pk, data.color_pk, data.color_stock);
+            // Si el ajuste fue por combinación, actualizar stock en memoria y chip visual
+            if (data.combinacion_pk != null && data.combinacion_stock != null) {
+                actualizarStockCombinacionEnRow(pk, data.combinacion_pk, data.combinacion_stock);
+                actualizarChipCombinacion(pk, data.combinacion_pk, data.combinacion_stock);
             }
 
             mostrarFeedbackAjuste(`✓ Stock: ${data.stock_anterior} → ${data.stock_posterior}`, true);
@@ -248,23 +248,23 @@ function actualizarKPIs() {
     if (kpiSinStock) kpiSinStock.style.color = sinStockCount  > 0 ? 'var(--danger)' : '';
 }
 
-// Actualiza el stock de un color en el dataset del row (estado en memoria)
-function actualizarStockColorEnRow(productoPk, colorPk, nuevoStock) {
+// Actualiza el stock de una combinación en el dataset del row (estado en memoria)
+function actualizarStockCombinacionEnRow(productoPk, combinacionPk, nuevoStock) {
     const row = document.querySelector(`tr[data-pk="${productoPk}"]`);
     if (!row) return;
     try {
-        const colores = JSON.parse(row.dataset.colores || '[]');
-        const c = colores.find(x => String(x.pk) === String(colorPk));
+        const combinaciones = JSON.parse(row.dataset.colores || '[]');
+        const c = combinaciones.find(x => String(x.pk) === String(combinacionPk));
         if (c) {
             c.stock_actual = nuevoStock;
-            row.dataset.colores = JSON.stringify(colores);
+            row.dataset.colores = JSON.stringify(combinaciones);
         }
     } catch { /* ignorar */ }
 }
 
-// Actualiza el chip visual del color en la columna "Stock actual"
-function actualizarChipColor(productoPk, colorPk, nuevoStock) {
-    const chip = document.getElementById(`colorChip-${productoPk}-${colorPk}`);
+// Actualiza el chip visual de la combinación en la columna "Stock actual"
+function actualizarChipCombinacion(productoPk, combinacionPk, nuevoStock) {
+    const chip = document.getElementById(`combinacionChip-${productoPk}-${combinacionPk}`);
     if (!chip) return;
     const val = parseFloat(nuevoStock);
     const fmt = (val % 1 === 0 ? parseInt(val) : val).toString();

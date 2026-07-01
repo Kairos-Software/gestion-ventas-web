@@ -8,7 +8,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
-from productos.models import Producto, ProductoColor
+from productos.models import Producto, CombinacionVariante
 from core.models import Cliente, DatosEmpresa
 from .models import Venta, ItemVenta, EstadoVenta, MedioPago
 from core.permisos import chequear_permiso
@@ -56,7 +56,7 @@ class BuscarProductoAjax(LoginRequiredMixin, View):
             try:
                 p = (Producto.objects
                      .select_related('categoria', 'tipo')
-                     .prefetch_related('colores')
+                     .prefetch_related('combinaciones')
                      .get(pk=pk_param))
             except Producto.DoesNotExist:
                 return JsonResponse({'results': []})
@@ -66,7 +66,7 @@ class BuscarProductoAjax(LoginRequiredMixin, View):
         qs = (
             Producto.objects
             .select_related('categoria', 'tipo')
-            .prefetch_related('colores')
+            .prefetch_related('combinaciones')
             .filter(estado='activo')
             .order_by('nombre')
         )
@@ -76,33 +76,34 @@ class BuscarProductoAjax(LoginRequiredMixin, View):
         return JsonResponse({'results': [self._serializar(p) for p in qs[:30]]})
 
     def _serializar(self, p):
-        colores = []
-        if p.tiene_variantes_color:
-            colores = [
+        combinaciones = []
+        if p.gestiona_variantes:
+            combinaciones = [
                 {
-                    'pk':           c.pk,
-                    'nombre':       c.nombre,
-                    'codigo_hex':   c.codigo_hex,
-                    'sku_variante': c.sku_variante,
-                    'stock_actual': float(c.stock_actual),
+                    'pk':                    c.pk,
+                    'descripcion':           c.descripcion_legible(),
+                    'descripcion_combinacion': c.descripcion_legible(),
+                    'codigo_barras':         c.codigo_barras,
+                    'sku_variante':          c.sku_variante,
+                    'stock_actual':          float(c.stock_actual),
                 }
-                for c in p.colores.filter(activo=True).order_by('nombre')
+                for c in p.combinaciones.filter(activo=True).order_by('pk')
             ]
         return {
-            'pk':                    p.pk,
-            'codigo':                p.codigo,
-            'nombre':                p.nombre,
-            'unidad_medida':         p.get_unidad_medida_display(),
-            'stock_actual':          float(p.stock_actual),
-            'stock_minimo':          float(p.stock_minimo),
-            'categoria':             p.categoria.nombre if p.categoria else '',
-            'tipo':                  p.tipo.nombre if p.tipo else '',
-            'marca':                 p.marca,
-            'modelo':                p.modelo,
-            'tiene_variantes_color': p.tiene_variantes_color,
-            'colores':               colores,
-            'precio_venta':          float(p.precio_venta) if p.precio_venta is not None else None,
-            'moneda':                'ARS',
+            'pk':                   p.pk,
+            'codigo':               p.codigo,
+            'nombre':               p.nombre,
+            'unidad_medida':        p.get_unidad_medida_display(),
+            'stock_actual':        float(p.stock_actual),
+            'stock_minimo':        float(p.stock_minimo),
+            'categoria':           p.categoria.nombre if p.categoria else '',
+            'tipo':                p.tipo.nombre if p.tipo else '',
+            'marca':               p.marca,
+            'modelo':              p.modelo,
+            'gestiona_variantes':  p.gestiona_variantes,
+            'combinaciones':       combinaciones,
+            'precio_venta':        float(p.precio_venta) if p.precio_venta is not None else None,
+            'moneda':              'ARS',
         }
 
 
@@ -138,7 +139,7 @@ class GuardarBorradorAjax(LoginRequiredMixin, View):
     """
     POST JSON:
     {
-        "items": [ { producto_pk, cliente_pk, color_pk, cantidad,
+        "items": [ { producto_pk, cliente_pk, combinacion_pk, cantidad,
                      precio_unitario, moneda, descuento_pct,
                      condicion_pago, referencia } ]
     }
@@ -207,19 +208,19 @@ class GuardarBorradorAjax(LoginRequiredMixin, View):
             if cliente_pk:
                 cliente = Cliente.objects.filter(pk=cliente_pk).first()
 
-            color    = None
-            color_pk = raw.get('color_pk')
-            if color_pk:
-                color = ProductoColor.objects.filter(pk=color_pk, producto=producto).first()
-                if not color:
-                    errores.append(f'Ítem {idx}: el color no pertenece a este producto.')
+            combinacion    = None
+            combinacion_pk = raw.get('combinacion_pk')
+            if combinacion_pk:
+                combinacion = CombinacionVariante.objects.filter(pk=combinacion_pk, producto=producto).first()
+                if not combinacion:
+                    errores.append(f'Ítem {idx}: la combinación no pertenece a este producto.')
                     continue
 
             ItemVenta.objects.create(
                 venta           = venta,
                 producto        = producto,
                 cliente         = cliente,
-                color           = color,
+                combinacion     = combinacion,
                 cantidad        = cantidad,
                 precio_unitario = precio_unitario,
                 moneda          = raw.get('moneda', 'ARS'),
@@ -474,7 +475,7 @@ class DetalleVentaView(LoginRequiredMixin, View):
 
         venta = get_object_or_404(
             Venta.objects.prefetch_related(
-                'items__producto', 'items__cliente', 'items__color',
+                'items__producto', 'items__cliente', 'items__combinacion',
                 'documentos', 'pagos',
             ),
             pk=pk
@@ -483,7 +484,7 @@ class DetalleVentaView(LoginRequiredMixin, View):
         from django.urls import reverse
         return _render(request, self.template_name, {
             'venta':      venta,
-            'items':      venta.items.select_related('producto', 'cliente', 'color').all(),
+            'items':      venta.items.select_related('producto', 'cliente', 'combinacion').all(),
             'documentos': venta.documentos.all(),
             'pagos':      venta.pagos.all(),
             'es_borrador': venta.estado == EstadoVenta.BORRADOR,
