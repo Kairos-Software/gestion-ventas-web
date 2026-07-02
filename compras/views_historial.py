@@ -35,7 +35,7 @@ class ListarComprasAjax(LoginRequiredMixin, View):
         ).prefetch_related(
             'items__producto',
             'items__proveedor',
-            'items__color',
+            'items__combinacion',
             'documentos',
         ).order_by('-fecha', '-fecha_alta')
 
@@ -71,23 +71,17 @@ class ListarComprasAjax(LoginRequiredMixin, View):
         for c in compras:
             items = []
             for item in c.items.all():
-                # color_hex desde el objeto color (no en snapshot, pero útil para swatches)
-                color_hex = ''
-                if item.color and hasattr(item.color, 'codigo_hex'):
-                    color_hex = item.color.codigo_hex or ''
-
-                tiene_color = bool(item.color_id or item.color_nombre)
+                tiene_combinacion = bool(item.combinacion_id or item.combinacion_descripcion)
 
                 items.append({
                     'producto_pk':      item.producto_id,
                     'producto_cod':     item.producto_codigo or (item.producto.codigo if item.producto else ''),
                     'producto_nombre':  item.producto_nombre or (item.producto.nombre if item.producto else '(eliminado)'),
                     'producto_display': item.nombre_producto_display,
-                    # ── color ──
-                    'color_pk':         item.color_id or '',
-                    'color_nombre':     item.nombre_color_display,
-                    'color_hex':        color_hex,
-                    'tiene_color':      tiene_color,
+                    # ── variante / combinación ──
+                    'combinacion_pk':          item.combinacion_id or '',
+                    'combinacion_descripcion': item.nombre_combinacion_display,
+                    'tiene_combinacion':       tiene_combinacion,
                     # ──────────
                     'proveedor_pk':     item.proveedor_id or '',
                     'proveedor':        item.nombre_proveedor_display,
@@ -99,6 +93,9 @@ class ListarComprasAjax(LoginRequiredMixin, View):
                     'referencia':       item.referencia,
                     'notas':            item.notas,
                     'subtotal':         str(item.subtotal),
+                    # ── vencimiento (solo aplica a productos perecederos) ──
+                    'es_perecedero':    bool(item.producto.es_perecedero) if item.producto else bool(item.fecha_vencimiento),
+                    'fecha_vencimiento': item.fecha_vencimiento.strftime('%Y-%m-%d') if item.fecha_vencimiento else '',
                 })
 
             documentos = []

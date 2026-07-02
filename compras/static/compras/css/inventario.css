@@ -1,0 +1,493 @@
+/* ═══════════════════════════════════════════════════════════════════
+   inventario.css — Kai-Cart / módulo Catálogo · Inventario
+   Extiende el sistema de compras.css (--brand-*, cmp-page-header, etc.)
+   No redefine tokens: solo componentes propios de esta pantalla.
+═══════════════════════════════════════════════════════════════════ */
+
+/* ────────────────────────────────────────────────────────────────
+   STAT CARDS
+──────────────────────────────────────────────────────────────── */
+.inv-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+@media (max-width: 760px) {
+    .inv-stats { grid-template-columns: 1fr; }
+}
+
+.inv-stat-card {
+    display: flex;
+    align-items: center;
+    gap: .9rem;
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: 1rem;
+    padding: 1.1rem 1.25rem;
+    box-shadow: var(--shadow-sm);
+}
+
+.inv-stat-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: .75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.inv-stat-icon--ok       { background: rgba(34, 197, 94, .1);  color: var(--success, #22C55E); }
+.inv-stat-icon--warning  { background: rgba(245, 158, 11, .1); color: var(--warning, #F59E0B); }
+.inv-stat-icon--danger   { background: rgba(239, 68, 68, .1);  color: var(--danger, #EF4444); }
+
+.inv-stat-value {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    line-height: 1.1;
+    letter-spacing: -.02em;
+}
+
+.inv-stat-label {
+    font-size: .78rem;
+    color: var(--text-muted);
+    margin-top: .15rem;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   CARD PRINCIPAL
+──────────────────────────────────────────────────────────────── */
+.inv-main-card {
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: 1rem;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+}
+
+/* ────────────────────────────────────────────────────────────────
+   TOOLBAR — búsqueda + filtros
+──────────────────────────────────────────────────────────────── */
+.inventario-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    padding: 1.1rem 1.25rem;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+}
+
+.inventario-search {
+    position: relative;
+    flex: 1;
+    min-width: 240px;
+    max-width: 440px;
+}
+
+.inventario-search svg {
+    position: absolute;
+    left: .75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    pointer-events: none;
+}
+
+.inventario-search input {
+    width: 100%;
+    padding: .625rem 1rem .625rem 2.4rem;
+    border: 1px solid var(--border-color);
+    border-radius: .625rem;
+    background: var(--bg-white);
+    color: var(--text-primary);
+    font-family: 'DM Sans', sans-serif;
+    font-size: .875rem;
+    box-shadow: var(--shadow-sm);
+    transition: border-color .18s, box-shadow .18s;
+}
+
+.inventario-search input:focus {
+    outline: none;
+    border-color: var(--brand-orange);
+    box-shadow: 0 0 0 3px rgba(242, 106, 27, .12);
+}
+
+.inventario-search input::placeholder { color: var(--text-muted); }
+
+.inventario-filtros {
+    display: flex;
+    gap: .45rem;
+    flex-wrap: wrap;
+}
+
+.filtro-btn {
+    padding: .45rem .9rem;
+    border-radius: .6rem;
+    border: 1px solid var(--border-color);
+    background: var(--bg-white);
+    color: var(--text-muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: .8rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all .15s;
+}
+
+.filtro-btn:hover {
+    border-color: var(--brand-orange-mid);
+    color: var(--brand-orange-dark);
+    background: var(--brand-orange-light);
+}
+
+.filtro-btn.active {
+    background: var(--brand-orange);
+    border-color: var(--brand-orange);
+    color: #fff;
+    box-shadow: var(--shadow-orange);
+}
+
+/* ────────────────────────────────────────────────────────────────
+   TABLA
+──────────────────────────────────────────────────────────────── */
+.inventario-tabla-wrap { overflow-x: auto; }
+
+.inventario-tabla {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .82rem;
+}
+
+.inventario-tabla thead th {
+    padding: .75rem .9rem;
+    text-align: left;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: .65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .09em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-color);
+    white-space: nowrap;
+    background: var(--bg-secondary);
+}
+
+.inventario-tabla tbody td {
+    padding: .7rem .9rem;
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: middle;
+    color: var(--text-primary);
+}
+
+.inventario-tabla tbody tr:last-child td { border-bottom: none; }
+.inventario-tabla tbody tr:hover td { background: var(--bg-surface-hover); }
+
+/* Producto */
+.inv-producto-nombre {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700;
+    font-size: .82rem;
+    color: var(--text-primary);
+    line-height: 1.3;
+}
+
+.inv-variante-desc {
+    font-size: .7rem;
+    color: var(--text-muted);
+    margin-top: .15rem;
+}
+
+/* Código de lote */
+.inv-codigo-lote {
+    font-family: 'Plus Jakarta Sans', monospace;
+    font-size: .7rem;
+    font-weight: 700;
+    background: var(--brand-orange-light);
+    color: var(--brand-orange-dark);
+    border: 1px solid var(--brand-orange-mid);
+    padding: .1rem .5rem;
+    border-radius: .3rem;
+    white-space: nowrap;
+}
+
+/* Barra de cantidad restante */
+.inv-barra-restante {
+    width: 74px;
+    height: 5px;
+    border-radius: 99px;
+    background: var(--bg-secondary);
+    margin-top: .35rem;
+    overflow: hidden;
+}
+
+.inv-barra-restante-fill {
+    height: 100%;
+    background: var(--success, #22C55E);
+    border-radius: 99px;
+    transition: width .3s;
+}
+
+/* Badge de vencimiento */
+.badge-vencimiento {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .2rem .65rem;
+    border-radius: 99px;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: .7rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.badge-vencimiento::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    flex-shrink: 0;
+}
+
+.badge-vencimiento.ok {
+    background: rgba(34, 197, 94, .1);
+    color: var(--success, #22C55E);
+    border: 1px solid rgba(34, 197, 94, .25);
+}
+
+.badge-vencimiento.por_vencer {
+    background: rgba(245, 158, 11, .1);
+    color: var(--warning, #F59E0B);
+    border: 1px solid rgba(245, 158, 11, .25);
+}
+
+.badge-vencimiento.vencido {
+    background: rgba(239, 68, 68, .1);
+    color: var(--danger, #EF4444);
+    border: 1px solid rgba(239, 68, 68, .25);
+}
+
+.badge-vencimiento.sin-fecha {
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
+}
+
+.badge-vencimiento.sin-fecha::before { display: none; }
+
+/* Botón "Código" */
+.btn-ver-codigo {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .4rem .75rem;
+    border-radius: .5rem;
+    border: 1px solid var(--border-color);
+    background: var(--bg-white);
+    color: var(--text-secondary);
+    font-family: 'DM Sans', sans-serif;
+    font-size: .78rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all .15s;
+}
+
+.btn-ver-codigo:hover {
+    border-color: var(--brand-orange);
+    color: var(--brand-orange-dark);
+    background: var(--brand-orange-light);
+}
+
+/* Estado vacío / error dentro de la tabla (usa clases bootstrap ya presentes) */
+.inventario-tabla td.text-center.text-muted,
+.inventario-tabla td.text-center.text-danger {
+    font-family: 'DM Sans', sans-serif;
+    font-size: .85rem;
+    padding: 2.5rem 1rem;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   MODAL — Etiqueta del lote
+──────────────────────────────────────────────────────────────── */
+.etiqueta-imprimir {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .28rem;
+    text-align: center;
+    padding: 1rem;
+    border: 1px dashed var(--border-strong, #CBD5E1);
+    border-radius: .7rem;
+    background: var(--bg-secondary);
+}
+
+.etiqueta-imprimir svg { max-height: 48px; }
+
+.etiqueta-producto {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 800;
+    font-size: .94rem;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.etiqueta-variante {
+    font-size: .76rem;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.etiqueta-detalle {
+    font-size: .72rem;
+    color: var(--text-muted);
+    margin: .2rem 0 0;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   PANEL — Configuración de impresión
+──────────────────────────────────────────────────────────────── */
+.inv-print-config {
+    margin-top: 1rem;
+    padding-top: .9rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.inv-print-config-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: .625rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .09em;
+    color: var(--text-muted);
+    margin-bottom: .625rem;
+}
+
+.inv-print-row {
+    display: flex;
+    gap: .75rem;
+    margin-bottom: .625rem;
+}
+
+.inv-print-field { flex: 1; min-width: 0; }
+
+.inv-print-field label {
+    display: block;
+    font-size: .7rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: .25rem;
+}
+
+.inv-print-config .cmp-select-inline,
+.inv-print-config .cmp-input-inline {
+    padding: .34rem .55rem;
+    font-size: .8rem;
+}
+
+.inv-print-presets {
+    display: flex;
+    gap: .38rem;
+    flex-wrap: wrap;
+    margin-bottom: .7rem;
+}
+
+.inv-preset-btn {
+    padding: .26rem .6rem;
+    border-radius: .5rem;
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-family: 'DM Sans', sans-serif;
+    font-size: .7rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .15s;
+}
+
+.inv-preset-btn:hover {
+    border-color: var(--brand-orange);
+    color: var(--brand-orange-dark);
+    background: var(--brand-orange-light);
+}
+
+.inv-print-resumen {
+    font-size: .75rem;
+    line-height: 1.4;
+    color: var(--text-secondary);
+    background: var(--brand-orange-light);
+    border: 1px solid var(--brand-orange-mid);
+    border-radius: .55rem;
+    padding: .52rem .72rem;
+    margin: 0;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   IMPRESIÓN — área dedicada, generada dinámicamente por JS
+   Fuera de esta área, TODO se oculta durante el print.
+──────────────────────────────────────────────────────────────── */
+#inv-print-area { display: none; }
+
+.inv-print-grid {
+    display: grid;
+    gap: 2mm;
+}
+
+.inv-print-label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    overflow: hidden;
+    padding: 1mm;
+    text-align: center;
+}
+
+.inv-print-label-prod {
+    font-weight: 700;
+    font-size: 2.6mm;
+    line-height: 1.15;
+}
+
+.inv-print-label-var {
+    font-size: 2mm;
+    color: #444;
+    margin-top: .3mm;
+}
+
+.inv-print-label svg { max-width: 100%; }
+
+/* ────────────────────────────────────────────────────────────────
+   MODAL — compactación general
+──────────────────────────────────────────────────────────────── */
+#modalCodigo .modal-header {
+    padding: .85rem 1.1rem;
+}
+
+#modalCodigo .modal-title {
+    font-size: 1.05rem;
+}
+
+#modalCodigo .modal-body {
+    padding: 1rem 1.1rem;
+}
+
+#modalCodigo .modal-footer {
+    padding: .7rem 1.1rem;
+}
+
+@media print {
+    body > *:not(#inv-print-area) {
+        display: none !important;
+    }
+    #inv-print-area {
+        display: block !important;
+    }
+}

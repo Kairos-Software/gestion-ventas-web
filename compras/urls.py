@@ -2,6 +2,7 @@ from django.urls import path
 from . import views
 from . import views_historial
 from . import views_acciones
+from . import views_inventario
 
 app_name = 'compras'
 
@@ -19,9 +20,9 @@ urlpatterns = [
     # ══════════════════════════════════════════════════════════════════
     path('buscar/productos/',   views.BuscarProductoAjax.as_view(),     name='buscar_producto'),
     path('buscar/proveedores/', views.BuscarProveedorAjax.as_view(),    name='buscar_proveedor'),
-    path('guardar-borrador/',   views.GuardarBorradorAjax.as_view(),    name='guardar_borrador'),    # ← NUEVO
+    path('guardar-borrador/',   views.GuardarBorradorAjax.as_view(),    name='guardar_borrador'),
     path('confirmar/',          views.ConfirmarCompraAjax.as_view(),    name='confirmar_compra'),
-    path('eliminar-borrador/',  views.EliminarBorradorAjax.as_view(),   name='eliminar_borrador'),   # ← NUEVO
+    path('eliminar-borrador/',  views.EliminarBorradorAjax.as_view(),   name='eliminar_borrador'),
 
     # ══════════════════════════════════════════════════════════════════
     #  AJAX — Historial
@@ -41,4 +42,11 @@ urlpatterns = [
     # ══════════════════════════════════════════════════════════════════
     path('documentos/subir/',    views.CompraDocumentoSubirAjax.as_view(),    name='documento_subir'),
     path('documentos/eliminar/', views.CompraDocumentoEliminarAjax.as_view(), name='documento_eliminar'),
+
+    # ══════════════════════════════════════════════════════════════════
+    #  INVENTARIO
+    # ══════════════════════════════════════════════════════════════════
+    path('inventario/',               views_inventario.InventarioView.as_view(),         name='inventario'),
+    path('inventario/listar/',        views_inventario.ListarLotesAjax.as_view(),         name='inventario_listar'),
+    path('inventario/buscar-codigo/', views_inventario.BuscarLotePorCodigoAjax.as_view(), name='inventario_buscar_codigo'),
 ]

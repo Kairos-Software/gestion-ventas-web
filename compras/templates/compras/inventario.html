@@ -1,0 +1,226 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Inventario{% endblock %}
+{% block breadcrumb %}<strong>Inventario</strong>{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'compras/css/compras.css' %}">
+<link rel="stylesheet" href="{% static 'compras/css/inventario.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="inventario-page">
+
+    {% if sin_permiso %}
+        <div class="alert alert-warning">No tenés permiso para ver el inventario.</div>
+    {% else %}
+
+    <!-- ══════════════════════════════════════════════════════════
+         HEADER
+    ══════════════════════════════════════════════════════════ -->
+    <div class="cmp-page-header">
+        <div class="cmp-page-title">
+            <div class="cmp-page-icon">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M2.5 6.5L10 2.5L17.5 6.5L10 10.5L2.5 6.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                    <path d="M2.5 6.5V13.5L10 17.5L17.5 13.5V6.5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                    <path d="M10 10.5V17.5" stroke="currentColor" stroke-width="1.5"/>
+                </svg>
+            </div>
+            <div>
+                <div class="cmp-page-tag">Catálogo</div>
+                <h1>Inventario</h1>
+                <p>Lotes, vencimientos y trazabilidad de stock</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════
+         STAT CARDS
+    ══════════════════════════════════════════════════════════ -->
+    <div class="inv-stats">
+        <div class="inv-stat-card">
+            <div class="inv-stat-icon inv-stat-icon--ok">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M4 10.5L8 14.5L16 5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <div>
+                <div class="inv-stat-value" id="statOk">—</div>
+                <div class="inv-stat-label">Lotes vigentes</div>
+            </div>
+        </div>
+        <div class="inv-stat-card">
+            <div class="inv-stat-icon inv-stat-icon--warning">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.6"/>
+                    <path d="M10 6V10L12.5 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <div>
+                <div class="inv-stat-value" id="statPorVencer">—</div>
+                <div class="inv-stat-label">Por vencer (7 días)</div>
+            </div>
+        </div>
+        <div class="inv-stat-card">
+            <div class="inv-stat-icon inv-stat-icon--danger">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M10 3L18 16.5H2L10 3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                    <path d="M10 8.5V11.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                    <circle cx="10" cy="14" r="0.9" fill="currentColor"/>
+                </svg>
+            </div>
+            <div>
+                <div class="inv-stat-value" id="statVencidos">—</div>
+                <div class="inv-stat-label">Vencidos</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════
+         CARD PRINCIPAL — Toolbar + Tabla
+    ══════════════════════════════════════════════════════════ -->
+    <div class="inv-main-card">
+
+        <div class="inventario-toolbar">
+            <div class="inventario-search">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5"/>
+                    <path d="M11 11L14.5 14.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+                <input type="text" id="inventarioBuscar" placeholder="Buscar por producto, código o escanear lote...">
+            </div>
+
+            <div class="inventario-filtros" id="inventarioFiltros">
+                <button class="filtro-btn active" data-filtro="">Todos</button>
+                <button class="filtro-btn" data-filtro="vencido">Vencidos</button>
+                <button class="filtro-btn" data-filtro="por_vencer">Por vencer (7 días)</button>
+                <button class="filtro-btn" data-filtro="ok">OK</button>
+            </div>
+        </div>
+
+        <div class="inventario-tabla-wrap">
+            <table class="table inventario-tabla">
+                <thead>
+                    <tr>
+                        <th>Producto</th>
+                        <th>Lote</th>
+                        <th>Cantidad</th>
+                        <th>Costo unit.</th>
+                        <th>Vencimiento</th>
+                        <th>Fecha compra</th>
+                        <th>Proveedor</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="inventarioTbody">
+                    <tr><td colspan="8" class="text-center text-muted py-4">Cargando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+    {% endif %}
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     MODAL — Ver / Imprimir código del lote
+══════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalCodigo" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:680px;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Código del lote</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+
+                <!-- ── Vista previa (una sola etiqueta, no se usa para imprimir) ── -->
+                <div id="etiquetaImprimir" class="etiqueta-imprimir">
+                    <p class="etiqueta-producto" id="etiquetaProducto">—</p>
+                    <p class="etiqueta-variante" id="etiquetaVariante"></p>
+                    <svg id="etiquetaBarcode"></svg>
+                    <p class="etiqueta-detalle" id="etiquetaDetalle"></p>
+                </div>
+
+                <!-- ── Configuración de impresión ── -->
+                <div class="inv-print-config">
+                    <div class="inv-print-config-title">Configuración de impresión</div>
+
+                    <div class="inv-print-row">
+                        <div class="inv-print-field">
+                            <label>Tipo de impresora</label>
+                            <select id="impTipo" class="cmp-select-inline" style="width:100%;">
+                                <option value="hoja">Hoja / impresora normal (varias por hoja)</option>
+                                <option value="termica">Etiquetas térmicas · pistola (una por rollo)</option>
+                            </select>
+                        </div>
+                        <div class="inv-print-field">
+                            <label>Cantidad de etiquetas</label>
+                            <input type="number" id="impCantidad" class="cmp-input-inline" value="1" min="1" style="width:100%;">
+                        </div>
+                    </div>
+
+                    <div class="inv-print-row">
+                        <div class="inv-print-field">
+                            <label>Ancho de etiqueta (mm)</label>
+                            <input type="number" id="impAncho" class="cmp-input-inline" value="50" min="10" style="width:100%;">
+                        </div>
+                        <div class="inv-print-field">
+                            <label>Alto de etiqueta (mm)</label>
+                            <input type="number" id="impAlto" class="cmp-input-inline" value="30" min="10" style="width:100%;">
+                        </div>
+                    </div>
+
+                    <div class="inv-print-presets" id="impPresets">
+                        <button type="button" class="inv-preset-btn" data-w="40" data-h="30">40 × 30</button>
+                        <button type="button" class="inv-preset-btn" data-w="50" data-h="30">50 × 30</button>
+                        <button type="button" class="inv-preset-btn" data-w="58" data-h="40">58 × 40</button>
+                        <button type="button" class="inv-preset-btn" data-w="100" data-h="50">100 × 50</button>
+                    </div>
+
+                    <div class="inv-print-row" id="impHojaOpciones">
+                        <div class="inv-print-field">
+                            <label>Tamaño de hoja</label>
+                            <select id="impHoja" class="cmp-select-inline" style="width:100%;">
+                                <option value="A4">A4</option>
+                                <option value="Carta">Carta</option>
+                            </select>
+                        </div>
+                        <div class="inv-print-field">
+                            <label>Margen de hoja (mm)</label>
+                            <input type="number" id="impMargen" class="cmp-input-inline" value="8" min="0" style="width:100%;">
+                        </div>
+                    </div>
+
+                    <p class="inv-print-resumen" id="impResumen"></p>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="cmp-btn cmp-btn-ghost" style="width:auto;" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="cmp-btn cmp-btn-primary" style="width:auto;" id="btnImprimirEtiqueta">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                        <path d="M4 6V2H12V6M4 11H2.5C2 11 2 10.5 2 10V7C2 6.5 2 6 2.5 6H13.5C14 6 14 6.5 14 7V10C14 10.5 14 11 13.5 11H12M4 11H12V14H4V11Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+                    </svg>
+                    Imprimir
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- JsBarcode: genera el Code128 en el navegador, sin backend -->
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<script>
+    window.INVENTARIO_URLS = {
+        listar:        "{% url 'compras:inventario_listar' %}",
+        buscarCodigo:  "{% url 'compras:inventario_buscar_codigo' %}",
+    };
+</script>
+<script src="{% static 'compras/js/inventario.js' %}"></script>
+{% endblock %}

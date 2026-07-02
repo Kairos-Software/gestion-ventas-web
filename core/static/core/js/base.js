@@ -213,7 +213,116 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
+    // ── Atajos de teclado: navegación rápida (Ctrl + Alt + letra) ──────
+    // Elegimos Ctrl+Alt porque no es una combinación reservada por el
+    // navegador (que usa mayormente Ctrl+Shift) ni por el SO para estas
+    // letras puntuales. OJO: en teclados en español, Ctrl+Alt equivale a
+    // AltGr, así que si alguna de estas letras coincidiera con un
+    // caracter especial de tu layout, el atajo podría interferir. Por
+    // las dudas, no se dispara si estás escribiendo en un input/textarea.
+    //
+    //   Ctrl+Alt+I → Inventario
+    //   Ctrl+Alt+S → Stock
+    //   Ctrl+Alt+C → Compras (nueva compra)
+    //   Ctrl+Alt+V → Ventas (nueva venta)
+    //   Ctrl+Alt+G → Caja Grande
+    //   Ctrl+Alt+D → Caja Diaria
+    if (window.NAV_SHORTCUTS_URLS) {
+        const navShortcuts = {
+            'i': 'inventario',
+            's': 'stock',
+            'c': 'compras',
+            'v': 'ventas',
+            'g': 'cajaGrande',
+            'd': 'cajaDiaria'
+        };
+
+        function isTypingContext(el) {
+            if (!el) return false;
+            const tag = el.tagName;
+            return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+        }
+
+        document.addEventListener('keydown', function (e) {
+            // Requerimos Ctrl+Alt sin Shift, igual que el atajo de fullscreen,
+            // para no pisarnos con AltGr+Shift ni con otras combinaciones.
+            if (!e.ctrlKey || !e.altKey || e.shiftKey) return;
+            if (isTypingContext(e.target)) return;
+
+            const key = (e.key || '').toLowerCase();
+            const destino = navShortcuts[key];
+            if (!destino) return;
+
+            const url = window.NAV_SHORTCUTS_URLS[destino];
+            if (!url) return;
+
+            e.preventDefault();
+            window.location.href = url;
+        });
+    }
+
 });
+
+// ── Reiniciar sistema (solo superusuarios, solo DEBUG) ──────────────────
+// Doble confirmación: hay que escribir la frase exacta y además la
+// contraseña del usuario logueado. El backend vuelve a validar todo
+// esto (y además chequea DEBUG y is_superuser), así que esto del
+// frontend es solo para no mandar el request si el usuario se arrepiente
+// o se equivoca al tipear.
+function reiniciarSistema() {
+    const FRASE = 'REINICIAR';
+
+    const confirmacion = window.prompt(
+        'Esto borra TODOS los datos de la app (clientes, ventas, compras, stock, etc.), ' +
+        'menos los superusuarios. NO se puede deshacer.\n\n' +
+        'Escribí ' + FRASE + ' para confirmar:'
+    );
+    if (confirmacion === null) return; // canceló
+    if (confirmacion.trim() !== FRASE) {
+        alert('Cancelado: el texto no coincide con "' + FRASE + '".');
+        return;
+    }
+
+    const password = window.prompt('Confirmá tu contraseña para continuar:');
+    if (!password) return;
+
+    if (!window.RESET_SISTEMA_URL) {
+        alert('No se encontró la URL de reinicio.');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('confirmacion', confirmacion.trim());
+    formData.append('password', password);
+
+    fetch(window.RESET_SISTEMA_URL, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCookie('csrftoken') },
+        body: formData
+    })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data.ok) {
+                alert('Listo, se reinició la base de datos. La página se va a recargar.');
+                window.location.href = '/';
+            } else {
+                alert('No se pudo reiniciar: ' + (data.error || 'error desconocido.'));
+            }
+        })
+        .catch(function () {
+            alert('Error de red al intentar reiniciar el sistema.');
+        });
+}
+
+// Si ya tenés un helper getCookie en otro archivo del proyecto, borrá
+// esta función para no duplicarla (no rompe nada duplicada, pero mejor
+// tener una sola fuente de verdad).
+function getCookie(name) {
+    const value = '; ' + document.cookie;
+    const parts = value.split('; ' + name + '=');
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return null;
+}
 
 // ── Nav groups toggle ──────────────────────────────────────────────────
 function toggleNavGroup(id) {

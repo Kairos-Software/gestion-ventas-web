@@ -6,6 +6,7 @@ from . import views_permisos
 from . import views_clientes
 from . import views_perfil
 from . import views_empresa
+from . import views_reiniciar
 
 app_name = 'core'
 
@@ -53,4 +54,7 @@ urlpatterns = [
     # ── Empresa (datos de la empresa — Configuración) ──────────────
     path('configuracion/empresa/guardar/', views_empresa.EmpresaGuardarAjax.as_view(), name='empresa_guardar'),
     path('configuracion/empresa/logo/', views_empresa.EmpresaLogoAjax.as_view(), name='empresa_logo'),
+
+    # ── Reinicio de datos (solo superusuarios, solo DEBUG=True) ────
+    path('reiniciar/', views_reiniciar.ReiniciarSistemaAjax.as_view(), name='reiniciar_sistema'),
 ]
