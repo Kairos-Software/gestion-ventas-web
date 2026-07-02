@@ -1,6 +1,9 @@
 /* ══════════════════════════════════════════════════════════════════
    transacciones.js — Kai-Cart
-   Módulo de Transacciones de Caja Grande
+   Módulo de Transacciones de Caja Grande.
+   Los contenedores (Efectivo ARS, Banco ARS, etc.) son fijos —
+   no requieren un CRUD de cuentas. El backend los resuelve con
+   get_or_create al guardar.
    ══════════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -8,7 +11,6 @@
 const Transacciones = (() => {
 
     const URL = {
-        cuentas:  window.URL_TRANSACCIONES_CUENTAS,
         calcular: window.URL_TRANSACCIONES_CALCULAR,
         crear:    window.URL_TRANSACCIONES_CREAR,
         listar:   window.URL_TRANSACCIONES_LISTAR,
@@ -16,7 +18,16 @@ const Transacciones = (() => {
         anular:   window.URL_TRANSACCIONES_ANULAR,
     };
 
-    let _cuentas       = [];
+    // Contenedores fijos — deben coincidir exactamente con CONTENEDORES en views_transacciones.py
+    const CONTENEDORES = window.CONTENEDORES_TRANSACCIONES || [
+        { clave: 'efectivo_ars', label: 'Efectivo ARS', moneda: 'ARS' },
+        { clave: 'banco_ars',    label: 'Banco ARS',    moneda: 'ARS' },
+        { clave: 'efectivo_usd', label: 'Efectivo USD', moneda: 'USD' },
+        { clave: 'banco_usd',    label: 'Banco USD',    moneda: 'USD' },
+        { clave: 'efectivo_eur', label: 'Efectivo EUR', moneda: 'EUR' },
+        { clave: 'banco_eur',    label: 'Banco EUR',    moneda: 'EUR' },
+    ];
+
     let _transacciones = [];
     let _paginaActual  = 1;
     let _totalPaginas  = 1;
@@ -47,38 +58,29 @@ const Transacciones = (() => {
        INIT
     ══════════════════════════════════════════════════════════════ */
     async function init() {
-        await _cargarCuentas();
+        _poblarSelectsContenedores();
         await _cargarListado();
         _bindEventos();
     }
 
     /* ══════════════════════════════════════════════════════════════
-       CUENTAS
+       CONTENEDORES — popular selects
     ══════════════════════════════════════════════════════════════ */
-    async function _cargarCuentas() {
-        try {
-            const res = await getJSON(URL.cuentas);
-            if (res.ok) {
-                _cuentas = res.cuentas;
-                _poblarSelectCuentas();
-            }
-        } catch (e) {
-            console.error('Error cargando cuentas:', e);
-        }
-    }
+    function _poblarSelectsContenedores() {
+        const selOrigen  = document.getElementById('trx-contenedor-origen');
+        const selDestino = document.getElementById('trx-contenedor-destino');
+        if (!selOrigen || !selDestino) return;
 
-    function _poblarSelectCuentas() {
-        const selOrigen  = document.getElementById('trx-cuenta-origen');
-        const selDestino = document.getElementById('trx-cuenta-destino');
-        const selFiltro  = document.getElementById('filtro-cuenta');
-
-        const opciones = _cuentas.map(c =>
-            `<option value="${c.id}" data-moneda="${c.moneda}">${c.nombre} (${c.moneda})</option>`
+        const opciones = CONTENEDORES.map(c =>
+            `<option value="${c.clave}" data-moneda="${c.moneda}">${c.label}</option>`
         ).join('');
 
-        if (selOrigen)  selOrigen.innerHTML  = '<option value="">— Seleccionar —</option>' + opciones;
-        if (selDestino) selDestino.innerHTML = '<option value="">— Seleccionar —</option>' + opciones;
-        if (selFiltro)  selFiltro.innerHTML  = '<option value="">Todas</option>' + opciones;
+        selOrigen.innerHTML  = '<option value="">— Seleccionar —</option>' + opciones;
+        selDestino.innerHTML = '<option value="">— Seleccionar —</option>' + opciones;
+    }
+
+    function _monedaDeContenedor(clave) {
+        return CONTENEDORES.find(c => c.clave === clave)?.moneda ?? '';
     }
 
     /* ══════════════════════════════════════════════════════════════
@@ -86,18 +88,15 @@ const Transacciones = (() => {
     ══════════════════════════════════════════════════════════════ */
     async function _cargarListado(pagina = 1) {
         _paginaActual = pagina;
+        const params  = new URLSearchParams({ page: pagina, page_size: 20 });
 
-        const params = new URLSearchParams({ page: pagina, page_size: 20 });
+        const filtroTipo  = document.getElementById('filtro-tipo')?.value;
+        const filtroDesde = document.getElementById('filtro-desde')?.value;
+        const filtroHasta = document.getElementById('filtro-hasta')?.value;
 
-        const filtroTipo   = document.getElementById('filtro-tipo')?.value;
-        const filtroCuenta = document.getElementById('filtro-cuenta')?.value;
-        const filtroDesde  = document.getElementById('filtro-desde')?.value;
-        const filtroHasta  = document.getElementById('filtro-hasta')?.value;
-
-        if (filtroTipo)   params.set('tipo',   filtroTipo);
-        if (filtroCuenta) params.set('cuenta', filtroCuenta);
-        if (filtroDesde)  params.set('desde',  filtroDesde);
-        if (filtroHasta)  params.set('hasta',  filtroHasta);
+        if (filtroTipo)  params.set('tipo',  filtroTipo);
+        if (filtroDesde) params.set('desde', filtroDesde);
+        if (filtroHasta) params.set('hasta', filtroHasta);
 
         try {
             const res = await getJSON(`${URL.listar}?${params}`);
@@ -119,11 +118,10 @@ const Transacciones = (() => {
         if (!_transacciones.length) {
             tbody.innerHTML = `
                 <tr>
-                  <td colspan="7" class="text-center py-5">
+                  <td colspan="6" class="text-center py-5">
                     <div class="empty-state">
                       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
-                        <path d="M8 7h12M8 12h12M8 17h8"/>
-                        <path d="M3 7h.01M3 12h.01M3 17h.01"/>
+                        <path d="M7 16l-4-4 4-4"/><path d="M17 8l4 4-4 4"/><path d="M3 12h18"/>
                       </svg>
                       <h3>Sin transacciones</h3>
                       <p>Todavía no hay movimientos registrados.</p>
@@ -134,10 +132,10 @@ const Transacciones = (() => {
         }
 
         const badgeCfg = {
-            deposito:      { cls: 'badge-success',  label: 'Depósito' },
-            extraccion:    { cls: 'badge-warning',  label: 'Extracción' },
-            compra_divisa: { cls: 'badge-info',     label: 'Compra divisa' },
-            venta_divisa:  { cls: 'badge-primary',  label: 'Venta divisa' },
+            deposito:      { cls: 'badge-success', label: 'Depósito' },
+            extraccion:    { cls: 'badge-warning', label: 'Extracción' },
+            compra_divisa: { cls: 'badge-info',    label: 'Compra divisa' },
+            venta_divisa:  { cls: 'badge-primary', label: 'Venta divisa' },
         };
 
         tbody.innerHTML = _transacciones.map(t => {
@@ -195,27 +193,23 @@ const Transacciones = (() => {
     ══════════════════════════════════════════════════════════════ */
     function abrirModalCrear() {
         _resetFormulario();
-        const modal = bootstrap.Modal.getOrCreateInstance(
+        bootstrap.Modal.getOrCreateInstance(
             document.getElementById('modalTransaccion')
-        );
-        modal.show();
+        ).show();
     }
 
     function _resetFormulario() {
-        // Reset manual de cada campo (el contenedor es un div, no un form)
-        const ids = [
-            'trx-tipo', 'trx-cuenta-origen', 'trx-cuenta-destino',
+        [
+            'trx-tipo', 'trx-contenedor-origen', 'trx-contenedor-destino',
             'trx-monto-origen', 'trx-tipo-cambio', 'trx-costo-extra',
             'trx-descripcion-costo', 'trx-descripcion',
-        ];
-        ids.forEach(id => {
+        ].forEach(id => {
             const el = document.getElementById(id);
-            if (!el) return;
-            el.value = '';
+            if (el) el.value = '';
         });
         document.getElementById('trx-fecha').value = _hoy();
-        document.getElementById('trx-label-origen').textContent  = 'Cuenta origen';
-        document.getElementById('trx-label-destino').textContent = 'Cuenta destino';
+        document.getElementById('trx-label-origen').textContent  = 'Contenedor origen';
+        document.getElementById('trx-label-destino').textContent = 'Contenedor destino';
         document.getElementById('trx-seccion-divisa').style.display = 'none';
         document.getElementById('trx-tipo-cambio').required = false;
         _limpiarPreview();
@@ -223,25 +217,62 @@ const Transacciones = (() => {
     }
 
     function _onTipoChange() {
-        const tipo = document.getElementById('trx-tipo').value;
+        const tipo     = document.getElementById('trx-tipo').value;
         const esDivisa = ['compra_divisa', 'venta_divisa'].includes(tipo);
 
         document.getElementById('trx-seccion-divisa').style.display = esDivisa ? '' : 'none';
         document.getElementById('trx-tipo-cambio').required = esDivisa;
 
         const labels = {
-            deposito:      ['Cuenta efectivo (origen)', 'Cuenta banco (destino)'],
-            extraccion:    ['Cuenta banco (origen)',    'Cuenta efectivo (destino)'],
-            compra_divisa: ['Cuenta en moneda origen',  'Cuenta en divisa destino'],
-            venta_divisa:  ['Cuenta en divisa (origen)', 'Cuenta en moneda destino'],
+            deposito:      ['Efectivo (origen)', 'Banco (destino)'],
+            extraccion:    ['Banco (origen)',    'Efectivo (destino)'],
+            compra_divisa: ['Moneda origen',     'Divisa destino'],
+            venta_divisa:  ['Divisa origen',     'Moneda destino'],
         };
-
         if (labels[tipo]) {
             document.getElementById('trx-label-origen').textContent  = labels[tipo][0];
             document.getElementById('trx-label-destino').textContent = labels[tipo][1];
         }
 
+        // Filtrar opciones del select según tipo para evitar errores obvios
+        _filtrarContenedoresPorTipo(tipo);
         _dispararCalculo();
+    }
+
+    function _filtrarContenedoresPorTipo(tipo) {
+        const selOrigen  = document.getElementById('trx-contenedor-origen');
+        const selDestino = document.getElementById('trx-contenedor-destino');
+        if (!selOrigen || !selDestino) return;
+
+        // Para depósito/extracción mostramos todos (el backend valida moneda)
+        // Para compra/venta de divisa resaltamos con optgroup
+        if (['compra_divisa', 'venta_divisa'].includes(tipo)) {
+            const arsFiltro = c => c.moneda === 'ARS';
+            const divFiltro = c => c.moneda !== 'ARS';
+
+            selOrigen.innerHTML = _buildOptgroups(
+                tipo === 'compra_divisa' ? arsFiltro : divFiltro
+            );
+            selDestino.innerHTML = _buildOptgroups(
+                tipo === 'compra_divisa' ? divFiltro : arsFiltro
+            );
+        } else {
+            // Depósito / extracción: misma moneda en ambos lados
+            const opciones = CONTENEDORES.map(c =>
+                `<option value="${c.clave}" data-moneda="${c.moneda}">${c.label}</option>`
+            ).join('');
+            const base = '<option value="">— Seleccionar —</option>' + opciones;
+            selOrigen.innerHTML  = base;
+            selDestino.innerHTML = base;
+        }
+    }
+
+    function _buildOptgroups(filtro) {
+        const opciones = CONTENEDORES
+            .filter(filtro)
+            .map(c => `<option value="${c.clave}" data-moneda="${c.moneda}">${c.label}</option>`)
+            .join('');
+        return '<option value="">— Seleccionar —</option>' + opciones;
     }
 
     /* ── Preview en tiempo real ───────────────────────────────── */
@@ -263,7 +294,7 @@ const Transacciones = (() => {
         try {
             const body = { tipo, monto_origen: montoOrigen };
             if (tipoCambio) body.tipo_cambio = tipoCambio;
-            if (costoExtra)  body.costo_extra  = costoExtra;
+            if (costoExtra) body.costo_extra  = costoExtra;
 
             const res = await postJSON(URL.calcular, body);
             if (res.ok) _mostrarPreview(res, costoExtra);
@@ -277,8 +308,10 @@ const Transacciones = (() => {
         const el = document.getElementById('trx-preview');
         if (!el) return;
 
-        const mOrigen  = _monedaSeleccionada('trx-cuenta-origen')  || '';
-        const mDestino = _monedaSeleccionada('trx-cuenta-destino') || '';
+        const claveOrigen  = document.getElementById('trx-contenedor-origen')?.value;
+        const claveDestino = document.getElementById('trx-contenedor-destino')?.value;
+        const mOrigen  = _monedaDeContenedor(claveOrigen);
+        const mDestino = _monedaDeContenedor(claveDestino);
 
         let html = `
             <div class="trx-preview-row">
@@ -316,15 +349,15 @@ const Transacciones = (() => {
         _limpiarError();
 
         const body = {
-            tipo:              document.getElementById('trx-tipo')?.value,
-            cuenta_origen_id:  document.getElementById('trx-cuenta-origen')?.value,
-            cuenta_destino_id: document.getElementById('trx-cuenta-destino')?.value,
-            monto_origen:      document.getElementById('trx-monto-origen')?.value,
-            tipo_cambio:       document.getElementById('trx-tipo-cambio')?.value || null,
-            costo_extra:       document.getElementById('trx-costo-extra')?.value || null,
-            descripcion_costo: document.getElementById('trx-descripcion-costo')?.value || '',
-            fecha:             document.getElementById('trx-fecha')?.value,
-            descripcion:       document.getElementById('trx-descripcion')?.value || '',
+            tipo:                 document.getElementById('trx-tipo')?.value,
+            contenedor_origen:    document.getElementById('trx-contenedor-origen')?.value,
+            contenedor_destino:   document.getElementById('trx-contenedor-destino')?.value,
+            monto_origen:         document.getElementById('trx-monto-origen')?.value,
+            tipo_cambio:          document.getElementById('trx-tipo-cambio')?.value   || null,
+            costo_extra:          document.getElementById('trx-costo-extra')?.value   || null,
+            descripcion_costo:    document.getElementById('trx-descripcion-costo')?.value || '',
+            fecha:                document.getElementById('trx-fecha')?.value,
+            descripcion:          document.getElementById('trx-descripcion')?.value   || '',
         };
 
         const btn = document.getElementById('trx-btn-guardar');
@@ -351,8 +384,7 @@ const Transacciones = (() => {
     ══════════════════════════════════════════════════════════════ */
     async function verDetalle(pk) {
         try {
-            const url = URL.detalle.replace('__pk__', pk);
-            const res = await getJSON(url);
+            const res = await getJSON(URL.detalle.replace('__pk__', pk));
             if (!res.ok) { _mostrarToast(res.error, 'danger'); return; }
 
             const t  = res.transaccion;
@@ -361,34 +393,21 @@ const Transacciones = (() => {
 
             el.innerHTML = `
                 <dl class="trx-detalle-dl">
+                  <div class="trx-detalle-row"><dt>Tipo</dt><dd>${t.tipo_label}</dd></div>
+                  <div class="trx-detalle-row"><dt>Fecha</dt><dd>${_fmtFecha(t.fecha)}</dd></div>
+                  <div class="trx-detalle-row"><dt>Origen</dt><dd>${t.cuenta_origen}</dd></div>
+                  <div class="trx-detalle-row"><dt>Destino</dt><dd>${t.cuenta_destino}</dd></div>
                   <div class="trx-detalle-row">
-                    <dt>Tipo</dt>
-                    <dd>${t.tipo_label}</dd>
-                  </div>
-                  <div class="trx-detalle-row">
-                    <dt>Fecha</dt>
-                    <dd>${_fmtFecha(t.fecha)}</dd>
-                  </div>
-                  <div class="trx-detalle-row">
-                    <dt>Cuenta origen</dt>
-                    <dd>${t.cuenta_origen}</dd>
-                  </div>
-                  <div class="trx-detalle-row">
-                    <dt>Cuenta destino</dt>
-                    <dd>${t.cuenta_destino}</dd>
-                  </div>
-                  <div class="trx-detalle-row">
-                    <dt>Monto debitado</dt>
+                    <dt>Debitado</dt>
                     <dd class="color-danger fw-600">− ${_fmt(t.monto_origen)}</dd>
                   </div>
                   <div class="trx-detalle-row">
-                    <dt>Monto acreditado</dt>
+                    <dt>Acreditado</dt>
                     <dd class="color-success fw-600">+ ${_fmt(t.monto_destino)}</dd>
                   </div>
                   ${t.tipo_cambio ? `
                   <div class="trx-detalle-row">
-                    <dt>Tipo de cambio</dt>
-                    <dd>${_fmt(t.tipo_cambio)}</dd>
+                    <dt>Tipo de cambio</dt><dd>${_fmt(t.tipo_cambio)}</dd>
                   </div>` : ''}
                   ${t.costo_extra ? `
                   <div class="trx-detalle-row">
@@ -396,18 +415,9 @@ const Transacciones = (() => {
                     <dd class="color-danger">− ${_fmt(t.costo_extra)}<br>
                       <small>${t.descripcion_costo || ''}</small></dd>
                   </div>` : ''}
-                  <div class="trx-detalle-row">
-                    <dt>Descripción</dt>
-                    <dd>${t.descripcion || '—'}</dd>
-                  </div>
-                  <div class="trx-detalle-row">
-                    <dt>Registrado por</dt>
-                    <dd>${t.creado_por}</dd>
-                  </div>
-                  <div class="trx-detalle-row">
-                    <dt>Fecha de alta</dt>
-                    <dd>${t.fecha_alta}</dd>
-                  </div>
+                  <div class="trx-detalle-row"><dt>Descripción</dt><dd>${t.descripcion || '—'}</dd></div>
+                  <div class="trx-detalle-row"><dt>Registrado por</dt><dd>${t.creado_por}</dd></div>
+                  <div class="trx-detalle-row"><dt>Fecha de alta</dt><dd>${t.fecha_alta}</dd></div>
                 </dl>`;
 
             const btnAnular = document.getElementById('trx-detalle-btn-anular');
@@ -416,7 +426,6 @@ const Transacciones = (() => {
             bootstrap.Modal.getOrCreateInstance(
                 document.getElementById('modalTransaccionDetalle')
             ).show();
-
         } catch (e) {
             _mostrarToast('Error cargando el detalle.', 'danger');
         }
@@ -436,14 +445,10 @@ const Transacciones = (() => {
     async function ejecutarAnular() {
         const pk = document.getElementById('trx-anular-pk')?.value;
         if (!pk) return;
-
         try {
-            const url = URL.anular.replace('__pk__', pk);
-            const res = await postJSON(url, {});
-
+            const res = await postJSON(URL.anular.replace('__pk__', pk), {});
             bootstrap.Modal.getInstance(document.getElementById('modalConfirmarAnular'))?.hide();
             bootstrap.Modal.getInstance(document.getElementById('modalTransaccionDetalle'))?.hide();
-
             if (res.ok) {
                 _mostrarToast(res.mensaje, 'success');
                 await _cargarListado(_paginaActual);
@@ -461,7 +466,7 @@ const Transacciones = (() => {
     function aplicarFiltros() { _cargarListado(1); }
 
     function limpiarFiltros() {
-        ['filtro-tipo', 'filtro-cuenta', 'filtro-desde', 'filtro-hasta']
+        ['filtro-tipo', 'filtro-desde', 'filtro-hasta']
             .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
         _cargarListado(1);
     }
@@ -476,7 +481,7 @@ const Transacciones = (() => {
             ?.addEventListener('change', _onTipoChange);
 
         ['trx-monto-origen', 'trx-tipo-cambio', 'trx-costo-extra',
-         'trx-cuenta-origen', 'trx-cuenta-destino'].forEach(id => {
+         'trx-contenedor-origen', 'trx-contenedor-destino'].forEach(id => {
             document.getElementById(id)?.addEventListener('input',  _dispararCalculo);
             document.getElementById(id)?.addEventListener('change', _dispararCalculo);
         });
@@ -516,7 +521,7 @@ const Transacciones = (() => {
     function _limpiarError() {
         const wrap = document.getElementById('trx-error');
         const txt  = document.getElementById('trx-error-texto');
-        if (txt) txt.textContent = '';
+        if (txt)  txt.textContent = '';
         if (wrap) wrap.classList.add('trx-hidden');
     }
 
@@ -542,12 +547,9 @@ const Transacciones = (() => {
         toast.style.cssText = `
             display:flex;align-items:center;gap:.75rem;
             background:white;border-radius:var(--radius-md);
-            box-shadow:var(--shadow-lg);
-            padding:.75rem 1rem;font-size:.875rem;
-            border-left:3px solid ${cfg.bg};
-            animation:trxToastIn .22s ease;
-            min-width:260px;max-width:340px;
-        `;
+            box-shadow:var(--shadow-lg);padding:.75rem 1rem;
+            font-size:.875rem;border-left:3px solid ${cfg.bg};
+            animation:trxToastIn .22s ease;min-width:260px;max-width:340px;`;
         toast.innerHTML = `
             <span style="width:20px;height:20px;border-radius:50%;background:${cfg.bg};
                          color:white;display:flex;align-items:center;justify-content:center;
@@ -559,11 +561,6 @@ const Transacciones = (() => {
             toast.style.animation = 'trxToastOut .22s ease forwards';
             setTimeout(() => toast.remove(), 220);
         }, 3500);
-    }
-
-    function _monedaSeleccionada(selectId) {
-        const sel = document.getElementById(selectId);
-        return sel?.selectedOptions[0]?.dataset.moneda ?? '';
     }
 
     function _fmt(valor) {

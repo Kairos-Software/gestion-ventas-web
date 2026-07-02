@@ -1,6 +1,5 @@
 # ══════════════════════════════════════════════════════════════════
 #  VIEWS PRINCIPAL - Caja
-#  Este archivo gestiona e importa los demás scripts de views
 # ══════════════════════════════════════════════════════════════════
 
 from .views_caja_grande import (
@@ -21,7 +20,7 @@ from .views_caja_diaria import (
 )
 
 from .views_transacciones import (
-    CuentasDisponiblesAjax,
+    TransaccionesPageView,
     CalcularTransaccionAjax,
     CrearTransaccionAjax,
     ListarTransaccionesAjax,
@@ -44,7 +43,7 @@ __all__ = [
     'HistorialDiarioView',
     'EliminarHistorialAjax',
     # Transacciones
-    'CuentasDisponiblesAjax',
+    'TransaccionesPageView',
     'CalcularTransaccionAjax',
     'CrearTransaccionAjax',
     'ListarTransaccionesAjax',

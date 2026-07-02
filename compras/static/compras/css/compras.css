@@ -1049,3 +1049,25 @@ a.cmp-doc-item-nombre:hover { color: var(--brand-orange); text-decoration: under
 .cmp-doc-item--uploading {
     opacity: .7;
 }
+
+/* ──────────────────────────────────────────────────────────────
+   VENCIMIENTO CONDICIONAL (perecederos)
+   Agregar al final de compras.css
+────────────────────────────────────────────────────────────── */
+
+/* Input de fecha vacío en un producto perecedero → aviso visual */
+.cmp-input-required-empty {
+    border-color: var(--warning, #F59E0B) !important;
+    background: rgba(245, 158, 11, .06) !important;
+}
+.cmp-input-required-empty:focus {
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, .15) !important;
+}
+
+/* Celda "No aplica" para productos no perecederos */
+.cmp-td-na {
+    font-size: .78rem;
+    color: var(--text-muted);
+    font-style: italic;
+    white-space: nowrap;
+}

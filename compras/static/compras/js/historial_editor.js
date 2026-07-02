@@ -2,10 +2,12 @@
  * historial_editor.js
  * Panel de edición inline de una compra ANULADA.
  *
- * Replica el sistema de distribución de colores de compras.js:
- *   - fila principal por producto + fila secundaria de chips por color
- *   - cantidad total = suma de la distribución
- *   - al guardar, expande en 1 item de payload por cada color > 0
+ * Cada ItemCompra guardado en el backend es UNA fila del carrito de
+ * edición, identificada por producto_pk + combinacion_pk (igual que en
+ * nueva_compra.js). Ya no se agrupan variantes de un mismo producto en
+ * una sola entrada con distribución manual — cada variante es su propia
+ * unidad: dos algodones de tamaño distinto son dos productos distintos
+ * para el carrito.
  *
  * Depende de:
  *   historial_utils.js  (_esc, fmtMoneda, fmtPeso, formatMoney, postAccion, toasts, icons)
@@ -25,66 +27,33 @@ function accionEditar(pk, compraData, listaContainer) {
     if (!row) return;
     row.classList.add('open');
 
-    // ── Reconstruir carrito agrupando items por producto_pk ──────────
-    // El backend guarda 1 ItemCompra por combinación; aquí los colapsamos de
-    // vuelta en 1 entrada de carrito con combinaciones_dist, igual que en
-    // nueva_compra donde el usuario carga 1 fila con chips de combinación.
-    const carritoMap = new Map();
-
-    for (const item of (compraData.items || [])) {
-        const key = String(item.producto_pk || `nokey_${item.producto_nombre}`);
-
-        if (!carritoMap.has(key)) {
-            carritoMap.set(key, {
-                id:               carritoMap.size,
-                producto_pk:      item.producto_pk,
-                nombre:           item.producto_nombre,
-                codigo:           item.producto_cod,
-                unidad:           '',
-                proveedor_pk:     item.proveedor_pk || '',
-                proveedor_nombre: item.proveedor    || '',
-                tiene_combinaciones: false,
-                combinaciones_lista: [],
-                combinaciones_dist:  {},
-                cantidad:         0,
-                costo:            parseFloat(item.costo_unitario) || 0,
-                moneda:           item.moneda  || 'ARS',
-                descuento:        parseFloat(item.descuento_pct) || 0,
-                condicion:        _condicionRaw(item.condicion_pago),
-                referencia:       item.referencia || '',
-            });
-        }
-
-        const entry = carritoMap.get(key);
-
-        if (item.tiene_combinacion && item.combinacion_pk) {
-            // Producto con combinaciones → acumular en combinaciones_dist
-            entry.tiene_combinaciones = true;
-            entry.combinaciones_dist[item.combinacion_pk] = (entry.combinaciones_dist[item.combinacion_pk] || 0)
-                + (parseFloat(item.cantidad) || 0);
-            // Agregar a combinaciones_lista si no está
-            if (!entry.combinaciones_lista.find(c => String(c.pk) === String(item.combinacion_pk))) {
-                entry.combinaciones_lista.push({
-                    pk:           item.combinacion_pk,
-                    descripcion_combinacion: item.combinacion_descripcion || `Combinación ${item.combinacion_pk}`,
-                    stock_actual: 0,
-                });
-            }
-        } else {
-            // Producto sin combinaciones → cantidad directa
-            entry.cantidad += parseFloat(item.cantidad) || 0;
-        }
-    }
-
-    // Calcular cantidad_total para items con combinaciones
-    for (const entry of carritoMap.values()) {
-        if (entry.tiene_combinaciones) {
-            entry.cantidad = Object.values(entry.combinaciones_dist)
-                .reduce((s, v) => s + (parseFloat(v) || 0), 0);
-        }
-    }
-
-    const carrito = Array.from(carritoMap.values());
+    // ── Reconstruir carrito: 1 fila del carrito por cada ItemCompra ──
+    // El backend guarda 1 ItemCompra por variante — se respeta tal cual,
+    // sin agrupar. Dos variantes del mismo producto_pk son dos filas.
+    const carrito = (compraData.items || []).map((item, idx) => ({
+        id:               idx,
+        producto_pk:      item.producto_pk,
+        combinacion_pk:   item.tiene_combinacion && item.combinacion_pk ? item.combinacion_pk : null,
+        producto_nombre:  item.producto_nombre,
+        variante_desc:    item.combinacion_descripcion || '',
+        nombre:           item.combinacion_descripcion
+                               ? `${item.producto_nombre} — ${item.combinacion_descripcion}`
+                               : item.producto_nombre,
+        codigo:           item.producto_cod || '',
+        proveedor_pk:     item.proveedor_pk || '',
+        proveedor_nombre: item.proveedor    || '',
+        cantidad:         parseFloat(item.cantidad) || 0,
+        costo:            parseFloat(item.costo_unitario) || 0,
+        moneda:           item.moneda  || 'ARS',
+        descuento:        parseFloat(item.descuento_pct) || 0,
+        condicion:        _condicionRaw(item.condicion_pago),
+        referencia:       item.referencia || '',
+        fecha_vencimiento: item.fecha_vencimiento || '',
+        // Si el backend de historial no manda el flag es_perecedero, lo
+        // inferimos: si ya tenía fecha de vencimiento cargada, es porque
+        // en su momento el modelo exigió que fuera perecedero para guardarla.
+        es_perecedero:    !!item.es_perecedero || !!item.fecha_vencimiento,
+    }));
 
     editState = {
         pk,
@@ -94,6 +63,7 @@ function accionEditar(pk, compraData, listaContainer) {
         provGlobalDD:     null,
         provActiveInput:  null,
         provActiveItemId: null,
+        lastResults:      [],
     };
 
     const detalle = row.querySelector('.compra-detalle');
@@ -101,12 +71,12 @@ function accionEditar(pk, compraData, listaContainer) {
     _renderEditCarrito();
     _bindEditorEvents(row, compraData, listaContainer);
 
-    // Enriquecer combinaciones con datos reales del servidor (stock)
-    carrito.forEach(item => {
-        if (item.tiene_combinaciones && item.producto_pk) {
-            _cargarCombinacionesProducto(item.producto_pk, item.id);
-        }
-    });
+    // Documentos (solo en modo edición)
+    const docsEl = document.getElementById(`editDocumentos_${pk}`);
+    if (docsEl) {
+        docsEl.innerHTML = buildDocumentosEditor(compraData);
+        bindDocumentosEditorEvents(docsEl, pk);
+    }
 }
 
 function cerrarEdicion(listaContainer) {
@@ -116,41 +86,6 @@ function cerrarEdicion(listaContainer) {
         editState.provGlobalDD = null;
     }
     editState = null;
-}
-
-/* ════════════════════════════════════════════════════════════════
-   CARGAR COMBINACIONES DEL SERVIDOR
-════════════════════════════════════════════════════════════════ */
-async function _cargarCombinacionesProducto(productoPk, itemId) {
-    if (!editState) return;
-    try {
-        const res    = await fetch(`${HISTORIAL_URLS.buscarProducto}?pk=${encodeURIComponent(productoPk)}`);
-        const data   = await res.json();
-        const combinaciones = data.combinaciones || [];
-
-        const item = editState.carrito.find(i => i.id === itemId);
-        if (!item) return;
-
-        // Enriquecer combinaciones ya conocidos con stock
-        item.combinaciones_lista = item.combinaciones_lista.map(local => {
-            const srv = combinaciones.find(c => String(c.pk) === String(local.pk));
-            return srv ? { ...local, stock_actual: srv.stock_actual || 0 }
-                       : local;
-        });
-        // Agregar combinaciones del servidor que no estén en la dist (para poder cargarlas)
-        for (const c of combinaciones) {
-            if (!item.combinaciones_lista.find(l => String(l.pk) === String(c.pk))) {
-                item.combinaciones_lista.push({ pk: c.pk, descripcion_combinacion: c.descripcion_combinacion, stock_actual: c.stock_actual || 0 });
-                if (!(c.pk in item.combinaciones_dist)) {
-                    item.combinaciones_dist[c.pk] = 0;
-                }
-            }
-        }
-
-        _actualizarFilaCombinaciones(itemId);
-    } catch {
-        // silencioso
-    }
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -185,7 +120,7 @@ function _buildEditorHTML(c) {
                 <path d="M10 10L14 14" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
             </svg>
             <input type="text" id="editSearch_${c.pk}" class="edit-search-input"
-                   placeholder="Buscá un producto para agregar…" autocomplete="off">
+                   placeholder="Buscá o escaneá un producto para agregar…" autocomplete="off">
             <div id="editSearchDD_${c.pk}" class="cmp-dropdown"></div>
         </div>
 
@@ -201,6 +136,7 @@ function _buildEditorHTML(c) {
                         <th>Desc. %</th>
                         <th>Cond. pago</th>
                         <th>Referencia</th>
+                        <th>Vencimiento</th>
                         <th>Subtotal</th>
                         <th></th>
                     </tr>
@@ -254,31 +190,21 @@ function _renderEditCarrito() {
         if (emptyEl) emptyEl.style.display = 'none';
 
         tbody.innerHTML = carrito.map(item => {
-            const sub          = _calcEditSub(item);
-            const combinacionWarning = item.tiene_combinaciones && !_combinacionesValidas(item)
-                ? `<span class="cmp-color-warning" title="Distribuí todas las combinaciones">
-                       <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                           <circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.3"/>
-                           <path d="M6 4V6.5M6 8H6.01" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-                       </svg>
-                   </span>` : '';
-
-            const filaCombinaciones = item.tiene_combinaciones ? _renderFilaCombinaciones(item) : '';
+            const sub = _calcEditSub(item);
 
             return `
             <tr data-edit-id="${item.id}" class="cmp-row-main">
                 <td>
                     <div class="cmp-prod-cell">
-                        <span class="cmp-prod-nombre">${_esc(item.nombre)}</span>
+                        <span class="cmp-prod-nombre">${_esc(item.producto_nombre)}</span>
                         <span class="cmp-prod-meta">${_esc(item.codigo)}</span>
-                        ${item.tiene_combinaciones
+                        ${item.variante_desc
                             ? `<span class="cmp-prod-badge-colores">
                                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
                                        <rect x="1" y="1" width="8" height="8" rx="1" stroke="currentColor" stroke-width="1.2"/>
                                        <circle cx="3" cy="3" r="1" fill="currentColor"/>
-                                       <circle cx="7" cy="7" r="1" fill="currentColor"/>
                                    </svg>
-                                   ${item.combinaciones_lista.length} combinación${item.combinaciones_lista.length !== 1 ? 'es' : ''}
+                                   ${_esc(item.variante_desc)}
                                </span>` : ''}
                     </div>
                 </td>
@@ -296,9 +222,7 @@ function _renderEditCarrito() {
                     <input type="number" min="0.001" step="any"
                            class="cmp-input-inline w-xs edit-field-input"
                            value="${item.cantidad}"
-                           data-edit-id="${item.id}" data-campo="cantidad"
-                           ${item.tiene_combinaciones ? 'readonly title="Se calcula automáticamente"' : ''}>
-                    ${combinacionWarning}
+                           data-edit-id="${item.id}" data-campo="cantidad">
                 </td>
                 <td>
                     <input type="number" min="0" step="any"
@@ -338,6 +262,16 @@ function _renderEditCarrito() {
                            value="${_esc(item.referencia)}"
                            data-edit-id="${item.id}" data-campo="referencia">
                 </td>
+                <td>
+                    ${item.es_perecedero
+                        ? `<input type="date"
+                               class="cmp-input-inline w-md edit-field-input${!item.fecha_vencimiento ? ' cmp-input-required-empty' : ''}"
+                               value="${item.fecha_vencimiento || ''}"
+                               data-edit-id="${item.id}" data-campo="fecha_vencimiento"
+                               title="Requerido: este producto es perecedero">`
+                        : `<span class="cmp-td-na" title="Este producto no es perecedero">— No aplica —</span>`
+                    }
+                </td>
                 <td class="cmp-subtotal-cell" id="editSub_${pk}_${item.id}">
                     ${fmtMoneda(sub, item.moneda)}
                 </td>
@@ -348,8 +282,7 @@ function _renderEditCarrito() {
                         </svg>
                     </button>
                 </td>
-            </tr>
-            ${filaColores}`;
+            </tr>`;
         }).join('');
 
         _bindCartBodyEvents(tbody);
@@ -362,138 +295,12 @@ function _renderEditCarrito() {
 }
 
 /* ════════════════════════════════════════════════════════════════
-   FILA DE COMBINACIONES — idéntica a compras.js
-════════════════════════════════════════════════════════════════ */
-function _renderFilaCombinaciones(item) {
-    const totalAsignado = _totalCombinacionesDist(item);
-    const totalItem     = parseFloat(item.cantidad) || 0;
-    const ok            = Math.abs(totalAsignado - totalItem) < 0.001;
-
-    const chips = item.combinaciones_lista.map(c => {
-        const val = item.combinaciones_dist[c.pk] || 0;
-        return `
-        <div class="cmp-color-chip">
-            <span class="cmp-color-chip-nombre">${_esc(c.descripcion_combinacion)}</span>
-            <span class="cmp-color-chip-stock">(stock: ${parseFloat(c.stock_actual||0).toLocaleString('es-AR')})</span>
-            <input type="number" min="0" step="any"
-                   class="cmp-input-inline w-xs cmp-color-qty"
-                   value="${val}"
-                   data-edit-id="${item.id}"
-                   data-combinacion-pk="${c.pk}">
-        </div>`;
-    }).join('');
-
-    return `
-    <tr class="cmp-row-colores" data-combinacion-row="${item.id}">
-        <td colspan="10">
-            <div class="cmp-colores-panel">
-                <div class="cmp-colores-panel-header">
-                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-                        <rect x="1" y="1" width="11" height="11" rx="1" stroke="currentColor" stroke-width="1.3"/>
-                        <circle cx="3" cy="3" r="1" fill="currentColor"/>
-                        <circle cx="10" cy="10" r="1" fill="currentColor"/>
-                    </svg>
-                    <span>Distribuir por combinación</span>
-                    <span class="cmp-colores-panel-resumen ${ok ? 'ok' : 'error'}"
-                          id="editColres_${editState.pk}_${item.id}">
-                        ${ok
-                            ? `<svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                                   <path d="M2 6L5 9L10 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                               </svg> Distribución completa`
-                            : `Asignado: <strong>${totalAsignado.toLocaleString('es-AR')}</strong> / Total: <strong>${totalItem.toLocaleString('es-AR')}</strong>`
-                        }
-                    </span>
-                </div>
-                <div class="cmp-colores-chips">${chips}</div>
-            </div>
-        </td>
-    </tr>`;
-}
-
-function _actualizarFilaCombinaciones(itemId) {
-    if (!editState) return;
-    const item  = editState.carrito.find(i => i.id === itemId);
-    if (!item || !item.tiene_combinaciones) return;
-    const tbody = document.getElementById(`editCartBody_${editState.pk}`);
-    if (!tbody) return;
-
-    const filaVieja = tbody.querySelector(`tr[data-combinacion-row="${itemId}"]`);
-    const nuevaHTML = _renderFilaCombinaciones(item);
-    if (filaVieja) {
-        filaVieja.outerHTML = nuevaHTML;
-    } else {
-        const filaMain = tbody.querySelector(`tr[data-edit-id="${itemId}"]`);
-        if (filaMain) filaMain.insertAdjacentHTML('afterend', nuevaHTML);
-    }
-
-    // Re-bind inputs de combinación
-    tbody.querySelectorAll(`.cmp-color-qty[data-edit-id="${itemId}"]`).forEach(input => {
-        input.addEventListener('change', () =>
-            _updateCombinacionDist(parseInt(input.dataset.editId, 10), input.dataset.combinacionPk, input.value));
-    });
-}
-
-/* ════════════════════════════════════════════════════════════════
-   COMBINACION HELPERS
-════════════════════════════════════════════════════════════════ */
-function _totalCombinacionesDist(item) {
-    return Object.values(item.combinaciones_dist).reduce((s, v) => s + (parseFloat(v) || 0), 0);
-}
-function _combinacionesValidas(item) {
-    if (!item.tiene_combinaciones) return true;
-    return Math.abs(_totalCombinacionesDist(item) - (parseFloat(item.cantidad) || 0)) < 0.001;
-}
-
-function _updateCombinacionDist(itemId, combinacionPk, valor) {
-    if (!editState) return;
-    const item = editState.carrito.find(i => i.id === itemId);
-    if (!item) return;
-
-    item.combinaciones_dist[combinacionPk] = parseFloat(valor) || 0;
-    const totalAsignado = _totalCombinacionesDist(item);
-    item.cantidad = totalAsignado;
-
-    const { pk } = editState;
-
-    // Actualizar input cantidad (readonly)
-    const mainRow = document.querySelector(`#editCartBody_${pk} tr[data-edit-id="${itemId}"]`);
-    if (mainRow) {
-        const cantInput = mainRow.querySelector('input[data-campo="cantidad"]');
-        if (cantInput) cantInput.value = totalAsignado;
-        mainRow.querySelector('.cmp-color-warning')?.remove();
-    }
-
-    // Resumen distribución
-    const resEl = document.getElementById(`editColres_${pk}_${itemId}`);
-    if (resEl) {
-        resEl.className = 'cmp-colores-panel-resumen ok';
-        resEl.innerHTML = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path d="M2 6L5 9L10 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-        </svg> Distribución completa`;
-    }
-
-    // Subtotal fila
-    const subEl = document.getElementById(`editSub_${pk}_${itemId}`);
-    if (subEl) subEl.textContent = fmtMoneda(_calcEditSub(item), item.moneda);
-
-    // Total general
-    const totalEl = document.getElementById(`editTotal_${pk}`);
-    if (totalEl) {
-        totalEl.textContent = fmtPeso(editState.carrito.reduce((s, i) => s + _calcEditSub(i), 0));
-    }
-}
-
-/* ════════════════════════════════════════════════════════════════
    BIND EVENTOS TBODY
 ════════════════════════════════════════════════════════════════ */
 function _bindCartBodyEvents(tbody) {
     tbody.querySelectorAll('.edit-field-input').forEach(el => {
         el.addEventListener('change', () =>
             _editUpdateField(parseInt(el.dataset.editId, 10), el.dataset.campo, el.value));
-    });
-    tbody.querySelectorAll('.cmp-color-qty').forEach(input => {
-        input.addEventListener('change', () =>
-            _updateColorDist(parseInt(input.dataset.editId, 10), input.dataset.colorPk, input.value));
     });
     tbody.querySelectorAll('.edit-btn-remove').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -518,16 +325,11 @@ function _editUpdateField(id, campo, valor) {
     const subEl  = document.getElementById(`editSub_${pk}_${id}`);
     if (subEl) subEl.textContent = fmtMoneda(_calcEditSub(item), item.moneda);
 
-    if (campo === 'cantidad' && item.tiene_combinaciones) {
-        const resEl = document.getElementById(`editColres_${pk}_${id}`);
-        if (resEl) {
-            const ta = _totalCombinacionesDist(item), ti = parseFloat(item.cantidad) || 0;
-            const ok = Math.abs(ta - ti) < 0.001;
-            resEl.className = `cmp-colores-panel-resumen ${ok ? 'ok' : 'error'}`;
-            resEl.innerHTML = ok
-                ? `<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6L5 9L10 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg> Distribución completa`
-                : `Asignado: <strong>${ta.toLocaleString('es-AR')}</strong> / Total: <strong>${ti.toLocaleString('es-AR')}</strong>`;
-        }
+    if (campo === 'fecha_vencimiento') {
+        const inputEl = document.querySelector(
+            `#editCartBody_${pk} input[data-edit-id="${id}"][data-campo="fecha_vencimiento"]`
+        );
+        if (inputEl) inputEl.classList.toggle('cmp-input-required-empty', !valor);
     }
 
     const totalEl = document.getElementById(`editTotal_${pk}`);
@@ -537,6 +339,48 @@ function _editUpdateField(id, campo, valor) {
 function _calcEditSub(item) {
     const base = item.cantidad * item.costo;
     return item.descuento ? base * (1 - item.descuento / 100) : base;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   AGREGAR ÍTEM AL CARRITO (desde el buscador)
+   `fila` ya es una unidad resuelta: producto solo, o producto+variante
+   puntual, tal como la devuelve BuscarProductoAjax.
+════════════════════════════════════════════════════════════════ */
+function _editAgregarItem(fila) {
+    if (!editState) return;
+
+    const existente = editState.carrito.find(i =>
+        String(i.producto_pk) === String(fila.producto_pk) &&
+        (i.combinacion_pk || null) === (fila.combinacion_pk || null)
+    );
+    if (existente) {
+        existente.cantidad = (parseFloat(existente.cantidad) || 0) + 1;
+        _renderEditCarrito();
+        mostrarToastExito(`Cantidad actualizada: ${fila.nombre}`);
+        return;
+    }
+
+    editState.carrito.push({
+        id:               editState.nextId++,
+        producto_pk:      fila.producto_pk,
+        combinacion_pk:   fila.combinacion_pk || null,
+        producto_nombre:  fila.producto_nombre,
+        variante_desc:    fila.variante_desc || '',
+        nombre:           fila.nombre,
+        codigo:           fila.codigo || '',
+        proveedor_pk:     fila.proveedor_pk || '',
+        proveedor_nombre: fila.proveedor || '',
+        cantidad:         1,
+        costo:            0,
+        moneda:           'ARS',
+        descuento:        0,
+        condicion:        'contado',
+        referencia:       '',
+        fecha_vencimiento: '',
+        es_perecedero:    !!fila.es_perecedero,
+    });
+    _renderEditCarrito();
+    mostrarToastExito(`Producto agregado: ${fila.nombre}`);
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -604,6 +448,8 @@ document.addEventListener('mousedown', () => { if (editState && editState.provAc
 
 /* ════════════════════════════════════════════════════════════════
    BUSCADOR DE PRODUCTOS EN EL EDITOR
+   Mismo formato de resultados que nueva_compra.js: cada fila ya es
+   una unidad agregable (producto o producto+variante puntual).
 ════════════════════════════════════════════════════════════════ */
 function _bindEditorEvents(row, compraData, listaContainer) {
     const pk       = compraData.pk;
@@ -611,69 +457,86 @@ function _bindEditorEvents(row, compraData, listaContainer) {
     const searchDD = document.getElementById(`editSearchDD_${pk}`);
     let   timer;
 
+    async function ejecutarBusqueda(q, { forzarAgregado = false } = {}) {
+        if (!q) { searchDD.classList.remove('open'); searchDD.innerHTML = ''; return; }
+        try {
+            const res     = await fetch(`${HISTORIAL_URLS.buscarProducto}?q=${encodeURIComponent(q)}`);
+            const data    = await res.json();
+            const results = data.results || [];
+            editState.lastResults = results;
+
+            const debeAgregarDirecto =
+                (results.length === 1 && results[0].match_exacto) ||
+                (forzarAgregado && results.length === 1);
+
+            if (debeAgregarDirecto) {
+                _editAgregarItem(results[0]);
+                searchDD.classList.remove('open'); searchDD.innerHTML = ''; searchIn.value = '';
+                return;
+            }
+
+            if (!results.length) {
+                searchDD.innerHTML = forzarAgregado
+                    ? '<div class="cmp-dropdown-empty">No se encontró ningún producto con ese código.</div>'
+                    : '<div class="cmp-dropdown-empty">Sin resultados</div>';
+            } else {
+                searchDD.innerHTML = results.map((r, idx) => `
+                    <div class="cmp-dropdown-item" data-idx="${idx}">
+                        <div class="cmp-dropdown-item-top">
+                            <span class="cmp-dropdown-item-nombre">${_esc(r.producto_nombre)}</span>
+                            <span class="cmp-dropdown-item-codigo">${_esc(r.codigo)}</span>
+                        </div>
+                        <div class="cmp-dropdown-item-meta">
+                            <span class="cmp-meta-chip cmp-meta-chip--stock${parseFloat(r.stock_actual||0) <= 0 ? ' cmp-meta-chip--stock-vacio' : ''}">
+                                <span class="cmp-meta-label">Stock</span>
+                                <strong>${parseFloat(r.stock_actual||0).toLocaleString('es-AR')}</strong>
+                            </span>
+                            ${r.proveedor ? `<span class="cmp-meta-chip cmp-meta-chip--prov">
+                                <span class="cmp-meta-label">Prov.</span>
+                                <strong>${_esc(r.proveedor)}</strong>
+                            </span>` : ''}
+                            ${r.variante_desc ? `<span class="cmp-meta-chip cmp-meta-chip--variante">
+                                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                                    <rect x="1" y="1" width="8" height="8" rx="1" stroke="currentColor" stroke-width="1.2"/>
+                                    <circle cx="3" cy="3" r="1" fill="currentColor"/>
+                                </svg>
+                                <strong>${_esc(r.variante_desc)}</strong>
+                            </span>` : ''}
+                        </div>
+                    </div>`
+                ).join('');
+
+                searchDD.querySelectorAll('.cmp-dropdown-item[data-idx]').forEach(el => {
+                    el.addEventListener('click', () => {
+                        const fila = editState.lastResults[parseInt(el.dataset.idx, 10)];
+                        if (fila) _editAgregarItem(fila);
+                        searchDD.classList.remove('open'); searchDD.innerHTML = ''; searchIn.value = '';
+                    });
+                });
+            }
+            searchDD.classList.add('open');
+        } catch { searchDD.classList.remove('open'); }
+    }
+
     searchIn.addEventListener('input', () => {
         clearTimeout(timer);
         const q = searchIn.value.trim();
         if (q.length < 1) { searchDD.classList.remove('open'); searchDD.innerHTML = ''; return; }
-        timer = setTimeout(async () => {
-            try {
-                const res  = await fetch(`${HISTORIAL_URLS.buscarProducto}?q=${encodeURIComponent(q)}`);
-                const data = await res.json();
-                const results = data.results || [];
-                if (!results.length) {
-                    searchDD.innerHTML = '<div class="cmp-dropdown-empty">Sin resultados</div>';
-                } else {
-                    searchDD.innerHTML = results.map(p => {
-                        const tieneColores = p.tiene_variantes_color && p.colores && p.colores.length > 0;
-                        const coloresAttr  = tieneColores
-                            ? `data-colores="${_esc(btoa(unescape(encodeURIComponent(JSON.stringify(p.colores)))))}"` : '';
-                        return `
-                        <div class="cmp-dropdown-item"
-                             data-pk="${p.pk}"
-                             data-nombre="${_esc(p.nombre)}"
-                             data-codigo="${_esc(p.codigo)}"
-                             data-unidad="${_esc(p.unidad_medida||'')}"
-                             data-prov-pk="${p.proveedor_pk||''}"
-                             data-prov-nombre="${_esc(p.proveedor||'')}"
-                             data-tiene-colores="${tieneColores?'1':'0'}"
-                             ${coloresAttr}>
-                            <div class="cmp-dropdown-item-top">
-                                <span class="cmp-dropdown-item-nombre">${_esc(p.nombre)}</span>
-                                <span class="cmp-dropdown-item-codigo">${_esc(p.codigo)}</span>
-                            </div>
-                            <div class="cmp-dropdown-item-meta">
-                                <span class="cmp-meta-chip">Stock: <strong>${parseFloat(p.stock_actual||0).toLocaleString('es-AR')}</strong></span>
-                                ${p.proveedor?`<span class="cmp-meta-chip">Prov: <strong>${_esc(p.proveedor)}</strong></span>`:''}
-                                ${tieneColores?`<span class="cmp-meta-chip cmp-meta-chip--colores">
-                                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                                        <circle cx="5" cy="5" r="3.5" stroke="currentColor" stroke-width="1.2"/>
-                                        <circle cx="5" cy="5" r="1.2" fill="currentColor"/>
-                                    </svg>
-                                    <strong>${p.colores.length} color${p.colores.length!==1?'es':''}</strong>
-                                </span>`:''}
-                            </div>
-                        </div>`;
-                    }).join('');
-                    searchDD.querySelectorAll('.cmp-dropdown-item').forEach(el => {
-                        el.addEventListener('click', () => {
-                            let colores = [];
-                            if (el.dataset.colores) {
-                                try { colores = JSON.parse(decodeURIComponent(escape(atob(el.dataset.colores)))); }
-                                catch { colores = []; }
-                            }
-                            _editAgregarItem(el.dataset, colores);
-                            searchDD.classList.remove('open'); searchDD.innerHTML = ''; searchIn.value = '';
-                        });
-                    });
-                }
-                searchDD.classList.add('open');
-            } catch { searchDD.classList.remove('open'); }
-        }, 260);
+        timer = setTimeout(() => ejecutarBusqueda(q), 260);
     });
 
     searchIn.addEventListener('keydown', e => {
-        if (e.key === 'Escape') { searchDD.classList.remove('open'); searchIn.value = ''; }
+        if (e.key === 'Escape') { searchDD.classList.remove('open'); searchIn.value = ''; return; }
+        if (e.key === 'Enter') {
+            // Igual que en nueva_compra.js: bloqueamos el submit que un
+            // lector de código de barras pudiera disparar y agregamos ya.
+            e.preventDefault();
+            clearTimeout(timer);
+            const q = searchIn.value.trim();
+            if (q) ejecutarBusqueda(q, { forzarAgregado: true });
+        }
     });
+
     document.addEventListener('click', function ddClose(e) {
         if (!searchIn.contains(e.target) && !searchDD.contains(e.target)) searchDD.classList.remove('open');
     });
@@ -682,53 +545,24 @@ function _bindEditorEvents(row, compraData, listaContainer) {
         cerrarEdicion(listaContainer);
         if (typeof fetchCompras === 'function') fetchCompras(window._currentPage || 1);
     });
-    row.querySelector('.edit-btn-guardar').addEventListener('click', () => _guardarEdicion(compraData));
-
-    // Documentos (solo en modo edición)
-    const docsEl = document.getElementById(`editDocumentos_${pk}`);
-    if (docsEl) {
-        docsEl.innerHTML = buildDocumentosEditor(compraData);
-        bindDocumentosEditorEvents(docsEl, pk);
-    }
-}
-
-function _editAgregarItem(d, combinaciones) {
-    if (!editState) return;
-    const tieneCombinaciones = d['tiene-combinaciones'] === '1' && combinaciones && combinaciones.length > 0;
-    const newId = editState.nextId++;
-    editState.carrito.push({
-        id:               newId,
-        producto_pk:      d.pk,
-        nombre:           d.nombre,
-        codigo:           d.codigo || '',
-        unidad:           d.unidad || '',
-        proveedor_pk:     d['prov-pk'] || '',
-        proveedor_nombre: d['prov-nombre'] || '',
-        tiene_combinaciones: tieneCombinaciones,
-        combinaciones_lista: tieneCombinaciones ? combinaciones : [],
-        combinaciones_dist: tieneCombinaciones ? Object.fromEntries(combinaciones.map(c => [c.pk, 0])) : {},
-        cantidad:         tieneCombinaciones ? 0 : 1,
-        costo:            0,
-        moneda:           'ARS',
-        descuento:        0,
-        condicion:        'contado',
-        referencia:       '',
-    });
-    _renderEditCarrito();
+    row.querySelector('.edit-btn-guardar').addEventListener('click', () => _guardarEdicion(compraData, listaContainer));
 }
 
 /* ════════════════════════════════════════════════════════════════
-   GUARDAR — expande colores en items individuales
+   GUARDAR — cada fila del carrito ya es un ítem resuelto,
+   se envía tal cual (sin expandir combinaciones)
 ════════════════════════════════════════════════════════════════ */
-function _guardarEdicion(compraData) {
+function _guardarEdicion(compraData, listaContainer) {
     if (!editState) return;
     const { pk, carrito } = editState;
 
     if (!carrito.length) { mostrarToastError('La compra debe tener al menos un ítem.'); return; }
 
-    const pendientes = carrito.filter(i => i.tiene_combinaciones && !_combinacionesValidas(i));
-    if (pendientes.length) {
-        mostrarToastError(`Distribuí todos las combinaciones antes de guardar. Pendientes: ${pendientes.map(i => i.nombre).join(', ')}`);
+    const pendientesVencimiento = carrito.filter(i => i.es_perecedero && !i.fecha_vencimiento);
+    if (pendientesVencimiento.length) {
+        mostrarToastError(
+            `Faltan fechas de vencimiento (productos perecederos): ${pendientesVencimiento.map(i => i.nombre).join(', ')}`
+        );
         return;
     }
 
@@ -746,39 +580,18 @@ function _guardarEdicion(compraData) {
         </svg> Guardando…`;
     }
 
-    // Expandir combinaciones → 1 item por combinación con cantidad > 0
-    const itemsPayload = [];
-    for (const item of carrito) {
-        if (item.tiene_combinaciones) {
-            for (const [combinacionPk, cant] of Object.entries(item.combinaciones_dist)) {
-                const cantidad = parseFloat(cant) || 0;
-                if (cantidad <= 0) continue;
-                itemsPayload.push({
-                    producto_pk:    item.producto_pk,
-                    proveedor_pk:   item.proveedor_pk || null,
-                    combinacion_pk: parseInt(combinacionPk, 10),
-                    cantidad,
-                    costo_unitario: item.costo,
-                    moneda:         item.moneda,
-                    descuento_pct:  item.descuento,
-                    condicion_pago: item.condicion,
-                    referencia:     item.referencia,
-                });
-            }
-        } else {
-            itemsPayload.push({
-                producto_pk:    item.producto_pk,
-                proveedor_pk:   item.proveedor_pk || null,
-                combinacion_pk: null,
-                cantidad:       item.cantidad,
-                costo_unitario: item.costo,
-                moneda:         item.moneda,
-                descuento_pct:  item.descuento,
-                condicion_pago: item.condicion,
-                referencia:     item.referencia,
-            });
-        }
-    }
+    const itemsPayload = carrito.map(item => ({
+        producto_pk:    item.producto_pk,
+        proveedor_pk:   item.proveedor_pk || null,
+        combinacion_pk: item.combinacion_pk || null,
+        cantidad:       item.cantidad,
+        costo_unitario: item.costo,
+        moneda:         item.moneda,
+        descuento_pct:  item.descuento,
+        condicion_pago: item.condicion,
+        referencia:     item.referencia,
+        fecha_vencimiento: item.fecha_vencimiento || null,
+    }));
 
     postAccion(
         HISTORIAL_URLS.editar,

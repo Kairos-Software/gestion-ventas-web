@@ -173,23 +173,30 @@ class BalanceGrandeAjax(LoginRequiredMixin, View):
                 total=Sum('total')
             )['total'] or 0
             
-            # Movimientos manuales (ingresos y egresos)
-            movimientos_manuales = MovimientoCaja.objects.filter(
+            # Movimientos no-automáticos: manual, ajuste (turnos) y transaccion (internas)
+            # Se excluyen 'venta' y 'compra' porque ya se suman directamente
+            # desde los modelos Venta/Compra arriba para evitar duplicados.
+            ORIGENES_MOVIMIENTO = [
+                OrigenMovimiento.MANUAL,
+                OrigenMovimiento.AJUSTE,
+                OrigenMovimiento.TRANSACCION,
+            ]
+            movimientos_extra = MovimientoCaja.objects.filter(
                 caja=TipoCaja.GRANDE,
                 moneda=moneda,
-                origen=OrigenMovimiento.MANUAL
+                origen__in=ORIGENES_MOVIMIENTO,
             )
             
-            agregados_manuales = movimientos_manuales.aggregate(
+            agregados_extra = movimientos_extra.aggregate(
                 ingresos=Sum('monto', filter=Q(tipo=TipoMovimientoCaja.INGRESO)),
                 egresos=Sum('monto', filter=Q(tipo=TipoMovimientoCaja.EGRESO))
             )
-            ingresos_manuales = agregados_manuales['ingresos'] or 0
-            egresos_manuales = agregados_manuales['egresos'] or 0
+            ingresos_extra = agregados_extra['ingresos'] or 0
+            egresos_extra  = agregados_extra['egresos']  or 0
             
             # Totales
-            total_ingresos = ingresos_ventas + ingresos_manuales
-            total_egresos = egresos_compras + egresos_manuales
+            total_ingresos = ingresos_ventas + ingresos_extra
+            total_egresos  = egresos_compras + egresos_extra
             saldo = total_ingresos - total_egresos
             
             balance_por_moneda[moneda] = {
@@ -199,11 +206,11 @@ class BalanceGrandeAjax(LoginRequiredMixin, View):
             }
             
             # Métricas detalladas (con filtros aplicados)
-            # Solo movimientos manuales para métricas filtradas
+            # Incluye manual, ajuste (turnos) y transaccion (internas)
             qs = MovimientoCaja.objects.filter(
                 caja=TipoCaja.GRANDE,
                 moneda=moneda,
-                origen=OrigenMovimiento.MANUAL
+                origen__in=ORIGENES_MOVIMIENTO,
             )
             qs = _aplicar_filtros(qs, request.GET)
             
@@ -231,11 +238,11 @@ class BalanceGrandeAjax(LoginRequiredMixin, View):
                 total_movimientos=Count('pk')
             )
             ingresos_manuales = movimientos_filtrados['ingresos'] or 0
-            egresos_manuales = movimientos_filtrados['egresos'] or 0
+            egresos_manuales  = movimientos_filtrados['egresos']  or 0
             total_movimientos = movimientos_filtrados['total_movimientos'] or 0
             
             recaudado = ventas_filtradas + ingresos_manuales
-            gastos = compras_filtradas + egresos_manuales
+            gastos    = compras_filtradas + egresos_manuales
             
             if recaudado or gastos:
                 metricas_por_moneda[moneda] = {

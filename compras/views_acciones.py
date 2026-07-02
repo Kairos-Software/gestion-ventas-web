@@ -206,6 +206,18 @@ class EditarCompraAjax(LoginRequiredMixin, View):
                 continue
             # ────────────────────────────────────────────────────────
 
+            # ── Fecha de vencimiento (requerida si el producto es perecedero;
+            #    la validación fuerte ya la hace _crear_lote_desde_item en el
+            #    modelo, esto solo intenta parsear el string recibido) ──
+            fecha_vencimiento = None
+            fv_raw = raw.get('fecha_vencimiento')
+            if fv_raw:
+                try:
+                    from datetime import datetime
+                    fecha_vencimiento = datetime.strptime(fv_raw, '%Y-%m-%d').date()
+                except (ValueError, TypeError):
+                    pass  # formato inválido → se deja None, el modelo lo va a rechazar si hace falta
+
             items_data.append({
                 'producto':       producto,
                 'proveedor':      proveedor,
@@ -217,6 +229,7 @@ class EditarCompraAjax(LoginRequiredMixin, View):
                 'condicion_pago': raw.get('condicion_pago', 'contado'),
                 'referencia':     raw.get('referencia', ''),
                 'notas':          raw.get('notas', ''),
+                'fecha_vencimiento': fecha_vencimiento,
             })
 
         if errores:

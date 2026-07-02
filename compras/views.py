@@ -8,6 +8,8 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
+from django.db.models import Q
+
 from productos.models import Producto, Proveedor, CombinacionVariante
 from .models import Compra, ItemCompra, EstadoCompra
 from core.permisos import chequear_permiso
@@ -37,81 +39,166 @@ class NuevaCompraView(LoginRequiredMixin, TemplateView):
 
 class BuscarProductoAjax(LoginRequiredMixin, View):
     """
-    GET ?q=texto → lista de productos para el autocomplete.
+    GET ?q=texto → lista de RESULTADOS ya resueltos a nivel de unidad
+    agregable (producto simple, o producto+variante puntual).
 
-    Cuando el producto tiene gestiona_variantes=True se incluye
-    la lista de combinaciones activas con su stock, para que el frontend
-    pueda mostrar el selector de distribución por combinación.
+    Cada fila del resultado representa exactamente lo que se va a agregar
+    al carrito con un solo clic — nunca un "producto con combinaciones
+    adentro" que obligue a distribuir manualmente.
+
+    Reglas:
+      1) Si `q` matchea EXACTO el código de barras (o SKU) de una variante,
+         o el código de barras de un producto sin variantes, se devuelve
+         un único resultado marcado `match_exacto: true`. Este es el caso
+         de un escaneo — el frontend lo agrega directo sin mostrar dropdown.
+      2) Si no hay match exacto, se hace búsqueda parcial por texto:
+         - Si el texto matchea el producto (nombre/código/código de barras
+           global), se listan TODAS sus variantes activas como filas
+           independientes (o una fila única si no tiene variantes).
+         - Si el texto matchea el código de barras / SKU de una variante
+           puntual, se agrega esa fila igual.
     """
 
     def get(self, request):
         if not chequear_permiso(request.user, 'crear_compras'):
             return JsonResponse({'error': 'Sin permiso.'}, status=403)
 
-        # ── Modo ?pk= : producto específico con combinaciones.
-        #    Usado por el editor del historial para enriquecer swatches
-        #    al abrir el panel de edición de una compra anulada.
-        pk_param = request.GET.get('pk', '').strip()
-        if pk_param:
-            try:
-                p = (Producto.objects
-                     .select_related('categoria', 'tipo', 'proveedor')
-                     .prefetch_related('combinaciones')
-                     .get(pk=pk_param))
-            except Producto.DoesNotExist:
-                return JsonResponse({'results': []})
-            return JsonResponse({'results': [self._serializar(p)]})
-
-        # ── Modo ?q= : búsqueda por texto ──
-        q  = request.GET.get('q', '').strip()
-        qs = (
+        base_qs = (
             Producto.objects
             .select_related('categoria', 'tipo', 'proveedor')
             .prefetch_related('combinaciones')
             .filter(estado='activo')
-            .order_by('nombre')
         )
-        if q:
-            # Buscar por nombre, código, código de barras global o código de barras de variante
-            qs = (
-                qs.filter(nombre__icontains=q) |
-                qs.filter(codigo__icontains=q) |
-                qs.filter(codigo_barras__icontains=q) |
-                qs.filter(combinaciones__codigo_barras__icontains=q)
-            ).distinct()
 
-        return JsonResponse({'results': [self._serializar(p) for p in qs[:30]]})
+        # ── Modo ?pk= : producto específico con todas sus variantes.
+        #    Usado por el editor del historial para enriquecer swatches
+        #    al abrir el panel de edición de una compra anulada. ──
+        pk_param = request.GET.get('pk', '').strip()
+        if pk_param:
+            try:
+                p = base_qs.get(pk=pk_param)
+            except Producto.DoesNotExist:
+                return JsonResponse({'results': []})
+            return JsonResponse({'results': self._filas_producto(p)})
 
-    def _serializar(self, p):
-        combinaciones = []
+        q = request.GET.get('q', '').strip()
+
+        if not q:
+            resultados = []
+            for p in base_qs.order_by('nombre')[:30]:
+                resultados.extend(self._filas_producto(p))
+            return JsonResponse({'results': resultados[:30]})
+
+        # ── 1) Coincidencia EXACTA de código de barras / SKU (escaneo) ──
+        combinacion_exacta = (
+            CombinacionVariante.objects
+            .select_related('producto', 'producto__categoria',
+                             'producto__tipo', 'producto__proveedor')
+            .filter(activo=True, producto__estado='activo')
+            .filter(Q(codigo_barras__iexact=q) | Q(sku_variante__iexact=q))
+            .exclude(codigo_barras='')
+            .first()
+        )
+        if combinacion_exacta:
+            return JsonResponse({
+                'results': [self._fila_variante(
+                    combinacion_exacta.producto, combinacion_exacta, match_exacto=True
+                )]
+            })
+
+        producto_exacto = (
+            base_qs.filter(codigo_barras__iexact=q, gestiona_variantes=False)
+            .exclude(codigo_barras='')
+            .first()
+        )
+        if producto_exacto:
+            return JsonResponse({'results': [self._fila_simple(producto_exacto, match_exacto=True)]})
+
+        # ── 2) Búsqueda parcial por texto ──
+        productos_match = base_qs.filter(
+            Q(nombre__icontains=q) | Q(codigo__icontains=q) | Q(codigo_barras__icontains=q)
+        ).distinct().order_by('nombre')
+
+        combinaciones_match = (
+            CombinacionVariante.objects
+            .select_related('producto', 'producto__categoria',
+                             'producto__tipo', 'producto__proveedor')
+            .filter(activo=True, producto__estado='activo')
+            .filter(Q(codigo_barras__icontains=q) | Q(sku_variante__icontains=q))
+            .order_by('producto__nombre')
+        )
+
+        resultados = []
+        vistos = set()  # (producto_pk, combinacion_pk|None)
+
+        for p in productos_match:
+            for fila in self._filas_producto(p):
+                clave = (fila['producto_pk'], fila['combinacion_pk'])
+                if clave not in vistos:
+                    vistos.add(clave)
+                    resultados.append(fila)
+
+        for c in combinaciones_match:
+            fila = self._fila_variante(c.producto, c)
+            clave = (fila['producto_pk'], fila['combinacion_pk'])
+            if clave not in vistos:
+                vistos.add(clave)
+                resultados.append(fila)
+
+        return JsonResponse({'results': resultados[:30]})
+
+    # ── Helpers de serialización ────────────────────────────────────
+    def _filas_producto(self, p):
+        """Filas 'agregables' de un producto: una por variante activa,
+        o una única fila si el producto no gestiona variantes."""
         if p.gestiona_variantes:
-            combinaciones = [
-                {
-                    'pk':                    c.pk,
-                    'descripcion':           c.descripcion_legible(),
-                    'descripcion_combinacion': c.descripcion_legible(),
-                    'codigo_barras':         c.codigo_barras,
-                    'sku_variante':          c.sku_variante,
-                    'stock_actual':          float(c.stock_actual),
-                }
+            return [
+                self._fila_variante(p, c)
                 for c in p.combinaciones.filter(activo=True).order_by('pk')
             ]
+        return [self._fila_simple(p)]
+
+    def _base_producto(self, p):
         return {
-            'pk':                   p.pk,
-            'codigo':               p.codigo,
-            'nombre':               p.nombre,
-            'unidad_medida':        p.get_unidad_medida_display(),
-            'stock_actual':        float(p.stock_actual),
-            'stock_minimo':        float(p.stock_minimo),
-            'categoria':           p.categoria.nombre if p.categoria else '',
-            'tipo':                p.tipo.nombre if p.tipo else '',
-            'marca':               p.marca,
-            'modelo':              p.modelo,
-            'proveedor_pk':        p.proveedor_id or '',
-            'proveedor':           p.proveedor.nombre if p.proveedor else '',
-            'gestiona_variantes':  p.gestiona_variantes,
-            'combinaciones':       combinaciones,
+            'producto_pk':        p.pk,
+            'producto_nombre':    p.nombre,
+            'codigo':             p.codigo,
+            'unidad_medida':      p.get_unidad_medida_display(),
+            'stock_minimo':       float(p.stock_minimo),
+            'categoria':          p.categoria.nombre if p.categoria else '',
+            'tipo':               p.tipo.nombre if p.tipo else '',
+            'marca':              p.marca,
+            'modelo':             p.modelo,
+            'proveedor_pk':       p.proveedor_id or '',
+            'proveedor':          p.proveedor.nombre if p.proveedor else '',
+            'es_perecedero':      p.es_perecedero,
+            'gestiona_variantes': p.gestiona_variantes,
         }
+
+    def _fila_simple(self, p, match_exacto=False):
+        fila = self._base_producto(p)
+        fila.update({
+            'combinacion_pk': None,
+            'nombre':         p.nombre,
+            'variante_desc':  '',
+            'codigo_barras':  p.codigo_barras,
+            'stock_actual':   float(p.stock_actual),
+            'match_exacto':   match_exacto,
+        })
+        return fila
+
+    def _fila_variante(self, p, c, match_exacto=False):
+        fila = self._base_producto(p)
+        fila.update({
+            'combinacion_pk': c.pk,
+            'nombre':         f'{p.nombre} — {c.descripcion_legible()}',
+            'variante_desc':  c.descripcion_legible(),
+            'codigo_barras':  c.codigo_barras,
+            'sku_variante':   c.sku_variante,
+            'stock_actual':   float(c.stock_actual),
+            'match_exacto':   match_exacto,
+        })
+        return fila
 
 
 # ══════════════════════════════════════════════════════════════════
