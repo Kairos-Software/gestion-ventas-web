@@ -382,11 +382,19 @@
                     Confirmar compra
                 </button>
 
-                <button id="cdtBtnVolver" class="cmp-btn cmp-btn-ghost">
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                        <path d="M11 7H3M6.5 3L3 7L6.5 11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                <button id="cdtBtnEditar" class="cmp-btn cmp-btn-ghost">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                        <path d="M11 2L14 5L5 14H2V11L11 2Z" stroke="currentColor" stroke-width="1.4"
+                              stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
-                    Volver y editar carrito
+                    Editar carrito
+                </button>
+
+                <button id="cdtBtnVolver" class="cmp-btn cmp-btn-ghost" style="color:var(--danger,#EF4444)">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                        <path d="M2 2L12 12M12 2L2 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                    </svg>
+                    Cancelar compra
                 </button>
 
             </div>
@@ -454,6 +462,7 @@ window.CDT_CONFIG = {
     urlConfirmar:         "{{ url_confirmar }}",
     urlEliminarBorrador:  "{{ url_eliminar_borrador }}",
     urlNuevaCompra:       "{{ url_nueva_compra }}",
+    urlEditarCarrito:     "{{ url_editar_carrito }}",
     urlHistorial:         "{{ url_historial }}",
     urlDocSubir:          "{{ url_doc_subir }}",
     urlDocEliminar:       "{{ url_doc_eliminar }}",

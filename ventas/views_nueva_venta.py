@@ -7,10 +7,12 @@ from django.views import View
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.db.models import Q
 
 from productos.models import Producto, CombinacionVariante
 from core.models import Cliente, DatosEmpresa
-from .models import Venta, ItemVenta, EstadoVenta, MedioPago
+from compras.models import LoteCompra
+from .models import Venta, ItemVenta, EstadoVenta, MedioPago, TipoResolucionLote
 from core.permisos import chequear_permiso
 from caja.models import TurnoCaja
 
@@ -47,64 +49,244 @@ class NuevaVentaView(LoginRequiredMixin, TemplateView):
 # ══════════════════════════════════════════════════════════════════
 
 class BuscarProductoAjax(LoginRequiredMixin, View):
+    """
+    Cada resultado trae 'tipo_resultado':
+      'simple'                  → producto sin variantes.
+      'variante'                → una variante puntual identificada
+                                   (por búsqueda de texto o por código
+                                   de barras propio de esa variante).
+      'producto_con_variantes'  → se identificó el producto (por texto
+                                   o por un código de barras a nivel
+                                   producto, compartido por sus
+                                   variantes) pero no una variante
+                                   puntual. Trae 'combinaciones' con
+                                   todas las variantes activas para que
+                                   el frontend arme el panel de colores
+                                   y el usuario reparta la cantidad.
+    """
+
     def get(self, request):
         if not chequear_permiso(request.user, 'crear_ventas'):
             return JsonResponse({'error': 'Sin permiso.'}, status=403)
 
-        pk_param = request.GET.get('pk', '').strip()
-        if pk_param:
-            try:
-                p = (Producto.objects
-                     .select_related('categoria', 'tipo')
-                     .prefetch_related('combinaciones')
-                     .get(pk=pk_param))
-            except Producto.DoesNotExist:
-                return JsonResponse({'results': []})
-            return JsonResponse({'results': [self._serializar(p)]})
-
-        q  = request.GET.get('q', '').strip()
-        qs = (
+        base_qs = (
             Producto.objects
             .select_related('categoria', 'tipo')
             .prefetch_related('combinaciones')
             .filter(estado='activo')
-            .order_by('nombre')
         )
-        if q:
-            qs = qs.filter(nombre__icontains=q) | qs.filter(codigo__icontains=q)
 
-        return JsonResponse({'results': [self._serializar(p) for p in qs[:30]]})
+        q = request.GET.get('q', '').strip()
 
-    def _serializar(self, p):
-        combinaciones = []
+        if not q:
+            resultados = []
+            for p in base_qs.order_by('nombre')[:30]:
+                resultados.extend(self._filas_texto(p))
+            return JsonResponse({'results': resultados[:30]})
+
+        # ── 1) Coincidencia EXACTA de código de barras / SKU de una VARIANTE puntual ──
+        combinacion_exacta = (
+            CombinacionVariante.objects
+            .select_related('producto', 'producto__categoria', 'producto__tipo')
+            .filter(activo=True, producto__estado='activo')
+            .filter(Q(codigo_barras__iexact=q) | Q(sku_variante__iexact=q))
+            .exclude(codigo_barras='')
+            .first()
+        )
+        if combinacion_exacta:
+            return JsonResponse({
+                'results': [self._fila_variante(
+                    combinacion_exacta.producto, combinacion_exacta, match_exacto=True
+                )]
+            })
+
+        # ── 2) Coincidencia EXACTA de código de barras / SKU a nivel PRODUCTO ──
+        #     Aplica tanto a productos simples como a productos con
+        #     variantes cuyo código de barras es el mismo para todas
+        #     (caso típico: se imprime un solo código para el producto
+        #     y las variantes se distinguen por talle/color en el local).
+        producto_exacto = (
+            base_qs.filter(Q(codigo_barras__iexact=q) | Q(sku__iexact=q))
+            .exclude(codigo_barras='')
+            .first()
+        )
+        if producto_exacto:
+            return JsonResponse({'results': [self._fila_producto_exacto(producto_exacto)]})
+
+        # ── 3) Búsqueda parcial por texto — variantes separadas ──
+        productos_match = base_qs.filter(
+            Q(nombre__icontains=q) | Q(codigo__icontains=q) |
+            Q(codigo_barras__icontains=q) | Q(sku__icontains=q)
+        ).distinct().order_by('nombre')
+
+        combinaciones_match = (
+            CombinacionVariante.objects
+            .select_related('producto', 'producto__categoria', 'producto__tipo')
+            .filter(activo=True, producto__estado='activo')
+            .filter(Q(codigo_barras__icontains=q) | Q(sku_variante__icontains=q))
+            .order_by('producto__nombre')
+        )
+
+        resultados = []
+        vistos = set()
+
+        for p in productos_match:
+            for fila in self._filas_texto(p):
+                clave = (fila['pk'], fila.get('combinacion_pk'))
+                if clave not in vistos:
+                    vistos.add(clave)
+                    resultados.append(fila)
+
+        for c in combinaciones_match:
+            fila = self._fila_variante(c.producto, c)
+            clave = (fila['pk'], fila['combinacion_pk'])
+            if clave not in vistos:
+                vistos.add(clave)
+                resultados.append(fila)
+
+        return JsonResponse({'results': resultados[:30]})
+
+    # ── Helpers de serialización ────────────────────────────────────
+    def _filas_texto(self, p):
+        """Para listado general / búsqueda por texto: cada variante activa, fila separada."""
         if p.gestiona_variantes:
-            combinaciones = [
-                {
-                    'pk':                    c.pk,
-                    'descripcion':           c.descripcion_legible(),
-                    'descripcion_combinacion': c.descripcion_legible(),
-                    'codigo_barras':         c.codigo_barras,
-                    'sku_variante':          c.sku_variante,
-                    'stock_actual':          float(c.stock_actual),
-                }
+            return [
+                self._fila_variante(p, c)
                 for c in p.combinaciones.filter(activo=True).order_by('pk')
             ]
+        return [self._fila_simple(p)]
+
+    def _base(self, p):
         return {
-            'pk':                   p.pk,
-            'codigo':               p.codigo,
-            'nombre':               p.nombre,
-            'unidad_medida':        p.get_unidad_medida_display(),
-            'stock_actual':        float(p.stock_actual),
-            'stock_minimo':        float(p.stock_minimo),
+            'pk':                  p.pk,
+            'codigo':              p.codigo,
+            'unidad_medida':       p.get_unidad_medida_display(),
             'categoria':           p.categoria.nombre if p.categoria else '',
             'tipo':                p.tipo.nombre if p.tipo else '',
             'marca':               p.marca,
             'modelo':              p.modelo,
             'gestiona_variantes':  p.gestiona_variantes,
-            'combinaciones':       combinaciones,
             'precio_venta':        float(p.precio_venta) if p.precio_venta is not None else None,
             'moneda':              'ARS',
+            # Origen del stock: por defecto, se resuelve el lote más
+            # viejo con stock (FIFO) recién al confirmar (ver
+            # BuscarLoteVentaAjax para el caso de escanear un código
+            # de lote puntual).
+            'tipo_escaneo':        TipoResolucionLote.NORMAL,
+            'lote_pk':             None,
         }
+
+    def _fila_simple(self, p, match_exacto=False):
+        fila = self._base(p)
+        fila.update({
+            'tipo_resultado': 'simple',
+            'combinacion_pk': None,
+            'nombre':         p.nombre,
+            'variante_desc':  '',
+            'stock_actual':   float(p.stock_actual),
+            'match_exacto':   match_exacto,
+        })
+        return fila
+
+    def _fila_variante(self, p, c, match_exacto=False):
+        fila = self._base(p)
+        fila.update({
+            'tipo_resultado': 'variante',
+            'combinacion_pk': c.pk,
+            'nombre':         f'{p.nombre} — {c.descripcion_legible()}',
+            'variante_desc':  c.descripcion_legible(),
+            'stock_actual':   float(c.stock_actual),
+            'match_exacto':   match_exacto,
+        })
+        return fila
+
+    def _fila_producto_exacto(self, p):
+        """Match exacto de código a nivel producto. Si maneja variantes,
+        no sabemos cuál se vendió: se devuelve el producto con todas sus
+        variantes activas para que el frontend abra el panel de colores."""
+        if not p.gestiona_variantes:
+            return self._fila_simple(p, match_exacto=True)
+
+        fila = self._base(p)
+        fila.update({
+            'tipo_resultado': 'producto_con_variantes',
+            'combinacion_pk': None,
+            'nombre':         p.nombre,
+            'variante_desc':  '',
+            'stock_actual':   float(p.stock_actual),
+            'match_exacto':   True,
+            'combinaciones': [
+                {
+                    'combinacion_pk': c.pk,
+                    'nombre':         c.descripcion_legible(),
+                    'stock_actual':   float(c.stock_actual),
+                }
+                for c in p.combinaciones.filter(activo=True).order_by('pk')
+            ],
+        })
+        return fila
+
+
+# ══════════════════════════════════════════════════════════════════
+#  AJAX — Buscar lote por código puntual (LT-AAAA-XXXXX)
+#
+#  El frontend detecta si lo escaneado tiene forma de código de lote
+#  (el que genera/muestra el módulo de inventario) y llama acá en vez
+#  de a BuscarProductoAjax. El ítem que se arme con este resultado
+#  queda con tipo_escaneo=lote_especifico y el lote ya fijado: al
+#  confirmar la venta, el stock sale específicamente de ESE lote (con
+#  su costo, fecha de compra y vencimiento), no del más reciente.
+# ══════════════════════════════════════════════════════════════════
+
+class BuscarLoteVentaAjax(LoginRequiredMixin, View):
+    """GET ?codigo=LT-2025-00001"""
+
+    def get(self, request):
+        if not chequear_permiso(request.user, 'crear_ventas'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        codigo = request.GET.get('codigo', '').strip()
+        if not codigo:
+            return JsonResponse({'error': 'Falta el código de lote.'}, status=400)
+
+        lote = (
+            LoteCompra.objects
+            .select_related('producto', 'producto__categoria', 'producto__tipo', 'combinacion')
+            .filter(codigo__iexact=codigo)
+            .first()
+        )
+        if not lote:
+            return JsonResponse({'error': f'No se encontró ningún lote con el código "{codigo}".'}, status=404)
+        if not lote.activo:
+            return JsonResponse({'error': f'El lote {lote.codigo} está anulado y no se puede usar.'}, status=400)
+        if lote.cantidad_actual <= 0:
+            return JsonResponse({'error': f'El lote {lote.codigo} no tiene stock disponible.'}, status=400)
+        if lote.producto is None:
+            return JsonResponse({'error': f'El producto del lote {lote.codigo} ya no existe.'}, status=400)
+
+        p = lote.producto
+        c = lote.combinacion
+
+        return JsonResponse({'results': [{
+            'pk':                       p.pk,
+            'codigo':                   p.codigo,
+            'nombre':                   f'{p.nombre} — {c.descripcion_legible()}' if c else p.nombre,
+            'tipo_resultado':           'variante' if c else 'simple',
+            'combinacion_pk':           c.pk if c else None,
+            'variante_desc':            c.descripcion_legible() if c else '',
+            'gestiona_variantes':       p.gestiona_variantes,
+            'stock_actual':             float(c.stock_actual if c else p.stock_actual),
+            'precio_venta':             float(p.precio_venta) if p.precio_venta is not None else None,
+            'moneda':                   'ARS',
+            'tipo_escaneo':             TipoResolucionLote.LOTE_ESPECIFICO,
+            'lote_pk':                  lote.pk,
+            'lote_codigo':              lote.codigo,
+            'lote_cantidad_disponible': lote.cantidad_actual,
+            'lote_costo_unitario':      str(lote.costo_unitario),
+            'lote_fecha_vencimiento':   lote.fecha_vencimiento.isoformat() if lote.fecha_vencimiento else None,
+            'lote_fecha_compra':        lote.fecha_compra.isoformat(),
+            'match_exacto':             True,
+        }]})
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -216,11 +398,27 @@ class GuardarBorradorAjax(LoginRequiredMixin, View):
                     errores.append(f'Ítem {idx}: la combinación no pertenece a este producto.')
                     continue
 
+            # ── Origen del stock: normal (se resuelve al confirmar) o
+            #    lote específico (ya viene fijado desde el escaneo) ──
+            tipo_escaneo   = raw.get('tipo_escaneo', TipoResolucionLote.NORMAL)
+            lote_escaneado = None
+            if tipo_escaneo == TipoResolucionLote.LOTE_ESPECIFICO:
+                lote_pk = raw.get('lote_pk')
+                if not lote_pk:
+                    errores.append(f'Ítem {idx}: falta el lote escaneado.')
+                    continue
+                lote_escaneado = LoteCompra.objects.filter(pk=lote_pk).first()
+                if not lote_escaneado:
+                    errores.append(f'Ítem {idx}: el lote escaneado ya no existe.')
+                    continue
+
             ItemVenta.objects.create(
                 venta           = venta,
                 producto        = producto,
                 cliente         = cliente,
                 combinacion     = combinacion,
+                tipo_escaneo    = tipo_escaneo,
+                lote_escaneado  = lote_escaneado,
                 cantidad        = cantidad,
                 precio_unitario = precio_unitario,
                 moneda          = raw.get('moneda', 'ARS'),
@@ -336,7 +534,7 @@ class ConfirmarVentaAjax(LoginRequiredMixin, View):
             return JsonResponse({'error': f'editar_cabecera: {e}', 'detalle': traceback.format_exc()}, status=400)
 
         try:
-            venta.confirmar(confirmado_por=request.user, medio_pago=medio_pago, pagos=pagos_normalizados)
+            avisos = venta.confirmar(confirmado_por=request.user, medio_pago=medio_pago, pagos=pagos_normalizados)
         except Exception as e:
             import traceback
             return JsonResponse({'error': f'confirmar: {e}', 'detalle': traceback.format_exc()}, status=400)
@@ -346,6 +544,7 @@ class ConfirmarVentaAjax(LoginRequiredMixin, View):
             'pk':     venta.pk,
             'numero': venta.numero,
             'total':  str(venta.total),
+            'avisos': avisos or [],
         })
 
 

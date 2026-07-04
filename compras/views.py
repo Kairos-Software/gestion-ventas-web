@@ -20,7 +20,13 @@ from core.permisos import chequear_permiso
 # ══════════════════════════════════════════════════════════════════
 
 class NuevaCompraView(LoginRequiredMixin, TemplateView):
-    """Renderiza el formulario / carrito para crear una nueva compra."""
+    """
+    Renderiza el formulario / carrito para crear una nueva compra.
+
+    Si se accede con ?editar=<pk>, precarga el carrito con los ítems
+    de ese borrador existente (en vez de arrancar vacío). Al guardar,
+    el JS actualiza ese mismo borrador en vez de crear uno nuevo.
+    """
     template_name = 'compras/nueva_compra.html'
 
     def get_context_data(self, **kwargs):
@@ -30,6 +36,37 @@ class NuevaCompraView(LoginRequiredMixin, TemplateView):
             return ctx
         ctx['puede_crear'] = True
         ctx['today'] = timezone.now().date().isoformat()
+
+        ctx['editing_pk'] = None
+        ctx['items_json'] = []
+
+        editar_pk = self.request.GET.get('editar', '').strip()
+        if editar_pk:
+            compra = Compra.objects.filter(pk=editar_pk, estado=EstadoCompra.BORRADOR).first()
+            if compra:
+                ctx['editing_pk'] = compra.pk
+                items_bootstrap = []
+                for item in compra.items.select_related('producto', 'proveedor', 'combinacion').all():
+                    items_bootstrap.append({
+                        'producto_pk':      item.producto_id,
+                        'combinacion_pk':   item.combinacion_id or None,
+                        'nombre':           (f'{item.nombre_producto_display} — {item.nombre_combinacion_display}'
+                                             if item.nombre_combinacion_display else item.nombre_producto_display),
+                        'producto_nombre':  item.nombre_producto_display,
+                        'variante_desc':    item.nombre_combinacion_display or '',
+                        'codigo':           item.producto_codigo or (item.producto.codigo if item.producto else ''),
+                        'proveedor_pk':     item.proveedor_id or '',
+                        'proveedor':        item.nombre_proveedor_display,
+                        'cantidad':         str(item.cantidad),
+                        'costo':            str(item.costo_unitario),
+                        'moneda':           item.moneda,
+                        'descuento':        str(item.descuento_pct),
+                        'condicion':        item.condicion_pago,
+                        'referencia':       item.referencia,
+                        'fecha_vencimiento': item.fecha_vencimiento.strftime('%Y-%m-%d') if item.fecha_vencimiento else '',
+                        'es_perecedero':    bool(item.producto.es_perecedero) if item.producto else bool(item.fecha_vencimiento),
+                    })
+                ctx['items_json'] = items_bootstrap
         return ctx
 
 
@@ -372,6 +409,138 @@ class GuardarBorradorAjax(LoginRequiredMixin, View):
 
 
 # ══════════════════════════════════════════════════════════════════
+#  AJAX — Actualizar Borrador  (usado cuando se edita el carrito de
+#  un borrador existente desde Nueva Compra con ?editar=<pk>)
+# ══════════════════════════════════════════════════════════════════
+
+class ActualizarBorradorAjax(LoginRequiredMixin, View):
+    """
+    POST JSON:
+    {
+        "compra_pk": 42,
+        "fecha":     "2025-01-15",
+        "notas":     "...",
+        "items":     [ ... mismo formato que GuardarBorradorAjax ... ]
+    }
+
+    Reemplaza TODOS los ítems del borrador por los que llegan en el body.
+    El borrador sigue en BORRADOR — no toca stock ni crea lotes todavía.
+
+    Respuesta: { ok: true, pk, numero, total }
+    """
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'crear_compras'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        compra_pk = body.get('compra_pk')
+        if not compra_pk:
+            return JsonResponse({'error': 'compra_pk requerido.'}, status=400)
+
+        compra = get_object_or_404(Compra, pk=compra_pk)
+
+        if compra.estado != EstadoCompra.BORRADOR:
+            return JsonResponse(
+                {'error': f'La compra ya está en estado "{compra.get_estado_display()}". Solo se pueden editar borradores desde acá.'},
+                status=400
+            )
+
+        items_raw = body.get('items', [])
+        if not items_raw:
+            return JsonResponse({'error': 'El carrito no puede quedar vacío.'}, status=400)
+
+        errores = []
+        items_para_crear = []
+
+        for idx, raw in enumerate(items_raw, start=1):
+            producto_pk = raw.get('producto_pk')
+            if not producto_pk:
+                errores.append(f'Ítem {idx}: falta producto.')
+                continue
+
+            try:
+                producto = Producto.objects.get(pk=producto_pk)
+            except Producto.DoesNotExist:
+                errores.append(f'Ítem {idx}: producto no encontrado.')
+                continue
+
+            try:
+                cantidad       = Decimal(str(raw.get('cantidad', 0)))
+                costo_unitario = Decimal(str(raw.get('costo_unitario', 0)))
+                descuento_pct  = Decimal(str(raw.get('descuento_pct', 0)))
+            except Exception:
+                errores.append(f'Ítem {idx}: valores numéricos inválidos.')
+                continue
+
+            if cantidad <= 0:
+                errores.append(f'Ítem {idx}: la cantidad debe ser mayor a 0.')
+                continue
+            if costo_unitario < 0:
+                errores.append(f'Ítem {idx}: el costo no puede ser negativo.')
+                continue
+
+            proveedor = None
+            proveedor_pk = raw.get('proveedor_pk')
+            if proveedor_pk:
+                proveedor = Proveedor.objects.filter(pk=proveedor_pk).first()
+
+            combinacion = None
+            combinacion_pk = raw.get('combinacion_pk')
+            if producto.gestiona_variantes and combinacion_pk:
+                combinacion = CombinacionVariante.objects.filter(
+                    pk=combinacion_pk, producto=producto, activo=True
+                ).first()
+                if combinacion is None:
+                    errores.append(
+                        f'Ítem {idx}: la combinación indicada no existe o no pertenece al producto.'
+                    )
+                    continue
+
+            fecha_vencimiento = None
+            fv_raw = raw.get('fecha_vencimiento')
+            if fv_raw:
+                try:
+                    from datetime import datetime
+                    fecha_vencimiento = datetime.strptime(fv_raw, '%Y-%m-%d').date()
+                except (ValueError, TypeError):
+                    pass
+
+            items_para_crear.append(dict(
+                producto=producto, proveedor=proveedor, combinacion=combinacion,
+                cantidad=cantidad, costo_unitario=costo_unitario,
+                moneda=raw.get('moneda', 'ARS'), descuento_pct=descuento_pct,
+                condicion_pago=raw.get('condicion_pago', 'contado'),
+                referencia=raw.get('referencia', ''), notas=raw.get('notas', ''),
+                fecha_vencimiento=fecha_vencimiento,
+            ))
+
+        if errores:
+            return JsonResponse({'error': ' | '.join(errores)}, status=400)
+
+        # — Recién acá se toca la base: reemplazo total de ítems —
+        compra.items.all().delete()
+        for datos in items_para_crear:
+            ItemCompra.objects.create(compra=compra, **datos)
+
+        compra.fecha = body.get('fecha') or compra.fecha
+        compra.notas = body.get('notas', compra.notas)
+        compra.total = sum(item.subtotal for item in compra.items.all())
+        compra.save(update_fields=['fecha', 'notas', 'total'])
+
+        return JsonResponse({
+            'ok':     True,
+            'pk':     compra.pk,
+            'numero': compra.numero,
+            'total':  str(compra.total),
+        })
+
+
+# ══════════════════════════════════════════════════════════════════
 #  AJAX — Confirmar Compra  (desde el detalle del borrador)
 #  Recibe { compra_pk, fecha, notas }, actualiza cabecera y confirma.
 # ══════════════════════════════════════════════════════════════════
@@ -608,6 +777,7 @@ class DetalleCompraView(LoginRequiredMixin, View):
             'url_confirmar':        reverse('compras:confirmar_compra'),
             'url_eliminar_borrador': reverse('compras:eliminar_borrador'),
             'url_nueva_compra':     reverse('compras:nueva_compra'),
+            'url_editar_carrito':   f"{reverse('compras:nueva_compra')}?editar={compra.pk}",
             'url_historial':        reverse('compras:historial_compras'),
             'url_doc_subir':        reverse('compras:documento_subir'),
             'url_doc_eliminar':     reverse('compras:documento_eliminar'),

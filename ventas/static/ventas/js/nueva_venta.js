@@ -1,30 +1,37 @@
 /**
  * nueva_venta.js
- * ────────────────────────────────────────────────────────────────
- * Esta página es SOLO para cargar productos al carrito: buscar,
- * agregar, definir cantidad, cliente, color, precio, descuento,
- * condición de pago y referencia por ítem.
  *
- * NO se elige fecha, NO se elige medio de pago, NO se confirma la
- * venta acá. Al hacer click en "Continuar al detalle" se guarda el
- * carrito como BORRADOR y se redirige a detalle_venta, que es donde
- * viven: fecha, medios de pago (múltiples), preview/impresión del
- * ticket, confirmar venta o volver atrás a editar el carrito.
- * ────────────────────────────────────────────────────────────────
+ * Carrito de filas planas: una fila por producto (o por producto+variante
+ * puntual). Cada escaneo/selección ya identifica exactamente qué se
+ * vende, así que simplemente suma cantidad — como pasar mercadería por
+ * el lector en una caja de supermercado.
+ *
+ * Origen del stock:
+ *   - tipo_escaneo NORMAL          → se resuelve el lote más VIEJO con
+ *     stock (FIFO) recién al confirmar la venta.
+ *   - tipo_escaneo LOTE_ESPECIFICO → se escaneó el código de lote
+ *     puntual (LT-AAAA-XXXXX); ese lote queda fijo para esa fila.
+ *
+ * Caso borde: un código de barras a nivel producto que no identifica
+ * una variante puntual (tipo_resultado='producto_con_variantes'). Si
+ * el producto tiene una sola variante activa, se resuelve sola. Si
+ * tiene más de una, se muestra el mismo desplegable de la búsqueda
+ * manual para que el usuario elija cuál.
+ *
+ * Requiere window.VTA_CONFIG con:
+ *   urlBuscarProducto, urlBuscarCliente, urlBuscarLote,
+ *   urlGuardarBorrador, urlDetalle, csrfToken
  */
 'use strict';
 
 const CFG = window.VTA_CONFIG || {};
+const LOTE_REGEX = /^LT-\d{4}-\d{5}$/i;
 
 /* ════════════════════════════════════════════════════════════════
    ESTADO
 ════════════════════════════════════════════════════════════════ */
-let carrito      = [];
-let nextId       = 0;
-let cliTimers    = {};
-let cliGlobalDD  = null;
-let cliActiveInput  = null;
-let cliActiveItemId = null;
+let carrito = [];
+let nextId  = 0;
 
 /* ════════════════════════════════════════════════════════════════
    DOM
@@ -38,6 +45,8 @@ const btnContinuar   = document.getElementById('vtaBtnContinuar');
 const badge          = document.getElementById('vtaBadge');
 const totalItemsEl   = document.getElementById('vtaTotalItems');
 const totalMontoEl   = document.getElementById('vtaTotalMonto');
+
+if (searchInput) {
 
 /* ════════════════════════════════════════════════════════════════
    HELPERS
@@ -56,19 +65,9 @@ function _fmtPeso(v) {
     return '$ ' + parseFloat(v || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 function _calcSub(item) {
-    const base = (parseFloat(item.cantidad) || 0) * (parseFloat(item.precio_unitario) || 0);
+    const base = (parseFloat(item.cantidad) || 0) * (parseFloat(item.precio) || 0);
     return item.descuento ? base * (1 - parseFloat(item.descuento) / 100) : base;
 }
-function _totalCombinacionesDist(item) {
-    return Object.values(item.combinaciones_dist).reduce((s, v) => s + (parseFloat(v) || 0), 0);
-}
-function _totalCarrito() {
-    return carrito.reduce((s, i) => s + _calcSub(i), 0);
-}
-
-/* ════════════════════════════════════════════════════════════════
-   TOAST
-════════════════════════════════════════════════════════════════ */
 function _toast(titulo, cuerpo) {
     const toast = document.getElementById('vtaToast');
     document.getElementById('vtaToastTitle').textContent = titulo;
@@ -78,455 +77,429 @@ function _toast(titulo, cuerpo) {
 }
 
 /* ════════════════════════════════════════════════════════════════
-   BUSCADOR DE PRODUCTOS
+   RENDER DE UNA LISTA DE OPCIONES EN EL DESPLEGABLE
+   (se usa tanto para resultados de búsqueda por texto como para
+   desambiguar un producto con variantes que no vino resuelto)
+════════════════════════════════════════════════════════════════ */
+function _renderOpciones(filas, { vacioTexto = 'Sin resultados' } = {}) {
+    if (!filas.length) {
+        searchDropdown.innerHTML = `<div class="vta-dropdown-empty">${_esc(vacioTexto)}</div>`;
+        searchDropdown.classList.add('open');
+        return;
+    }
+
+    searchDropdown.innerHTML = filas.map((r, idx) => `
+        <div class="vta-dropdown-item" data-idx="${idx}">
+            <div class="vta-dropdown-item-top">
+                <span class="vta-dropdown-item-nombre">${_esc(r.nombre)}</span>
+                <span class="vta-dropdown-item-codigo">${_esc(r.codigo)}</span>
+            </div>
+            <div class="vta-dropdown-item-meta">
+                <span class="vta-meta-chip vta-meta-chip--stock${parseFloat(r.stock_actual || 0) <= 0 ? ' bajo' : ''}">
+                    Stock <strong>${parseFloat(r.stock_actual || 0).toLocaleString('es-AR')}</strong>
+                </span>
+                ${r.precio_venta != null
+                    ? `<span class="vta-meta-chip vta-meta-chip--precio">Precio <strong>${_fmt(r.precio_venta, r.moneda)}</strong></span>`
+                    : `<span class="vta-meta-chip--sin-precio">Sin precio cargado</span>`}
+                ${r.variante_desc ? `<span class="vta-meta-chip vta-meta-chip--colores"><strong>${_esc(r.variante_desc)}</strong></span>` : ''}
+            </div>
+        </div>`
+    ).join('');
+
+    searchDropdown.querySelectorAll('.vta-dropdown-item[data-idx]').forEach(el => {
+        el.addEventListener('click', () => {
+            const fila = filas[parseInt(el.dataset.idx, 10)];
+            if (fila) _agregarResultado(fila);
+            searchDropdown.classList.remove('open');
+            searchDropdown.innerHTML = '';
+            searchInput.value = '';
+        });
+    });
+    searchDropdown.classList.add('open');
+}
+
+/* ════════════════════════════════════════════════════════════════
+   BUSCADOR / ESCÁNER — decide entre lote y producto
 ════════════════════════════════════════════════════════════════ */
 let searchTimer;
+
+async function _buscarPorCodigoDeLote(codigo) {
+    try {
+        const res  = await fetch(`${CFG.urlBuscarLote}?codigo=${encodeURIComponent(codigo)}`);
+        const data = await res.json();
+
+        if (data.error) {
+            searchDropdown.innerHTML = `<div class="vta-dropdown-empty">${_esc(data.error)}</div>`;
+            searchDropdown.classList.add('open');
+            return;
+        }
+        const fila = (data.results || [])[0];
+        if (fila) {
+            _agregarResultado(fila);
+            searchDropdown.classList.remove('open');
+            searchDropdown.innerHTML = '';
+            searchInput.value = '';
+        }
+    } catch {
+        _toast('Error de conexión', 'No se pudo buscar el lote. Intentá de nuevo.');
+    }
+}
+
+async function _ejecutarBusqueda(q, { forzarAgregado = false } = {}) {
+    if (!q) {
+        searchDropdown.classList.remove('open');
+        searchDropdown.innerHTML = '';
+        return;
+    }
+
+    if (LOTE_REGEX.test(q)) {
+        await _buscarPorCodigoDeLote(q);
+        return;
+    }
+
+    try {
+        const res     = await fetch(`${CFG.urlBuscarProducto}?q=${encodeURIComponent(q)}`);
+        const data    = await res.json();
+        const results = data.results || [];
+
+        const debeAgregarDirecto =
+            (results.length === 1 && results[0].match_exacto) ||
+            (forzarAgregado && results.length === 1);
+
+        if (debeAgregarDirecto) {
+            _agregarResultado(results[0]);
+            searchDropdown.classList.remove('open');
+            searchDropdown.innerHTML = '';
+            searchInput.value = '';
+            return;
+        }
+
+        _renderOpciones(results, {
+            vacioTexto: forzarAgregado ? 'No se encontró ningún producto con ese código.' : 'Sin resultados',
+        });
+    } catch {
+        searchDropdown.classList.remove('open');
+    }
+}
 
 searchInput.addEventListener('input', () => {
     clearTimeout(searchTimer);
     const q = searchInput.value.trim();
-    if (q.length < 1) { searchDropdown.classList.remove('open'); searchDropdown.innerHTML = ''; return; }
-    searchTimer = setTimeout(async () => {
-        try {
-            const res     = await fetch(`${CFG.urlBuscarProducto}?q=${encodeURIComponent(q)}`);
-            const data    = await res.json();
-            const results = data.results || [];
-            if (!results.length) {
-                searchDropdown.innerHTML = '<div class="vta-dropdown-empty">Sin resultados</div>';
-            } else {
-                searchDropdown.innerHTML = results.map(p => {
-                    const tieneColores = p.tiene_variantes_color && p.colores && p.colores.length > 0;
-                    const coloresAttr  = tieneColores
-                        ? `data-colores="${_esc(btoa(unescape(encodeURIComponent(JSON.stringify(p.colores)))))}"` : '';
-                    const precioLabel  = p.precio_venta !== null && p.precio_venta !== undefined
-                        ? `<span class="vta-meta-chip vta-meta-chip--precio">Precio: <strong>${_fmtPeso(p.precio_venta)}</strong></span>`
-                        : `<span class="vta-meta-chip vta-meta-chip--sin-precio">Sin precio</span>`;
-                    return `
-                    <div class="vta-dropdown-item"
-                         data-pk="${p.pk}" data-nombre="${_esc(p.nombre)}" data-codigo="${_esc(p.codigo)}"
-                         data-unidad="${_esc(p.unidad_medida || '')}" data-tiene-colores="${tieneColores ? '1' : '0'}"
-                         data-precio="${p.precio_venta !== null && p.precio_venta !== undefined ? p.precio_venta : ''}"
-                         data-moneda="${p.moneda || 'ARS'}" ${coloresAttr}>
-                        <div class="vta-dropdown-item-top">
-                            <span class="vta-dropdown-item-nombre">${_esc(p.nombre)}</span>
-                            <span class="vta-dropdown-item-codigo">${_esc(p.codigo)}</span>
-                        </div>
-                        <div class="vta-dropdown-item-meta">
-                            <span class="vta-meta-chip">Stock: <strong>${parseFloat(p.stock_actual || 0).toLocaleString('es-AR')}</strong></span>
-                            ${precioLabel}
-                            ${tieneColores ? `<span class="vta-meta-chip vta-meta-chip--colores"><strong>${p.colores.length} color${p.colores.length !== 1 ? 'es' : ''}</strong></span>` : ''}
-                        </div>
-                    </div>`;
-                }).join('');
-                searchDropdown.querySelectorAll('.vta-dropdown-item').forEach(el => {
-                    el.addEventListener('click', () => {
-                        let colores = [];
-                        if (el.dataset.colores) {
-                            try { colores = JSON.parse(decodeURIComponent(escape(atob(el.dataset.colores)))); } catch { colores = []; }
-                        }
-                        _agregarItem(el.dataset, colores);
-                        searchDropdown.classList.remove('open');
-                        searchDropdown.innerHTML = '';
-                        searchInput.value = '';
-                    });
-                });
-            }
-            searchDropdown.classList.add('open');
-        } catch { searchDropdown.classList.remove('open'); }
-    }, 260);
+    if (q.length < 1) {
+        searchDropdown.classList.remove('open');
+        searchDropdown.innerHTML = '';
+        return;
+    }
+    searchTimer = setTimeout(() => _ejecutarBusqueda(q), 260);
 });
 
 searchInput.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { searchDropdown.classList.remove('open'); searchInput.value = ''; }
-});
-document.addEventListener('click', e => {
-    if (!searchInput.contains(e.target) && !searchDropdown.contains(e.target))
+    if (e.key === 'Escape') {
         searchDropdown.classList.remove('open');
+        searchInput.value = '';
+        return;
+    }
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        clearTimeout(searchTimer);
+        const q = searchInput.value.trim();
+        if (q) _ejecutarBusqueda(q, { forzarAgregado: true });
+    }
+});
+
+document.addEventListener('click', e => {
+    if (!searchDropdown.contains(e.target) && e.target !== searchInput) {
+        searchDropdown.classList.remove('open');
+    }
+    document.querySelectorAll('.vta-cli-dropdown.open').forEach(dd => {
+        if (!dd.contains(e.target) && dd.previousElementSibling !== e.target) {
+            dd.classList.remove('open');
+        }
+    });
 });
 
 /* ════════════════════════════════════════════════════════════════
-   AGREGAR ÍTEM AL CARRITO
-   ──────────────────────────────────────────────────────────────
-   Si el producto tiene combinaciones, la cantidad arranca en 0 y se
-   autocompleta a medida que se distribuyen las combinaciones (no es
-   editable a mano — ver _renderCarrito).
-   Si NO tiene combinaciones, la cantidad arranca en 1 y es editable.
+   AGREGAR RESULTADO AL CARRITO
 ════════════════════════════════════════════════════════════════ */
-function _agregarItem(dataset, combinaciones) {
-    const tieneCombinaciones = dataset.tieneCombinaciones === '1';
-    const precio = dataset.precio !== '' ? parseFloat(dataset.precio) : 0;
-    const item = {
-        id:             nextId++,
-        producto_pk:    dataset.pk,
-        nombre:         dataset.nombre,
-        codigo:         dataset.codigo,
-        unidad:         dataset.unidad || '',
-        cliente_pk:     '',
-        cliente_nombre: '',
-        tiene_combinaciones: tieneCombinaciones,
-        combinaciones_lista: combinaciones,
-        combinaciones_dist:   tieneCombinaciones ? Object.fromEntries(combinaciones.map(c => [c.pk, 0])) : {},
-        cantidad:       tieneCombinaciones ? 0 : 1,
-        precio_unitario: precio,
-        moneda:         dataset.moneda || 'ARS',
-        descuento:      0,
-        condicion:      'contado',
-        referencia:     '',
-    };
-    carrito.push(item);
-    _renderCarrito();
-    _actualizarBtnContinuar();
-}
-
-/* ════════════════════════════════════════════════════════════════
-   RENDER CARRITO
-════════════════════════════════════════════════════════════════ */
-function _renderCarrito() {
-    if (!carrito.length) {
-        cartEmpty.style.display  = 'flex';
-        cartBody.innerHTML       = '';
-        cartFooter.style.display = 'none';
-        if (badge) { badge.textContent = '0'; badge.style.display = 'none'; }
-        _actualizarTotales();
+function _agregarResultado(fila) {
+    // Código de producto ambiguo (compartido por varias variantes):
+    // si solo hay una variante activa, se resuelve sola; si hay más
+    // de una, mostramos las opciones para que el usuario elija —
+    // igual que en una búsqueda manual.
+    if (fila.tipo_resultado === 'producto_con_variantes') {
+        const combos = fila.combinaciones || [];
+        if (combos.length === 1) {
+            _agregarFila({
+                ...fila,
+                tipo_resultado: 'variante',
+                combinacion_pk: combos[0].combinacion_pk,
+                variante_desc:  combos[0].nombre,
+                stock_actual:   combos[0].stock_actual,
+            });
+        } else if (combos.length > 1) {
+            _toast('Elegí la variante', `"${fila.nombre}" tiene varias variantes activas — elegí cuál vendés.`);
+            _renderOpciones(combos.map(c => ({
+                ...fila,
+                tipo_resultado: 'variante',
+                combinacion_pk: c.combinacion_pk,
+                variante_desc:  c.nombre,
+                nombre:         `${fila.nombre} — ${c.nombre}`,
+                stock_actual:   c.stock_actual,
+            })));
+        } else {
+            _toast('Sin variantes activas', `"${fila.nombre}" no tiene ninguna variante activa cargada.`);
+        }
         return;
     }
 
+    _agregarFila(fila);
+}
+
+function _agregarFila(fila) {
+    const existente = carrito.find(i =>
+        i.producto_pk === fila.pk &&
+        i.combinacion_pk === (fila.combinacion_pk || null) &&
+        i.tipo_escaneo === (fila.tipo_escaneo || 'normal') &&
+        i.lote_pk === (fila.lote_pk || null)
+    );
+
+    if (existente) {
+        existente.cantidad = (parseFloat(existente.cantidad) || 0) + 1;
+        _renderCarrito();
+        return;
+    }
+
+    carrito.push({
+        id:              nextId++,
+        producto_pk:     fila.pk,
+        combinacion_pk:  fila.combinacion_pk || null,
+        nombre:          fila.nombre,
+        codigo:          fila.codigo,
+        tipo_escaneo:    fila.tipo_escaneo || 'normal',
+        lote_pk:         fila.lote_pk || null,
+        lote_codigo:     fila.lote_codigo || '',
+        cliente_pk:      null,
+        cliente_nombre:  '',
+        cantidad:        1,
+        precio:          fila.precio_venta ?? '',
+        moneda:          fila.moneda || 'ARS',
+        descuento:       0,
+        condicion:       'contado',
+        referencia:      '',
+    });
+    _renderCarrito();
+}
+
+function _quitarItem(id) {
+    carrito = carrito.filter(i => i.id !== id);
+    _renderCarrito();
+}
+
+/* ════════════════════════════════════════════════════════════════
+   AUTOCOMPLETE DE CLIENTE POR ÍTEM
+════════════════════════════════════════════════════════════════ */
+let clienteSearchTimer;
+
+function _bindClienteInput(inputEl, itemId) {
+    const item = carrito.find(i => i.id === itemId);
+    if (!item) return;
+    const dropdown = inputEl.nextElementSibling;
+
+    inputEl.addEventListener('input', () => {
+        clearTimeout(clienteSearchTimer);
+        const q = inputEl.value.trim();
+        item.cliente_pk = null;
+
+        if (!q) {
+            dropdown.classList.remove('open');
+            dropdown.innerHTML = '';
+            return;
+        }
+        clienteSearchTimer = setTimeout(async () => {
+            try {
+                const res  = await fetch(`${CFG.urlBuscarCliente}?q=${encodeURIComponent(q)}`);
+                const data = await res.json();
+                const results = data.results || [];
+
+                dropdown.innerHTML = results.length
+                    ? results.map(c => `
+                        <div class="vta-cli-option" data-pk="${c.pk}" data-nombre="${_esc(c.nombre)}">
+                            <div class="vta-cli-option-nombre">${_esc(c.nombre)}</div>
+                            ${c.telefono || c.email ? `<div class="vta-cli-option-meta">${_esc(c.telefono || c.email)}</div>` : ''}
+                        </div>`).join('')
+                    : '<div class="vta-dropdown-empty">Sin resultados</div>';
+
+                dropdown.querySelectorAll('.vta-cli-option').forEach(el => {
+                    el.addEventListener('click', () => {
+                        item.cliente_pk     = parseInt(el.dataset.pk, 10);
+                        item.cliente_nombre = el.dataset.nombre;
+                        inputEl.value = el.dataset.nombre;
+                        dropdown.classList.remove('open');
+                        dropdown.innerHTML = '';
+                    });
+                });
+                dropdown.classList.add('open');
+            } catch { /* silencioso */ }
+        }, 260);
+    });
+}
+
+/* ════════════════════════════════════════════════════════════════
+   RENDER DEL CARRITO
+════════════════════════════════════════════════════════════════ */
+function _chipOrigen(item) {
+    if (item.tipo_escaneo === 'lote_especifico') {
+        return `<span class="vta-origen-chip vta-origen-chip--lote" title="Descuenta específicamente de este lote">Lote ${_esc(item.lote_codigo)}</span>`;
+    }
+    return `<span class="vta-origen-chip vta-origen-chip--normal" title="Descuenta del lote más viejo con stock (FIFO)">Más viejo (FIFO)</span>`;
+}
+
+function _renderCarrito() {
+    if (!carrito.length) {
+        cartBody.innerHTML = '';
+        cartEmpty.style.display  = 'flex';
+        cartFooter.style.display = 'none';
+        _actualizarBtnContinuar();
+        return;
+    }
     cartEmpty.style.display  = 'none';
     cartFooter.style.display = 'flex';
-    if (badge) { badge.textContent = carrito.length; badge.style.display = 'inline-flex'; }
 
-    const MONEDAS    = ['ARS', 'USD', 'EUR'];
-    const CONDICIONES = [
-        { v: 'contado', l: 'Contado' },
-        { v: 'cuenta_corriente', l: 'Cta. Cte.' },
-        { v: 'credito', l: 'Crédito' },
-    ];
-
-    cartBody.innerHTML = carrito.map(item => {
-        const sub = _calcSub(item);
-
-        const colorPanel = item.tiene_combinaciones ? `
-        <tr class="vta-row-colores" data-item-id="${item.id}">
-            <td colspan="10">
-                <div class="vta-colores-panel">
-                    <div class="vta-colores-panel-header">
-                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                            <rect x="1" y="1" width="10" height="10" rx="1" stroke="currentColor" stroke-width="1.2"/>
-                            <circle cx="3" cy="3" r="1" fill="currentColor"/>
-                            <circle cx="9" cy="9" r="1" fill="currentColor"/>
-                        </svg>
-                        Distribuir por combinación
-                        <span class="vta-colores-panel-resumen ok" id="colRes_${item.id}">
-                            Total: ${_totalCombinacionesDist(item).toLocaleString('es-AR')}
-                        </span>
-                    </div>
-                    <div class="vta-colores-chips">
-                        ${item.combinaciones_lista.map(c => `
-                        <div class="vta-color-chip">
-                            <span class="vta-color-chip-nombre">${_esc(c.descripcion_combinacion)}</span>
-                            <span class="vta-color-chip-stock">(${parseFloat(c.stock_actual || 0).toLocaleString('es-AR')})</span>
-                            <input type="number" class="vta-input-inline w-xs vta-color-qty"
-                                   min="0" step="1" style="width:65px"
-                                   value="${parseFloat(item.combinaciones_dist[c.pk] || 0)}"
-                                   data-item-id="${item.id}" data-combinacion-pk="${c.pk}">
-                        </div>`).join('')}
-                    </div>
-                </div>
-            </td>
-        </tr>` : '';
-
-        return `
+    cartBody.innerHTML = carrito.map(item => `
         <tr data-item-id="${item.id}">
             <td>
                 <div class="vta-prod-cell">
                     <span class="vta-prod-nombre">${_esc(item.nombre)}</span>
-                    <span class="vta-prod-meta">${_esc(item.codigo)}
-                        ${item.tiene_combinaciones ? `<span class="vta-prod-badge-colores">
-                            <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
-                                <rect x="1" y="1" width="8" height="8" rx="1" stroke="currentColor" stroke-width="1.2"/>
-                                <circle cx="3" cy="3" r="1" fill="currentColor"/>
-                                <circle cx="7" cy="7" r="1" fill="currentColor"/>
-                            </svg>
-                            ${item.combinaciones_lista.length} combinación${item.combinaciones_lista.length !== 1 ? 'es' : ''}
-                        </span>` : ''}
-                    </span>
+                    <span class="vta-prod-meta">${_esc(item.codigo)}</span>
                 </div>
             </td>
+            <td>${_chipOrigen(item)}</td>
+            <td><input type="number" min="0.001" step="0.001" class="vta-input-inline w-sm"
+                       data-item-id="${item.id}" data-campo="cantidad" value="${item.cantidad}"></td>
+            <td><input type="number" min="0" step="0.01" class="vta-input-inline w-sm"
+                       data-item-id="${item.id}" data-campo="precio" value="${item.precio}"></td>
             <td>
-                <input type="text" class="vta-input-inline vta-cli-input"
-                       placeholder="Sin cliente" value="${_esc(item.cliente_nombre)}"
-                       data-item-id="${item.id}" autocomplete="off">
-            </td>
-            <td>
-                ${item.tiene_combinaciones
-                    ? `<input type="number" class="vta-input-inline w-xs" value="${item.cantidad}"
-                              data-item-id="${item.id}" data-cantidad-auto="1" readonly
-                              title="Se calcula automáticamente según las combinaciones distribuidas">`
-                    : `<input type="number" class="vta-input-inline w-xs" min="0.001" step="0.001"
-                              value="${item.cantidad}" data-campo="cantidad" data-item-id="${item.id}">`
-                }
-            </td>
-            <td>
-                <input type="number" class="vta-input-inline w-sm" min="0" step="0.01"
-                       value="${item.precio_unitario}" data-campo="precio_unitario" data-item-id="${item.id}">
-            </td>
-            <td>
-                <select class="vta-select-inline w-xs" data-campo="moneda" data-item-id="${item.id}">
-                    ${MONEDAS.map(m => `<option value="${m}" ${item.moneda === m ? 'selected' : ''}>${m}</option>`).join('')}
+                <select class="vta-select-inline" data-item-id="${item.id}" data-campo="moneda">
+                    <option value="ARS" ${item.moneda === 'ARS' ? 'selected' : ''}>ARS</option>
+                    <option value="USD" ${item.moneda === 'USD' ? 'selected' : ''}>USD</option>
+                    <option value="EUR" ${item.moneda === 'EUR' ? 'selected' : ''}>EUR</option>
                 </select>
             </td>
+            <td><input type="number" min="0" max="100" step="0.01" class="vta-input-inline w-xs"
+                       data-item-id="${item.id}" data-campo="descuento" value="${item.descuento}"></td>
             <td>
-                <input type="number" class="vta-input-inline w-xs" min="0" max="100" step="0.1"
-                       value="${item.descuento}" data-campo="descuento" data-item-id="${item.id}">
-            </td>
-            <td>
-                <select class="vta-select-inline w-md" data-campo="condicion" data-item-id="${item.id}">
-                    ${CONDICIONES.map(c => `<option value="${c.v}" ${item.condicion === c.v ? 'selected' : ''}>${c.l}</option>`).join('')}
+                <select class="vta-select-inline" data-item-id="${item.id}" data-campo="condicion">
+                    <option value="contado" ${item.condicion === 'contado' ? 'selected' : ''}>Contado</option>
+                    <option value="cuenta_corriente" ${item.condicion === 'cuenta_corriente' ? 'selected' : ''}>Cta. cte.</option>
+                    <option value="tarjeta" ${item.condicion === 'tarjeta' ? 'selected' : ''}>Tarjeta</option>
                 </select>
             </td>
-            <td>
-                <input type="text" class="vta-input-inline w-md" placeholder="Nº factura / ref."
-                       value="${_esc(item.referencia)}" data-campo="referencia" data-item-id="${item.id}">
+            <td class="vta-cli-wrap">
+                <input type="text" class="vta-input-inline vta-cli-input" data-item-id="${item.id}"
+                       placeholder="Consumidor final" value="${_esc(item.cliente_nombre)}" autocomplete="off">
+                <div class="vta-cli-dropdown"></div>
             </td>
-            <td class="vta-subtotal-cell">${_fmt(sub, item.moneda)}</td>
-            <td>
-                <button class="vta-btn-remove" data-remove="${item.id}" title="Quitar">
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                        <path d="M2 2L12 12M12 2L2 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-                    </svg>
-                </button>
-            </td>
-        </tr>
-        ${colorPanel}`;
-    }).join('');
+            <td><input type="text" class="vta-input-inline w-md" data-item-id="${item.id}" data-campo="referencia" value="${_esc(item.referencia)}"></td>
+            <td class="vta-subtotal-cell">${_fmt(_calcSub(item), item.moneda)}</td>
+            <td><button class="vta-btn-remove" data-item-id="${item.id}" title="Quitar">✕</button></td>
+        </tr>`
+    ).join('');
 
-    // Inputs de campos simples (no incluye el de cantidad cuando tiene colores, porque ese es readonly)
-    cartBody.querySelectorAll('[data-campo][data-item-id]').forEach(el => {
-        el.addEventListener('input', () => {
-            const id    = parseInt(el.dataset.itemId, 10);
-            const campo = el.dataset.campo;
-            const item  = carrito.find(i => i.id === id);
-            if (!item) return;
-            item[campo] = el.value;
-            if (['cantidad', 'precio_unitario', 'descuento'].includes(campo)) {
-                const tr = el.closest('tr');
-                tr && (tr.querySelector('.vta-subtotal-cell').textContent = _fmt(_calcSub(item), item.moneda));
-            }
-            _actualizarTotales();
-            if (campo === 'cantidad') _actualizarBtnContinuar();
-        });
+    cartBody.querySelectorAll('.vta-input-inline[data-campo], .vta-select-inline[data-campo]').forEach(el => {
+        const ev = el.tagName === 'SELECT' ? 'change' : 'input';
+        el.addEventListener(ev, () => _onCampoCambiado(el));
     });
-
-    // Distribución de combinaciones → autocompleta el campo "Cantidad" general
-    cartBody.querySelectorAll('.vta-color-qty').forEach(el => {
-        el.addEventListener('input', () => {
-            const id      = parseInt(el.dataset.itemId, 10);
-            const combinacionPk = el.dataset.combinacionPk;
-            const item    = carrito.find(i => i.id === id);
-            if (!item) return;
-
-            item.combinaciones_dist[combinacionPk] = parseFloat(el.value) || 0;
-
-            // ── Autocompletar cantidad general = suma de todas las combinaciones ──
-            const total = _totalCombinacionesDist(item);
-            item.cantidad = total;
-
-            const resumen = document.getElementById(`colRes_${id}`);
-            if (resumen) resumen.textContent = `Total: ${total.toLocaleString('es-AR')}`;
-
-            // Actualizar el input de cantidad (readonly) y el subtotal de la fila
-            const tr = cartBody.querySelector(`tr[data-item-id="${id}"]:not(.vta-row-colores)`);
-            if (tr) {
-                const cantidadInput = tr.querySelector('[data-cantidad-auto]');
-                if (cantidadInput) cantidadInput.value = total;
-                const subtotalCell = tr.querySelector('.vta-subtotal-cell');
-                if (subtotalCell) subtotalCell.textContent = _fmt(_calcSub(item), item.moneda);
-            }
-
-            _actualizarTotales();
-            _actualizarBtnContinuar();
-        });
+    cartBody.querySelectorAll('.vta-cli-input').forEach(el => {
+        _bindClienteInput(el, parseInt(el.dataset.itemId, 10));
     });
-
-    // Quitar ítem
-    cartBody.querySelectorAll('[data-remove]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const id = parseInt(btn.dataset.remove, 10);
-            carrito = carrito.filter(i => i.id !== id);
-            _renderCarrito();
-            _actualizarBtnContinuar();
-        });
-    });
-
-    // Cliente autocomplete
-    cartBody.querySelectorAll('.vta-cli-input').forEach(input => {
-        input.addEventListener('input',  () => _onCliInput(input));
-        input.addEventListener('blur',   () => _onCliBlur(input));
-        input.addEventListener('focus',  () => { if (input.value.trim()) _onCliInput(input); });
+    cartBody.querySelectorAll('.vta-btn-remove').forEach(el => {
+        el.addEventListener('click', () => _quitarItem(parseInt(el.dataset.itemId, 10)));
     });
 
     _actualizarTotales();
     _actualizarBtnContinuar();
 }
 
+function _onCampoCambiado(el) {
+    const id    = parseInt(el.dataset.itemId, 10);
+    const campo = el.dataset.campo;
+    const item  = carrito.find(i => i.id === id);
+    if (!item) return;
+    item[campo] = el.value;
+
+    const fila = cartBody.querySelector(`tr[data-item-id="${id}"]`);
+    if (fila) {
+        const sub = fila.querySelector('.vta-subtotal-cell');
+        if (sub) sub.textContent = _fmt(_calcSub(item), item.moneda);
+    }
+    _actualizarTotales();
+    _actualizarBtnContinuar();
+}
+
 /* ════════════════════════════════════════════════════════════════
-   TOTALES Y ESTADO DEL BOTÓN
+   TOTALES Y BADGE
 ════════════════════════════════════════════════════════════════ */
 function _actualizarTotales() {
-    const total = _totalCarrito();
+    const total = carrito.reduce((s, i) => s + _calcSub(i), 0);
     if (totalItemsEl) totalItemsEl.textContent = carrito.length;
-    if (totalMontoEl) totalMontoEl.textContent  = _fmtPeso(total);
-    if (badge) badge.textContent = carrito.length;
+    if (totalMontoEl) totalMontoEl.textContent = _fmtPeso(total);
+    if (badge) { badge.textContent = carrito.length; badge.style.display = carrito.length ? 'inline-flex' : 'none'; }
 }
-
 function _actualizarBtnContinuar() {
-    if (!btnContinuar) return;
-    const hayItems = carrito.length > 0;
-    // Si tiene combinaciones pero la cantidad autocompletada quedó en 0, no deja avanzar
-    const hayPendiente = carrito.some(i => i.tiene_combinaciones && (parseFloat(i.cantidad) || 0) <= 0);
-    btnContinuar.disabled = !hayItems || hayPendiente;
+    if (btnContinuar) btnContinuar.disabled = carrito.length === 0;
 }
 
 /* ════════════════════════════════════════════════════════════════
-   CLIENTE — AUTOCOMPLETE
+   GUARDAR BORRADOR Y NAVEGAR AL DETALLE
 ════════════════════════════════════════════════════════════════ */
-function _getCliDD() {
-    if (!cliGlobalDD) {
-        cliGlobalDD = document.createElement('div');
-        cliGlobalDD.className = 'vta-cli-dropdown';
-        document.body.appendChild(cliGlobalDD);
-    }
-    return cliGlobalDD;
-}
-function _cerrarCliDD() {
-    const dd = _getCliDD();
-    dd.classList.remove('open'); dd.innerHTML = '';
-    cliActiveInput = null; cliActiveItemId = null;
-}
-function _posCliDD(input) {
-    const dd = _getCliDD(), rect = input.getBoundingClientRect(), below = window.innerHeight - rect.bottom;
-    dd.style.cssText = `position:fixed;left:${rect.left}px;width:${Math.max(rect.width, 220)}px;max-height:${Math.min(200, Math.max(below - 8, 120))}px;z-index:9000;${below < 120 ? `bottom:${window.innerHeight - rect.top + 4}px;top:auto;` : `top:${rect.bottom + 4}px;bottom:auto;`}`;
-}
-function _onCliInput(input) {
-    const itemId = parseInt(input.dataset.itemId, 10);
-    cliActiveInput = input; cliActiveItemId = itemId;
-    const item = carrito.find(i => i.id === itemId);
-    if (item) { item.cliente_pk = ''; item.cliente_nombre = input.value; }
-    clearTimeout(cliTimers[itemId]);
-    const dd = _getCliDD(), q = input.value.trim();
-    if (!q) { _cerrarCliDD(); return; }
-    cliTimers[itemId] = setTimeout(async () => {
-        try {
-            const res = await fetch(`${CFG.urlBuscarCliente}?q=${encodeURIComponent(q)}`);
-            const data = await res.json();
-            const results = data.results || [];
-            dd.innerHTML = results.length
-                ? results.map(p => `<div class="vta-cli-option" data-pk="${p.pk}" data-nombre="${_esc(p.nombre)}">
-                    <div class="vta-cli-option-nombre">${_esc(p.nombre)}</div>
-                    ${p.codigo ? `<div class="vta-cli-option-meta">Código: ${_esc(p.codigo)}</div>` : ''}
-                  </div>`).join('')
-                : `<div class="vta-cli-option" style="color:var(--text-muted);cursor:default">Sin resultados</div>`;
-            dd.querySelectorAll('.vta-cli-option[data-pk]').forEach(el => {
-                el.addEventListener('mousedown', e => {
-                    e.preventDefault();
-                    input.value = el.dataset.nombre;
-                    const it = carrito.find(i => i.id === itemId);
-                    if (it) { it.cliente_pk = el.dataset.pk; it.cliente_nombre = el.dataset.nombre; }
-                    _cerrarCliDD();
-                });
-            });
-            _posCliDD(input); dd.classList.add('open');
-        } catch { _cerrarCliDD(); }
-    }, 250);
-}
-function _onCliBlur(input) {
-    setTimeout(() => { if (cliActiveInput === input) _cerrarCliDD(); }, 200);
-}
-document.addEventListener('mousedown', e => {
-    if (cliGlobalDD && !cliGlobalDD.contains(e.target)) _cerrarCliDD();
-});
-
-/* ════════════════════════════════════════════════════════════════
-   CONTINUAR AL DETALLE — guarda borrador y redirige
-   ──────────────────────────────────────────────────────────────
-   Acá NO se confirma la venta. Solo se guarda como borrador y se
-   redirige a detalle_venta, donde se completa fecha, medio(s) de
-   pago, y se confirma (o se vuelve atrás a editar el carrito).
-════════════════════════════════════════════════════════════════ */
-function _buildItemsPayload() {
-    const payload = [];
-    for (const item of carrito) {
-        if (item.tiene_colores) {
-            for (const [colorPk, cant] of Object.entries(item.colores_dist)) {
-                const cantidad = parseFloat(cant) || 0;
-                if (cantidad <= 0) continue;
-                payload.push({
-                    producto_pk:     item.producto_pk,
-                    cliente_pk:      item.cliente_pk || null,
-                    color_pk:        parseInt(colorPk, 10),
-                    cantidad,
-                    precio_unitario: parseFloat(item.precio_unitario) || 0,
-                    moneda:          item.moneda,
-                    descuento_pct:   parseFloat(item.descuento) || 0,
-                    condicion_pago:  item.condicion,
-                    referencia:      item.referencia,
-                });
-            }
-        } else {
-            payload.push({
-                producto_pk:     item.producto_pk,
-                cliente_pk:      item.cliente_pk || null,
-                color_pk:        null,
-                cantidad:        parseFloat(item.cantidad) || 0,
-                precio_unitario: parseFloat(item.precio_unitario) || 0,
-                moneda:          item.moneda,
-                descuento_pct:   parseFloat(item.descuento) || 0,
-                condicion_pago:  item.condicion,
-                referencia:      item.referencia,
-            });
-        }
-    }
-    return payload;
-}
-
 if (btnContinuar) {
     btnContinuar.addEventListener('click', async () => {
         if (!carrito.length) return;
 
-        const sinDistribuir = carrito.filter(i => i.tiene_combinaciones && (parseFloat(i.cantidad) || 0) <= 0);
-        if (sinDistribuir.length) {
-            _toast('Combinaciones sin distribuir', `Asigná cantidad a las combinaciones de: ${sinDistribuir.map(i => i.nombre).join(', ')}`);
-            return;
-        }
-
         btnContinuar.disabled  = true;
-        btnContinuar.innerHTML = `<svg class="vta-spin" width="15" height="15" viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.5" stroke-dasharray="20 15"/>
-        </svg> Guardando…`;
+        btnContinuar.textContent = 'Guardando…';
+
+        const itemsPayload = carrito.map(item => ({
+            producto_pk:     item.producto_pk,
+            cliente_pk:      item.cliente_pk || null,
+            combinacion_pk:  item.combinacion_pk || null,
+            tipo_escaneo:    item.tipo_escaneo,
+            lote_pk:         item.lote_pk || null,
+            cantidad:        item.cantidad,
+            precio_unitario: item.precio,
+            moneda:          item.moneda,
+            descuento_pct:   item.descuento,
+            condicion_pago:  item.condicion,
+            referencia:      item.referencia,
+        }));
 
         try {
             const res  = await fetch(CFG.urlGuardarBorrador, {
                 method:  'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CFG.csrfToken },
-                body:    JSON.stringify({ items: _buildItemsPayload() }),
+                body:    JSON.stringify({ items: itemsPayload }),
             });
             const data = await res.json();
 
             if (data.ok) {
                 window.location.href = CFG.urlDetalle + data.pk + '/';
             } else {
-                _toast('Error', data.error || 'No se pudo guardar el borrador.');
+                _toast('Error al guardar', data.error || 'No se pudo guardar el borrador.');
                 btnContinuar.disabled  = false;
-                btnContinuar.innerHTML = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-                    <path d="M3 7.5H12M8.5 3.5L12.5 7.5L8.5 11.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg> Continuar al detalle`;
+                btnContinuar.innerHTML = 'Continuar al detalle';
             }
         } catch {
             _toast('Error de conexión', 'Intentá de nuevo.');
             btnContinuar.disabled  = false;
-            btnContinuar.innerHTML = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-                <path d="M3 7.5H12M8.5 3.5L12.5 7.5L8.5 11.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg> Continuar al detalle`;
+            btnContinuar.innerHTML = 'Continuar al detalle';
         }
     });
 }
+
+/* ════════════════════════════════════════════════════════════════
+   INIT
+════════════════════════════════════════════════════════════════ */
+_renderCarrito();
+searchInput.focus();
+
+} // if (searchInput)

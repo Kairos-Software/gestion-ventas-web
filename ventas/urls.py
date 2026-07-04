@@ -17,11 +17,12 @@ urlpatterns = [
     # ══════════════════════════════════════════════════════════════════
     #  AJAX — Crear venta
     # ══════════════════════════════════════════════════════════════════
-    path('buscar/productos/',   views.BuscarProductoAjax.as_view(),     name='buscar_producto'),
-    path('buscar/clientes/',   views.BuscarClienteAjax.as_view(),      name='buscar_cliente'),
-    path('guardar-borrador/',  views.GuardarBorradorAjax.as_view(),    name='guardar_borrador'),
-    path('confirmar/',         views.ConfirmarVentaAjax.as_view(),     name='confirmar_venta'),
-    path('eliminar-borrador/', views.EliminarBorradorAjax.as_view(),   name='eliminar_borrador'),
+    path('buscar/productos/',  views.BuscarProductoAjax.as_view(),    name='buscar_producto'),
+    path('buscar/clientes/',   views.BuscarClienteAjax.as_view(),     name='buscar_cliente'),
+    path('buscar/lote/',       views.BuscarLoteVentaAjax.as_view(),   name='buscar_lote'),
+    path('guardar-borrador/',  views.GuardarBorradorAjax.as_view(),   name='guardar_borrador'),
+    path('confirmar/',         views.ConfirmarVentaAjax.as_view(),    name='confirmar_venta'),
+    path('eliminar-borrador/', views.EliminarBorradorAjax.as_view(),  name='eliminar_borrador'),
 
     # ══════════════════════════════════════════════════════════════════
     #  AJAX — Historial

@@ -5,6 +5,7 @@ from django.utils import timezone
 
 from productos.models import Producto, Moneda, CondicionPago, CombinacionVariante
 from core.models import Cliente
+from compras.models import LoteCompra
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -25,47 +26,173 @@ class MedioPago(models.TextChoices):
     QR            = 'qr',            'QR'
 
 
+class TipoResolucionLote(models.TextChoices):
+    """
+    Cómo se determinó de qué lote sale el stock de un ítem.
+
+    NORMAL           → se escaneó/buscó el producto por su código habitual.
+                        El lote se resuelve recién al CONFIRMAR la venta,
+                        tomando el lote activo con stock más VIEJO (FIFO)
+                        (igual que un sistema sin trazabilidad de lotes,
+                        pero dejando registro de cuál se usó).
+    LOTE_ESPECIFICO  → se escaneó el código de lote (LT-AAAA-XXXXX) que
+                        genera/muestra el módulo de inventario. El lote
+                        queda fijado desde que se agrega el ítem al carrito.
+    """
+    NORMAL          = 'normal',          'Código normal (último lote disponible)'
+    LOTE_ESPECIFICO = 'lote_especifico', 'Código de lote específico'
+
+
 # ══════════════════════════════════════════════════════════════════
 #  HELPERS INTERNOS
 # ══════════════════════════════════════════════════════════════════
 
-def _restar_stock_item(item):
+def _lotes_candidatos(producto, combinacion):
     """
-    Resta el stock correspondiente a un ítem al confirmar una venta.
-    - Si el producto gestiona variantes Y el ítem tiene una combinación
-      asignada: resta en CombinacionVariante y sincroniza el total del producto.
-    - Si no: resta directamente en Producto.stock_actual.
+    Lotes activos con stock para un producto/combinación, del más
+    VIEJO al más nuevo (FIFO real: se vende primero lo que se compró
+    antes, para no dejar mercadería vencida/estancada en el fondo)."""
+    qs = LoteCompra.objects.filter(activo=True, cantidad_actual__gt=0, producto=producto)
+    qs = qs.filter(combinacion=combinacion) if combinacion is not None else qs.filter(combinacion__isnull=True)
+    return list(qs.order_by('fecha_compra', 'fecha_alta'))
+
+
+def _resolver_y_consumir_lotes(item):
+    """
+    Determina de qué lote(s) sale el descuento de `item` y los consume.
+
+    - tipo_escaneo NORMAL: arranca por el lote activo más VIEJO (FIFO).
+    - tipo_escaneo LOTE_ESPECIFICO: arranca por item.lote_escaneado.
+
+    Si el lote elegido no alcanza para cubrir la cantidad pedida, completa
+    automáticamente con el/los siguiente(s) lote(s) disponibles y agrega
+    un aviso legible para mostrarle al vendedor.
+
+    Devuelve (lista_de_ConsumoLoteVenta_creados, lista_de_avisos:str).
+    Lanza ValueError si no hay stock suficiente en ningún lote.
     """
     producto = item.producto
     if producto is None or not producto.gestiona_stock:
-        return
+        return [], []
+
+    combinacion = item.combinacion
+    nombre_desc = item.producto_nombre or (producto.nombre if producto else '')
+    if item.combinacion_descripcion:
+        nombre_desc = f'{nombre_desc} [{item.combinacion_descripcion}]'
+
+    lotes = _lotes_candidatos(producto, combinacion)
+
+    if item.tipo_escaneo == TipoResolucionLote.LOTE_ESPECIFICO and item.lote_escaneado_id:
+        prioritario = next((l for l in lotes if l.pk == item.lote_escaneado_id), None)
+        if prioritario is None:
+            lp = LoteCompra.objects.filter(pk=item.lote_escaneado_id).first()
+            codigo = lp.codigo if lp else '(lote eliminado)'
+            raise ValueError(
+                f'El lote {codigo} escaneado para "{nombre_desc}" ya no tiene stock disponible. '
+                f'Volvé a escanear un código de lote válido.'
+            )
+        lotes = [prioritario] + [l for l in lotes if l.pk != prioritario.pk]
+
+    if not lotes:
+        raise ValueError(f'No hay lotes con stock disponible para "{nombre_desc}".')
+
+    restante   = int(item.cantidad)
+    consumos   = []
+    avisos     = []
+    es_primero = True
+
+    for lote in lotes:
+        if restante <= 0:
+            break
+        disponible = lote.cantidad_actual
+        if disponible <= 0:
+            continue
+
+        tomar = min(restante, disponible)
+
+        if es_primero and tomar < restante:
+            avisos.append(
+                f'"{nombre_desc}": el lote {lote.codigo} solo tenía {disponible} unidad(es) disponibles; '
+                f'se completó la cantidad descontando del siguiente lote.'
+            )
+        es_primero = False
+
+        lote.descontar_stock(tomar)
+        consumos.append(ConsumoLoteVenta.objects.create(
+            item_venta              = item,
+            lote                    = lote,
+            cantidad                = tomar,
+            lote_codigo_snapshot    = lote.codigo,
+            costo_unitario_snapshot = lote.costo_unitario,
+        ))
+        restante -= tomar
+
+    if restante > 0:
+        raise ValueError(
+            f'Stock insuficiente en todos los lotes disponibles para "{nombre_desc}". '
+            f'Faltan {restante} unidad(es) para completar la venta.'
+        )
+
+    return consumos, avisos
+
+
+def _descontar_stock_venta_item(item):
+    """
+    Descuenta stock al confirmar una venta: consume lote(s) existentes
+    (no crea lotes nuevos, a diferencia de compras) y sincroniza
+    stock_actual del producto/combinación. Devuelve (consumos, avisos).
+    """
+    producto = item.producto
+    if producto is None or not producto.gestiona_stock:
+        return [], []
+
+    consumos, avisos = _resolver_y_consumir_lotes(item)
 
     if producto.gestiona_variantes and item.combinacion is not None:
         combinacion = item.combinacion
-        combinacion.stock_actual -= item.cantidad
+        nuevo_stock = combinacion.stock_actual - item.cantidad
+        if nuevo_stock < 0 and not producto.permite_stock_negativo:
+            raise ValueError(f'Stock resultaría negativo para combinación {combinacion.descripcion_legible()}: {nuevo_stock}')
+        combinacion.stock_actual = nuevo_stock
         combinacion.save(update_fields=['stock_actual'])
         producto.sincronizar_stock_desde_combinaciones()
     else:
-        producto.stock_actual -= item.cantidad
+        nuevo_stock = producto.stock_actual - item.cantidad
+        if nuevo_stock < 0 and not producto.permite_stock_negativo:
+            raise ValueError(f'Stock resultaría negativo para producto {producto.nombre}: {nuevo_stock}')
+        producto.stock_actual = nuevo_stock
         producto.save(update_fields=['stock_actual'])
 
+    return consumos, avisos
 
-def _sumar_stock_item(item):
+
+def _revertir_stock_venta_item(item):
     """
-    Suma el stock correspondiente a un ítem al anular/eliminar una venta.
-    Misma lógica de despacho que _restar_stock_item.
+    Revierte el descuento de stock al anular/eliminar una venta.
+    Devuelve cada porción consumida a su lote de origen (usa el
+    historial de ConsumoLoteVenta, así que funciona igual si el ítem
+    se completó con más de un lote).
     """
     producto = item.producto
     if producto is None or not producto.gestiona_stock:
         return
 
+    total = 0
+    for consumo in item.consumos.select_related('lote'):
+        if consumo.lote is not None:
+            consumo.lote.agregar_stock(consumo.cantidad)
+        total += consumo.cantidad
+
+    if total == 0:
+        return
+
     if producto.gestiona_variantes and item.combinacion is not None:
         combinacion = item.combinacion
-        combinacion.stock_actual += item.cantidad
+        combinacion.stock_actual = combinacion.stock_actual + total
         combinacion.save(update_fields=['stock_actual'])
         producto.sincronizar_stock_desde_combinaciones()
     else:
-        producto.stock_actual += item.cantidad
+        producto.stock_actual = producto.stock_actual + total
         producto.save(update_fields=['stock_actual'])
 
 
@@ -173,7 +300,7 @@ class Venta(models.Model):
         with transaction.atomic():
             if self.estado == EstadoVenta.CONFIRMADA:
                 for item in self.items.select_related('producto', 'combinacion'):
-                    _sumar_stock_item(item)
+                    _revertir_stock_venta_item(item)
             # Sincronizar movimiento de caja grande antes de borrar
             from caja.models import sincronizar_movimiento_venta
             sincronizar_movimiento_venta(self)
@@ -204,8 +331,10 @@ class Venta(models.Model):
         if self.estado != EstadoVenta.BORRADOR:
             raise ValueError('Solo se pueden confirmar ventas en estado Borrador.')
 
+        avisos = []
         for item in self.items.select_related('producto', 'combinacion'):
-            _restar_stock_item(item)
+            _consumos, avisos_item = _descontar_stock_venta_item(item)
+            avisos.extend(avisos_item)
 
         self.calcular_total()
         self.estado            = EstadoVenta.CONFIRMADA
@@ -236,6 +365,8 @@ class Venta(models.Model):
         from caja.models import sincronizar_movimiento_venta
         sincronizar_movimiento_venta(self)
 
+        return avisos
+
     @transaction.atomic
     def anular(self, anulado_por=None):
         """Anula la venta y revierte el stock. Solo desde CONFIRMADA."""
@@ -245,7 +376,7 @@ class Venta(models.Model):
             raise ValueError('Las ventas en borrador no se anulan — simplemente no se confirman.')
 
         for item in self.items.select_related('producto', 'combinacion'):
-            _sumar_stock_item(item)
+            _revertir_stock_venta_item(item)
 
         self.estado         = EstadoVenta.ANULADA
         self.anulado_por    = anulado_por
@@ -283,6 +414,8 @@ class Venta(models.Model):
                 producto        = d['producto'],
                 cliente         = d.get('cliente'),
                 combinacion     = d.get('combinacion'),
+                tipo_escaneo    = d.get('tipo_escaneo', TipoResolucionLote.NORMAL),
+                lote_escaneado  = d.get('lote_escaneado'),
                 cantidad        = d['cantidad'],
                 precio_unitario = d['precio_unitario'],
                 moneda          = d.get('moneda', 'ARS'),
@@ -304,8 +437,8 @@ class Venta(models.Model):
         ])
 
         # Re-confirma propagando quien editó como confirmador y los pagos
-        self.confirmar(confirmado_por=editado_por, medio_pago=medio_pago, pagos=pagos)
         # La sincronización de caja ya ocurre dentro de confirmar()
+        return self.confirmar(confirmado_por=editado_por, medio_pago=medio_pago, pagos=pagos)
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -335,6 +468,18 @@ class ItemVenta(models.Model):
                    CombinacionVariante, on_delete=models.SET_NULL,
                    null=True, blank=True, related_name='items_venta',
                    verbose_name='Combinación de variantes')
+
+    # ── Origen del stock (de qué lote sale) ───────────────────────
+    tipo_escaneo = models.CharField(
+                       max_length=20, choices=TipoResolucionLote.choices,
+                       default=TipoResolucionLote.NORMAL)
+
+    lote_escaneado = models.ForeignKey(
+                          LoteCompra, on_delete=models.SET_NULL,
+                          null=True, blank=True,
+                          related_name='items_venta_escaneados',
+                          verbose_name='Lote escaneado puntualmente',
+                          help_text='Solo se completa si tipo_escaneo=lote_especifico.')
 
     # ── Snapshots ────────────────────────────────────────────────
     producto_nombre  = models.CharField(max_length=255, blank=True)
@@ -411,6 +556,43 @@ class ItemVenta(models.Model):
         if self.combinacion_descripcion:
             return f'{self.combinacion_descripcion} (eliminado)'
         return ''
+
+    @property
+    def lotes_utilizados(self):
+        """Códigos de lote de los que efectivamente salió el stock (post-confirmación)."""
+        return [c.lote_codigo_snapshot for c in self.consumos.all()]
+
+
+# ══════════════════════════════════════════════════════════════════
+#  CONSUMO DE LOTE — de qué LoteCompra específico salió cada porción
+#  de un ItemVenta. Un mismo ítem puede tener más de un consumo si el
+#  lote principal no alcanzaba para cubrir la cantidad pedida (se
+#  completa automáticamente con el siguiente lote disponible).
+# ══════════════════════════════════════════════════════════════════
+
+class ConsumoLoteVenta(models.Model):
+    """
+    costo_unitario_snapshot queda disponible para que otros módulos
+    (caja diaria, caja grande, estadísticas) calculen la ganancia real
+    — este módulo de ventas no calcula ganancia.
+    """
+    item_venta = models.ForeignKey(ItemVenta, on_delete=models.CASCADE, related_name='consumos')
+    lote       = models.ForeignKey(LoteCompra, on_delete=models.SET_NULL,
+                     null=True, blank=True, related_name='consumos_venta')
+    cantidad   = models.PositiveIntegerField()
+
+    lote_codigo_snapshot    = models.CharField(max_length=20, blank=True)
+    costo_unitario_snapshot = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+
+    fecha_alta = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name        = 'Consumo de lote (venta)'
+        verbose_name_plural = 'Consumos de lote (venta)'
+        ordering            = ['id']
+
+    def __str__(self):
+        return f'{self.lote_codigo_snapshot} → {self.cantidad}u ({self.item_venta})'
 
 
 # ══════════════════════════════════════════════════════════════════

@@ -586,6 +586,9 @@ async function cargarCatalogoVariantes() {
         _cacheOpciones  = dataOpc.results || [];
         poblarSelectVariantes(document.getElementById('f_variante_tipo'));
         actualizarSelectValoresCatalogo();
+        _renderCatalogoResumen();
+        renderBulkDimensiones();
+        renderBulkPreview();
     } catch {
         showToast('Error al cargar el catálogo de variantes.', 'error');
     }
@@ -635,6 +638,56 @@ function actualizarSelectValoresCatalogo() {
 }
 
 document.getElementById('f_variante_tipo')?.addEventListener('change', actualizarSelectValoresCatalogo);
+
+function _renderCatalogoResumen() {
+    const cont = document.getElementById('catalogoValoresResumen');
+    if (!cont) return;
+    const tipos = _cacheVariantes.filter(v => v.activo);
+    if (!tipos.length) {
+        cont.innerHTML = '<span class="prd-v2-chip-empty">Todavía no cargaste tipos de variante.</span>';
+        return;
+    }
+    cont.innerHTML = tipos.map(t => {
+        const valores = opcionesDeVariante(t.pk);
+        const chips = valores.length
+            ? valores.map(o => `
+                <span class="prd-v2-chip" onclick="_seleccionarChipCatalogo('${t.pk}','${o.pk}')">
+                    ${o.nombre}
+                    <span class="prd-v2-chip-del" title="Eliminar valor" onclick="event.stopPropagation(); _eliminarValorCatalogo('${o.pk}','${o.nombre.replace(/'/g, "\\'")}')">
+                        <svg width="9" height="9" viewBox="0 0 9 9" fill="none"><path d="M1 1L8 8M8 1L1 8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                    </span>
+                </span>`).join('')
+            : '<span class="prd-v2-chip-empty">Sin valores todavía</span>';
+        return `
+            <div class="prd-v2-resumen-tipo">
+                <div class="prd-v2-resumen-tipo-nombre">${t.nombre}</div>
+                <div class="prd-v2-chips">${chips}</div>
+            </div>`;
+    }).join('');
+}
+
+function _seleccionarChipCatalogo(tipoPk, opcionPk) {
+    const selTipo = document.getElementById('f_variante_tipo');
+    selTipo.value = tipoPk;
+    actualizarSelectValoresCatalogo();
+    document.getElementById('f_variante_valor').value = opcionPk;
+}
+
+async function _eliminarValorCatalogo(pk, nombre) {
+    if (!confirm(`¿Eliminar el valor "${nombre}"?`)) return;
+    const res  = await fetch(URLS.opcionEliminar, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify({ pk }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+        showToast(`Valor "${nombre}" eliminado.`);
+        await cargarCatalogoVariantes();
+    } else {
+        showToast(data.error || 'Error', 'error');
+    }
+}
 
 async function crearVariante() {
     const input  = document.getElementById('nuevaVarianteNombre');
@@ -765,7 +818,7 @@ document.getElementById('f_gestiona_variantes').addEventListener('change', async
     const pk = document.getElementById('prdPk').value;
     if (this.checked) {
         await cargarCatalogoVariantes();
-        resetFormCombinacionOpciones();
+        cancelarFormCombinacion();
         if (pk) {
             document.getElementById('combinacionNuevoAviso').style.display = 'none';
             cargarCombinaciones(pk);
@@ -774,6 +827,220 @@ document.getElementById('f_gestiona_variantes').addEventListener('change', async
         }
     }
 });
+
+// ════════════════════════════════════════════════════════════════════
+//  VARIANTES — GENERADOR MASIVO DE COMBINACIONES (alta)
+// ════════════════════════════════════════════════════════════════════
+let _bulkDimId = 0;
+let _bulkDimensiones = [];   // [{ id, tipoPk, valores: Set<string pk> }]
+let _bulkExcluidos = new Set(); // keys de combos que el usuario destildó
+let _bulkDatosFila = {};        // key -> { codigo_barras, sku }
+
+function _cartesianBulk(arrs) {
+    return arrs.reduce((acc, arr) => acc.flatMap(a => arr.map(v => [...a, v])), [[]]);
+}
+
+function agregarDimensionBulk() {
+    _bulkDimensiones.push({ id: ++_bulkDimId, tipoPk: '', valores: new Set() });
+    renderBulkDimensiones();
+    renderBulkPreview();
+}
+
+function eliminarDimensionBulk(id) {
+    _bulkDimensiones = _bulkDimensiones.filter(d => d.id !== id);
+    renderBulkDimensiones();
+    renderBulkPreview();
+}
+
+function cambiarTipoBulkDimension(id, tipoPk) {
+    const dim = _bulkDimensiones.find(d => d.id === id);
+    if (!dim) return;
+    dim.tipoPk = tipoPk;
+    dim.valores = new Set();
+    renderBulkDimensiones();
+    renderBulkPreview();
+}
+
+function toggleBulkValor(id, valorPk) {
+    const dim = _bulkDimensiones.find(d => d.id === id);
+    if (!dim) return;
+    const key = String(valorPk);
+    if (dim.valores.has(key)) dim.valores.delete(key); else dim.valores.add(key);
+    renderBulkDimensiones();
+    renderBulkPreview();
+}
+
+function renderBulkDimensiones() {
+    const cont = document.getElementById('bulkDimensionesContainer');
+    if (!cont) return;
+    if (!_bulkDimensiones.length) {
+        cont.innerHTML = '<p class="prd-v2-bulk-empty-hint">Todavía no agregaste ninguna dimensión.</p>';
+        return;
+    }
+    cont.innerHTML = _bulkDimensiones.map(dim => {
+        const tiposUsados = new Set(_bulkDimensiones.filter(d => d.id !== dim.id && d.tipoPk).map(d => String(d.tipoPk)));
+        const opcionesTipo = _cacheVariantes.filter(v => v.activo && (!tiposUsados.has(String(v.pk)) || String(v.pk) === String(dim.tipoPk)));
+        const selectHtml = '<option value="">— Seleccionar tipo —</option>' +
+            opcionesTipo.map(v => `<option value="${v.pk}" ${String(v.pk) === String(dim.tipoPk) ? 'selected' : ''}>${v.nombre}</option>`).join('');
+        const valoresDisponibles = dim.tipoPk ? opcionesDeVariante(dim.tipoPk) : [];
+        const chipsHtml = !dim.tipoPk
+            ? '<span class="prd-v2-bulk-empty-hint">Elegí un tipo primero</span>'
+            : (valoresDisponibles.length
+                ? valoresDisponibles.map(o => `<span class="prd-v2-chip-toggle ${dim.valores.has(String(o.pk)) ? 'prd-v2-chip-toggle--on' : ''}" onclick="toggleBulkValor(${dim.id}, '${o.pk}')">${o.nombre}</span>`).join('')
+                : '<span class="prd-v2-bulk-empty-hint">Este tipo todavía no tiene valores cargados en el catálogo (paso 1)</span>');
+        return `
+            <div class="prd-v2-bulk-dim">
+                <div class="prd-v2-bulk-dim-head">
+                    <select class="prd-input prd-select" style="max-width:220px" onchange="cambiarTipoBulkDimension(${dim.id}, this.value)">${selectHtml}</select>
+                    <button type="button" class="prd-btn-inline-manager prd-btn-inline-manager--del" style="margin-left:auto" onclick="eliminarDimensionBulk(${dim.id})" title="Quitar dimensión">
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 4H12M5 4V3H9V4M5.5 6.5V10.5M8.5 6.5V10.5M3 4L3.8 12H10.2L11 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                </div>
+                <div class="prd-v2-chips">${chipsHtml}</div>
+            </div>`;
+    }).join('');
+}
+
+function _bulkDimsActivas() {
+    return _bulkDimensiones
+        .filter(d => d.tipoPk && d.valores.size)
+        .map(d => {
+            const tipo = _cacheVariantes.find(v => String(v.pk) === String(d.tipoPk));
+            const valores = [...d.valores]
+                .map(pk => opcionesDeVariante(d.tipoPk).find(o => String(o.pk) === String(pk)))
+                .filter(Boolean);
+            return { tipoNombre: tipo ? tipo.nombre : '', valores };
+        });
+}
+
+function _bulkComboKey(combo) {
+    return combo.map(v => String(v.pk)).sort().join('|');
+}
+
+function _bulkYaExiste(combo) {
+    const pks = combo.map(v => String(v.pk));
+    return Object.values(_combinacionesCache).some(c => {
+        const set = new Set((c.opciones || []).map(o => String(o.pk)));
+        return set.size === pks.length && pks.every(pk => set.has(pk));
+    });
+}
+
+function renderBulkPreview() {
+    const wrap = document.getElementById('bulkPreviewWrap');
+    if (!wrap) return;
+    const dimsInfo = _bulkDimsActivas();
+    if (!dimsInfo.length) {
+        wrap.innerHTML = '';
+        return;
+    }
+    const combos = _cartesianBulk(dimsInfo.map(d => d.valores));
+    const rows = combos.map(combo => ({
+        combo,
+        key: _bulkComboKey(combo),
+        yaExiste: _bulkYaExiste(combo),
+    }));
+    const incluidas = rows.filter(r => !r.yaExiste && !_bulkExcluidos.has(r.key));
+    const grande = incluidas.length > 20;
+
+    let html = '';
+    if (grande) {
+        html += `<div class="prd-v2-warning">
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 1L14 13H1L7.5 1Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M7.5 6V9M7.5 10.5V11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+            Esto va a crear ${incluidas.length} combinaciones. Revisá si realmente necesitás todas antes de guardar.
+        </div>`;
+    }
+    html += `<div class="prd-v2-preview-count">${rows.length} combinaciones posibles${rows.length !== incluidas.length ? ` (${incluidas.length} nuevas a crear)` : ''} — desmarcá las que no querés crear</div>`;
+    html += `<div class="prd-v2-preview-tablewrap"><table class="prd-v2-preview-table"><thead><tr>
+        <th style="width:30px"></th>
+        ${dimsInfo.map(d => `<th>${d.tipoNombre}</th>`).join('')}
+        <th>Código de barras</th><th>SKU</th>
+    </tr></thead><tbody>`;
+    html += rows.map(r => {
+        const checked = !r.yaExiste && !_bulkExcluidos.has(r.key);
+        const datos = _bulkDatosFila[r.key] || {};
+        return `<tr style="opacity:${r.yaExiste ? 0.5 : 1}">
+            <td><input type="checkbox" ${checked ? 'checked' : ''} ${r.yaExiste ? 'disabled' : ''} onchange="toggleBulkExcluir('${r.key}', this.checked)"></td>
+            ${r.combo.map(v => `<td><span class="prd-v2-preview-chip">${v.nombre}</span></td>`).join('')}
+            <td>${r.yaExiste ? '<span class="prd-v2-preview-existe">ya existe</span>' : `<input type="text" class="prd-v2-preview-input" value="${datos.codigo_barras || ''}" oninput="_bulkActualizarDato('${r.key}','codigo_barras',this.value)" placeholder="EAN-13...">`}</td>
+            <td>${r.yaExiste ? '' : `<input type="text" class="prd-v2-preview-input" value="${datos.sku || ''}" oninput="_bulkActualizarDato('${r.key}','sku',this.value)" placeholder="opcional">`}</td>
+        </tr>`;
+    }).join('');
+    html += '</tbody></table></div>';
+    html += `<div class="prd-combinacion-form-actions" style="margin-top:12px">
+        <button type="button" class="prd-btn prd-btn-primary prd-btn--sm" onclick="guardarCombinacionesBulk()">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1.5V11.5M1.5 6.5H11.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            Guardar ${incluidas.length} combinaciones
+        </button>
+    </div>`;
+
+    wrap.innerHTML = html;
+}
+
+function _bulkActualizarDato(key, campo, valor) {
+    if (!_bulkDatosFila[key]) _bulkDatosFila[key] = {};
+    _bulkDatosFila[key][campo] = valor;
+}
+
+function toggleBulkExcluir(key, checked) {
+    if (checked) _bulkExcluidos.delete(key); else _bulkExcluidos.add(key);
+    renderBulkPreview();
+}
+
+async function guardarCombinacionesBulk() {
+    const productoPk = document.getElementById('prdPk').value;
+    if (!productoPk) {
+        showToast('Guardá el producto primero antes de agregar combinaciones.', 'error');
+        return;
+    }
+    const dimsInfo = _bulkDimsActivas();
+    if (!dimsInfo.length) {
+        showToast('Elegí al menos una dimensión con valores.', 'error');
+        return;
+    }
+    const combos = _cartesianBulk(dimsInfo.map(d => d.valores));
+    const aGuardar = combos.filter(combo => {
+        const key = _bulkComboKey(combo);
+        return !_bulkYaExiste(combo) && !_bulkExcluidos.has(key);
+    });
+    if (!aGuardar.length) {
+        showToast('No hay combinaciones nuevas para guardar.', 'error');
+        return;
+    }
+
+    let ok = 0, fallidas = 0;
+    for (const combo of aGuardar) {
+        const key = _bulkComboKey(combo);
+        const datos = _bulkDatosFila[key] || {};
+        const payload = {
+            producto_pk: productoPk,
+            opciones: combo.map(v => parseInt(v.pk, 10)),
+            codigo_barras: (datos.codigo_barras || '').trim(),
+            sku_variante: (datos.sku || '').trim(),
+            stock_actual: 0,
+        };
+        try {
+            const res  = await fetch(URLS.combinacionAcciones, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                body: JSON.stringify(payload),
+            });
+            const data = await res.json();
+            if (data.ok) ok++; else fallidas++;
+        } catch {
+            fallidas++;
+        }
+    }
+
+    showToast(fallidas
+        ? `${ok} combinaciones agregadas, ${fallidas} con error.`
+        : `${ok} combinaciones agregadas.`, fallidas ? 'error' : 'ok');
+
+    _bulkDimensiones = [];
+    _bulkExcluidos = new Set();
+    _bulkDatosFila = {};
+    renderBulkDimensiones();
+    cargarCombinaciones(productoPk);
+}
 
 // ════════════════════════════════════════════════════════════════════
 //  VARIANTES — CARGA Y RENDER DE LISTA
@@ -797,27 +1064,30 @@ async function cargarCombinaciones(productoPk) {
 
     if (!data.combinaciones || !data.combinaciones.length) {
         lista.innerHTML = '<div class="prd-manager-empty">Sin combinaciones definidas. Agregá la primera abajo.</div>';
+        renderBulkPreview();
         return;
     }
     lista.innerHTML = data.combinaciones.map(_renderCombinacionItem).join('');
+    renderBulkPreview();
 }
 
 function _renderCombinacionItem(c) {
     const inactivoClass = !c.activo ? 'prd-combinacion-item--inactivo' : '';
-    const desc = c.descripcion_combinacion || c.descripcion || 'Sin descripción';
-    const opcionesLabel = (c.opciones || [])
-        .map(o => `${o.variante_nombre}: ${o.nombre}`)
-        .join(' · ');
+    const opciones = c.opciones || [];
+    const chipsHtml = opciones.length
+        ? opciones.map(o => `<span class="prd-combinacion-item2-chip">${o.variante_nombre}: ${o.nombre}</span>`).join('')
+        : `<span class="prd-combinacion-item2-chip">${c.descripcion_combinacion || c.descripcion || 'Sin descripción'}</span>`;
+    const metaBits = [];
+    if (c.codigo_barras) metaBits.push(`CB ${c.codigo_barras}`);
+    if (c.sku_variante) metaBits.push(`SKU ${c.sku_variante}`);
     return `
     <div class="prd-combinacion-item ${inactivoClass}" id="combinacion-${c.pk}">
-        <div class="prd-combinacion-item-info">
-            <div class="prd-combinacion-item-datos">
-                <span class="prd-combinacion-item-descripcion">${desc}</span>
-                ${opcionesLabel ? `<span class="prd-combinacion-item-opciones">${opcionesLabel}</span>` : ''}
-                ${c.codigo_barras ? `<span class="prd-combinacion-item-codigo">CB: ${c.codigo_barras}</span>` : ''}
-                ${c.sku_variante ? `<span class="prd-combinacion-item-sku">SKU: ${c.sku_variante}</span>` : ''}
+        <div class="prd-combinacion-item-info prd-combinacion-item2">
+            <div class="prd-combinacion-item2-chips">
+                ${chipsHtml}
                 ${!c.activo ? '<span class="prd-combinacion-item-inactivo-badge">Inactivo</span>' : ''}
             </div>
+            ${metaBits.length ? `<span class="prd-combinacion-item2-meta">${metaBits.map(m => `<span>${m}</span>`).join('')}</span>` : ''}
         </div>
         <div class="prd-combinacion-item-stock">
             <span class="prd-combinacion-stock-num">${c.stock_actual}</span>
@@ -967,14 +1237,14 @@ async function editarCombinacion(pk) {
     document.getElementById('f_combinacion_codigo_barras').value = c.codigo_barras || '';
     document.getElementById('f_combinacion_sku').value = c.sku_variante || '';
     document.getElementById('f_combinacion_stock').value = c.stock_actual || 0;
-    document.getElementById('f_combinacion_stock').closest('.prd-field').style.display = 'none';
 
     const desc = c.descripcion_combinacion || c.descripcion || '';
     document.getElementById('combinacionFormTitulo').textContent = `Editar combinación: ${desc}`;
     document.getElementById('btnCombinacionTxt').textContent = 'Guardar cambios';
-    document.getElementById('btnCancelarCombinacion').style.display = '';
 
     resetFormCombinacionOpciones(c.opciones || []);
+    document.getElementById('combinacionBulkForm').style.display = 'none';
+    document.getElementById('combinacionForm').style.display = '';
     document.getElementById('combinacionForm').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
@@ -983,11 +1253,16 @@ function cancelarFormCombinacion() {
     document.getElementById('f_combinacion_codigo_barras').value = '';
     document.getElementById('f_combinacion_sku').value = '';
     document.getElementById('f_combinacion_stock').value = '0';
-    document.getElementById('f_combinacion_stock').closest('.prd-field').style.display = '';
-    document.getElementById('combinacionFormTitulo').textContent = 'Agregar combinación';
-    document.getElementById('btnCombinacionTxt').textContent = 'Agregar combinación';
-    document.getElementById('btnCancelarCombinacion').style.display = 'none';
+    document.getElementById('combinacionFormTitulo').textContent = 'Editar combinación';
+    document.getElementById('btnCombinacionTxt').textContent = 'Guardar cambios';
     resetFormCombinacionOpciones();
+    document.getElementById('combinacionForm').style.display = 'none';
+    document.getElementById('combinacionBulkForm').style.display = '';
+    _bulkDimensiones = [];
+    _bulkExcluidos = new Set();
+    _bulkDatosFila = {};
+    renderBulkDimensiones();
+    renderBulkPreview();
 }
 
 async function toggleCombinacion(pk) {

@@ -26,6 +26,11 @@
             <div class="cmp-page-tag">Módulo</div>
             <h1>Nueva Compra <span id="cmpBadge" class="cmp-badge" style="display:none">0</span></h1>
             <p>Agregá los productos y continuá al detalle para confirmar</p>
+            {% if editing_pk %}
+            <p style="color:var(--brand-orange);font-weight:600;font-size:.8rem;margin-top:.15rem;">
+                Editando el carrito de un borrador ya guardado — al continuar se actualiza, no se crea uno nuevo.
+            </p>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -127,12 +132,15 @@
 
 
 {% block extra_js %}
+{{ items_json|json_script:"cmpItemsData" }}
 <script>
 window.CMP_CONFIG = {
     urlBuscarProducto:  "{% url 'compras:buscar_producto' %}",
     urlBuscarProveedor: "{% url 'compras:buscar_proveedor' %}",
     urlGuardarBorrador: "{% url 'compras:guardar_borrador' %}",
+    urlActualizarBorrador: "{% url 'compras:actualizar_borrador' %}",
     urlDetalle:         "{% url 'compras:detalle_compra' pk=0 %}".replace("/0/", "/"),
+    editingPk:          {{ editing_pk|default:"null" }},
     csrfToken:          "{{ csrf_token }}",
 };
 </script>

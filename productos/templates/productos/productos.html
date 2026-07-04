@@ -598,102 +598,163 @@
                     </div>
                 </div>
                 <div id="panelConVariantes" style="display:none">
-                    <div class="prd-variantes-catalogo">
-                        <div class="prd-variantes-catalogo-title">Catálogo de variantes</div>
-                        <p class="prd-variantes-catalogo-hint">Definí los tipos (Color, Sabor, Talle…) y sus valores. Cada valor pertenece a un tipo y se reutiliza en todos los productos.</p>
-                        <div class="prd-form-grid prd-form-grid--2">
-                            <div class="prd-field">
-                                <label>Tipo de variante</label>
-                                <div class="prd-select-with-manager">
-                                    <select id="f_variante_tipo" class="prd-input prd-select">
-                                        <option value="">— Seleccionar tipo —</option>
-                                    </select>
-                                    <button type="button" class="prd-btn-inline-manager" onclick="toggleInlineManager('varianteTipoManager')" title="Agregar tipo de variante">
-                                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2V12M2 7H12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-                                    </button>
-                                    <button type="button" class="prd-btn-inline-manager prd-btn-inline-manager--del" onclick="eliminarVarianteSeleccionada()" title="Eliminar tipo seleccionado">
-                                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 4H12M5 4V3H9V4M5.5 6.5V10.5M8.5 6.5V10.5M3 4L3.8 12H10.2L11 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                                    </button>
+                    <style>
+                        .prd-v2-step{display:flex;align-items:center;gap:8px;margin:0 0 10px}
+                        .prd-v2-step-num{width:20px;height:20px;border-radius:50%;background:#FFF1E8;color:#C2410C;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+                        .prd-v2-step-title{font-size:13px;font-weight:600;color:#111827}
+                        .prd-v2-step-sub{font-size:12px;color:#9CA3AF}
+                        .prd-v2-block{margin-bottom:22px}
+                        .prd-v2-resumen{margin-top:14px;padding-top:12px;border-top:1px dashed #E5E7EB}
+                        .prd-v2-resumen-tipo{margin-bottom:8px}
+                        .prd-v2-resumen-tipo:last-child{margin-bottom:0}
+                        .prd-v2-resumen-tipo-nombre{font-size:11px;font-weight:600;color:#9CA3AF;text-transform:uppercase;letter-spacing:.03em;margin-bottom:5px}
+                        .prd-v2-chips{display:flex;flex-wrap:wrap;gap:6px}
+                        .prd-v2-chip{display:inline-flex;align-items:center;gap:6px;background:#EFF6FF;color:#1D4ED8;font-size:12.5px;padding:4px 6px 4px 10px;border-radius:14px;border:1px solid #DBEAFE;cursor:pointer;line-height:1.4}
+                        .prd-v2-chip:hover{border-color:#93C5FD}
+                        .prd-v2-chip-del{width:15px;height:15px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#93C5FD}
+                        .prd-v2-chip-del:hover{background:#DBEAFE;color:#1D4ED8}
+                        .prd-v2-chip-empty{font-size:12px;color:#B0B4BC;font-style:italic}
+                        .prd-combinacion-item2{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+                        .prd-combinacion-item2-chips{display:flex;flex-wrap:wrap;gap:5px}
+                        .prd-combinacion-item2-chip{background:#FFF1E8;color:#C2410C;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:12px;white-space:nowrap}
+                        .prd-combinacion-item2-meta{font-size:11.5px;color:#9CA3AF;display:flex;gap:10px;flex-wrap:wrap}
+                        .prd-v2-bulk-dim{background:#FAFAF9;border-radius:var(--radius, 8px);padding:12px 14px;margin-bottom:10px}
+                        .prd-v2-bulk-dim-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+                        .prd-v2-chip-toggle{display:inline-flex;align-items:center;font-size:12.5px;padding:5px 12px;border-radius:14px;border:1px solid #E5E7EB;background:#fff;color:#4B5563;cursor:pointer}
+                        .prd-v2-chip-toggle:hover{border-color:#D1D5DB}
+                        .prd-v2-chip-toggle--on{background:#EFF6FF;color:#1D4ED8;border-color:#93C5FD}
+                        .prd-v2-bulk-empty-hint{font-size:12px;color:#B0B4BC;font-style:italic}
+                        .prd-v2-warning{display:flex;align-items:center;gap:8px;background:#FFFBEB;color:#92400E;font-size:12.5px;padding:8px 12px;border-radius:var(--radius, 8px);margin:14px 0 10px}
+                        .prd-v2-preview-count{font-size:12px;color:#6B7280;margin:10px 0 8px}
+                        .prd-v2-preview-tablewrap{max-height:280px;overflow-y:auto;border:1px solid #E5E7EB;border-radius:var(--radius, 8px)}
+                        .prd-v2-preview-table{width:100%;border-collapse:collapse;font-size:12.5px}
+                        .prd-v2-preview-table th{text-align:left;padding:6px 8px;font-weight:600;color:#6B7280;background:#FAFAF9;position:sticky;top:0}
+                        .prd-v2-preview-table td{padding:5px 8px;border-top:1px solid #F1F1EF}
+                        .prd-v2-preview-chip{background:#FFF1E8;color:#C2410C;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;white-space:nowrap;display:inline-block}
+                        .prd-v2-preview-existe{font-size:11px;color:#9CA3AF;font-style:italic}
+                        .prd-v2-preview-input{width:100%;box-sizing:border-box;height:26px;font-size:12px;border:1px solid #E5E7EB;border-radius:6px;padding:0 6px}
+                    </style>
+
+                    <div class="prd-v2-block">
+                        <div class="prd-v2-step">
+                            <span class="prd-v2-step-num">1</span>
+                            <span class="prd-v2-step-title">Catálogo de variantes</span>
+                            <span class="prd-v2-step-sub">— se define una sola vez y se reutiliza en cualquier producto</span>
+                        </div>
+                        <div class="prd-variantes-catalogo">
+                            <p class="prd-variantes-catalogo-hint">Definí los tipos (Color, Sabor, Talle…) y sus valores. Cada valor pertenece a un tipo y se reutiliza en todos los productos.</p>
+                            <div class="prd-form-grid prd-form-grid--2">
+                                <div class="prd-field">
+                                    <label>Tipo de variante</label>
+                                    <div class="prd-select-with-manager">
+                                        <select id="f_variante_tipo" class="prd-input prd-select">
+                                            <option value="">— Seleccionar tipo —</option>
+                                        </select>
+                                        <button type="button" class="prd-btn-inline-manager" onclick="toggleInlineManager('varianteTipoManager')" title="Agregar tipo de variante">
+                                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2V12M2 7H12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                                        </button>
+                                        <button type="button" class="prd-btn-inline-manager prd-btn-inline-manager--del" onclick="eliminarVarianteSeleccionada()" title="Eliminar tipo seleccionado">
+                                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 4H12M5 4V3H9V4M5.5 6.5V10.5M8.5 6.5V10.5M3 4L3.8 12H10.2L11 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                        </button>
+                                    </div>
+                                    <div class="prd-inline-manager" id="varianteTipoManager" style="display:none">
+                                        <div class="prd-inline-manager-add">
+                                            <input type="text" id="nuevaVarianteNombre" class="prd-input prd-input--sm" placeholder="Ej: Color, Sabor, Talle...">
+                                            <button type="button" class="prd-btn prd-btn-primary prd-btn--sm" onclick="crearVariante()">Agregar</button>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="prd-inline-manager" id="varianteTipoManager" style="display:none">
-                                    <div class="prd-inline-manager-add">
-                                        <input type="text" id="nuevaVarianteNombre" class="prd-input prd-input--sm" placeholder="Ej: Color, Sabor, Talle...">
-                                        <button type="button" class="prd-btn prd-btn-primary prd-btn--sm" onclick="crearVariante()">Agregar</button>
+                                <div class="prd-field">
+                                    <label>Valor de variante</label>
+                                    <div class="prd-select-with-manager">
+                                        <select id="f_variante_valor" class="prd-input prd-select" disabled>
+                                            <option value="">— Primero elegí un tipo —</option>
+                                        </select>
+                                        <button type="button" class="prd-btn-inline-manager" onclick="toggleInlineManager('varianteValorManager')" title="Agregar valor">
+                                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2V12M2 7H12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                                        </button>
+                                        <button type="button" class="prd-btn-inline-manager prd-btn-inline-manager--del" onclick="eliminarOpcionSeleccionada()" title="Eliminar valor seleccionado">
+                                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 4H12M5 4V3H9V4M5.5 6.5V10.5M8.5 6.5V10.5M3 4L3.8 12H10.2L11 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                        </button>
+                                    </div>
+                                    <div class="prd-inline-manager" id="varianteValorManager" style="display:none">
+                                        <div class="prd-inline-manager-add">
+                                            <input type="text" id="nuevaOpcionNombre" class="prd-input prd-input--sm" placeholder="Ej: Rojo, Manzana, M...">
+                                            <button type="button" class="prd-btn prd-btn-primary prd-btn--sm" onclick="crearOpcionVariante()">Agregar</button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                            <div class="prd-field">
-                                <label>Valor de variante</label>
-                                <div class="prd-select-with-manager">
-                                    <select id="f_variante_valor" class="prd-input prd-select" disabled>
-                                        <option value="">— Primero elegí un tipo —</option>
-                                    </select>
-                                    <button type="button" class="prd-btn-inline-manager" onclick="toggleInlineManager('varianteValorManager')" title="Agregar valor">
-                                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2V12M2 7H12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-                                    </button>
-                                    <button type="button" class="prd-btn-inline-manager prd-btn-inline-manager--del" onclick="eliminarOpcionSeleccionada()" title="Eliminar valor seleccionado">
-                                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 4H12M5 4V3H9V4M5.5 6.5V10.5M8.5 6.5V10.5M3 4L3.8 12H10.2L11 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                                    </button>
-                                </div>
-                                <div class="prd-inline-manager" id="varianteValorManager" style="display:none">
-                                    <div class="prd-inline-manager-add">
-                                        <input type="text" id="nuevaOpcionNombre" class="prd-input prd-input--sm" placeholder="Ej: Rojo, Manzana, M...">
-                                        <button type="button" class="prd-btn prd-btn-primary prd-btn--sm" onclick="crearOpcionVariante()">Agregar</button>
-                                    </div>
-                                </div>
+                            <div class="prd-v2-resumen" id="catalogoValoresResumen">
+                                <span class="prd-v2-chip-empty">Todavía no cargaste tipos de variante.</span>
                             </div>
                         </div>
                     </div>
-                    <div class="prd-img-aviso" id="combinacionNuevoAviso" style="display:none">
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                            <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.2"/>
-                            <path d="M8 7V11M8 5.5V6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-                        </svg>
-                        Guardá el producto primero para poder agregar combinaciones.
-                    </div>
-                    <div id="combinacionListaWrap">
-                        <div class="prd-combinacion-lista-header">
-                            <span class="prd-combinacion-lista-title">Combinaciones definidas</span>
-                            <span class="prd-combinacion-stock-total">Stock total: <strong id="combinacionStockTotal">0</strong></span>
+
+                    <div class="prd-v2-block">
+                        <div class="prd-v2-step">
+                            <span class="prd-v2-step-num">2</span>
+                            <span class="prd-v2-step-title">Combinaciones de este producto</span>
                         </div>
-                        <div id="combinacionLista" class="prd-combinacion-lista">
-                            <div class="prd-manager-loading">Cargando combinaciones...</div>
+                        <div class="prd-img-aviso" id="combinacionNuevoAviso" style="display:none">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.2"/>
+                                <path d="M8 7V11M8 5.5V6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                            </svg>
+                            Guardá el producto primero para poder agregar combinaciones.
                         </div>
-                    </div>
-                    <div class="prd-combinacion-form" id="combinacionForm">
-                        <div class="prd-combinacion-form-title" id="combinacionFormTitulo">Agregar combinación</div>
-                        <input type="hidden" id="f_combinacion_pk" value="">
-                        <div class="prd-field">
-                            <label>Opciones de la combinación <span class="prd-req">*</span></label>
-                            <small class="prd-field-hint">Elegí el tipo y el valor. Podés agregar más filas si el producto tiene varias dimensiones (ej: Color + Talle).</small>
-                            <div id="combinacionOpcionesContainer" class="prd-combinacion-opciones"></div>
-                            <button type="button" class="prd-btn prd-btn-ghost prd-btn--sm" id="btnAgregarFilaOpcion" onclick="agregarFilaOpcionCombinacion()">
+                        <div id="combinacionListaWrap">
+                            <div class="prd-combinacion-lista-header">
+                                <span class="prd-combinacion-lista-title">Combinaciones definidas</span>
+                                <span class="prd-combinacion-stock-total">Stock total: <strong id="combinacionStockTotal">0</strong></span>
+                            </div>
+                            <div id="combinacionLista" class="prd-combinacion-lista">
+                                <div class="prd-manager-loading">Cargando combinaciones...</div>
+                            </div>
+                        </div>
+                        <div class="prd-combinacion-form" id="combinacionBulkForm">
+                            <div class="prd-combinacion-form-title">Agregar combinaciones</div>
+                            <p class="prd-field-hint" style="margin-bottom:12px;">Elegí un tipo y los valores que este producto va a tener en cada dimensión. Las combinaciones se arman solas.</p>
+                            <div id="bulkDimensionesContainer"></div>
+                            <button type="button" class="prd-btn prd-btn-ghost prd-btn--sm" onclick="agregarDimensionBulk()">
                                 <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1.5V11.5M1.5 6.5H11.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
                                 Agregar dimensión
                             </button>
+                            <div id="bulkPreviewWrap"></div>
                         </div>
-                        <div class="prd-form-grid prd-form-grid--3">
+
+                        <div class="prd-combinacion-form" id="combinacionForm" style="display:none">
+                            <div class="prd-combinacion-form-title" id="combinacionFormTitulo">Editar combinación</div>
+                            <input type="hidden" id="f_combinacion_pk" value="">
+                            <input type="hidden" id="f_combinacion_stock" value="0">
                             <div class="prd-field">
-                                <label>Código de barras <span class="prd-hint">(por combinación)</span></label>
-                                <input type="text" id="f_combinacion_codigo_barras" class="prd-input" placeholder="EAN-13, UPC..." maxlength="100">
+                                <label>Opciones de la combinación <span class="prd-req">*</span></label>
+                                <small class="prd-field-hint">Elegí el tipo y el valor. Podés agregar más filas si el producto tiene varias dimensiones (ej: Color + Talle).</small>
+                                <div id="combinacionOpcionesContainer" class="prd-combinacion-opciones"></div>
+                                <button type="button" class="prd-btn prd-btn-ghost prd-btn--sm" id="btnAgregarFilaOpcion" onclick="agregarFilaOpcionCombinacion()">
+                                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1.5V11.5M1.5 6.5H11.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                                    Agregar dimensión
+                                </button>
                             </div>
-                            <div class="prd-field">
-                                <label>SKU variante <span class="prd-hint">(opcional)</span></label>
-                                <input type="text" id="f_combinacion_sku" class="prd-input" placeholder="SKU específico de la combinación" maxlength="100">
+                            <div class="prd-form-grid prd-form-grid--2">
+                                <div class="prd-field">
+                                    <label>Código de barras <span class="prd-hint">(por combinación)</span></label>
+                                    <input type="text" id="f_combinacion_codigo_barras" class="prd-input" placeholder="EAN-13, UPC..." maxlength="100">
+                                </div>
+                                <div class="prd-field">
+                                    <label>SKU variante <span class="prd-hint">(opcional)</span></label>
+                                    <input type="text" id="f_combinacion_sku" class="prd-input" placeholder="SKU específico de la combinación" maxlength="100">
+                                </div>
                             </div>
-                            <div class="prd-field prd-field--required">
-                                <label>Stock inicial <span class="prd-req">*</span></label>
-                                <input type="number" id="f_combinacion_stock" class="prd-input" placeholder="0" min="0" value="0">
+                            <div class="prd-combinacion-form-actions">
+                                <button type="button" class="prd-btn prd-btn-ghost prd-btn--sm" id="btnCancelarCombinacion" onclick="cancelarFormCombinacion()">Cancelar</button>
+                                <button type="button" class="prd-btn prd-btn-primary prd-btn--sm" onclick="guardarCombinacion()">
+                                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                                        <path d="M6.5 1.5V11.5M1.5 6.5H11.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                                    </svg>
+                                    <span id="btnCombinacionTxt">Guardar cambios</span>
+                                </button>
                             </div>
-                        </div>
-                        <div class="prd-combinacion-form-actions">
-                            <button type="button" class="prd-btn prd-btn-ghost prd-btn--sm" id="btnCancelarCombinacion" onclick="cancelarFormCombinacion()" style="display:none">Cancelar</button>
-                            <button type="button" class="prd-btn prd-btn-primary prd-btn--sm" onclick="guardarCombinacion()">
-                                <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-                                    <path d="M6.5 1.5V11.5M1.5 6.5H11.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                                </svg>
-                                <span id="btnCombinacionTxt">Agregar combinación</span>
-                            </button>
                         </div>
                     </div>
                 </div>

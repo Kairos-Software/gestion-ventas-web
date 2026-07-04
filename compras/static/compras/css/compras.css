@@ -1071,3 +1071,28 @@ a.cmp-doc-item-nombre:hover { color: var(--brand-orange); text-decoration: under
     font-style: italic;
     white-space: nowrap;
 }
+
+/* ──────────────────────────────────────────────────────────────
+   BOTÓN "QUITAR" del carrito — mismo lenguaje visual que el resto
+   del sistema (fondo suave + borde sutil, como los badges de
+   estado cdt-estado--anulada / cmp-meta-chip--stock-vacio),
+   visible sin necesidad de hover, pero sin el círculo sólido.
+   Reemplaza la regla .cmp-btn-remove que ya tenías en compras.css
+────────────────────────────────────────────────────────────── */
+.cmp-btn-remove {
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(239, 68, 68, .1);
+    border: 1px solid rgba(239, 68, 68, .25);
+    border-radius: .5rem;
+    color: var(--danger, #EF4444);
+    opacity: 1;
+    transition: background .15s, border-color .15s;
+}
+.cmp-btn-remove:hover {
+    background: rgba(239, 68, 68, .18);
+    border-color: rgba(239, 68, 68, .4);
+}

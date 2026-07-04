@@ -19,6 +19,14 @@
 
 const CFG = window.CMP_CONFIG || {};
 
+// Si venimos de "Editar carrito" (?editar=<pk>), el backend precarga los
+// ítems de ese borrador en un <script type="application/json"> aparte
+// (vía json_script de Django) — misma técnica segura que en detalle_compra.
+(() => {
+    const el = document.getElementById('cmpItemsData');
+    CFG.itemsIniciales = el ? JSON.parse(el.textContent) : [];
+})();
+
 /* ════════════════════════════════════════════════════════════════
    ESTADO
 ════════════════════════════════════════════════════════════════ */
@@ -553,20 +561,29 @@ if (btnContinuar) {
             fecha_vencimiento: item.fecha_vencimiento || null,
         }));
 
+        // Modo edición (?editar=<pk>): actualiza el borrador existente.
+        // Modo normal: crea un borrador nuevo.
+        const editando = !!CFG.editingPk;
+        const url      = editando ? CFG.urlActualizarBorrador : CFG.urlGuardarBorrador;
+        const body     = editando
+            ? { compra_pk: CFG.editingPk, items: itemsPayload }
+            : { items: itemsPayload };
+
         try {
-            const res  = await fetch(CFG.urlGuardarBorrador, {
+            const res  = await fetch(url, {
                 method:  'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken':  CFG.csrfToken,
                 },
-                body: JSON.stringify({ items: itemsPayload }),
+                body: JSON.stringify(body),
             });
             const data = await res.json();
 
             if (data.ok) {
-                // Redirigir al detalle del borrador recién creado
-                window.location.href = CFG.urlDetalle + data.pk + '/';
+                // Redirigir al detalle del borrador (nuevo o el mismo que editábamos)
+                const pkDestino = editando ? CFG.editingPk : data.pk;
+                window.location.href = CFG.urlDetalle + pkDestino + '/';
             } else {
                 _toast('Error al guardar', data.error || 'No se pudo guardar el borrador.');
                 btnContinuar.disabled  = false;
@@ -587,7 +604,32 @@ if (btnContinuar) {
 }
 
 /* ════════════════════════════════════════════════════════════════
-   INIT — estado inicial correcto + foco automático en el buscador
+   INIT — precarga del carrito si venimos en modo edición,
+   estado inicial correcto + foco automático en el buscador
 ════════════════════════════════════════════════════════════════ */
+if (CFG.itemsIniciales && CFG.itemsIniciales.length) {
+    carrito = CFG.itemsIniciales.map((it, idx) => ({
+        id:               idx,
+        producto_pk:      it.producto_pk,
+        combinacion_pk:   it.combinacion_pk || null,
+        nombre:           it.nombre,
+        producto_nombre:  it.producto_nombre,
+        variante_desc:    it.variante_desc || '',
+        codigo:           it.codigo || '',
+        unidad:           '',
+        es_perecedero:    !!it.es_perecedero,
+        proveedor_pk:     it.proveedor_pk || '',
+        proveedor_nombre: it.proveedor || '',
+        cantidad:         parseFloat(it.cantidad) || 0,
+        costo:            parseFloat(it.costo) || 0,
+        moneda:           it.moneda || 'ARS',
+        descuento:        parseFloat(it.descuento) || 0,
+        condicion:        it.condicion || 'contado',
+        referencia:       it.referencia || '',
+        fecha_vencimiento: it.fecha_vencimiento || '',
+    }));
+    nextId = carrito.length;
+}
 _renderCarrito();
+_actualizarTotales();
 searchInput.focus();

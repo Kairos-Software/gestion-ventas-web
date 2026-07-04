@@ -14,9 +14,15 @@ const cdtDocLista = document.getElementById('cdtDocLista');
 ════════════════════════════════════════════════════════════════ */
 if (CDT.esBorrador) {
     const btnConfirmar = document.getElementById('cdtBtnConfirmar');
+    const btnEditar    = document.getElementById('cdtBtnEditar');
     const btnVolver    = document.getElementById('cdtBtnVolver');
     const inputFecha   = document.getElementById('cdtFecha');
     const inputNotas   = document.getElementById('cdtNotas');
+
+    /* ── Editar carrito (vuelve a Nueva Compra CON los productos cargados) ── */
+    btnEditar.addEventListener('click', () => {
+        window.location.href = CDT.urlEditarCarrito;
+    });
 
     /* ── Confirmar compra ─────────────────────────────────────── */
     btnConfirmar.addEventListener('click', async () => {
@@ -57,15 +63,15 @@ if (CDT.esBorrador) {
         }
     });
 
-    /* ── Volver al carrito ────────────────────────────────────── */
+    /* ── Cancelar compra (descarta todo el borrador) ──────────── */
     btnVolver.addEventListener('click', async () => {
-        const ok = confirm('¿Volvés a editar el carrito? El borrador se descartará.');
+        const ok = confirm('¿Cancelar esta compra? El borrador y todos los productos cargados se van a perder.');
         if (!ok) return;
 
         btnVolver.disabled  = true;
         btnVolver.innerHTML = `<svg class="cmp-spin" width="14" height="14" viewBox="0 0 16 16" fill="none">
             <circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.5" stroke-dasharray="20 15"/>
-        </svg> Descartando…`;
+        </svg> Cancelando…`;
 
         try {
             const res  = await fetch(CDT.urlEliminarBorrador, {
@@ -78,11 +84,11 @@ if (CDT.esBorrador) {
             if (data.ok) {
                 window.location.href = CDT.urlNuevaCompra;
             } else {
-                cdtToast('Error', data.error || 'No se pudo descartar el borrador.');
+                cdtToast('Error', data.error || 'No se pudo cancelar la compra.');
                 btnVolver.disabled  = false;
                 btnVolver.innerHTML = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M11 7H3M6.5 3L3 7L6.5 11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg> Volver y editar carrito`;
+                    <path d="M2 2L12 12M12 2L2 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                </svg> Cancelar compra`;
             }
         } catch {
             cdtToast('Error de conexión', 'Intentá de nuevo.');

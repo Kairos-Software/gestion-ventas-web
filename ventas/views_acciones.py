@@ -8,7 +8,8 @@ from django.shortcuts import get_object_or_404
 
 from productos.models import Producto, CombinacionVariante
 from core.models import Cliente
-from .models import Venta, EstadoVenta
+from compras.models import LoteCompra
+from .models import Venta, EstadoVenta, TipoResolucionLote
 from core.permisos import chequear_permiso
 
 
@@ -202,10 +203,26 @@ class EditarVentaAjax(LoginRequiredMixin, View):
                 )
                 continue
 
+            # ── Origen del stock: normal (se resuelve al confirmar) o
+            #    lote específico (ya viene fijado desde el escaneo) ──
+            tipo_escaneo   = raw.get('tipo_escaneo', TipoResolucionLote.NORMAL)
+            lote_escaneado = None
+            if tipo_escaneo == TipoResolucionLote.LOTE_ESPECIFICO:
+                lote_pk = raw.get('lote_pk')
+                if not lote_pk:
+                    errores.append(f'Ítem {idx}: falta el lote escaneado.')
+                    continue
+                lote_escaneado = LoteCompra.objects.filter(pk=lote_pk).first()
+                if not lote_escaneado:
+                    errores.append(f'Ítem {idx}: el lote escaneado ya no existe.')
+                    continue
+
             items_data.append({
                 'producto':        producto,
                 'cliente':         cliente,
                 'combinacion':    combinacion,
+                'tipo_escaneo':    tipo_escaneo,
+                'lote_escaneado':  lote_escaneado,
                 'cantidad':        cantidad,
                 'precio_unitario': precio_unitario,
                 'moneda':          raw.get('moneda', 'ARS'),
@@ -220,7 +237,7 @@ class EditarVentaAjax(LoginRequiredMixin, View):
 
         try:
             # ← CORREGIDO: se pasa el usuario que edita
-            venta.editar_completa(
+            avisos = venta.editar_completa(
                 fecha        = fecha,
                 notas        = body.get('notas', ''),
                 medio_pago   = medio_pago,
@@ -236,4 +253,5 @@ class EditarVentaAjax(LoginRequiredMixin, View):
             'total':        str(venta.total),
             'estado':       venta.estado,
             'estado_label': venta.get_estado_display(),
+            'avisos':       avisos or [],
         })
