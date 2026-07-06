@@ -41,7 +41,8 @@ class ListarVentasAjax(LoginRequiredMixin, View):
         ).prefetch_related(
             'items__producto',
             'items__cliente',
-            'items__color',
+            'items__combinacion',
+            'items__consumos',
             'documentos',
             'pagos',
         ).order_by('-fecha', '-fecha_alta')
@@ -101,21 +102,25 @@ class ListarVentasAjax(LoginRequiredMixin, View):
         for v in ventas:
             items = []
             for item in v.items.all():
-                color_hex = ''
-                if item.color and hasattr(item.color, 'codigo_hex'):
-                    color_hex = item.color.codigo_hex or ''
+                tiene_variante = bool(item.combinacion_id or item.combinacion_descripcion)
 
-                tiene_color = bool(item.color_id or item.color_nombre)
+                # — Origen del stock: FIFO (más viejo) o lote(s) puntual(es) —
+                lotes = item.lotes_utilizados
+                if item.tipo_escaneo == 'lote_especifico' and lotes:
+                    origen_label = ' + '.join(lotes)
+                elif lotes:
+                    origen_label = f'FIFO ({", ".join(lotes)})'
+                else:
+                    origen_label = '—'
 
                 items.append({
                     'producto_pk':      item.producto_id,
                     'producto_cod':     item.producto_codigo or (item.producto.codigo if item.producto else ''),
                     'producto_nombre':  item.producto_nombre or (item.producto.nombre if item.producto else '(eliminado)'),
                     'producto_display': item.nombre_producto_display,
-                    'color_pk':         item.color_id or '',
-                    'color_nombre':     item.nombre_color_display,
-                    'color_hex':        color_hex,
-                    'tiene_color':      tiene_color,
+                    'combinacion_pk':      item.combinacion_id or '',
+                    'combinacion_nombre':  item.nombre_combinacion_display,
+                    'tiene_variante':      tiene_variante,
                     'cliente_pk':       item.cliente_id or '',
                     'cliente':          item.nombre_cliente_display,
                     'cantidad':         str(item.cantidad),
@@ -126,6 +131,7 @@ class ListarVentasAjax(LoginRequiredMixin, View):
                     'referencia':       item.referencia,
                     'notas':            item.notas,
                     'subtotal':         str(item.subtotal),
+                    'origen_label':     origen_label,
                 })
 
             documentos = []

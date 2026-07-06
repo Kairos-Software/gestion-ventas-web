@@ -72,6 +72,28 @@
         align-items: center;
     }
     .vta-cart-footer-actions .vta-btn { width: auto; margin: 0; }
+
+    /* Botón de eliminar fila — copiado exacto de la regla que
+       reemplaza a .cmp-btn-remove en compras.css, para que ambos
+       módulos se vean idénticos. ventas.css todavía tiene la versión
+       vieja (opacity .5, sin fondo hasta el hover). */
+    .vta-btn-remove {
+        width: 28px !important;
+        height: 28px !important;
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+        background: rgba(239, 68, 68, .1) !important;
+        border: 1px solid rgba(239, 68, 68, .25);
+        border-radius: .5rem;
+        color: var(--danger, #EF4444);
+        opacity: 1 !important;
+        transition: background .15s, border-color .15s;
+    }
+    .vta-btn-remove:hover {
+        background: rgba(239, 68, 68, .18) !important;
+        border-color: rgba(239, 68, 68, .4);
+    }
 </style>
 {% endblock %}
 
@@ -101,7 +123,13 @@
         <div>
             <div class="vta-page-tag">Módulo</div>
             <h1>Nueva Venta <span id="vtaBadge" class="vta-badge" style="display:none">0</span></h1>
-            <p>Escaneá o buscá los productos y continuá al detalle para confirmar</p>
+            <p>
+                {% if venta_editar_pk %}
+                    Editando un borrador existente — los cambios reemplazan la versión anterior al continuar.
+                {% else %}
+                    Escaneá o buscá los productos y continuá al detalle para confirmar
+                {% endif %}
+            </p>
         </div>
     </div>
 </div>
@@ -168,7 +196,7 @@
             <tbody id="vtaCartBody"></tbody>
         </table>
 
-        <div id="vtaCartEmpty" class="vta-empty">
+        <div id="vtaCartEmpty" class="vta-empty" style="display:flex;flex-direction:column;align-items:center">
             <div class="vta-empty-icon">
                 <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
                     <path d="M4 4H7L9.72 17.78C9.94 18.88 10.92 19.67 12.04 19.67H21.08C22.2 19.67 23.18 18.88 23.4 17.78L25 9H8"
@@ -209,14 +237,18 @@
 
 {% block extra_js %}
 {% if not sin_permiso %}
+{{ items_iniciales|json_script:"vtaItemsIniciales" }}
 <script>
 window.VTA_CONFIG = {
     urlBuscarProducto:  "{% url 'ventas:buscar_producto' %}",
     urlBuscarCliente:   "{% url 'ventas:buscar_cliente' %}",
     urlBuscarLote:      "{% url 'ventas:buscar_lote' %}",
     urlGuardarBorrador: "{% url 'ventas:guardar_borrador' %}",
+    urlEliminarBorrador:"{% url 'ventas:eliminar_borrador' %}",
     urlDetalle:         "{% url 'ventas:detalle_venta' pk=0 %}".replace("/0/", "/"),
     csrfToken:          "{{ csrf_token }}",
+    ventaEditarPk:      {{ venta_editar_pk|default:"null" }},
+    itemsIniciales:     JSON.parse(document.getElementById('vtaItemsIniciales').textContent),
 };
 </script>
 <script src="{% static 'ventas/js/nueva_venta.js' %}"></script>

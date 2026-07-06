@@ -136,124 +136,116 @@ def _aplicar_filtros(qs, params):
 class BalanceGrandeAjax(LoginRequiredMixin, View):
     """
     Devuelve:
-      - balance_por_moneda: saldo TOTAL (histórico) por moneda calculado
-        directamente desde ventas y compras confirmadas + movimientos manuales
-      - metricas_por_moneda: métricas detalladas por moneda (recaudado, gastos, etc.)
+      - balance_por_moneda: saldo TOTAL (histórico) por moneda, calculado
+        exclusivamente desde MovimientoCaja(caja=GRANDE). Una venta solo
+        aparece acá una vez que su turno se cerró (ver TurnoCaja.cerrar).
+      - metricas_por_moneda: métricas detalladas por moneda (recaudado,
+        gastos, etc.), respetando los filtros de _aplicar_filtros().
     """
 
     def get(self, request):
         if not chequear_permiso(request.user, PERMISO_VER):
             return JsonResponse({'error': 'Sin permiso.'}, status=403)
 
-        # ── Calcular balance directamente desde ventas/compras + movimientos manuales ──
-        from ventas.models import Venta, EstadoVenta
-        from compras.models import Compra, EstadoCompra
-        
+        # ── Calcular balance ÚNICAMENTE desde MovimientoCaja(caja=GRANDE) ──
+        #
+        # IMPORTANTE: antes esta vista sumaba Venta.total/Compra.total
+        # directamente, además de los movimientos "extra". Para ventas
+        # eso era un bug: contaba la plata de una venta como si ya
+        # estuviera en caja grande apenas se confirmaba, aunque el
+        # turno todavía estuviera abierto y esa plata siguiera "en el
+        # cajón". Ahora una venta NUNCA genera un movimiento en caja
+        # grande directamente — el único momento en que esa plata entra
+        # a caja grande es cuando TurnoCaja.cerrar() la transfiere
+        # (queda registrada con origen=AJUSTE). Por eso alcanza con
+        # sumar MovimientoCaja: ya incluye ventas liquidadas (vía
+        # cierre de turno), compras (origen=COMPRA), gastos y cargas
+        # manuales (origen=MANUAL), transacciones internas
+        # (origen=TRANSACCION) y ajustes de turno (origen=AJUSTE).
+        #
+        # NOTA (fase 2 pendiente): las compras todavía generan su
+        # movimiento apenas se confirman, sin pasar por ningún "cierre"
+        # — eso es intencional por ahora (compras no tienen turno), y
+        # queda incluido acá sin tratamiento especial.
+
         balance_por_moneda = {}
         metricas_por_moneda = {}
-        
+
         for moneda, _label in Moneda.choices:
-            # Ventas confirmadas (ingresos)
-            ventas_confirmadas = Venta.objects.filter(
-                estado=EstadoVenta.CONFIRMADA,
-                items__moneda=moneda
-            ).distinct()
-            
-            ingresos_ventas = ventas_confirmadas.aggregate(
-                total=Sum('total')
-            )['total'] or 0
-            
-            # Compras confirmadas (egresos)
-            compras_confirmadas = Compra.objects.filter(
-                estado=EstadoCompra.CONFIRMADA,
-                items__moneda=moneda
-            ).distinct()
-            
-            egresos_compras = compras_confirmadas.aggregate(
-                total=Sum('total')
-            )['total'] or 0
-            
-            # Movimientos no-automáticos: manual, ajuste (turnos) y transaccion (internas)
-            # Se excluyen 'venta' y 'compra' porque ya se suman directamente
-            # desde los modelos Venta/Compra arriba para evitar duplicados.
-            ORIGENES_MOVIMIENTO = [
-                OrigenMovimiento.MANUAL,
-                OrigenMovimiento.AJUSTE,
-                OrigenMovimiento.TRANSACCION,
-            ]
-            movimientos_extra = MovimientoCaja.objects.filter(
+            qs_moneda = MovimientoCaja.objects.filter(
                 caja=TipoCaja.GRANDE,
                 moneda=moneda,
-                origen__in=ORIGENES_MOVIMIENTO,
             )
-            
-            agregados_extra = movimientos_extra.aggregate(
+
+            agregados_totales = qs_moneda.aggregate(
                 ingresos=Sum('monto', filter=Q(tipo=TipoMovimientoCaja.INGRESO)),
-                egresos=Sum('monto', filter=Q(tipo=TipoMovimientoCaja.EGRESO))
+                egresos=Sum('monto', filter=Q(tipo=TipoMovimientoCaja.EGRESO)),
             )
-            ingresos_extra = agregados_extra['ingresos'] or 0
-            egresos_extra  = agregados_extra['egresos']  or 0
-            
-            # Totales
-            total_ingresos = ingresos_ventas + ingresos_extra
-            total_egresos  = egresos_compras + egresos_extra
+            total_ingresos = agregados_totales['ingresos'] or 0
+            total_egresos  = agregados_totales['egresos']  or 0
             saldo = total_ingresos - total_egresos
+
+            # Desglose informativo por origen (ventas liquidadas, compras,
+            # manuales/gastos, transacciones internas, ajustes de turno)
+            ventas_liquidadas = qs_moneda.filter(
+                origen=OrigenMovimiento.AJUSTE, tipo=TipoMovimientoCaja.INGRESO,
+            ).aggregate(total=Sum('monto'))['total'] or 0
+
+            egresos_compras = qs_moneda.filter(
+                origen=OrigenMovimiento.COMPRA,
+            ).aggregate(total=Sum('monto'))['total'] or 0
             
             balance_por_moneda[moneda] = {
                 'saldo': str(saldo),
                 'ingresos': str(total_ingresos),
                 'egresos': str(total_egresos),
+                'ventas': str(ventas_liquidadas),
+                'compras': str(egresos_compras),
+                # Desglose por cuenta (Efectivo, Transferencia, Débito, etc.)
+                # dentro de esta moneda. Usa CuentaCaja.saldo, que ya suma
+                # ingresos - egresos de esa cuenta puntual.
+                'cuentas': [
+                    {
+                        'nombre': cuenta.nombre,
+                        'tipo': cuenta.tipo,
+                        'saldo': str(cuenta.saldo),
+                    }
+                    for cuenta in CuentaCaja.objects.filter(
+                        caja=TipoCaja.GRANDE, moneda=moneda, activa=True,
+                    ).order_by('orden', 'nombre')
+                ],
             }
-            
-            # Métricas detalladas (con filtros aplicados)
-            # Incluye manual, ajuste (turnos) y transaccion (internas)
-            qs = MovimientoCaja.objects.filter(
-                caja=TipoCaja.GRANDE,
-                moneda=moneda,
-                origen__in=ORIGENES_MOVIMIENTO,
-            )
-            qs = _aplicar_filtros(qs, request.GET)
-            
-            # Para métricas filtradas, también incluimos ventas/compras filtradas
-            desde = request.GET.get('desde', '').strip()
-            hasta = request.GET.get('hasta', '').strip()
-            
-            ventas_qs = ventas_confirmadas
-            compras_qs = compras_confirmadas
-            
-            if desde:
-                ventas_qs = ventas_qs.filter(fecha__gte=desde)
-                compras_qs = compras_qs.filter(fecha__gte=desde)
-            if hasta:
-                ventas_qs = ventas_qs.filter(fecha__lte=hasta)
-                compras_qs = compras_qs.filter(fecha__lte=hasta)
-            
-            ventas_filtradas = ventas_qs.aggregate(total=Sum('total'))['total'] or 0
-            compras_filtradas = compras_qs.aggregate(total=Sum('total'))['total'] or 0
-            
-            # Solo movimientos manuales (no duplicamos ventas/compras)
-            movimientos_filtrados = qs.aggregate(
+
+            # Métricas detalladas (con filtros de fecha/cuenta/concepto/etc
+            # aplicados), todo derivado del mismo queryset de MovimientoCaja.
+            qs_filtrado = _aplicar_filtros(qs_moneda, request.GET)
+
+            agregados_filtrados = qs_filtrado.aggregate(
                 ingresos=Sum('monto', filter=Q(tipo=TipoMovimientoCaja.INGRESO)),
                 egresos=Sum('monto', filter=Q(tipo=TipoMovimientoCaja.EGRESO)),
-                total_movimientos=Count('pk')
+                total_movimientos=Count('pk'),
             )
-            ingresos_manuales = movimientos_filtrados['ingresos'] or 0
-            egresos_manuales  = movimientos_filtrados['egresos']  or 0
-            total_movimientos = movimientos_filtrados['total_movimientos'] or 0
-            
-            recaudado = ventas_filtradas + ingresos_manuales
-            gastos    = compras_filtradas + egresos_manuales
-            
-            if recaudado or gastos:
+            ingresos_filtrados  = agregados_filtrados['ingresos'] or 0
+            egresos_filtrados   = agregados_filtrados['egresos']  or 0
+            total_movimientos   = agregados_filtrados['total_movimientos'] or 0
+
+            # Ventas liquidadas y compras dentro del mismo filtro, para
+            # desglosar el origen del recaudado/gastos (informativo).
+            ventas_filtradas = qs_filtrado.filter(
+                origen=OrigenMovimiento.AJUSTE, tipo=TipoMovimientoCaja.INGRESO,
+            ).aggregate(total=Sum('monto'))['total'] or 0
+            compras_filtradas = qs_filtrado.filter(
+                origen=OrigenMovimiento.COMPRA,
+            ).aggregate(total=Sum('monto'))['total'] or 0
+
+            if ingresos_filtrados or egresos_filtrados:
                 metricas_por_moneda[moneda] = {
-                    'recaudado': str(recaudado),
-                    'gastos': str(gastos),
-                    'neto': str(recaudado - gastos),
+                    'recaudado': str(ingresos_filtrados),
+                    'gastos': str(egresos_filtrados),
+                    'neto': str(ingresos_filtrados - egresos_filtrados),
                     'total_movimientos': total_movimientos,
                     'ventas': str(ventas_filtradas),
                     'compras': str(compras_filtradas),
-                    'manuales_ingresos': str(ingresos_manuales),
-                    'manuales_egresos': str(egresos_manuales),
                 }
 
         return JsonResponse({

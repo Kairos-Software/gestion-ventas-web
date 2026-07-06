@@ -208,6 +208,44 @@
 }
 
 /* ══════════════════════════════════════════════════════════════════
+   BANNER DE ALERTA — diferencia de efectivo sin revisar
+   ════════════════════════════════════════════════════════════════ */
+.cd-alerta-banner {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    border-left: 4px solid var(--danger);
+    border-radius: var(--radius-lg);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.25rem;
+}
+
+.cd-alerta-banner svg {
+    color: var(--danger);
+    flex-shrink: 0;
+}
+
+.cd-alerta-banner-texto {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    flex: 1;
+}
+
+.cd-alerta-banner-texto strong {
+    font-family: var(--font-heading);
+    font-size: 0.9rem;
+    color: var(--danger);
+}
+
+.cd-alerta-banner-texto span {
+    font-size: 0.825rem;
+    color: var(--text-secondary);
+}
+
+/* ══════════════════════════════════════════════════════════════════
    SIN PERMISO
    ════════════════════════════════════════════════════════════════ */
 .cd-permiso-card {

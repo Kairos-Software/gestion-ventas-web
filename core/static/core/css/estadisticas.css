@@ -1,0 +1,329 @@
+/* core/static/core/css/estadisticas.css
+   Usa las variables y componentes de base.css (--brand-orange, .card,
+   .badge, .btn, .table, .empty-state, etc.) — acá solo se agrega lo
+   específico del dashboard de Estadísticas. */
+
+/* ═══════════════════════════════════════════
+   KPIs (tarjetas grandes de arriba)
+   ═══════════════════════════════════════════ */
+.est-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.est-kpi-card {
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-sm);
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.est-kpi-top {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+}
+
+.est-kpi-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.est-kpi-icon.naranja  { background: var(--brand-orange-light); color: var(--brand-orange); }
+.est-kpi-icon.verde    { background: rgba(16,185,129,0.12);     color: var(--success); }
+.est-kpi-icon.azul     { background: var(--brand-blue-light);   color: var(--brand-blue); }
+.est-kpi-icon.gris     { background: var(--bg-secondary);       color: var(--text-secondary); }
+.est-kpi-icon.rojo     { background: rgba(239,68,68,0.1);       color: var(--danger); }
+
+.est-kpi-label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.est-kpi-value {
+    font-family: var(--font-heading);
+    font-size: 1.7rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    letter-spacing: -0.5px;
+}
+
+.est-kpi-sub {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+}
+
+.est-kpi-delta {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.est-kpi-delta.up   { color: var(--success); }
+.est-kpi-delta.down { color: var(--danger); }
+.est-kpi-delta.flat { color: var(--text-muted); font-weight: 500; }
+
+/* ═══════════════════════════════════════════
+   FILTROS DE FECHA (2 formularios separados)
+   ═══════════════════════════════════════════ */
+.est-filtros {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.est-filtros-presets {
+    display: flex;
+}
+
+.est-filtros-custom {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+}
+
+.est-filtros-custom input[type="date"] {
+    width: auto;
+}
+
+/* ═══════════════════════════════════════════
+   TABLA-RESUMEN DEL PERÍODO ("la cuenta", clara)
+   ═══════════════════════════════════════════ */
+.est-resumen-tabla {
+    display: flex;
+    flex-direction: column;
+}
+
+.est-resumen-fila {
+    display: grid;
+    grid-template-columns: 24px 1fr auto;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.65rem 0.25rem;
+    border-bottom: 1px dashed var(--border-color);
+    font-size: 0.9rem;
+}
+
+.est-resumen-fila:last-child { border-bottom: none; }
+
+.est-resumen-signo {
+    font-weight: 800;
+    color: var(--success);
+    text-align: center;
+    font-size: 1rem;
+}
+
+.est-resumen-signo.menos { color: var(--danger); }
+
+.est-resumen-concepto { color: var(--text-secondary); }
+
+.est-resumen-monto {
+    font-weight: 700;
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+.est-resumen-monto.menos { color: var(--danger); }
+
+.est-resumen-fila.subtotal {
+    background: var(--bg-primary);
+    border-radius: var(--radius-md);
+    margin: 0.15rem 0;
+}
+
+.est-resumen-fila.subtotal .est-resumen-concepto,
+.est-resumen-fila.subtotal .est-resumen-monto {
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.est-resumen-fila.total {
+    background: var(--brand-orange-light);
+    border-radius: var(--radius-md);
+    margin-top: 0.35rem;
+    border-bottom: none;
+}
+
+.est-resumen-fila.total .est-resumen-signo { color: var(--brand-orange); }
+
+.est-resumen-fila.total .est-resumen-concepto {
+    font-weight: 800;
+    color: var(--brand-orange-dark);
+}
+
+.est-resumen-fila.total .est-resumen-monto {
+    font-weight: 800;
+    font-size: 1.15rem;
+    color: var(--brand-orange-dark);
+}
+
+/* ═══════════════════════════════════════════
+   GRILLA DE PANELES (gráficos / rankings)
+   ═══════════════════════════════════════════ */
+.est-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 1.25rem;
+    margin-bottom: 1.25rem;
+}
+
+.est-row-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+    margin-bottom: 1.25rem;
+}
+
+.est-chart-wrap {
+    position: relative;
+    height: 280px;
+}
+
+.est-chart-wrap.chico {
+    height: 220px;
+}
+
+/* ═══════════════════════════════════════════
+   RANKINGS (empleados / productos)
+   ═══════════════════════════════════════════ */
+.est-ranking-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.7rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.est-ranking-row:last-child { border-bottom: none; }
+
+.est-ranking-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+}
+
+.est-ranking-pos {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--brand-orange-light);
+    color: var(--brand-orange);
+    font-size: 0.75rem;
+    font-weight: 800;
+    flex-shrink: 0;
+}
+
+.est-ranking-nombre {
+    font-weight: 700;
+    color: var(--text-primary);
+    font-size: 0.9375rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.est-ranking-detalle {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.est-ranking-right {
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.est-ranking-ganancia {
+    font-weight: 800;
+    color: var(--success);
+    font-size: 0.9375rem;
+}
+
+.est-ranking-vendido {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+/* ═══════════════════════════════════════════
+   PÉRDIDAS POR VENCIMIENTO / MERMA
+   ═══════════════════════════════════════════ */
+.est-perdida-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.est-perdida-box {
+    border-radius: var(--radius-lg);
+    padding: 1rem 1.125rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.est-perdida-box.vencido    { background: rgba(239,68,68,0.08); }
+.est-perdida-box.por-vencer { background: rgba(245,158,11,0.08); }
+.est-perdida-box.merma      { background: var(--bg-secondary); }
+
+.est-perdida-titulo {
+    font-size: 0.8125rem;
+    font-weight: 700;
+}
+
+.est-perdida-box.vencido .est-perdida-titulo    { color: #991B1B; }
+.est-perdida-box.por-vencer .est-perdida-titulo { color: #92400E; }
+.est-perdida-box.merma .est-perdida-titulo      { color: var(--text-secondary); }
+
+.est-perdida-valor {
+    font-family: var(--font-heading);
+    font-size: 1.5rem;
+    font-weight: 800;
+}
+
+.est-perdida-box.vencido .est-perdida-valor    { color: var(--danger); }
+.est-perdida-box.por-vencer .est-perdida-valor { color: #92400E; }
+.est-perdida-box.merma .est-perdida-valor      { color: var(--text-primary); }
+
+.est-perdida-nota {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+/* ═══════════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════════ */
+@media (max-width: 1023px) {
+    .est-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .est-row, .est-row-2 { grid-template-columns: 1fr; }
+    .est-perdida-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 767px) {
+    .est-kpi-grid { grid-template-columns: 1fr; }
+    .est-filtros { flex-direction: column; align-items: stretch; }
+    .est-filtros-custom { margin-left: 0; flex-wrap: wrap; }
+    .est-kpi-value { font-size: 1.4rem; }
+    .est-resumen-fila { grid-template-columns: 20px 1fr auto; font-size: 0.8125rem; }
+}

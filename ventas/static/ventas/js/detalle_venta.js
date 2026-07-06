@@ -180,7 +180,6 @@ if (VDT.esBorrador) {
 ════════════════════════════════════════════════════════════════ */
 if (VDT.esBorrador) {
     const btnConfirmar = document.getElementById('vdtBtnConfirmar');
-    const btnVolver    = document.getElementById('vdtBtnVolver');
     const inputFecha   = document.getElementById('vdtFecha');
     const inputNotas   = document.getElementById('vdtNotas');
 
@@ -245,15 +244,26 @@ if (VDT.esBorrador) {
         });
     }
 
-    if (btnVolver) {
-        btnVolver.addEventListener('click', async () => {
-            const ok = confirm('¿Volvés a editar el carrito? El borrador se descartará.');
+    const btnEditarCarrito = document.getElementById('vdtBtnEditarCarrito');
+    const btnCancelar      = document.getElementById('vdtBtnCancelar');
+
+    if (btnEditarCarrito) {
+        btnEditarCarrito.addEventListener('click', () => {
+            // No se borra nada acá — el borrador se reemplaza recién
+            // si el usuario efectivamente guarda cambios en el carrito.
+            window.location.href = VDT.urlNuevaVenta + '?editar=' + VDT.ventaPk;
+        });
+    }
+
+    if (btnCancelar) {
+        btnCancelar.addEventListener('click', async () => {
+            const ok = confirm('¿Cancelar esta venta? El borrador y sus ítems se van a borrar.');
             if (!ok) return;
 
-            btnVolver.disabled  = true;
-            btnVolver.innerHTML = `<svg class="vta-spin" width="14" height="14" viewBox="0 0 16 16" fill="none">
+            btnCancelar.disabled  = true;
+            btnCancelar.innerHTML = `<svg class="vta-spin" width="14" height="14" viewBox="0 0 16 16" fill="none">
                 <circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.5" stroke-dasharray="20 15"/>
-            </svg> Descartando…`;
+            </svg> Cancelando…`;
 
             try {
                 const res  = await fetch(VDT.urlEliminarBorrador, {
@@ -266,15 +276,18 @@ if (VDT.esBorrador) {
                 if (data.ok) {
                     window.location.href = VDT.urlNuevaVenta;
                 } else {
-                    vdtToast('Error', data.error || 'No se pudo descartar el borrador.');
-                    btnVolver.disabled  = false;
-                    btnVolver.innerHTML = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                        <path d="M11 7H3M6.5 3L3 7L6.5 11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg> Volver y editar carrito`;
+                    vdtToast('Error', data.error || 'No se pudo cancelar la venta.');
+                    btnCancelar.disabled  = false;
+                    btnCancelar.innerHTML = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                        <path d="M3 4H13M6 4V2.5C6 2.22 6.22 2 6.5 2H9.5C9.78 2 10 2.22 10 2.5V4"
+                              stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                        <path d="M5 6L5.5 13H10.5L11 6" stroke="currentColor" stroke-width="1.4"
+                              stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg> Cancelar venta`;
                 }
             } catch {
                 vdtToast('Error de conexión', 'Intentá de nuevo.');
-                btnVolver.disabled = false;
+                btnCancelar.disabled = false;
             }
         });
     }

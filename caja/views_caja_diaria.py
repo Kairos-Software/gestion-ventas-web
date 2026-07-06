@@ -37,6 +37,16 @@ class CajaDiariaView(LoginRequiredMixin, TemplateView):
             ctx['efectivo_ventas'] = turno_actual.efectivo_ventas
             ctx['efectivo_total'] = turno_actual.efectivo_total
             ctx['ganancia_turno'] = turno_actual.ganancia_turno
+        else:
+            # No hay turno abierto: si el último turno cerrado tuvo una
+            # diferencia de efectivo, se muestra como banner persistente
+            # (no alcanza con el alert() del momento del cierre, que se
+            # puede perder si alguien no estaba mirando la pantalla).
+            ultimo_cerrado = TurnoCaja.objects.filter(
+                estado=EstadoTurno.CERRADO
+            ).order_by('-fecha_cierre').first()
+            if ultimo_cerrado and ultimo_cerrado.alerta_diferencia:
+                ctx['alerta_ultimo_turno'] = ultimo_cerrado
         
         return ctx
 
@@ -132,8 +142,8 @@ class CerrarTurnoAjax(LoginRequiredMixin, View):
         
         try:
             turno.cerrar(monto_final_efectivo=monto_final, usuario=request.user, notas=notas)
-            diferencia = monto_final - efectivo_esperado
-            
+            diferencia = turno.diferencia_efectivo or Decimal('0')
+
             return JsonResponse({
                 'ok': True,
                 'turno': {
@@ -147,7 +157,13 @@ class CerrarTurnoAjax(LoginRequiredMixin, View):
                     'efectivo_declarado': str(monto_final),
                     'diferencia': str(diferencia),
                     'estado': 'coincide' if abs(diferencia) < 0.01 else ('sobra' if diferencia > 0 else 'falta')
-                }
+                },
+                # Alerta explícita para que el frontend la muestre con
+                # urgencia (color rojo, modal, notificación, etc.)
+                'alerta': {
+                    'hay_diferencia': turno.alerta_diferencia,
+                    'mensaje': turno.mensaje_alerta,
+                } if turno.alerta_diferencia else None,
             })
         except Exception as e:
             return JsonResponse({'error': f'Error al cerrar turno: {e}'}, status=500)
@@ -223,9 +239,16 @@ class HistorialTurnosAjax(LoginRequiredMixin, View):
                 'efectivo_ventas': str(turno.efectivo_ventas),
                 'efectivo_total': str(turno.efectivo_total),
                 'ganancia_turno': str(turno.ganancia_turno),
+                'alerta_diferencia': turno.alerta_diferencia,
+                'mensaje_alerta': turno.mensaje_alerta,
             })
-        
-        return JsonResponse({'turnos': data})
+
+        return JsonResponse({
+            'turnos': data,
+            # Para que el frontend pueda pintar un banner global de
+            # "hay turnos con diferencias sin revisar" apenas carga.
+            'hay_alertas': any(t['alerta_diferencia'] for t in data),
+        })
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -245,6 +268,7 @@ class HistorialTurnosView(LoginRequiredMixin, TemplateView):
         # Obtener todos los turnos
         turnos = TurnoCaja.objects.all().order_by('-fecha_apertura')
         ctx['turnos'] = turnos
+        ctx['hay_alertas'] = any(t.alerta_diferencia for t in turnos)
         
         return ctx
 
@@ -284,12 +308,18 @@ class HistorialDiarioView(LoginRequiredMixin, TemplateView):
                 fecha_apertura__date=fecha
             ).order_by('fecha_apertura')
             
-            # Calcular totales por medio de pago para todos los turnos del día
+            # Calcular totales por medio de pago para todos los turnos del día.
+            # Usamos la propiedad totales_medio_pago (no el método directo)
+            # para que los turnos ya CERRADOS usen su snapshot congelado en
+            # vez de recalcularse en caliente contra PagoVenta.
             totales_medio_pago = {}
+            hay_alerta = False
             for turno in turnos_fecha:
-                totales = turno.calcular_totales_por_medio_pago()
+                totales = turno.totales_medio_pago
                 for medio, monto in totales.items():
                     totales_medio_pago[medio] = totales_medio_pago.get(medio, 0) + monto
+                if turno.alerta_diferencia:
+                    hay_alerta = True
             
             historial.append({
                 'fecha': fecha,
@@ -299,9 +329,12 @@ class HistorialDiarioView(LoginRequiredMixin, TemplateView):
                 'total_diferencia': entry['total_diferencia'] or 0,
                 'totales_medio_pago': totales_medio_pago,
                 'turnos': turnos_fecha,
+                'hay_alerta': hay_alerta,
             })
         
         ctx['historial'] = historial
+        ctx['hay_alertas'] = any(dia['hay_alerta'] for dia in historial)
+        ctx['total_turnos'] = TurnoCaja.objects.count()
         
         return ctx
 
@@ -329,4 +362,3 @@ class EliminarHistorialAjax(LoginRequiredMixin, View):
             })
         except Exception as e:
             return JsonResponse({'error': f'Error al eliminar historial: {e}'}, status=500)
-

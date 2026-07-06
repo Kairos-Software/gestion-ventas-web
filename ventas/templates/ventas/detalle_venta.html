@@ -183,6 +183,18 @@
         font-size: .7rem;
     }
 
+    /* Botón "Cancelar venta" — variante roja, mismo lenguaje visual
+       que el botón de eliminar fila del carrito. */
+    .vdt-btn-danger {
+        background: rgba(239, 68, 68, .06);
+        border: 1px solid rgba(239, 68, 68, .3);
+        color: var(--danger, #EF4444);
+    }
+    .vdt-btn-danger:hover {
+        background: rgba(239, 68, 68, .14);
+        border-color: rgba(239, 68, 68, .5);
+    }
+
     /* ══════════════════════════════════════════════════════════════
    MEDIOS DE PAGO (sidebar borrador)
 ══════════════════════════════════════════════════════════════ */
@@ -457,7 +469,7 @@
                                     <span class="vta-prod-nombre">{{ item.nombre_producto_display }}</span>
                                     <span class="vta-prod-meta">
                                         {{ item.producto_codigo }}
-                                        {% if item.color_nombre %}· <span style="color:var(--brand-orange)">{{ item.nombre_color_display }}</span>{% endif %}
+                                        {% if item.combinacion_descripcion %}· <span style="color:var(--brand-orange)">{{ item.nombre_combinacion_display }}</span>{% endif %}
                                         {% if item.nombre_cliente_display != '(sin cliente)' %}· {{ item.nombre_cliente_display }}{% endif %}
                                     </span>
                                 </div>
@@ -518,12 +530,9 @@
                                 </div>
                             </td>
                             <td>
-                                {% if item.color_nombre %}
+                                {% if item.combinacion_descripcion %}
                                 <span class="cdt-color-pill">
-                                    {% if item.color and item.color.codigo_hex %}
-                                    <span class="cdt-color-dot" style="background:{{ item.color.codigo_hex }}"></span>
-                                    {% endif %}
-                                    {{ item.nombre_color_display }}
+                                    {{ item.nombre_combinacion_display }}
                                 </span>
                                 {% else %}<span class="cdt-muted">—</span>{% endif %}
                             </td>
@@ -648,12 +657,22 @@
                     Confirmar venta
                 </button>
 
-                <button id="vdtBtnVolver" class="vta-btn vta-btn-ghost">
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                        <path d="M11 7H3M6.5 3L3 7L6.5 11" stroke="currentColor" stroke-width="1.6"
+                <button id="vdtBtnEditarCarrito" class="vta-btn vta-btn-ghost">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                        <path d="M11 2L14 5L5 14H2V11L11 2Z" stroke="currentColor" stroke-width="1.4"
                             stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
-                    Volver y editar carrito
+                    Editar carrito
+                </button>
+
+                <button id="vdtBtnCancelar" class="vta-btn vta-btn-ghost vdt-btn-danger">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                        <path d="M3 4H13M6 4V2.5C6 2.22 6.22 2 6.5 2H9.5C9.78 2 10 2.22 10 2.5V4"
+                            stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+                        <path d="M5 6L5.5 13H10.5L11 6" stroke="currentColor" stroke-width="1.4"
+                            stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    Cancelar venta
                 </button>
 
             </div>
@@ -861,7 +880,7 @@
                     <td style="padding:.45rem .5rem">
                         <div style="font-weight:500">{{ item.nombre_producto_display }}</div>
                         <div style="font-size:.7rem; color:var(--text-muted)">
-                            {{ item.producto_codigo }}{% if item.color_nombre %} · {{ item.nombre_color_display }}{% endif %}
+                            {{ item.producto_codigo }}{% if item.combinacion_descripcion %} · {{ item.nombre_combinacion_display }}{% endif %}
                         </div>
                     </td>
                     <td style="text-align:center; padding:.45rem .5rem">{{ item.cantidad|floatformat:"-3" }}</td>
@@ -948,7 +967,7 @@
                         <div style="font-weight:500">{{ item.nombre_producto_display }}</div>
                         <div style="font-size:.72rem; color:var(--text-muted)">
                             {{ item.producto_codigo }}
-                            {% if item.color_nombre %}· {{ item.nombre_color_display }}{% endif %}
+                            {% if item.combinacion_descripcion %}· {{ item.nombre_combinacion_display }}{% endif %}
                             {% if item.nombre_cliente_display != '(sin cliente)' %}· {{ item.nombre_cliente_display }}{% endif %}
                             · {{ item.get_condicion_pago_display }}
                         </div>
@@ -1085,7 +1104,7 @@
     {
         nombre: "{{ item.nombre_producto_display|escapejs }}",
             codigo: "{{ item.producto_codigo|escapejs }}",
-                color: "{{ item.nombre_color_display|escapejs }}",
+                color: "{{ item.nombre_combinacion_display|escapejs }}",
                     cliente: "{% if item.nombre_cliente_display != '(sin cliente)' %}{{ item.nombre_cliente_display|escapejs }}{% endif %}",
                         cantidad: "{{ item.cantidad|floatformat:'-3' }}",
                             moneda: "{{ item.moneda|escapejs }}",

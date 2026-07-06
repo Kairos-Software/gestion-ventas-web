@@ -26,6 +26,9 @@ class NuevaVentaView(LoginRequiredMixin, TemplateView):
     Solo carga de productos al carrito. No se elige fecha ni medio
     de pago acá — eso se hace en el detalle/borrador, al que se
     llega con "Continuar al detalle".
+
+    Si se accede con ?editar=<pk>, precarga los ítems de ese borrador
+    existente (viene del botón "Editar carrito" en detalle_venta).
     """
     template_name = 'ventas/nueva_venta.html'
 
@@ -35,12 +38,50 @@ class NuevaVentaView(LoginRequiredMixin, TemplateView):
             ctx['sin_permiso'] = True
             return ctx
         ctx['puede_crear'] = True
-        
+
         # Verificar si hay turno abierto
         turno_actual = TurnoCaja.turno_actual()
         if not turno_actual:
             ctx['sin_turno'] = True
-        
+
+        # ── Precarga desde un borrador existente ("Editar carrito") ──
+        ctx['venta_editar_pk'] = None
+        ctx['items_iniciales']  = []
+
+        editar_pk = self.request.GET.get('editar', '').strip()
+        if editar_pk:
+            venta = (
+                Venta.objects
+                .filter(pk=editar_pk, estado=EstadoVenta.BORRADOR)
+                .prefetch_related('items__producto', 'items__combinacion', 'items__cliente', 'items__lote_escaneado')
+                .first()
+            )
+            if venta:
+                ctx['venta_editar_pk'] = venta.pk
+                items_iniciales = []
+                for item in venta.items.all():
+                    nombre = item.nombre_producto_display
+                    if item.combinacion_descripcion:
+                        nombre = f'{nombre} — {item.combinacion_descripcion}'
+                    items_iniciales.append({
+                        'producto_pk':    item.producto_id,
+                        'combinacion_pk': item.combinacion_id,
+                        'nombre':         nombre,
+                        'codigo':         item.producto_codigo,
+                        'tipo_escaneo':   item.tipo_escaneo,
+                        'lote_pk':        item.lote_escaneado_id,
+                        'lote_codigo':    item.lote_escaneado.codigo if item.lote_escaneado_id else '',
+                        'cliente_pk':     item.cliente_id,
+                        'cliente_nombre': item.nombre_cliente_display if item.cliente_id else '',
+                        'cantidad':       str(item.cantidad),
+                        'precio':         str(item.precio_unitario),
+                        'moneda':         item.moneda,
+                        'descuento':      str(item.descuento_pct),
+                        'condicion':      item.condicion_pago,
+                        'referencia':     item.referencia,
+                    })
+                ctx['items_iniciales'] = items_iniciales
+
         return ctx
 
 

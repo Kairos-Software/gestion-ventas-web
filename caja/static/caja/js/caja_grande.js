@@ -85,10 +85,13 @@ document.addEventListener('DOMContentLoaded', function () {
     function renderizarBalancePorMoneda(balance) {
         const grid = document.getElementById('monedasGrid');
         const emptyHint = document.getElementById('monedasEmptyHint');
+        const cuentasGrid = document.getElementById('cuentasGrid');
+        const cuentasSection = document.getElementById('cuentasSection');
 
         if (!balance || !balance[monedaActual]) {
             grid.innerHTML = '';
             emptyHint.hidden = false;
+            if (cuentasSection) cuentasSection.hidden = true;
             return;
         }
 
@@ -121,6 +124,46 @@ document.addEventListener('DOMContentLoaded', function () {
                 </div>
             </div>
         `;
+
+        renderizarCuentas(datos.cuentas, cuentasGrid, cuentasSection);
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    //  DESGLOSE POR CUENTA (Efectivo, Transferencia, Débito, etc.)
+    // ══════════════════════════════════════════════════════════════════
+
+    const ICONOS_TIPO_CUENTA = {
+        efectivo: '<rect x="2" y="5" width="12" height="8" rx="1.3" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="9" r="1.4" stroke="currentColor" stroke-width="1.3"/>',
+        banco: '<rect x="2" y="6.5" width="12" height="6.5" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M1.5 6.5L8 2L14.5 6.5" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>',
+        otra: '<circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3"/><path d="M8 5.5V8.5L10 10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>',
+    };
+
+    function renderizarCuentas(cuentas, cuentasGrid, cuentasSection) {
+        if (!cuentasGrid || !cuentasSection) return;
+
+        if (!cuentas || cuentas.length === 0) {
+            cuentasSection.hidden = true;
+            return;
+        }
+
+        cuentasSection.hidden = false;
+        cuentasGrid.innerHTML = cuentas.map(cuenta => {
+            const esNegativo = parseFloat(cuenta.saldo) < 0;
+            const icono = ICONOS_TIPO_CUENTA[cuenta.tipo] || ICONOS_TIPO_CUENTA.otra;
+            return `
+                <div class="cg-cuenta-card">
+                    <div class="cg-cuenta-icon">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">${icono}</svg>
+                    </div>
+                    <div class="cg-cuenta-info">
+                        <div class="cg-cuenta-nombre">${cuenta.nombre}</div>
+                        <div class="cg-cuenta-saldo ${esNegativo ? 'cg-cuenta-saldo--negativo' : ''}">
+                            ${formatMonto(cuenta.saldo, monedaActual)}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
     }
 
     function renderizarMetricasPorMoneda(metricas) {

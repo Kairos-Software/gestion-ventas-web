@@ -1,0 +1,311 @@
+/* ══════════════════════════════════════════════════════════════════
+   floating-tools.css — Kai-Cart
+   Ventanas flotantes y arrastrables para herramientas rápidas
+   (contador de billetes, calculadora de vuelto). No son modales:
+   no bloquean el resto de la pantalla y se pueden mover a cualquier
+   lugar. Usa las mismas variables de diseño que base.css.
+══════════════════════════════════════════════════════════════════ */
+
+.floating-tool {
+    display: none;
+    flex-direction: column;
+    position: fixed;
+    width: 320px;
+    max-height: 78vh;
+    background: var(--bg-white);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+    z-index: 950;
+}
+.floating-tool.open { display: flex; }
+.floating-tool.dragging { transition: none !important; user-select: none; }
+
+.floating-tool--sm { width: 280px; }
+
+.floating-tool.minimized .floating-tool-body,
+.floating-tool.minimized .floating-tool-footer {
+    display: none;
+}
+.floating-tool.minimized { max-height: none; }
+
+/* ── Barra de título (arrastrable) ── */
+.floating-tool-titlebar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.65rem 0.7rem 0.65rem 0.85rem;
+    background: #0D1B2A;
+    color: #fff;
+    cursor: grab;
+    flex-shrink: 0;
+}
+.floating-tool-titlebar:active { cursor: grabbing; }
+
+.floating-tool-titlebar-left {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 0.78rem;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.floating-tool-icon {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--brand-orange);
+    flex-shrink: 0;
+}
+
+.floating-tool-actions { display: flex; gap: 0.3rem; flex-shrink: 0; }
+
+.floating-tool-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    border: none;
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: var(--transition-fast);
+    padding: 0;
+}
+.floating-tool-btn:hover { background: rgba(255,255,255,0.2); }
+.floating-tool-btn--close:hover { background: var(--danger); }
+
+/* ── Cuerpo ── */
+.floating-tool-body {
+    padding: 1rem 1.1rem;
+    overflow-y: auto;
+    font-family: var(--font-body);
+}
+
+.floating-tool-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.85rem 1.1rem;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+    font-family: var(--font-heading);
+    font-weight: 700;
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+.floating-tool-footer #billetesTotal,
+.floating-tool-footer #vueltoMonto {
+    font-size: 1.1rem;
+    color: var(--brand-orange);
+}
+.floating-tool-footer #vueltoMonto.vuelto-negativo { color: var(--danger); }
+
+/* ── Billetes ── */
+.billetes-vacio {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 0.75rem 0;
+    margin: 0 0 0.5rem;
+}
+.billetes-filas {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-bottom: 0.85rem;
+    max-height: 260px;
+    overflow-y: auto;
+}
+.billete-fila {
+    display: grid;
+    grid-template-columns: 1fr 60px 78px 22px;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.5rem;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-sm);
+}
+.billete-valor { font-weight: 600; color: var(--text-primary); font-size: 0.82rem; }
+.billete-cantidad-input {
+    width: 100%;
+    padding: 0.3rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    text-align: center;
+    font-family: var(--font-body);
+    font-size: 0.82rem;
+}
+.billete-cantidad-input:focus {
+    outline: none;
+    border-color: var(--brand-orange);
+}
+.billete-subtotal { text-align: right; color: var(--text-secondary); font-size: 0.78rem; }
+.billete-eliminar {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 1.05rem;
+    line-height: 1;
+    padding: 0;
+}
+.billete-eliminar:hover { color: var(--danger); }
+
+.billetes-agregar { display: flex; gap: 0.4rem; margin-bottom: 0.6rem; }
+.billetes-agregar input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.45rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+}
+.billetes-agregar input:focus { outline: none; border-color: var(--brand-orange); }
+
+.btn-agregar-billete {
+    background: var(--brand-orange);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 0 0.9rem;
+    width: auto;
+    white-space: nowrap;
+    font-weight: 600;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: var(--transition-fast);
+    flex-shrink: 0;
+}
+.btn-agregar-billete:hover { background: var(--brand-orange-dark); }
+
+/* Botón "+" discreto que despliega el formulario de alta (oculto por
+   defecto: se usa poco y no debe ocupar espacio siempre visible) */
+.btn-toggle-agregar-billete {
+    display: block;
+    width: 100%;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    text-align: left;
+    padding: 0.3rem 0.1rem;
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+.btn-toggle-agregar-billete:hover { color: var(--brand-orange); }
+
+.billetes-agregar.oculto { display: none; }
+
+.btn-limpiar-billetes {
+    width: 100%;
+    background: none;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    padding: 0.4rem;
+    cursor: pointer;
+    font-family: var(--font-body);
+    font-size: 0.8rem;
+    transition: var(--transition-fast);
+}
+.btn-limpiar-billetes:hover { border-color: var(--danger); color: var(--danger); }
+
+/* ── Vuelto ── */
+.vuelto-label {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-muted);
+    margin: 0.75rem 0 0.3rem;
+}
+.vuelto-label:first-child { margin-top: 0; }
+.vuelto-input {
+    width: 100%;
+    padding: 0.55rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+}
+.vuelto-input:focus { outline: none; border-color: var(--brand-orange); }
+
+/* ── Ítems del sidebar que abren las ventanas ── */
+.nav-subitem--tool {
+    width: 100%;
+    background: none;
+    border: none;
+    text-align: left;
+    font-family: inherit;
+}
+.nav-subitem--tool.active { background: rgba(242, 106, 27, 0.14); color: #fff; }
+.nav-shortcut-hint {
+    margin-left: auto;
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: rgba(255,255,255,0.28);
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+/* ── Aviso para reanudar fullscreen tras navegar ── */
+.fs-resume-banner {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(12px);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: #0D1B2A;
+    color: #fff;
+    padding: 0.6rem 0.6rem 0.6rem 1rem;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    z-index: 99999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+}
+.fs-resume-banner.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    pointer-events: auto;
+}
+.fs-resume-banner button {
+    background: var(--brand-orange);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 0.4rem 0.85rem;
+    font-weight: 600;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: var(--transition-fast);
+    white-space: nowrap;
+}
+.fs-resume-banner button:hover { background: var(--brand-orange-dark); }
+
+@media (max-width: 767px) {
+    .floating-tool { width: calc(100vw - 24px); left: 12px !important; }
+}

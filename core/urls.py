@@ -1,4 +1,4 @@
-# core/urls.py  — versión extendida (agrega rutas de personal + empresa)
+# core/urls.py  — versión extendida (agrega rutas de personal + empresa + estadísticas)
 from django.urls import path
 from . import views
 from . import views_usuarios
@@ -7,6 +7,7 @@ from . import views_clientes
 from . import views_perfil
 from . import views_empresa
 from . import views_reiniciar
+from . import views_estadisticas
 
 app_name = 'core'
 
@@ -15,6 +16,9 @@ urlpatterns = [
     path('', views.CustomLoginView.as_view(), name='login'),
     path('logout/', views.CustomLogoutView.as_view(), name='logout'),
     path('home/', views.home, name='home'),
+
+    # ── Estadísticas ────────────────────────────────────────────────
+    path('estadisticas/', views_estadisticas.estadisticas, name='estadisticas'),
 
     # ── Usuarios — listado y acciones rápidas (modal) ─────────────
     path('usuarios/', views_usuarios.GestionUsuariosView.as_view(), name='gestion_usuarios'),

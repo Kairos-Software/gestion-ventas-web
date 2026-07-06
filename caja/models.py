@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import models
 from django.conf import settings
 from django.db import transaction
@@ -268,6 +270,29 @@ def _concepto_default(nombre, tipo_default):
     return concepto
 
 
+def _cuenta_grande_para_medio_pago(medio_codigo, medio_label, moneda=Moneda.ARS):
+    """
+    Resuelve la CuentaCaja de caja GRANDE donde debe aterrizar el dinero
+    de un medio de pago al cerrar un turno.
+
+    - 'efectivo' → la cuenta "Efectivo" de siempre (misma que usan
+      compras, gastos y turnos para no fragmentar el efectivo).
+    - Cualquier otro medio (transferencia, débito, QR, etc.) → una
+      cuenta tipo BANCO nombrada igual que el medio de pago. Se crea
+      sola la primera vez que aparece ese medio.
+    """
+    if medio_codigo == 'efectivo':
+        return _cuenta_default(moneda=moneda, caja=TipoCaja.GRANDE)
+
+    cuenta, _creada = CuentaCaja.objects.get_or_create(
+        nombre=medio_label,
+        caja=TipoCaja.GRANDE,
+        moneda=moneda,
+        defaults={'tipo': TipoCuenta.BANCO},
+    )
+    return cuenta
+
+
 @transaction.atomic
 def _borrar_movimiento_origen(origen_app, origen_tipo, origen_id):
     MovimientoCaja.objects.filter(
@@ -285,6 +310,12 @@ def sincronizar_movimiento_venta(venta):
       según la moneda predominante de sus ítems (ARS por defecto).
     - ANULADA: no debe quedar movimiento (la venta no se concretó).
 
+    IMPORTANTE: este movimiento se registra en CAJA DIARIA, NUNCA en
+    caja grande. El dinero de una venta recién "existe" para la caja
+    grande cuando el turno se cierra y TurnoCaja.cerrar() transfiere lo
+    correspondiente (ver ese método). Si esto generara caja=GRANDE acá,
+    se duplicaría con la transferencia del cierre de turno.
+
     Se llama desde Venta.confirmar(), Venta.anular() [si existiera] y
     Venta.editar_completa() (que internamente re-confirma).
     """
@@ -297,11 +328,11 @@ def sincronizar_movimiento_venta(venta):
         return None
 
     moneda = venta.items.values_list('moneda', flat=True).first() or Moneda.ARS
-    cuenta   = _cuenta_default(moneda=moneda, caja=TipoCaja.GRANDE)
+    cuenta   = _cuenta_default(moneda=moneda, caja=TipoCaja.DIARIA)
     concepto = _concepto_default(CONCEPTO_VENTA_NOMBRE, TipoMovimientoCaja.INGRESO)
 
     return MovimientoCaja.objects.create(
-        caja        = TipoCaja.GRANDE,
+        caja        = TipoCaja.DIARIA,
         cuenta      = cuenta,
         concepto    = concepto,
         tipo        = TipoMovimientoCaja.INGRESO,
@@ -388,7 +419,16 @@ class TurnoCaja(models.Model):
     
     # Diferencia entre lo que debería haber y lo que hay (para control)
     diferencia_efectivo = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
-    
+
+    # Snapshot de los totales al momento del cierre (por medio de pago,
+    # total recaudado, ganancia). Se guarda para que el historial de un
+    # turno ya cerrado NUNCA cambie si después se edita/anula una venta
+    # vieja: el historial contable debe quedar congelado en el tiempo.
+    # Mientras el turno está ABIERTO, los totales se siguen calculando
+    # en caliente (ver propiedad totales_medio_pago).
+    totales_cierre = models.JSONField(null=True, blank=True, default=None,
+                        help_text='Snapshot de totales_medio_pago/total_recaudado/ganancia al cerrar el turno.')
+
     # Auditoría
     abierto_por = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
@@ -411,6 +451,19 @@ class TurnoCaja(models.Model):
     
     @property
     def totales_medio_pago(self):
+        """
+        Totales recaudados por medio de pago.
+
+        Si el turno ya está CERRADO y tiene snapshot guardado, se
+        devuelve ese snapshot congelado (para que el historial no
+        cambie retroactivamente). Si está ABIERTO (o por algún motivo
+        no tiene snapshot todavía), se calcula en caliente.
+        """
+        if self.estado == EstadoTurno.CERRADO and self.totales_cierre:
+            return {
+                k: Decimal(str(v))
+                for k, v in self.totales_cierre.get('totales_medio_pago', {}).items()
+            }
         if not hasattr(self, '_totales_medio_pago'):
             self._totales_medio_pago = self.calcular_totales_por_medio_pago()
         return self._totales_medio_pago
@@ -430,6 +483,22 @@ class TurnoCaja(models.Model):
     @property
     def ganancia_turno(self):
         return self.total_recaudado - (self.monto_inicial_efectivo or 0)
+
+    @property
+    def alerta_diferencia(self):
+        """True si al cerrar hubo una diferencia entre lo esperado y lo declarado."""
+        return self.diferencia_efectivo is not None and abs(self.diferencia_efectivo) >= Decimal('0.01')
+
+    @property
+    def mensaje_alerta(self):
+        if not self.alerta_diferencia:
+            return None
+        signo = 'sobra' if self.diferencia_efectivo > 0 else 'falta'
+        return (
+            f'¡Atención! En el turno #{self.numero} {signo} '
+            f'{abs(self.diferencia_efectivo)} en efectivo respecto de lo esperado. '
+            f'Revisar con urgencia.'
+        )
 
     
     @classmethod
@@ -519,61 +588,100 @@ class TurnoCaja(models.Model):
     
     def cerrar(self, monto_final_efectivo, usuario, notas=''):
         """
-        Cierra el turno:
-        - Devuelve el monto inicial a caja grande
-        - Mueve todo el efectivo de ventas a caja grande
-        - Registra el monto final declarado
+        Cierra el turno. Es el ÚNICO momento en que el dinero de un
+        turno "aparece" en caja grande — ninguna venta individual
+        impacta ahí antes de esto (ver sincronizar_movimiento_venta).
+
+        1. Congela (snapshot) los totales por medio de pago, para que
+           el historial de este turno no cambie más adelante aunque se
+           edite/anule una venta vieja.
+        2. Efectivo: se transfiere a caja grande el MONTO REAL
+           declarado por el cajero (lo contado físicamente), no el
+           teórico. Esto reemplaza de una sola vez tanto la devolución
+           del monto inicial como lo vendido en efectivo, evitando
+           doble conteo. Si hay diferencia entre lo esperado
+           (monto_inicial + ventas en efectivo) y lo declarado, queda
+           registrada en diferencia_efectivo y se expone una alerta
+           (ver alerta_diferencia / mensaje_alerta) — no se "esconde"
+           la diferencia ni se ajusta silenciosamente.
+        3. Resto de medios de pago (transferencia, débito, QR, etc.):
+           se transfieren a caja grande por el monto que el sistema
+           registró (no requieren conteo físico).
         """
         from django.db import transaction
-        
+
         with transaction.atomic():
-            # Calcular totales por medio de pago
+            # Calcular totales por medio de pago (en caliente, todavía
+            # no está cerrado el turno en este punto)
             totales = self.calcular_totales_por_medio_pago()
-            
-            # Monto que debería haber en efectivo
+            total_recaudado = sum(totales.values())
+
             efectivo_ventas = totales.get('efectivo', 0)
             esperado = self.monto_inicial_efectivo + efectivo_ventas
-            
-            # Calcular diferencia
+
+            # ── Congelar estado del turno ───────────────────────────
             self.monto_final_efectivo = monto_final_efectivo
             self.diferencia_efectivo = monto_final_efectivo - esperado
             self.fecha_cierre = timezone.now()
             self.estado = EstadoTurno.CERRADO
             self.cerrado_por = usuario
             self.notas = notas
+            self.totales_cierre = {
+                'totales_medio_pago': {k: str(v) for k, v in totales.items()},
+                'total_recaudado': str(total_recaudado),
+                'ganancia_turno': str(total_recaudado - (self.monto_inicial_efectivo or 0)),
+                'esperado_efectivo': str(esperado),
+                'declarado_efectivo': str(monto_final_efectivo),
+            }
             self.save()
-            
-            # Devolver monto inicial a caja grande
-            cuenta_efectivo = _cuenta_default(moneda=Moneda.ARS, caja=TipoCaja.GRANDE)
-            concepto = _concepto_default('Cierre de turno', TipoMovimientoCaja.INGRESO)
-            
-            MovimientoCaja.objects.create(
-                caja=TipoCaja.GRANDE,
-                cuenta=cuenta_efectivo,
-                concepto=concepto,
-                tipo=TipoMovimientoCaja.INGRESO,
-                monto=self.monto_inicial_efectivo,
-                moneda=Moneda.ARS,
-                fecha=self.fecha_cierre.date(),
-                descripcion=f'Devolución de apertura turno #{self.numero}',
-                referencia=f'Turno #{self.numero}',
-                origen=OrigenMovimiento.AJUSTE,
-                origen_app='caja',
-                origen_id=self.pk,
-                creado_por=usuario,
-            )
-            
-            # Mover efectivo de ventas a caja grande
-            if efectivo_ventas > 0:
+
+            fecha_cierre = self.fecha_cierre.date()
+
+            # ── 1. Efectivo: se transfiere lo REALMENTE contado ─────
+            cuenta_efectivo = _cuenta_grande_para_medio_pago('efectivo', 'Efectivo', moneda=Moneda.ARS)
+            concepto_cierre_efectivo = _concepto_default('Cierre de turno - Efectivo', TipoMovimientoCaja.INGRESO)
+
+            if monto_final_efectivo and monto_final_efectivo > 0:
                 MovimientoCaja.objects.create(
                     caja=TipoCaja.GRANDE,
                     cuenta=cuenta_efectivo,
-                    concepto=_concepto_default('Venta efectivo turno', TipoMovimientoCaja.INGRESO),
+                    concepto=concepto_cierre_efectivo,
                     tipo=TipoMovimientoCaja.INGRESO,
-                    monto=efectivo_ventas,
+                    monto=monto_final_efectivo,
                     moneda=Moneda.ARS,
-                    fecha=self.fecha_cierre.date(),
-                    descripcion=f'Ventas efectivo turno #{self.numero}',
+                    fecha=fecha_cierre,
+                    descripcion=(
+                        f'Cierre turno #{self.numero} — efectivo declarado '
+                        f'(esperado {esperado}, diferencia {self.diferencia_efectivo})'
+                    ),
+                    referencia=f'Turno #{self.numero}',
+                    origen=OrigenMovimiento.AJUSTE,
+                    origen_app='caja',
+                    origen_id=self.pk,
+                    creado_por=usuario,
+                )
+
+            # ── 2. Resto de medios de pago: van por lo que el sistema
+            #      registró (no hay conteo físico posible para esto) ──
+            from ventas.models import MedioPago
+            labels_medio = dict(MedioPago.choices)
+
+            for medio, monto in totales.items():
+                if medio == 'efectivo' or not monto or monto <= 0:
+                    continue
+                medio_label = labels_medio.get(medio, medio.capitalize())
+                cuenta_medio = _cuenta_grande_para_medio_pago(medio, medio_label, moneda=Moneda.ARS)
+                concepto_medio = _concepto_default(f'Cierre de turno - {medio_label}', TipoMovimientoCaja.INGRESO)
+
+                MovimientoCaja.objects.create(
+                    caja=TipoCaja.GRANDE,
+                    cuenta=cuenta_medio,
+                    concepto=concepto_medio,
+                    tipo=TipoMovimientoCaja.INGRESO,
+                    monto=monto,
+                    moneda=Moneda.ARS,
+                    fecha=fecha_cierre,
+                    descripcion=f'Cierre turno #{self.numero} — {medio_label}',
                     referencia=f'Turno #{self.numero}',
                     origen=OrigenMovimiento.AJUSTE,
                     origen_app='caja',

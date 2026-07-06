@@ -55,6 +55,21 @@ Caja Diaria
 </div>
 {% else %}
 
+{% if alerta_ultimo_turno %}
+<div class="cd-alerta-banner">
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <path d="M11 2L20.5 19H1.5L11 2Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
+        <path d="M11 8.5V13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+        <circle cx="11" cy="16" r="0.9" fill="currentColor" />
+    </svg>
+    <div class="cd-alerta-banner-texto">
+        <strong>Diferencia sin revisar en el Turno #{{ alerta_ultimo_turno.numero }}</strong>
+        <span>{{ alerta_ultimo_turno.mensaje_alerta }}</span>
+    </div>
+    <a href="{% url 'caja:historial_turnos' %}" class="vta-btn vta-btn-ghost">Ver detalle</a>
+</div>
+{% endif %}
+
 {% if turno_actual %}
 
 <!-- RESUMEN FINANCIERO — lo más importante, arriba -->
@@ -413,7 +428,16 @@ Caja Diaria
                 body: JSON.stringify({ monto_final_efectivo: parseFloat(monto), notas: notas })
             });
             const data = await res.json();
-            if (data.ok) { cdCerrarModal('cd-modal-cerrar'); location.reload(); }
+            if (data.ok) {
+                cdCerrarModal('cd-modal-cerrar');
+                // Si hubo diferencia entre lo esperado y lo declarado, se
+                // avisa con urgencia ANTES de recargar la página — no se
+                // "esconde" silenciosamente detrás de un reload.
+                if (data.alerta && data.alerta.hay_diferencia) {
+                    alert('⚠️ ' + data.alerta.mensaje);
+                }
+                location.reload();
+            }
             else { alert(data.error || 'Error al cerrar turno'); }
         } catch (e) {
             alert('Error de conexión');

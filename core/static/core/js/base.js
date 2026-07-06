@@ -50,6 +50,10 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     // Cerrar sidebar en móvil al navegar (click en un nav-item)
+    // NOTA: la marca de "veníamos en fullscreen" para persistirlo en la
+    // próxima página ya la hace fullscreen-persist.js sobre estos mismos
+    // links, así que acá NO la repetimos (antes se hacía en los dos
+    // archivos a la vez, y eso rompía la persistencia real).
     if (sidebar) {
         sidebar.querySelectorAll('.nav-item, .nav-subitem').forEach(function(link) {
             link.addEventListener('click', function() {
@@ -98,56 +102,47 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-
     // Agrega un <span class="logo-shine"> dentro del .logo y lo anima
     // con un sweep periódico (cada 7s, con variación aleatoria de ±2s).
     const logoLink = document.querySelector('.sidebar-header .logo');
 
     if (logoLink) {
-        // Crear el elemento shine
         const shine = document.createElement('span');
         shine.className = 'logo-shine';
         logoLink.appendChild(shine);
 
         function triggerShine() {
-            // No animar si el sidebar está colapsado
             if (sidebar && sidebar.classList.contains('collapsed')) {
                 scheduleShine();
                 return;
             }
-
-            // Quitar clase para poder re-añadirla (resetea la animación)
             shine.classList.remove('sweep');
-
-            // Forzar reflow para que el browser procese el reset
             void shine.offsetWidth;
-
             shine.classList.add('sweep');
-
-            // Limpiar clase al terminar para poder reusar
             shine.addEventListener('animationend', () => {
                 shine.classList.remove('sweep');
             }, { once: true });
-
             scheduleShine();
         }
 
         function scheduleShine() {
-            // Entre 6 y 10 segundos para que se sienta natural
             const delay = 6000 + Math.random() * 4000;
             setTimeout(triggerShine, delay);
         }
 
-        // Primer disparo: 2.5s después de cargar la página
         setTimeout(triggerShine, 2500);
     }
 
     // ── Modo pantalla completa (Fullscreen API) ────────────────────────
-    // Combinación elegida: Ctrl + Alt + F  (letra "F", no tecla de función)
-    // Ningún navegador ni SO la reserva: Ctrl+Alt+F1..F7 en Linux usa las
-    // TECLAS DE FUNCIÓN (F1, F2...) para cambiar de terminal virtual, no
-    // la letra "F", así que no hay colisión. Tampoco choca con F11 (pantalla
-    // completa nativa del navegador), F12/Ctrl+Shift+I (devtools) ni Win+I (SO).
+    // Este bloque es el ÚNICO responsable de la Fullscreen API manual
+    // (Ctrl+Alt+P). La persistencia entre navegaciones (mostrar el
+    // banner "Reanudar" en la página siguiente) es responsabilidad
+    // exclusiva de fullscreen-persist.js — antes también vivía acá
+    // duplicada, y las dos copias se pisaban entre sí (una consumía la
+    // bandera de sessionStorage antes de que la otra pudiera usarla).
+    // Combinación elegida: Ctrl + Alt + P. No choca con F11, F12/devtools
+    // ni con las combinaciones Ctrl+Alt+F1..F7 de Linux (esas usan teclas
+    // de función, no la letra).
     function isFullscreenActive() {
         return !!(document.fullscreenElement || document.webkitFullscreenElement ||
                    document.mozFullScreenElement || document.msFullscreenElement);
@@ -169,6 +164,36 @@ document.addEventListener('DOMContentLoaded', function () {
     function toggleFullscreen() {
         isFullscreenActive() ? exitFullscreen() : enterFullscreen();
     }
+
+    // ── Recuperar fullscreen cuando lo corta un diálogo nativo ──────────
+    // alert(), confirm() y prompt() hacen que el navegador salga de
+    // pantalla completa por su cuenta apenas se abren — no es una
+    // decisión del usuario, es una medida de seguridad del browser.
+    // Como esta app usa esos diálogos todo el tiempo (validaciones,
+    // "poner en 0", reiniciar sistema), envolvemos las tres funciones:
+    // si justo antes de llamarlas estábamos en fullscreen y justo
+    // después ya no, reintentamos entrar de nuevo. Funciona porque el
+    // cierre del diálogo (son bloqueantes) sigue ocurriendo dentro del
+    // mismo gesto de click que lo disparó, así que el navegador todavía
+    // nos deja pedir fullscreen ahí.
+    //
+    // A propósito esto NO reacciona si el usuario sale con Esc o con el
+    // botón ×: esos casos no pasan por alert/confirm/prompt, así que
+    // nunca entran acá. No hay forma de diferenciar "se cortó por un
+    // diálogo" de "se cortó porque se abrieron las devtools" u otras
+    // causas del navegador — para esos casos no hay API que nos avise
+    // el motivo, así que quedan sin cubrir.
+    ['alert', 'confirm', 'prompt'].forEach(function (nombre) {
+        const original = window[nombre];
+        window[nombre] = function () {
+            const estabaEnFullscreen = isFullscreenActive();
+            const resultado = original.apply(window, arguments);
+            if (estabaEnFullscreen && !isFullscreenActive()) {
+                enterFullscreen();
+            }
+            return resultado;
+        };
+    });
 
     function showFullscreenHint(text) {
         let hint = document.getElementById('fsHint');
@@ -192,8 +217,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
     document.addEventListener('keydown', function (e) {
         const key = (e.key || '').toLowerCase();
-        // Solo la letra "f" (code 'KeyF'), sin Shift, para no confundirla
-        // con F1..F12 ni con combinaciones que agreguen Shift.
         if (e.ctrlKey && e.altKey && !e.shiftKey && (key === 'p' || e.code === 'KeyP')) {
             e.preventDefault();
             toggleFullscreen();
@@ -208,25 +231,20 @@ document.addEventListener('DOMContentLoaded', function () {
     ['webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach(function (evt) {
         document.addEventListener(evt, function () {
             showFullscreenHint(isFullscreenActive()
-                ? 'Pantalla completa activada — Esc o Ctrl+Alt+F para salir'
+                ? 'Pantalla completa activada — Esc o Ctrl+Alt+P para salir'
                 : 'Pantalla completa desactivada');
         });
     });
 
     // ── Atajos de teclado: navegación rápida (Ctrl + Alt + letra) ──────
-    // Elegimos Ctrl+Alt porque no es una combinación reservada por el
-    // navegador (que usa mayormente Ctrl+Shift) ni por el SO para estas
-    // letras puntuales. OJO: en teclados en español, Ctrl+Alt equivale a
-    // AltGr, así que si alguna de estas letras coincidiera con un
-    // caracter especial de tu layout, el atajo podría interferir. Por
-    // las dudas, no se dispara si estás escribiendo en un input/textarea.
-    //
     //   Ctrl+Alt+I → Inventario
     //   Ctrl+Alt+S → Stock
     //   Ctrl+Alt+C → Compras (nueva compra)
     //   Ctrl+Alt+V → Ventas (nueva venta)
     //   Ctrl+Alt+G → Caja Grande
     //   Ctrl+Alt+D → Caja Diaria
+    // (Ctrl+Alt+B y Ctrl+Alt+U — herramientas flotantes — se manejan
+    // en floating-tools.js, no acá.)
     if (window.NAV_SHORTCUTS_URLS) {
         const navShortcuts = {
             'i': 'inventario',
@@ -244,8 +262,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         document.addEventListener('keydown', function (e) {
-            // Requerimos Ctrl+Alt sin Shift, igual que el atajo de fullscreen,
-            // para no pisarnos con AltGr+Shift ni con otras combinaciones.
             if (!e.ctrlKey || !e.altKey || e.shiftKey) return;
             if (isTypingContext(e.target)) return;
 
@@ -257,6 +273,10 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!url) return;
 
             e.preventDefault();
+            // Acá SÍ hace falta marcar la bandera de fullscreen a mano:
+            // es una navegación programática (no un click real), así que
+            // el listener de click de fullscreen-persist.js no la ve.
+            if (isFullscreenActive()) sessionStorage.setItem('fsPersist', '1');
             window.location.href = url;
         });
     }
@@ -264,11 +284,6 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 // ── Reiniciar sistema (solo superusuarios, solo DEBUG) ──────────────────
-// Doble confirmación: hay que escribir la frase exacta y además la
-// contraseña del usuario logueado. El backend vuelve a validar todo
-// esto (y además chequea DEBUG y is_superuser), así que esto del
-// frontend es solo para no mandar el request si el usuario se arrepiente
-// o se equivoca al tipear.
 function reiniciarSistema() {
     const FRASE = 'REINICIAR';
 
@@ -277,7 +292,7 @@ function reiniciarSistema() {
         'menos los superusuarios. NO se puede deshacer.\n\n' +
         'Escribí ' + FRASE + ' para confirmar:'
     );
-    if (confirmacion === null) return; // canceló
+    if (confirmacion === null) return;
     if (confirmacion.trim() !== FRASE) {
         alert('Cancelado: el texto no coincide con "' + FRASE + '".');
         return;
@@ -314,9 +329,6 @@ function reiniciarSistema() {
         });
 }
 
-// Si ya tenés un helper getCookie en otro archivo del proyecto, borrá
-// esta función para no duplicarla (no rompe nada duplicada, pero mejor
-// tener una sola fuente de verdad).
 function getCookie(name) {
     const value = '; ' + document.cookie;
     const parts = value.split('; ' + name + '=');

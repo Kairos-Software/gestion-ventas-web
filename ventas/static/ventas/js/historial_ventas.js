@@ -117,13 +117,11 @@ function buildItemsHTML(items) {
             </a>
             <span style="font-size:0.72rem;color:var(--text-muted);display:block;margin-top:1px;">${_esc(item.producto_cod)}</span>`;
 
-        let colorCell;
-        if (item.tiene_color) {
-            const swatch = item.color_hex
-                ? `<span class="vta-color-swatch" style="background:${_esc(item.color_hex)};width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:4px;vertical-align:middle;border:1px solid rgba(0,0,0,.15);"></span>` : '';
-            colorCell = `<span class="color-badge">${swatch}${_esc(item.color_nombre)}</span>`;
+        let varianteCell;
+        if (item.tiene_variante) {
+            varianteCell = `<span class="color-badge">${_esc(item.combinacion_nombre)}</span>`;
         } else {
-            colorCell = `<span style="color:var(--text-muted);font-size:0.8rem;">—</span>`;
+            varianteCell = `<span style="color:var(--text-muted);font-size:0.8rem;">—</span>`;
         }
 
         const urlCliente  = item.cliente_pk ? `${HISTORIAL_URLS.clientes}?q=${encodeURIComponent(item.cliente)}` : null;
@@ -132,17 +130,19 @@ function buildItemsHTML(items) {
             : `<span style="color:var(--text-muted);">${_esc(item.cliente) || '—'}</span>`;
 
         const descuento = parseFloat(item.descuento_pct) > 0 ? `<span class="descuento-tag">&nbsp;-${item.descuento_pct}%</span>` : '';
+        const origenCell = `<span style="color:var(--text-muted);font-size:0.78rem;" title="De qué lote salió el stock">${_esc(item.origen_label || '—')}</span>`;
 
         return `
         <tr>
             <td>${productoLink}</td>
-            <td>${colorCell}</td>
+            <td>${varianteCell}</td>
             <td>${clienteCell}</td>
             <td style="text-align:right;">${parseFloat(item.cantidad).toLocaleString('es-AR')}</td>
             <td style="text-align:right;">${formatMoney(item.precio_unitario)}<span class="moneda-badge">${_esc(item.moneda)}</span>${descuento}</td>
             <td style="text-align:right;font-weight:600;">${formatMoney(item.subtotal)}</td>
             <td style="color:var(--text-muted);">${_esc(item.condicion_pago)}</td>
             <td style="color:var(--text-muted);font-size:0.8rem;">${_esc(item.referencia) || '—'}</td>
+            <td>${origenCell}</td>
         </tr>`;
     }).join('');
 
@@ -150,9 +150,9 @@ function buildItemsHTML(items) {
     <table class="items-table">
         <thead>
             <tr>
-                <th>Producto</th><th>Color</th><th>Cliente</th>
+                <th>Producto</th><th>Variante</th><th>Cliente</th>
                 <th style="text-align:right;">Cantidad</th><th style="text-align:right;">Precio unit.</th>
-                <th style="text-align:right;">Subtotal</th><th>Cond. pago</th><th>Referencia</th>
+                <th style="text-align:right;">Subtotal</th><th>Cond. pago</th><th>Referencia</th><th>Origen</th>
             </tr>
         </thead>
         <tbody>${filas}</tbody>

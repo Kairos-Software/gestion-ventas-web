@@ -57,6 +57,20 @@ Historial de Turnos
 </div>
 {% else %}
 
+{% if hay_alertas %}
+<div class="cd-alerta-banner">
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <path d="M11 2L20.5 19H1.5L11 2Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
+        <path d="M11 8.5V13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+        <circle cx="11" cy="16" r="0.9" fill="currentColor" />
+    </svg>
+    <div class="cd-alerta-banner-texto">
+        <strong>Hay turnos con diferencias de efectivo sin revisar</strong>
+        <span>Revisá los turnos marcados en rojo más abajo.</span>
+    </div>
+</div>
+{% endif %}
+
 {% if turnos %}
 {% for turno in turnos %}
 <div class="vta-card" style="margin-bottom:1rem">
@@ -141,9 +155,9 @@ Historial de Turnos
 
         <!-- Diferencia de efectivo (si aplica) -->
         {% if turno.diferencia_efectivo %}
-        <div class="ht-diferencia{% if turno.diferencia_efectivo < 0 %} ht-diferencia--alert{% endif %}"
+        <div class="ht-diferencia{% if turno.alerta_diferencia %} ht-diferencia--alert{% endif %}"
             style="margin-top:1rem">
-            <span>Diferencia de efectivo</span>
+            <span>{{ turno.mensaje_alerta|default:"Diferencia de efectivo" }}</span>
             <strong>${{ turno.diferencia_efectivo|floatformat:"2" }}</strong>
         </div>
         {% endif %}

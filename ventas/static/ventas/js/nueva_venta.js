@@ -30,8 +30,25 @@ const LOTE_REGEX = /^LT-\d{4}-\d{5}$/i;
 /* ════════════════════════════════════════════════════════════════
    ESTADO
 ════════════════════════════════════════════════════════════════ */
-let carrito = [];
 let nextId  = 0;
+let carrito = (CFG.itemsIniciales || []).map(fila => ({
+    id:              nextId++,
+    producto_pk:     fila.producto_pk,
+    combinacion_pk:  fila.combinacion_pk || null,
+    nombre:          fila.nombre,
+    codigo:          fila.codigo,
+    tipo_escaneo:    fila.tipo_escaneo || 'normal',
+    lote_pk:         fila.lote_pk || null,
+    lote_codigo:     fila.lote_codigo || '',
+    cliente_pk:      fila.cliente_pk || null,
+    cliente_nombre:  fila.cliente_nombre || '',
+    cantidad:        fila.cantidad,
+    precio:          fila.precio,
+    moneda:          fila.moneda || 'ARS',
+    descuento:       fila.descuento || 0,
+    condicion:       fila.condicion || 'contado',
+    referencia:      fila.referencia || '',
+}));
 
 /* ════════════════════════════════════════════════════════════════
    DOM
@@ -482,6 +499,14 @@ if (btnContinuar) {
             const data = await res.json();
 
             if (data.ok) {
+                if (CFG.ventaEditarPk) {
+                    // Best-effort: no bloquea la redirección si falla.
+                    fetch(CFG.urlEliminarBorrador, {
+                        method:  'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CFG.csrfToken },
+                        body:    JSON.stringify({ venta_pk: CFG.ventaEditarPk }),
+                    }).catch(() => {});
+                }
                 window.location.href = CFG.urlDetalle + data.pk + '/';
             } else {
                 _toast('Error al guardar', data.error || 'No se pudo guardar el borrador.');
