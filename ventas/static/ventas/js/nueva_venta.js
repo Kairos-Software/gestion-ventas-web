@@ -27,6 +27,24 @@
 const CFG = window.VTA_CONFIG || {};
 const LOTE_REGEX = /^LT-\d{4}-\d{5}$/i;
 
+// Patrón "tolerante": LT + separador (cualquier símbolo, 1 char) +
+// 4 dígitos + separador + 5 dígitos. Cubre distintos lectores de
+// código de barras que, según su configuración de teclado, pueden
+// mandar cualquier símbolo (', `, _, :, etc.) en vez del guión real
+// del código impreso — sin necesidad de saber de antemano cuál.
+const LOTE_REGEX_TOLERANTE = /^LT.(\d{4}).(\d{5})$/i;
+
+/**
+ * Si el texto escaneado no matchea el código de lote exacto pero sí
+ * su forma general (LT-XXXX-XXXXX con cualquier separador), lo
+ * reconstruye con guiones. Independiente de marca/modelo del lector.
+ */
+function _normalizarPosibleCodigoLote(raw) {
+    if (LOTE_REGEX.test(raw)) return raw;
+    const m = raw.match(LOTE_REGEX_TOLERANTE);
+    return m ? `LT-${m[1]}-${m[2]}` : raw;
+}
+
 /* ════════════════════════════════════════════════════════════════
    ESTADO
 ════════════════════════════════════════════════════════════════ */
@@ -168,6 +186,8 @@ async function _ejecutarBusqueda(q, { forzarAgregado = false } = {}) {
         searchDropdown.innerHTML = '';
         return;
     }
+
+    q = _normalizarPosibleCodigoLote(q);
 
     if (LOTE_REGEX.test(q)) {
         await _buscarPorCodigoDeLote(q);
