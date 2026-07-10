@@ -72,6 +72,37 @@ def _serializar_producto(p):
     }
 
 
+def _serializar_producto_fila(p):
+    """
+    Serializa un Producto con los campos que usa la tabla del listado
+    (nombres de categoría/tipo, imagen, indicador de stock bajo, etc.).
+    Se usa para repintar una fila de la tabla sin recargar la página
+    entera — a diferencia de _serializar_producto(), que sirve para
+    precargar el formulario de edición.
+    """
+    imagen = p.imagen_principal
+    return {
+        'pk':                    p.pk,
+        'codigo':                p.codigo,
+        'sku':                   p.sku,
+        'nombre':                p.nombre,
+        'marca':                 p.marca,
+        'modelo':                p.modelo,
+        'gestiona_variantes':    p.gestiona_variantes,
+        'categoria_nombre':      p.categoria.nombre if p.categoria_id else '',
+        'tipo_nombre':           p.tipo.nombre if p.tipo_id else '',
+        'precio_venta':          str(p.precio_venta) if p.precio_venta else '',
+        'gestiona_stock':        p.gestiona_stock,
+        'stock_actual':          str(p.stock_actual),
+        'stock_bajo':            p.stock_bajo,
+        'stock_minimo':          str(p.stock_minimo),
+        'unidad_medida_display': p.get_unidad_medida_display(),
+        'estado':                p.estado,
+        'publicado':             p.publicado,
+        'imagen_url':            imagen.imagen.url if imagen else '',
+    }
+
+
 def _serializar_variante(v):
     """Serializa una Variante para respuestas JSON."""
     return {
@@ -359,15 +390,11 @@ class ProductoCrearEditarAjax(LoginRequiredMixin, View):
             if update_fields:
                 producto.save(update_fields=update_fields)
 
-            return JsonResponse({
-                'ok':           True,
-                'pk':           producto.pk,
-                'codigo':       producto.codigo,
-                'nombre':       producto.nombre,
-                'creado':       inst is None,
-                'stock_minimo': str(producto.stock_minimo),
-                'stock_maximo': str(producto.stock_maximo) if producto.stock_maximo else '',
-            })
+            resultado = _serializar_producto_fila(producto)
+            resultado['ok']           = True
+            resultado['creado']       = inst is None
+            resultado['stock_maximo'] = str(producto.stock_maximo) if producto.stock_maximo else ''
+            return JsonResponse(resultado)
 
         return JsonResponse({'ok': False, 'errors': form.errors}, status=400)
 

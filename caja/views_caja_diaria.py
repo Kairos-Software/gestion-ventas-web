@@ -57,11 +57,20 @@ class CajaDiariaView(LoginRequiredMixin, TemplateView):
 
 class AbrirTurnoAjax(LoginRequiredMixin, View):
     """
-    POST JSON:
+    POST JSON (negocio con una o más cajas físicas):
+    {
+        "cajas": [
+            {"nombre": "Caja 1", "monto": 100.00},
+            {"nombre": "Caja 2", "monto": 50.00}
+        ]
+    }
+    También acepta el formato viejo (compatibilidad, una sola caja):
     {
         "monto_inicial_efectivo": 100.00
     }
-    Abre un nuevo turno de caja diaria.
+    Abre un nuevo turno de caja diaria. El monto_inicial_efectivo del
+    turno queda como la SUMA de todas las cajas declaradas — el resto
+    del sistema sigue viendo un único total, como siempre.
     """
     
     def post(self, request):
@@ -73,24 +82,37 @@ class AbrirTurnoAjax(LoginRequiredMixin, View):
         except json.JSONDecodeError:
             return JsonResponse({'error': 'JSON inválido.'}, status=400)
         
-        monto_inicial = body.get('monto_inicial_efectivo', 0)
+        cajas_input = body.get('cajas')
+        if cajas_input is None:
+            # Compatibilidad con el formato viejo de una sola caja
+            cajas_input = [{'nombre': 'Caja 1', 'monto': body.get('monto_inicial_efectivo', 0)}]
+        
+        if not isinstance(cajas_input, list) or len(cajas_input) == 0:
+            return JsonResponse({'error': 'Tenés que declarar al menos una caja.'}, status=400)
+        
+        cajas = []
+        for i, c in enumerate(cajas_input):
+            nombre = (c.get('nombre') or f'Caja {i + 1}').strip() or f'Caja {i + 1}'
+            try:
+                monto = Decimal(str(c.get('monto', 0)))
+            except Exception:
+                return JsonResponse({'error': f'Monto inválido en "{nombre}".'}, status=400)
+            if monto < 0:
+                return JsonResponse({'error': f'El monto de "{nombre}" no puede ser negativo.'}, status=400)
+            cajas.append({'nombre': nombre, 'monto': monto})
         
         try:
-            monto_inicial = Decimal(str(monto_inicial))
-        except Exception:
-            return JsonResponse({'error': 'Monto inválido.'}, status=400)
-        
-        if monto_inicial < 0:
-            return JsonResponse({'error': 'El monto inicial no puede ser negativo.'}, status=400)
-        
-        try:
-            turno = TurnoCaja.abrir(monto_inicial_efectivo=monto_inicial, usuario=request.user)
+            turno = TurnoCaja.abrir(cajas=cajas, usuario=request.user)
             return JsonResponse({
                 'ok': True,
                 'turno': {
                     'numero': turno.numero,
                     'fecha_apertura': turno.fecha_apertura.strftime('%d/%m/%Y %H:%M'),
                     'monto_inicial_efectivo': str(turno.monto_inicial_efectivo),
+                    'cajas': [
+                        {'id': cf.pk, 'nombre': cf.nombre, 'monto_inicial': str(cf.monto_inicial)}
+                        for cf in turno.cajas_fisicas.all()
+                    ],
                 }
             })
         except ValueError as e:
@@ -105,12 +127,24 @@ class AbrirTurnoAjax(LoginRequiredMixin, View):
 
 class CerrarTurnoAjax(LoginRequiredMixin, View):
     """
-    POST JSON:
+    POST JSON (una o más cajas físicas):
+    {
+        "cajas": [
+            {"id": 5, "nombre": "Caja 1", "monto": 2000.00},
+            {"id": 6, "nombre": "Caja 2", "monto": 500.00}
+        ],
+        "notas": "..."
+    }
+    "id" es opcional (para emparejar con la caja física declarada en
+    la apertura); si no viene, se empareja por nombre. También acepta
+    el formato viejo (compatibilidad, una sola caja):
     {
         "monto_final_efectivo": 2000.00,
         "notas": "..."
     }
-    Cierra el turno actual.
+    Cierra el turno actual. monto_final_efectivo del turno queda como
+    la SUMA de todas las cajas declaradas — el resto de la lógica
+    (esperado, diferencia, alerta) sigue operando sobre ese total.
     """
     
     def post(self, request):
@@ -122,26 +156,40 @@ class CerrarTurnoAjax(LoginRequiredMixin, View):
         except json.JSONDecodeError:
             return JsonResponse({'error': 'JSON inválido.'}, status=400)
         
-        monto_final = body.get('monto_final_efectivo')
         notas = body.get('notas', '')
+        cajas_input = body.get('cajas')
         
-        if monto_final is None:
-            return JsonResponse({'error': 'Monto final requerido.'}, status=400)
+        if cajas_input is None:
+            # Compatibilidad con el formato viejo de una sola caja
+            monto_final = body.get('monto_final_efectivo')
+            if monto_final is None:
+                return JsonResponse({'error': 'Monto final requerido.'}, status=400)
+            cajas_input = [{'nombre': 'Caja 1', 'monto': monto_final}]
         
-        try:
-            monto_final = Decimal(str(monto_final))
-        except Exception:
-            return JsonResponse({'error': 'Monto final inválido.'}, status=400)
+        if not isinstance(cajas_input, list) or len(cajas_input) == 0:
+            return JsonResponse({'error': 'Tenés que declarar el efectivo de al menos una caja.'}, status=400)
+        
+        cajas = []
+        for i, c in enumerate(cajas_input):
+            nombre = (c.get('nombre') or f'Caja {i + 1}').strip() or f'Caja {i + 1}'
+            try:
+                monto = Decimal(str(c.get('monto', 0)))
+            except Exception:
+                return JsonResponse({'error': f'Monto inválido en "{nombre}".'}, status=400)
+            if monto < 0:
+                return JsonResponse({'error': f'El monto de "{nombre}" no puede ser negativo.'}, status=400)
+            cajas.append({'id': c.get('id'), 'nombre': nombre, 'monto': monto})
         
         turno = TurnoCaja.turno_actual()
         if not turno:
             return JsonResponse({'error': 'No hay un turno abierto.'}, status=400)
         
-        # Calcular el efectivo esperado según el sistema
+        # Calcular el efectivo esperado según el sistema (a nivel total)
         efectivo_esperado = turno.efectivo_total
+        monto_final_total = sum(c['monto'] for c in cajas)
         
         try:
-            turno.cerrar(monto_final_efectivo=monto_final, usuario=request.user, notas=notas)
+            turno.cerrar(cajas=cajas, usuario=request.user, notas=notas)
             diferencia = turno.diferencia_efectivo or Decimal('0')
 
             return JsonResponse({
@@ -151,10 +199,18 @@ class CerrarTurnoAjax(LoginRequiredMixin, View):
                     'fecha_cierre': turno.fecha_cierre.strftime('%d/%m/%Y %H:%M'),
                     'monto_final_efectivo': str(turno.monto_final_efectivo),
                     'diferencia_efectivo': str(turno.diferencia_efectivo) if turno.diferencia_efectivo else '0',
+                    'cajas': [
+                        {
+                            'id': cf.pk, 'nombre': cf.nombre,
+                            'monto_inicial': str(cf.monto_inicial),
+                            'monto_final': str(cf.monto_final) if cf.monto_final is not None else None,
+                        }
+                        for cf in turno.cajas_fisicas.all()
+                    ],
                 },
                 'comparacion': {
                     'efectivo_esperado': str(efectivo_esperado),
-                    'efectivo_declarado': str(monto_final),
+                    'efectivo_declarado': str(monto_final_total),
                     'diferencia': str(diferencia),
                     'estado': 'coincide' if abs(diferencia) < 0.01 else ('sobra' if diferencia > 0 else 'falta')
                 },
@@ -203,6 +259,12 @@ class EstadoCajaDiariaAjax(LoginRequiredMixin, View):
                 'total_recaudado': str(turno.total_recaudado),
                 'ganancia_turno': str(turno.ganancia_turno),
                 'efectivo_ventas': str(turno.efectivo_ventas),
+                # Desglose declarado en la apertura — el frontend lo usa
+                # para pre-cargar los nombres de caja en el modal de cierre.
+                'cajas': [
+                    {'id': cf.pk, 'nombre': cf.nombre, 'monto_inicial': str(cf.monto_inicial)}
+                    for cf in turno.cajas_fisicas.all()
+                ],
             },
             'totales_medio_pago': {k: str(v) for k, v in totales.items()},
         })
@@ -221,7 +283,7 @@ class HistorialTurnosAjax(LoginRequiredMixin, View):
         if not chequear_permiso(request.user, 'ver_caja'):
             return JsonResponse({'error': 'Sin permiso.'}, status=403)
         
-        turnos = TurnoCaja.objects.all().order_by('-fecha_apertura')
+        turnos = TurnoCaja.objects.all().order_by('-fecha_apertura').prefetch_related('cajas_fisicas')
         
         data = []
         for turno in turnos:
@@ -241,6 +303,17 @@ class HistorialTurnosAjax(LoginRequiredMixin, View):
                 'ganancia_turno': str(turno.ganancia_turno),
                 'alerta_diferencia': turno.alerta_diferencia,
                 'mensaje_alerta': turno.mensaje_alerta,
+                # Detalle secundario, solo informativo (no tiene
+                # "diferencia" propia — ver CajaFisicaTurno). Se muestra
+                # colapsado en el frontend, no como dato principal.
+                'cajas': [
+                    {
+                        'nombre': cf.nombre,
+                        'monto_inicial': str(cf.monto_inicial),
+                        'monto_final': str(cf.monto_final) if cf.monto_final is not None else None,
+                    }
+                    for cf in turno.cajas_fisicas.all()
+                ],
             })
 
         return JsonResponse({
@@ -266,7 +339,7 @@ class HistorialTurnosView(LoginRequiredMixin, TemplateView):
         ctx['puede_ver'] = True
         
         # Obtener todos los turnos
-        turnos = TurnoCaja.objects.all().order_by('-fecha_apertura')
+        turnos = TurnoCaja.objects.all().order_by('-fecha_apertura').prefetch_related('cajas_fisicas')
         ctx['turnos'] = turnos
         ctx['hay_alertas'] = any(t.alerta_diferencia for t in turnos)
         
@@ -306,7 +379,7 @@ class HistorialDiarioView(LoginRequiredMixin, TemplateView):
             fecha = entry['fecha']
             turnos_fecha = TurnoCaja.objects.filter(
                 fecha_apertura__date=fecha
-            ).order_by('fecha_apertura')
+            ).order_by('fecha_apertura').prefetch_related('cajas_fisicas')
             
             # Calcular totales por medio de pago para todos los turnos del día.
             # Usamos la propiedad totales_medio_pago (no el método directo)

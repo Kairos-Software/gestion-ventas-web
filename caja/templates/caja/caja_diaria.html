@@ -6,6 +6,7 @@ Caja Diaria
 {% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{% static 'caja/css/caja_common.css' %}">
 <link rel="stylesheet" href="{% static 'caja/css/caja_diaria.css' %}">
 {% endblock %}
 
@@ -233,13 +234,24 @@ Caja Diaria
             <button onclick="cdCerrarModal('cd-modal-abrir')" class="cd-modal-close">✕</button>
         </div>
         <div class="cd-modal-body">
-            <div class="vta-field">
-                <label class="vta-label">Monto inicial en efectivo</label>
-                <input type="number" id="cd-monto-inicial" class="vta-control" placeholder="0.00" step="0.01" min="0"
-                    value="0">
-                <p style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem">
-                    Este monto se restará de la caja grande.
-                </p>
+            <label class="vta-label">Efectivo inicial por caja</label>
+            <p style="font-size:0.75rem; color:var(--text-muted); margin:0.1rem 0 0.75rem">
+                Si tenés más de una caja registradora abierta al mismo tiempo, agregalas todas —
+                el total se resta de la caja grande.
+            </p>
+
+            <div id="cd-cajas-abrir-list" class="cd-cajas-list"></div>
+
+            <button type="button" onclick="cdAgregarCaja('abrir')" class="vta-btn vta-btn-ghost" style="margin-top:0.5rem">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="margin-right:0.3rem">
+                    <path d="M7 3v8M3 7h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                </svg>
+                Agregar otra caja
+            </button>
+
+            <div class="cd-cajas-total">
+                <span>Total a restar de caja grande</span>
+                <strong id="cd-abrir-total">$0.00</strong>
             </div>
         </div>
         <div class="cd-modal-footer">
@@ -257,12 +269,23 @@ Caja Diaria
             <button onclick="cdCerrarModal('cd-modal-cerrar')" class="cd-modal-close">✕</button>
         </div>
         <div class="cd-modal-body">
-            <div class="vta-field">
-                <label class="vta-label">Monto final en efectivo</label>
-                <input type="number" id="cd-monto-final" class="vta-control" placeholder="0.00" step="0.01" min="0">
-                <p style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem">
-                    Contá el efectivo que hay en caja.
-                </p>
+            <label class="vta-label">Efectivo final por caja</label>
+            <p style="font-size:0.75rem; color:var(--text-muted); margin:0.1rem 0 0.75rem">
+                Contá el efectivo que hay en cada caja física.
+            </p>
+
+            <div id="cd-cajas-cerrar-list" class="cd-cajas-list"></div>
+
+            <button type="button" onclick="cdAgregarCaja('cerrar')" class="vta-btn vta-btn-ghost" style="margin-top:0.5rem">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="margin-right:0.3rem">
+                    <path d="M7 3v8M3 7h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                </svg>
+                Agregar otra caja
+            </button>
+
+            <div class="cd-cajas-total">
+                <span>Total declarado</span>
+                <strong id="cd-cerrar-total">$0.00</strong>
             </div>
 
             <div id="cd-comparacion-cierre" class="cd-comp-box" style="display:none;">
@@ -271,7 +294,7 @@ Caja Diaria
                     <strong id="cd-comp-esperado">$0.00</strong>
                 </div>
                 <div class="cd-comp-row">
-                    <span>Efectivo declarado:</span>
+                    <span>Efectivo declarado (todas las cajas):</span>
                     <strong id="cd-comp-declarado">$0.00</strong>
                 </div>
                 <div class="cd-comp-divider"></div>
@@ -304,147 +327,6 @@ Caja Diaria
         estado: "{% url 'caja:estado_caja_diaria' %}",
         csrf: "{{ csrf_token }}"
     };
-
-    let cdEfectivoEsperado = 0;
-
-    function cdAbrirTurno() {
-        document.getElementById('cd-modal-abrir').style.display = 'flex';
-    }
-
-    async function cdCerrarTurno() {
-        const btn = document.querySelector('.cd-btn-cerrar');
-        if (btn) {
-            btn.disabled = true;
-            btn.innerHTML = '<span style="margin-right:0.25rem">⏳</span> Cargando...';
-        }
-
-        try {
-            const res = await fetch(CD_URLS.estado);
-            const data = await res.json();
-
-            if (data.hay_turno) {
-                cdEfectivoEsperado = parseFloat(data.turno.efectivo_total) || 0;
-                document.getElementById('cd-monto-final').value = '';
-                document.getElementById('cd-comparacion-cierre').style.display = 'none';
-                document.getElementById('cd-modal-cerrar').style.display = 'flex';
-
-                const input = document.getElementById('cd-monto-final');
-                input.removeEventListener('input', cdActualizarComparacion);
-                input.addEventListener('input', cdActualizarComparacion);
-            } else {
-                alert('No hay un turno abierto para cerrar.');
-                location.reload();
-            }
-        } catch (e) {
-            alert('Error al obtener el estado de la caja.');
-        } finally {
-            if (btn) {
-                btn.disabled = false;
-                btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8H13M8 3V13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg> Cerrar Turno`;
-            }
-        }
-    }
-
-    function cdActualizarComparacion() {
-        const valStr = document.getElementById('cd-monto-final').value;
-        const compBox = document.getElementById('cd-comparacion-cierre');
-
-        if (valStr === '') {
-            compBox.style.display = 'none';
-            return;
-        }
-
-        const declarado = parseFloat(valStr) || 0;
-        const esperado = cdEfectivoEsperado;
-        const diferencia = declarado - esperado;
-
-        document.getElementById('cd-comp-esperado').textContent = `$${esperado.toFixed(2)}`;
-        document.getElementById('cd-comp-declarado').textContent = `$${declarado.toFixed(2)}`;
-
-        const diffEl = document.getElementById('cd-comp-diferencia');
-        const labelEl = document.getElementById('cd-comp-estado-lbl');
-
-        compBox.classList.remove('coincide', 'sobra', 'falta');
-
-        if (Math.abs(diferencia) < 0.01) {
-            compBox.classList.add('coincide');
-            labelEl.textContent = 'Diferencia (Coincide):';
-            diffEl.textContent = `$${diferencia.toFixed(2)}`;
-        } else if (diferencia > 0) {
-            compBox.classList.add('sobra');
-            labelEl.textContent = 'Diferencia (Sobra efectivo):';
-            diffEl.textContent = `+$${diferencia.toFixed(2)}`;
-        } else {
-            compBox.classList.add('falta');
-            labelEl.textContent = 'Diferencia (Falta efectivo):';
-            diffEl.textContent = `-$${Math.abs(diferencia).toFixed(2)}`;
-        }
-
-        compBox.style.display = 'flex';
-    }
-
-    function cdCerrarModal(id) {
-        document.getElementById(id).style.display = 'none';
-    }
-
-    async function cdConfirmarAbrir() {
-        const monto = parseFloat(document.getElementById('cd-monto-inicial').value) || 0;
-        const btn = document.querySelector('#cd-modal-abrir .vta-btn-primary');
-
-        btn.disabled = true;
-        btn.textContent = 'Abriendo...';
-
-        try {
-            const res = await fetch(CD_URLS.abrir, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CD_URLS.csrf },
-                body: JSON.stringify({ monto_inicial_efectivo: monto })
-            });
-            const data = await res.json();
-            if (data.ok) { cdCerrarModal('cd-modal-abrir'); location.reload(); }
-            else { alert(data.error || 'Error al abrir turno'); }
-        } catch (e) {
-            alert('Error de conexión');
-        }
-
-        btn.disabled = false;
-        btn.textContent = 'Abrir Turno';
-    }
-
-    async function cdConfirmarCerrar() {
-        const monto = document.getElementById('cd-monto-final').value;
-        const notas = document.getElementById('cd-notas').value;
-
-        if (monto === '') { alert('Ingresá el monto final en efectivo'); return; }
-
-        const btn = document.querySelector('#cd-modal-cerrar .vta-btn-primary');
-        btn.disabled = true;
-        btn.textContent = 'Cerrando...';
-
-        try {
-            const res = await fetch(CD_URLS.cerrar, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CD_URLS.csrf },
-                body: JSON.stringify({ monto_final_efectivo: parseFloat(monto), notas: notas })
-            });
-            const data = await res.json();
-            if (data.ok) {
-                cdCerrarModal('cd-modal-cerrar');
-                // Si hubo diferencia entre lo esperado y lo declarado, se
-                // avisa con urgencia ANTES de recargar la página — no se
-                // "esconde" silenciosamente detrás de un reload.
-                if (data.alerta && data.alerta.hay_diferencia) {
-                    alert('⚠️ ' + data.alerta.mensaje);
-                }
-                location.reload();
-            }
-            else { alert(data.error || 'Error al cerrar turno'); }
-        } catch (e) {
-            alert('Error de conexión');
-        }
-
-        btn.disabled = false;
-        btn.textContent = 'Cerrar Turno';
-    }
 </script>
+<script src="{% static 'caja/js/caja_diaria.js' %}"></script>
 {% endblock %}

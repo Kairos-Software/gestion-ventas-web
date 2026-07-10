@@ -1,14 +1,10 @@
 /* ══════════════════════════════════════════════════════════════════
-   historial_turnos.css — Estilos propios de Historial de Turnos.
-   Lo compartido con caja_diaria/historial_diario vive en
+   historial_diario.css — Estilos propios de Historial Diario.
+   Lo compartido con caja_diaria/historial_turnos vive en
    caja_common.css (cargar ese archivo antes que este).
    ════════════════════════════════════════════════════════════════ */
-.ht-notas {
-    margin-top: 0.65rem;
-    font-size: 0.78rem;
-    font-style: italic;
-    color: var(--text-secondary);
-    padding: 0.5rem 0.7rem;
-    background: var(--bg-secondary);
-    border-radius: var(--radius-sm);
+.hd-turnos-list {
+    margin-top: 1.25rem;
+    padding-top: 1.25rem;
+    border-top: 1px dashed var(--border-strong);
 }

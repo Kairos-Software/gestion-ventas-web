@@ -388,6 +388,33 @@ def sincronizar_movimiento_compra(compra):
     )
 
 
+def _normalizar_cajas(cajas):
+    """
+    Normaliza el parámetro `cajas` de TurnoCaja.abrir()/cerrar() a una
+    lista de dicts [{'nombre': ..., 'monto': ..., 'id': <opcional>}, ...].
+
+    Acepta:
+    - Un número (Decimal/int/float/str): compatibilidad con negocios de
+      una sola caja — se guarda como una única caja llamada "Caja 1".
+    - Una lista de dicts [{'nombre': 'Caja 1', 'monto': 100}, ...]: para
+      negocios con varias cajas físicas abiertas en simultáneo. El 'id'
+      es opcional y se usa en el cierre para saber a qué CajaFisicaTurno
+      de la apertura corresponde cada monto declarado.
+    """
+    if isinstance(cajas, (list, tuple)):
+        normalizado = []
+        for i, c in enumerate(cajas):
+            nombre = (c.get('nombre') or f'Caja {i + 1}').strip() or f'Caja {i + 1}'
+            normalizado.append({
+                'nombre': nombre,
+                'monto': c.get('monto', 0) or 0,
+                'id': c.get('id'),
+            })
+        return normalizado or [{'nombre': 'Caja 1', 'monto': 0, 'id': None}]
+    # Compatibilidad: se pasó un solo número en vez de una lista
+    return [{'nombre': 'Caja 1', 'monto': cajas, 'id': None}]
+
+
 class EstadoTurno(models.TextChoices):
     ABIERTO = 'abierto', 'Abierto'
     CERRADO = 'cerrado', 'Cerrado'
@@ -513,14 +540,26 @@ class TurnoCaja(models.Model):
         return (ultimo.numero + 1) if ultimo else 1
     
     @classmethod
-    def abrir(cls, monto_inicial_efectivo, usuario):
+    def abrir(cls, cajas, usuario):
         """
-        Abre un nuevo turno:
-        - Toma el monto inicial de caja grande (egreso en caja grande)
-        - Registra el monto inicial en el turno
+        Abre un nuevo turno.
+
+        `cajas`: lista de dicts [{'nombre': 'Caja 1', 'monto': 100}, ...]
+        — una fila por caja física declarada. También acepta un número
+        simple por compatibilidad (negocio de una sola caja).
+
+        El monto que se resta de caja grande y el que queda en
+        monto_inicial_efectivo es SIEMPRE la SUMA de todas las cajas
+        declaradas. El resto del sistema (ventas, cierre, alertas, caja
+        grande) sigue viendo un único total, exactamente como antes —
+        el desglose por caja es puramente declarativo/informativo (ver
+        CajaFisicaTurno).
         """
         from django.db import transaction
-        
+
+        cajas = _normalizar_cajas(cajas)
+        monto_inicial_total = sum(Decimal(str(c['monto'])) for c in cajas)
+
         with transaction.atomic():
             # Verificar que no haya un turno abierto
             if cls.turno_actual():
@@ -529,26 +568,39 @@ class TurnoCaja(models.Model):
             # Crear el turno
             turno = cls(
                 numero=cls.obtener_siguiente_numero(),
-                monto_inicial_efectivo=monto_inicial_efectivo,
+                monto_inicial_efectivo=monto_inicial_total,
                 estado=EstadoTurno.ABIERTO,
                 abierto_por=usuario,
             )
             turno.save()
+
+            CajaFisicaTurno.objects.bulk_create([
+                CajaFisicaTurno(
+                    turno=turno, nombre=c['nombre'], orden=i,
+                    monto_inicial=Decimal(str(c['monto'])),
+                )
+                for i, c in enumerate(cajas)
+            ])
             
             # Registrar egreso en caja grande (dinero que sale para iniciar turno)
-            if monto_inicial_efectivo > 0:
+            if monto_inicial_total > 0:
                 cuenta_efectivo = _cuenta_default(moneda=Moneda.ARS, caja=TipoCaja.GRANDE)
                 concepto = _concepto_default('Apertura de turno', TipoMovimientoCaja.EGRESO)
+
+                detalle_cajas = (
+                    ' (' + ', '.join(f"{c['nombre']}: {c['monto']}" for c in cajas) + ')'
+                    if len(cajas) > 1 else ''
+                )
                 
                 MovimientoCaja.objects.create(
                     caja=TipoCaja.GRANDE,
                     cuenta=cuenta_efectivo,
                     concepto=concepto,
                     tipo=TipoMovimientoCaja.EGRESO,
-                    monto=monto_inicial_efectivo,
+                    monto=monto_inicial_total,
                     moneda=Moneda.ARS,
                     fecha=turno.fecha_apertura.date(),
-                    descripcion=f'Apertura turno #{turno.numero}',
+                    descripcion=f'Apertura turno #{turno.numero}' + detalle_cajas,
                     referencia=f'Turno #{turno.numero}',
                     origen=OrigenMovimiento.AJUSTE,
                     origen_app='caja',
@@ -586,11 +638,28 @@ class TurnoCaja(models.Model):
         
         return totales
     
-    def cerrar(self, monto_final_efectivo, usuario, notas=''):
+    def cerrar(self, cajas, usuario, notas=''):
         """
         Cierra el turno. Es el ÚNICO momento en que el dinero de un
         turno "aparece" en caja grande — ninguna venta individual
         impacta ahí antes de esto (ver sincronizar_movimiento_venta).
+
+        `cajas`: lista de dicts [{'id': <CajaFisicaTurno.pk opcional>,
+        'nombre': 'Caja 1', 'monto': 2000}, ...] — lo que el cajero
+        declara en CADA caja física al cerrar. También acepta un
+        número simple (compatibilidad, una sola caja). El 'id' es
+        opcional: si viene, se usa para emparejar con la caja física
+        declarada en la apertura; si no, se empareja por nombre; si no
+        existía ninguna con ese nombre/id (se agregó una caja nueva
+        recién al cierre), se crea la fila en ese momento.
+
+        monto_final_efectivo SIEMPRE es la SUMA de todas las cajas
+        declaradas — todo el resto de la lógica (esperado, diferencia,
+        alerta, transferencia a caja grande) sigue operando sobre ese
+        total único, exactamente como antes. El desglose por caja es
+        puramente declarativo (ver CajaFisicaTurno): el sistema nunca
+        supo en qué caja física se hizo cada venta, así que no existe
+        una "diferencia" individual por caja, solo la del total.
 
         1. Congela (snapshot) los totales por medio de pago, para que
            el historial de este turno no cambie más adelante aunque se
@@ -609,6 +678,9 @@ class TurnoCaja(models.Model):
            registró (no requieren conteo físico).
         """
         from django.db import transaction
+
+        cajas = _normalizar_cajas(cajas)
+        monto_final_efectivo = sum(Decimal(str(c['monto'])) for c in cajas)
 
         with transaction.atomic():
             # Calcular totales por medio de pago (en caliente, todavía
@@ -635,6 +707,29 @@ class TurnoCaja(models.Model):
             }
             self.save()
 
+            # ── Volcar lo declarado a las cajas físicas de este turno ──
+            existentes_por_id = {cf.pk: cf for cf in self.cajas_fisicas.all()}
+            existentes_por_nombre = {cf.nombre: cf for cf in existentes_por_id.values()}
+            siguiente_orden = len(existentes_por_id)
+
+            for c in cajas:
+                cf = None
+                if c['id'] and c['id'] in existentes_por_id:
+                    cf = existentes_por_id[c['id']]
+                elif c['nombre'] in existentes_por_nombre:
+                    cf = existentes_por_nombre[c['nombre']]
+
+                if cf:
+                    cf.monto_final = Decimal(str(c['monto']))
+                    cf.save(update_fields=['monto_final'])
+                else:
+                    # Caja declarada recién al cierre (no existía en la apertura)
+                    CajaFisicaTurno.objects.create(
+                        turno=self, nombre=c['nombre'], orden=siguiente_orden,
+                        monto_inicial=Decimal('0'), monto_final=Decimal(str(c['monto'])),
+                    )
+                    siguiente_orden += 1
+
             fecha_cierre = self.fecha_cierre.date()
 
             # ── 1. Efectivo: se transfiere lo REALMENTE contado ─────
@@ -642,6 +737,10 @@ class TurnoCaja(models.Model):
             concepto_cierre_efectivo = _concepto_default('Cierre de turno - Efectivo', TipoMovimientoCaja.INGRESO)
 
             if monto_final_efectivo and monto_final_efectivo > 0:
+                detalle_cajas = (
+                    ' (' + ', '.join(f"{c['nombre']}: {c['monto']}" for c in cajas) + ')'
+                    if len(cajas) > 1 else ''
+                )
                 MovimientoCaja.objects.create(
                     caja=TipoCaja.GRANDE,
                     cuenta=cuenta_efectivo,
@@ -653,6 +752,7 @@ class TurnoCaja(models.Model):
                     descripcion=(
                         f'Cierre turno #{self.numero} — efectivo declarado '
                         f'(esperado {esperado}, diferencia {self.diferencia_efectivo})'
+                        + detalle_cajas
                     ),
                     referencia=f'Turno #{self.numero}',
                     origen=OrigenMovimiento.AJUSTE,
@@ -688,6 +788,44 @@ class TurnoCaja(models.Model):
                     origen_id=self.pk,
                     creado_por=usuario,
                 )
+
+
+class CajaFisicaTurno(models.Model):
+    """
+    Desglose DECLARATIVO de un turno en varias cajas físicas, para
+    negocios con más de una caja registradora abierta en simultáneo
+    durante un mismo turno.
+
+    Es puramente informativo: el sistema NUNCA supo en qué caja física
+    se hizo cada venta (decisión de diseño a propósito — llevar ese
+    registro exigiría tocar Ventas, y en la práctica el efectivo
+    circula entre cajas igual, así que ese nivel de detalle se
+    desactualizaría solo). Por eso:
+
+    - monto_inicial / monto_final son lo que el cajero DECLARA para
+      cada caja, no algo que el sistema valide o calcule por sí solo.
+    - No existe una "diferencia" individual por caja — la única
+      diferencia real (sobra/falta) sigue siendo la del TURNO completo
+      (TurnoCaja.diferencia_efectivo), que suma todas las cajas.
+    - TurnoCaja.monto_inicial_efectivo / monto_final_efectivo son
+      SIEMPRE la suma de estas filas. El resto del sistema (ventas,
+      cierre, alertas, historial a nivel total, caja grande) no sabe
+      que existe más de una caja física — ve un único número, exacto
+      como funcionaba antes de este modelo.
+    """
+    turno = models.ForeignKey(TurnoCaja, on_delete=models.CASCADE, related_name='cajas_fisicas')
+    nombre = models.CharField(max_length=50, default='Caja 1')
+    orden = models.PositiveIntegerField(default=0)
+    monto_inicial = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    monto_final = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Caja física de turno'
+        verbose_name_plural = 'Cajas físicas de turno'
+        ordering = ['orden', 'id']
+
+    def __str__(self):
+        return f'{self.nombre} — Turno #{self.turno.numero}'
 
 
 # ══════════════════════════════════════════════════════════════════

@@ -6,7 +6,8 @@ Historial de Turnos
 {% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'caja/css/caja_diaria.css' %}">
+<link rel="stylesheet" href="{% static 'caja/css/caja_common.css' %}">
+<link rel="stylesheet" href="{% static 'caja/css/historial_turnos.css' %}">
 {% endblock %}
 
 {% block content %}
@@ -72,115 +73,138 @@ Historial de Turnos
 {% endif %}
 
 {% if turnos %}
-{% for turno in turnos %}
-<div class="vta-card" style="margin-bottom:1rem">
-    <div class="vta-card-header">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.3" />
-            <path d="M5 6H11M5 9H9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
-        </svg>
-        <span class="vta-card-title">Turno #{{ turno.numero }}</span>
-        <span class="ht-badge {% if turno.estado == 'abierto' %}ht-badge-abierto{% else %}ht-badge-cerrado{% endif %}">
-            {{ turno.get_estado_display }}
-        </span>
-    </div>
-    <div class="vta-card-body">
-
-        <!-- Fechas -->
-        <div class="ht-meta" style="margin-bottom:1.25rem">
-            <span class="ht-meta-item">Apertura: {{ turno.fecha_apertura|date:"d/m/Y H:i" }}</span>
-            {% if turno.fecha_cierre %}
-            <span class="ht-meta-sep">→</span>
-            <span class="ht-meta-item">Cierre: {{ turno.fecha_cierre|date:"d/m/Y H:i" }}</span>
+<div class="vta-card ht-rows-card">
+    {% for turno in turnos %}
+    <details class="ht-row">
+        <summary class="ht-row-summary">
+            <span class="ht-row-numero">#{{ turno.numero }}</span>
+            <span class="ht-badge {% if turno.estado == 'abierto' %}ht-badge-abierto{% else %}ht-badge-cerrado{% endif %}">
+                {{ turno.get_estado_display }}
+            </span>
+            <span class="ht-row-fecha">
+                {{ turno.fecha_apertura|date:"d/m/Y H:i" }}{% if turno.fecha_cierre %} → {{ turno.fecha_cierre|date:"H:i" }}{% endif %}
+            </span>
+            <span class="ht-row-total">${{ turno.total_recaudado|floatformat:"2" }}</span>
+            {% if turno.diferencia_efectivo %}
+            <span class="ht-row-dif{% if turno.alerta_diferencia %} ht-row-dif--alert{% endif %}">
+                {% if turno.alerta_diferencia %}⚠ {% endif %}${{ turno.diferencia_efectivo|floatformat:"2" }}
+            </span>
             {% endif %}
-        </div>
+            <svg class="ht-row-chevron" width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M3.5 5L7 8.5L10.5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+        </summary>
 
-        <!-- Resumen financiero principal -->
-        <div class="hd-resumen" style="margin-bottom:1.5rem">
-            <div class="hd-resumen-row">
-                <span class="hd-resumen-label">Total recaudado</span>
-                <span class="hd-resumen-value">${{ turno.total_recaudado|floatformat:"2" }}</span>
+        <div class="ht-row-detalle">
+            <!-- Resumen financiero principal -->
+            <div class="hd-resumen">
+                <div class="hd-resumen-row">
+                    <span class="hd-resumen-label">Total recaudado</span>
+                    <span class="hd-resumen-value">${{ turno.total_recaudado|floatformat:"2" }}</span>
+                </div>
+                <div class="hd-resumen-row">
+                    <span class="hd-resumen-label">Ganancia del turno</span>
+                    <span class="hd-resumen-value">${{ turno.ganancia_turno|floatformat:"2" }}</span>
+                </div>
+                <div class="hd-resumen-row hd-resumen-row--destacado">
+                    <span class="hd-resumen-label">Efectivo en caja</span>
+                    <span class="hd-resumen-value">${{ turno.efectivo_total|floatformat:"2" }}</span>
+                </div>
             </div>
-            <div class="hd-resumen-row">
-                <span class="hd-resumen-label">Ganancia del turno</span>
-                <span class="hd-resumen-value">${{ turno.ganancia_turno|floatformat:"2" }}</span>
-            </div>
-            <div class="hd-resumen-row hd-resumen-row--destacado">
-                <span class="hd-resumen-label">Efectivo en caja</span>
-                <span class="hd-resumen-value">${{ turno.efectivo_total|floatformat:"2" }}</span>
-            </div>
-        </div>
 
-        <!-- Ventas por medio de pago -->
-        {% with totales=turno.totales_medio_pago %}
-        {% if totales %}
-        <div class="hd-medios-pago">
-            <h4>Ventas por medio de pago</h4>
-            <div class="hd-medios-list">
-                {% for medio, monto in totales.items %}
-                <div class="hd-medio-row">
-                    <span class="hd-medio-label">{{ medio|title }}</span>
-                    <span class="hd-medio-value">${{ monto|floatformat:"2" }}</span>
+            <!-- Ventas por medio de pago -->
+            {% with totales=turno.totales_medio_pago %}
+            {% if totales %}
+            <div class="hd-medios-pago">
+                <h4>Ventas por medio de pago</h4>
+                <div class="hd-medios-list">
+                    {% for medio, monto in totales.items %}
+                    <div class="hd-medio-row">
+                        <span class="hd-medio-label">{{ medio|title }}</span>
+                        <span class="hd-medio-value">${{ monto|floatformat:"2" }}</span>
+                    </div>
+                    {% endfor %}
                 </div>
-                {% endfor %}
             </div>
-        </div>
-        {% endif %}
-        {% endwith %}
+            {% endif %}
+            {% endwith %}
 
-        <!-- Detalle de efectivo -->
-        <div class="hd-medios-pago" style="margin-top:1rem">
-            <h4>Detalle de efectivo</h4>
-            <div class="hd-medios-list">
-                <div class="hd-medio-row">
-                    <span class="hd-medio-label">Monto inicial</span>
-                    <span class="hd-medio-value">${{ turno.monto_inicial_efectivo|floatformat:"2" }}</span>
+            <!-- Detalle de efectivo -->
+            <div class="hd-medios-pago" style="margin-top:1rem">
+                <h4>Detalle de efectivo</h4>
+                <div class="hd-medios-list">
+                    <div class="hd-medio-row">
+                        <span class="hd-medio-label">Monto inicial</span>
+                        <span class="hd-medio-value">${{ turno.monto_inicial_efectivo|floatformat:"2" }}</span>
+                    </div>
+                    <div class="hd-medio-row">
+                        <span class="hd-medio-label">Efectivo ventas</span>
+                        <span class="hd-medio-value">${{ turno.efectivo_ventas|floatformat:"2" }}</span>
+                    </div>
+                    <div class="hd-medio-row">
+                        <span class="hd-medio-label">Efectivo esperado</span>
+                        <span class="hd-medio-value">${{ turno.efectivo_total|floatformat:"2" }}</span>
+                    </div>
+                    {% if turno.monto_final_efectivo %}
+                    <div class="hd-medio-row">
+                        <span class="hd-medio-label">Monto final declarado</span>
+                        <span class="hd-medio-value">${{ turno.monto_final_efectivo|floatformat:"2" }}</span>
+                    </div>
+                    {% endif %}
                 </div>
-                <div class="hd-medio-row">
-                    <span class="hd-medio-label">Efectivo ventas</span>
-                    <span class="hd-medio-value">${{ turno.efectivo_ventas|floatformat:"2" }}</span>
+            </div>
+
+            <!-- Detalle por caja física — solo si hay más de una, es
+                 puramente declarativo (sin diferencia propia por caja,
+                 ver CajaFisicaTurno). Colapsado por defecto: es información
+                 secundaria, el total de arriba ya es el dato que importa. -->
+            {% with cajas=turno.cajas_fisicas.all %}
+            {% if cajas.count > 1 %}
+            <details class="ht-detalle-cajas">
+                <summary>Ver detalle por caja ({{ cajas.count }})</summary>
+                <div class="hd-medios-list" style="margin-top:0.6rem">
+                    {% for cf in cajas %}
+                    <div class="hd-medio-row">
+                        <span class="hd-medio-label">{{ cf.nombre }}</span>
+                        <span class="hd-medio-value">
+                            ${{ cf.monto_inicial|floatformat:"2" }}
+                            {% if cf.monto_final is not None %} → ${{ cf.monto_final|floatformat:"2" }}{% endif %}
+                        </span>
+                    </div>
+                    {% endfor %}
                 </div>
-                <div class="hd-medio-row">
-                    <span class="hd-medio-label">Efectivo esperado</span>
-                    <span class="hd-medio-value">${{ turno.efectivo_total|floatformat:"2" }}</span>
-                </div>
-                {% if turno.monto_final_efectivo %}
-                <div class="hd-medio-row">
-                    <span class="hd-medio-label">Monto final declarado</span>
-                    <span class="hd-medio-value">${{ turno.monto_final_efectivo|floatformat:"2" }}</span>
-                </div>
+            </details>
+            {% endif %}
+            {% endwith %}
+
+            <!-- Diferencia de efectivo (si aplica) -->
+            {% if turno.diferencia_efectivo %}
+            <div class="ht-diferencia{% if turno.alerta_diferencia %} ht-diferencia--alert{% endif %}"
+                style="margin-top:1rem">
+                <span>{{ turno.mensaje_alerta|default:"Diferencia de efectivo" }}</span>
+                <strong>${{ turno.diferencia_efectivo|floatformat:"2" }}</strong>
+            </div>
+            {% endif %}
+
+            <!-- Footer con usuarios -->
+            <div class="ht-footer">
+                <span>Abierto por
+                    <strong>{{ turno.abierto_por.get_full_name|default:turno.abierto_por.username }}</strong>
+                </span>
+                {% if turno.cerrado_por %}
+                <span>&nbsp;· Cerrado por
+                    <strong>{{ turno.cerrado_por.get_full_name|default:turno.cerrado_por.username }}</strong>
+                </span>
                 {% endif %}
             </div>
-        </div>
 
-        <!-- Diferencia de efectivo (si aplica) -->
-        {% if turno.diferencia_efectivo %}
-        <div class="ht-diferencia{% if turno.alerta_diferencia %} ht-diferencia--alert{% endif %}"
-            style="margin-top:1rem">
-            <span>{{ turno.mensaje_alerta|default:"Diferencia de efectivo" }}</span>
-            <strong>${{ turno.diferencia_efectivo|floatformat:"2" }}</strong>
-        </div>
-        {% endif %}
-
-        <!-- Footer con usuarios -->
-        <div class="ht-footer">
-            <span>Abierto por
-                <strong>{{ turno.abierto_por.get_full_name|default:turno.abierto_por.username }}</strong>
-            </span>
-            {% if turno.cerrado_por %}
-            <span>&nbsp;· Cerrado por
-                <strong>{{ turno.cerrado_por.get_full_name|default:turno.cerrado_por.username }}</strong>
-            </span>
+            {% if turno.notas %}
+            <div class="ht-notas">"{{ turno.notas }}"</div>
             {% endif %}
         </div>
-
-        {% if turno.notas %}
-        <div class="ht-notas">"{{ turno.notas }}"</div>
-        {% endif %}
-
-    </div>
+    </details>
+    {% endfor %}
 </div>
-{% endfor %}
 {% else %}
 <div class="vta-card" style="text-align:center; padding:3rem">
     <svg width="48" height="48" viewBox="0 0 48 48" fill="none" style="color:var(--text-muted); margin-bottom:1rem">
@@ -202,28 +226,9 @@ Historial de Turnos
 <script>
     const HT_URLS = {
         eliminar: "{% url 'caja:eliminar_historial' %}",
-        csrf: "{{ csrf_token }}"
+        csrf: "{{ csrf_token }}",
+        cantidadTurnos: {{ turnos|length }}
     };
-
-    function htEliminarHistorial() {
-        const cantidad = {{ turnos| length
-    }};
-    if (!confirm('¿Estás seguro de eliminar TODO el historial de turnos? Esta acción no se puede deshacer.')) return;
-    if (!confirm('Esta acción eliminará ' + cantidad + ' turnos. ¿Continuar?')) return;
-
-    fetch(HT_URLS.eliminar, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': HT_URLS.csrf
-        }
-    })
-        .then(res => res.json())
-        .then(data => {
-            if (data.ok) { alert(data.mensaje); location.reload(); }
-            else { alert(data.error || 'Error al eliminar historial'); }
-        })
-        .catch(() => alert('Error de conexión'));
-    }
 </script>
+<script src="{% static 'caja/js/historial_turnos.js' %}"></script>
 {% endblock %}
