@@ -1,6 +1,7 @@
 from django.db import models
 from django.conf import settings
 from django.db import transaction
+from django.db.models import F
 from django.utils import timezone
 
 from productos.models import Producto, Moneda, CondicionPago, CombinacionVariante
@@ -49,11 +50,20 @@ class TipoResolucionLote(models.TextChoices):
 
 def _lotes_candidatos(producto, combinacion):
     """
-    Lotes activos con stock para un producto/combinación, del más
-    VIEJO al más nuevo (FIFO real: se vende primero lo que se compró
-    antes, para no dejar mercadería vencida/estancada en el fondo)."""
+    Lotes activos con stock para un producto/combinación, en el orden
+    en que se deben descontar al vender:
+
+    - Producto perecedero: FEFO — primero el que vence antes (First
+      Expired, First Out), para no perder mercadería por vencimiento.
+      Los lotes sin fecha de vencimiento cargada (ej: ajustes manuales
+      de stock, que no tienen esa información) quedan al final.
+    - Producto no perecedero: FIFO — primero el más viejo por fecha
+      de compra, como antes.
+    """
     qs = LoteCompra.objects.filter(activo=True, cantidad_actual__gt=0, producto=producto)
     qs = qs.filter(combinacion=combinacion) if combinacion is not None else qs.filter(combinacion__isnull=True)
+    if producto.es_perecedero:
+        return list(qs.order_by(F('fecha_vencimiento').asc(nulls_last=True), 'fecha_compra', 'fecha_alta'))
     return list(qs.order_by('fecha_compra', 'fecha_alta'))
 
 
@@ -324,12 +334,50 @@ class Venta(models.Model):
         Registra quién confirmó, cuándo, el medio de pago principal
         y, si se pasan, las líneas de pago dividido (PagoVenta).
 
-        pagos: lista de dicts [{'medio': 'efectivo', 'monto': 3000}, ...]
+        pagos: lista de dicts [{'medio': 'efectivo', 'monto': 3000},
+               {'medio': 'transferencia', 'monto': 999.97, 'cuenta_pk': 5}, ...]
                Si se pasa, reemplaza cualquier PagoVenta previo de
                esta venta (relevante en re-confirmaciones vía editar_completa).
+
+               Para medio=efectivo la cuenta se resuelve sola (la
+               Efectivo de la moneda de la venta); para el resto,
+               'cuenta_pk' es obligatorio y debe ser una CuentaCaja
+               real, activa, sin crédito y en la misma moneda.
         """
         if self.estado != EstadoVenta.BORRADOR:
             raise ValueError('Solo se pueden confirmar ventas en estado Borrador.')
+
+        # Resolver la cuenta real de cada línea de pago ANTES de tocar
+        # stock/estado: si alguna es inválida, falla rápido sin dejar
+        # nada a medio hacer (igual está todo en @transaction.atomic,
+        # pero así evitamos descontar stock para nada).
+        pagos_resueltos = None
+        if pagos is not None:
+            from caja.models import CuentaCaja, TipoCaja, _cuenta_default
+            moneda_venta = self.items.values_list('moneda', flat=True).first() or 'ARS'
+            labels_medio = dict(MedioPago.choices)
+
+            pagos_resueltos = []
+            for p in pagos:
+                monto = p.get('monto')
+                if not monto or float(monto) <= 0:
+                    continue
+                medio = p.get('medio', MedioPago.EFECTIVO)
+
+                if medio == MedioPago.EFECTIVO:
+                    cuenta = _cuenta_default(moneda=moneda_venta, caja=TipoCaja.GRANDE)
+                else:
+                    cuenta = CuentaCaja.objects.filter(
+                        pk=p.get('cuenta_pk'), caja=TipoCaja.GRANDE, activa=True,
+                        es_credito=False, moneda=moneda_venta,
+                    ).first()
+                    if not cuenta:
+                        raise ValueError(
+                            f'Elegí una cuenta válida para el pago con '
+                            f'{labels_medio.get(medio, medio)}.'
+                        )
+
+                pagos_resueltos.append({'medio': medio, 'monto': monto, 'cuenta': cuenta})
 
         avisos = []
         for item in self.items.select_related('producto', 'combinacion'):
@@ -349,16 +397,14 @@ class Venta(models.Model):
             'estado', 'total', 'confirmado_por', 'fecha_confirmacion', 'medio_pago',
         ])
 
-        if pagos is not None:
+        if pagos_resueltos is not None:
             self.pagos.all().delete()
-            for p in pagos:
-                monto = p.get('monto')
-                if not monto or float(monto) <= 0:
-                    continue
+            for p in pagos_resueltos:
                 PagoVenta.objects.create(
-                    venta = self,
-                    medio = p.get('medio', MedioPago.EFECTIVO),
-                    monto = monto,
+                    venta  = self,
+                    medio  = p['medio'],
+                    monto  = p['monto'],
+                    cuenta = p['cuenta'],
                 )
 
         # Sincronizar movimiento de caja grande
@@ -420,6 +466,7 @@ class Venta(models.Model):
                 precio_unitario = d['precio_unitario'],
                 moneda          = d.get('moneda', 'ARS'),
                 descuento_pct   = d.get('descuento_pct', 0),
+                lista_descuento_nombre = d.get('lista_descuento_nombre', ''),
                 condicion_pago  = d.get('condicion_pago', 'contado'),
                 referencia      = d.get('referencia', ''),
                 notas           = d.get('notas', ''),
@@ -494,6 +541,11 @@ class ItemVenta(models.Model):
 
     # — Descuento opcional —
     descuento_pct   = models.DecimalField('Descuento (%)', max_digits=5, decimal_places=2, default=0)
+    lista_descuento_nombre = models.CharField(
+        'Lista de descuento aplicada', max_length=100, blank=True,
+        help_text='Nombre de la lista si el % vino de ahí (ver ListaDescuento); '
+                   'vacío si se escribió el % a mano.',
+    )
 
     # — Condición de pago del ítem —
     condicion_pago  = models.CharField(max_length=20, choices=CondicionPago.choices,
@@ -604,10 +656,21 @@ class PagoVenta(models.Model):
     Una línea de pago de una venta. Una venta puede tener varias
     líneas (pago dividido entre distintos medios). La suma de
     montos de todas las líneas debe igualar venta.total al confirmar.
+
+    `cuenta`: a qué CuentaCaja real se acredita este pago. Para
+    medio=efectivo se resuelve sola (la cuenta Efectivo de la moneda
+    de la venta) — para el resto (transferencia/débito/crédito/QR)
+    la elige quien confirma la venta. Sin esto, todo lo que no era
+    efectivo terminaba en una cuenta genérica por nombre de medio al
+    cerrar el turno (ver TurnoCaja.cerrar en caja/models.py).
     """
     venta = models.ForeignKey(Venta, on_delete=models.CASCADE, related_name='pagos')
     medio = models.CharField(max_length=20, choices=MedioPago.choices, default=MedioPago.EFECTIVO)
     monto = models.DecimalField(max_digits=14, decimal_places=2)
+    cuenta = models.ForeignKey(
+        'caja.CuentaCaja', on_delete=models.PROTECT,
+        null=True, blank=True, related_name='pagos_venta',
+    )
 
     class Meta:
         verbose_name        = 'Pago de venta'

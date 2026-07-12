@@ -6,6 +6,7 @@ from . import views_permisos
 from . import views_clientes
 from . import views_perfil
 from . import views_empresa
+from . import views_cuentas
 from . import views_reiniciar
 from . import views_estadisticas
 
@@ -58,6 +59,10 @@ urlpatterns = [
     # ── Empresa (datos de la empresa — Configuración) ──────────────
     path('configuracion/empresa/guardar/', views_empresa.EmpresaGuardarAjax.as_view(), name='empresa_guardar'),
     path('configuracion/empresa/logo/', views_empresa.EmpresaLogoAjax.as_view(), name='empresa_logo'),
+
+    # ── Cuentas de caja (tarjetas/billeteras/bancos — Configuración) ──
+    path('configuracion/cuentas/guardar/', views_cuentas.CuentaCrearEditarAjax.as_view(), name='cuenta_guardar'),
+    path('configuracion/cuentas/baja/', views_cuentas.CuentaEliminarAjax.as_view(), name='cuenta_baja'),
 
     # ── Reinicio de datos (solo superusuarios, solo DEBUG=True) ────
     path('reiniciar/', views_reiniciar.ReiniciarSistemaAjax.as_view(), name='reiniciar_sistema'),

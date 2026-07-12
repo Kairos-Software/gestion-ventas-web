@@ -1,5 +1,6 @@
 import json
 import os
+from decimal import Decimal
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import TemplateView
 from django.views import View
@@ -10,7 +11,7 @@ from django.core.paginator import Paginator
 from .models import (
     Producto, ProductoImagen,
     Variante, OpcionVariante, CombinacionVariante,
-    CategoriaProducto, TipoProducto,
+    CategoriaProducto, TipoProducto, ListaDescuento,
 )
 from .forms import (
     ProductoForm, ProductoImagenForm,
@@ -221,6 +222,16 @@ def _serializar_categoria(c):
     }
 
 
+def _serializar_lista_descuento(l):
+    return {
+        'pk':         l.pk,
+        'nombre':     l.nombre,
+        'porcentaje': str(l.porcentaje),
+        'orden':      l.orden,
+        'activa':     l.activa,
+    }
+
+
 def _serializar_tipo(t):
     return {
         'pk':           t.pk,
@@ -247,6 +258,7 @@ class GestionProductosView(LoginRequiredMixin, TemplateView):
         ctx['puede_editar']   = chequear_permiso(self.request.user, 'editar_productos')
         ctx['puede_eliminar'] = chequear_permiso(self.request.user, 'eliminar_productos')
         ctx['puede_gestionar_categorias'] = chequear_permiso(self.request.user, 'gestionar_categorias')
+        ctx['puede_gestionar_listas_descuento'] = chequear_permiso(self.request.user, 'gestionar_listas_descuento')
 
         if not chequear_permiso(self.request.user, 'ver_productos'):
             ctx['sin_permiso'] = True
@@ -1013,6 +1025,99 @@ class CategoriaEliminarAjax(LoginRequiredMixin, View):
 
         nombre = cat.nombre
         cat.delete()
+        return JsonResponse({'ok': True, 'nombre': nombre})
+
+
+# ══════════════════════════════════════════════════════════════════
+#  LISTAS DE DESCUENTO — AJAX
+# ══════════════════════════════════════════════════════════════════
+
+class ListaDescuentoListaAjax(LoginRequiredMixin, View):
+    """GET → lista todas las listas de descuento."""
+
+    def get(self, request):
+        if not chequear_permiso(request.user, 'ver_productos'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        qs   = ListaDescuento.objects.all().order_by('orden', 'nombre')
+        data = [_serializar_lista_descuento(l) for l in qs]
+        return JsonResponse({'results': data})
+
+
+class ListaDescuentoAccionesAjax(LoginRequiredMixin, View):
+    """POST → crea o edita una lista de descuento."""
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'gestionar_listas_descuento'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        nombre = body.get('nombre', '').strip()
+        if not nombre:
+            return JsonResponse({'ok': False, 'errors': {'nombre': ['El nombre es obligatorio.']}}, status=400)
+
+        try:
+            porcentaje = Decimal(str(body.get('porcentaje', '')))
+        except Exception:
+            return JsonResponse({'ok': False, 'errors': {'porcentaje': ['El porcentaje es inválido.']}}, status=400)
+        if porcentaje < 0 or porcentaje > 100:
+            return JsonResponse({'ok': False, 'errors': {'porcentaje': ['El porcentaje debe estar entre 0 y 100.']}}, status=400)
+
+        pk = body.get('pk')
+        if pk:
+            lista = get_object_or_404(ListaDescuento, pk=pk)
+        else:
+            lista = ListaDescuento()
+
+        qs = ListaDescuento.objects.filter(nombre__iexact=nombre)
+        if lista.pk:
+            qs = qs.exclude(pk=lista.pk)
+        if qs.exists():
+            return JsonResponse({'ok': False, 'errors': {'nombre': ['Ya existe una lista con ese nombre.']}}, status=400)
+
+        lista.nombre     = nombre
+        lista.porcentaje = porcentaje
+        lista.orden      = int(body.get('orden', lista.orden if lista.pk else 0))
+        lista.activa     = body.get('activa', True)
+        lista.save()
+
+        return JsonResponse({
+            'ok':     True,
+            'pk':     lista.pk,
+            'nombre': lista.nombre,
+            'creado': pk is None,
+            'data':   _serializar_lista_descuento(lista),
+        })
+
+
+class ListaDescuentoEliminarAjax(LoginRequiredMixin, View):
+    """POST → elimina una lista de descuento.
+
+    No hay relación por clave foránea con las compras/ventas ya
+    cargadas (solo guardan el nombre como texto suelto), así que
+    borrarla no rompe nada del historial existente.
+    """
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'gestionar_listas_descuento'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        pk = body.get('pk')
+        if not pk:
+            return JsonResponse({'error': 'PK requerido.'}, status=400)
+
+        lista  = get_object_or_404(ListaDescuento, pk=pk)
+        nombre = lista.nombre
+        lista.delete()
         return JsonResponse({'ok': True, 'nombre': nombre})
 
 

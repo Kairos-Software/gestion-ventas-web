@@ -301,6 +301,17 @@
 
 .trx-required { color: var(--danger); margin-left: 2px; }
 
+#trx-saldo-disponible {
+    display: block;
+    margin-top: 0.3rem;
+    color: var(--text-secondary);
+}
+
+#trx-saldo-disponible.trx-saldo-insuficiente {
+    color: var(--danger);
+    font-weight: 600;
+}
+
 /* ── Sección de divisa ──────────────────────────────────────────── */
 .trx-seccion-divisa {
     background: rgba(242,106,27,0.04);

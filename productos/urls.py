@@ -48,6 +48,13 @@ urlpatterns = [
     path('categorias/eliminar/',  views_productos.CategoriaEliminarAjax.as_view(),     name='categoria_eliminar'),
 
     # ══════════════════════════════════════════════════════════════════
+    #  LISTAS DE DESCUENTO
+    # ══════════════════════════════════════════════════════════════════
+    path('listas-descuento/',           views_productos.ListaDescuentoListaAjax.as_view(),     name='lista_descuento_lista'),
+    path('listas-descuento/acciones/',  views_productos.ListaDescuentoAccionesAjax.as_view(),  name='lista_descuento_acciones'),
+    path('listas-descuento/eliminar/',  views_productos.ListaDescuentoEliminarAjax.as_view(),  name='lista_descuento_eliminar'),
+
+    # ══════════════════════════════════════════════════════════════════
     #  TIPOS
     # ══════════════════════════════════════════════════════════════════
     path('tipos/',                views_productos.TipoListaAjax.as_view(),             name='tipo_lista'),

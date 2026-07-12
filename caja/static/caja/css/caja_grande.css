@@ -253,6 +253,13 @@
 }
 
 .cg-cuenta-nombre {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+}
+
+.cg-cuenta-nombre-texto {
     font-size: 0.72rem;
     font-weight: 700;
     color: var(--text-muted);
@@ -261,6 +268,24 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.cg-cuenta-badge {
+    flex-shrink: 0;
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.1rem 0.4rem;
+    background: rgba(242,106,27,0.1);
+    color: var(--brand-orange);
+    border: 1px solid rgba(242,106,27,0.25);
+    border-radius: 0.35rem;
+}
+
+.cg-cuenta-detalle {
+    font-size: 0.72rem;
+    color: var(--text-muted);
 }
 
 .cg-cuenta-saldo {

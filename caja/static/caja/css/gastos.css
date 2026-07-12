@@ -229,6 +229,63 @@
     white-space: nowrap;
 }
 
+.gastos-monto--ingreso { color: var(--success); }
+.gastos-monto--egreso { color: var(--danger); }
+
+.gastos-badge-tipo {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.15rem 0.5rem;
+    border-radius: 0.35rem;
+    white-space: nowrap;
+}
+
+.gastos-badge-tipo--ingreso {
+    background: rgba(16,185,129,0.1);
+    color: var(--success);
+    border: 1px solid rgba(16,185,129,0.25);
+}
+
+.gastos-badge-tipo--egreso {
+    background: rgba(239,68,68,0.1);
+    color: var(--danger);
+    border: 1px solid rgba(239,68,68,0.25);
+}
+
+/* Toggle Ingreso/Egreso en el modal */
+.gastos-tipo-toggle {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.gastos-tipo-btn {
+    flex: 1;
+    padding: 0.55rem 1rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    background: var(--bg-white);
+    color: var(--text-secondary);
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.gastos-tipo-btn--ingreso.gastos-tipo-btn--active {
+    background: rgba(16,185,129,0.1);
+    border-color: var(--success);
+    color: var(--success);
+}
+
+.gastos-tipo-btn--egreso.gastos-tipo-btn--active {
+    background: rgba(239,68,68,0.1);
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
 .gastos-tabla-acciones {
     display: flex;
     gap: 0.35rem;
@@ -344,6 +401,11 @@
     font-size: 0.8rem;
     font-weight: 600;
     color: var(--text-secondary);
+}
+
+.form-campo-ayuda {
+    font-size: 0.72rem;
+    color: var(--text-muted);
 }
 
 .form-campo input,

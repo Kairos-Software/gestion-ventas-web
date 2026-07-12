@@ -248,7 +248,7 @@
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
                                 <path d="M2 8H14M8 2V14" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
                             </svg>
-                            <span>Gastos</span>
+                            <span>Ingresos y egresos</span>
                         </a>
                         <a href="{% url 'caja:transacciones_listar_page' %}"
                            class="nav-subitem {% if request.resolver_match.url_name == 'transacciones_listar_page' %}active{% endif %}">
@@ -260,6 +260,15 @@
                                 <path d="M10 13H14" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
                             </svg>
                             <span>Transacciones</span>
+                        </a>
+                        <a href="{% url 'caja:deudas' %}"
+                           class="nav-subitem {% if request.resolver_match.url_name == 'deudas' %}active{% endif %}">
+                            <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                                <rect x="1.5" y="3" width="13" height="9" rx="1.2" stroke="currentColor" stroke-width="1.3"/>
+                                <path d="M1.5 6.5H14.5" stroke="currentColor" stroke-width="1.3"/>
+                                <path d="M4 9.5H7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                            </svg>
+                            <span>Créditos y préstamos</span>
                         </a>
                     </div>
                 </div>

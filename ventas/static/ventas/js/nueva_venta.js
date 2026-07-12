@@ -64,6 +64,7 @@ let carrito = (CFG.itemsIniciales || []).map(fila => ({
     precio:          fila.precio,
     moneda:          fila.moneda || 'ARS',
     descuento:       fila.descuento || 0,
+    lista_descuento_nombre: fila.lista_descuento_nombre || '',
     condicion:       fila.condicion || 'contado',
     referencia:      fila.referencia || '',
 }));
@@ -321,6 +322,7 @@ function _agregarFila(fila) {
         precio:          fila.precio_venta ?? '',
         moneda:          fila.moneda || 'ARS',
         descuento:       0,
+        lista_descuento_nombre: '',
         condicion:       'contado',
         referencia:      '',
     });
@@ -391,6 +393,22 @@ function _chipOrigen(item) {
     return `<span class="vta-origen-chip vta-origen-chip--normal" title="Descuenta del lote más viejo con stock (FIFO)">Más viejo (FIFO)</span>`;
 }
 
+function _selectListaDescuento(item) {
+    const listas = CFG.listasDescuento || [];
+    if (!listas.length) {
+        return `<span class="vta-lista-vacia" title="No hay listas de descuento creadas">—</span>`;
+    }
+    const opciones = listas.map(l => `
+        <option value="${_esc(l.nombre)}" data-pct="${l.porcentaje}" ${item.lista_descuento_nombre === l.nombre ? 'selected' : ''}>
+            ${_esc(l.nombre)} (${l.porcentaje}%)
+        </option>`).join('');
+    return `
+        <select class="vta-select-inline w-sm" data-item-id="${item.id}" data-campo="lista_descuento" title="Aplicar % de una lista de descuento">
+            <option value="">— Manual —</option>
+            ${opciones}
+        </select>`;
+}
+
 function _renderCarrito() {
     if (!carrito.length) {
         cartBody.innerHTML = '';
@@ -424,6 +442,7 @@ function _renderCarrito() {
             </td>
             <td><input type="number" min="0" max="100" step="0.01" class="vta-input-inline w-xs"
                        data-item-id="${item.id}" data-campo="descuento" value="${item.descuento}"></td>
+            <td>${_selectListaDescuento(item)}</td>
             <td>
                 <select class="vta-select-inline" data-item-id="${item.id}" data-campo="condicion">
                     <option value="contado" ${item.condicion === 'contado' ? 'selected' : ''}>Contado</option>
@@ -462,9 +481,28 @@ function _onCampoCambiado(el) {
     const campo = el.dataset.campo;
     const item  = carrito.find(i => i.id === id);
     if (!item) return;
-    item[campo] = el.value;
 
     const fila = cartBody.querySelector(`tr[data-item-id="${id}"]`);
+
+    if (campo === 'lista_descuento') {
+        item.lista_descuento_nombre = el.value;
+        if (el.value) {
+            const opt = el.selectedOptions[0];
+            item.descuento = opt ? opt.dataset.pct : item.descuento;
+            const inputDesc = fila?.querySelector('[data-campo="descuento"]');
+            if (inputDesc) inputDesc.value = item.descuento;
+        }
+    } else if (campo === 'descuento') {
+        item.descuento = el.value;
+        if (item.lista_descuento_nombre) {
+            item.lista_descuento_nombre = '';
+            const selLista = fila?.querySelector('[data-campo="lista_descuento"]');
+            if (selLista) selLista.value = '';
+        }
+    } else {
+        item[campo] = el.value;
+    }
+
     if (fila) {
         const sub = fila.querySelector('.vta-subtotal-cell');
         if (sub) sub.textContent = _fmt(_calcSub(item), item.moneda);
@@ -506,6 +544,7 @@ if (btnContinuar) {
             precio_unitario: item.precio,
             moneda:          item.moneda,
             descuento_pct:   item.descuento,
+            lista_descuento_nombre: item.lista_descuento_nombre || '',
             condicion_pago:  item.condicion,
             referencia:      item.referencia,
         }));

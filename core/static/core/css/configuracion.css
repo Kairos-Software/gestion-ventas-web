@@ -153,6 +153,28 @@
 
 .config-coming-soon p { font-size: 0.8125rem; margin: 0; }
 
+/* Badge inline (cuentas: Crédito / Inactiva) */
+.config-badge {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.15rem 0.45rem;
+    margin-left: 0.4rem;
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
+    border-radius: 0.35rem;
+    vertical-align: middle;
+}
+
+.config-badge-credito {
+    background: rgba(242,106,27,0.1);
+    color: var(--brand-orange);
+    border-color: rgba(242,106,27,0.25);
+}
+
 /* Empresa */
 .config-empresa-msg { padding: 0 1.375rem 1rem; font-size: 0.8rem; }
 

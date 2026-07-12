@@ -1,3 +1,4 @@
+from datetime import timedelta
 from decimal import Decimal
 
 from django.db import models
@@ -43,6 +44,8 @@ class OrigenMovimiento(models.TextChoices):
     MANUAL  = 'manual',  'Carga manual'
     AJUSTE  = 'ajuste',  'Ajuste'
     TRANSACCION = 'transaccion', 'Transacción interna'
+    DEUDA       = 'deuda',       'Deuda (acreditación de préstamo)'
+    CUOTA_DEUDA = 'cuota_deuda', 'Cuota de deuda'
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -73,6 +76,22 @@ class CuentaCaja(models.Model):
                   default=TipoCaja.GRANDE,
                   help_text='A qué libro pertenece esta cuenta (grande o diaria).')
 
+    # ── Identificación de la cuenta (tarjetas, billeteras, bancos) ──
+    titular      = models.CharField(max_length=150, blank=True,
+                       help_text='Solo si difiere del titular del negocio.')
+    terminada_en = models.CharField(max_length=20, blank=True,
+                       help_text='Últimos 4 dígitos, alias o CBU corto. Nunca el número completo.')
+
+    # ── Crédito ──────────────────────────────────────────────────
+    # Es el único atributo que cambia comportamiento real: una compra
+    # con es_credito=True no descuenta el total de inmediato, genera
+    # cuotas que impactan la cuenta a medida que se pagan (ver Fase 3).
+    es_credito       = models.BooleanField(default=False)
+    dia_cierre       = models.PositiveSmallIntegerField(null=True, blank=True,
+                           help_text='Día del mes en que cierra el resumen (1-31). Solo si es_credito.')
+    dia_vencimiento  = models.PositiveSmallIntegerField(null=True, blank=True,
+                           help_text='Día del mes en que vence el pago (1-31). Solo si es_credito.')
+
     activa  = models.BooleanField(default=True)
     notas   = models.CharField(max_length=300, blank=True)
     orden   = models.PositiveSmallIntegerField(default=0)
@@ -84,7 +103,7 @@ class CuentaCaja(models.Model):
         verbose_name        = 'Cuenta de caja'
         verbose_name_plural = 'Cuentas de caja'
         ordering            = ['caja', 'orden', 'nombre']
-        unique_together     = [('nombre', 'caja')]
+        unique_together     = [('nombre', 'caja', 'moneda')]
 
     def __str__(self):
         return f'{self.nombre} ({self.get_moneda_display()})'
@@ -262,6 +281,19 @@ def _cuenta_default(moneda=Moneda.ARS, caja=TipoCaja.GRANDE):
     return cuenta
 
 
+def asegurar_cuentas_efectivo(caja=TipoCaja.GRANDE):
+    """
+    Garantiza que la cuenta Efectivo exista en las tres monedas
+    (ARS/USD/EUR) para esa caja. Hay que llamarla en TODO lugar que
+    arma un selector de "a qué cuenta se paga/cobra" (Ventas, Compras,
+    Gastos, Transacciones) — si no, en una base de datos nueva el
+    selector aparece vacío hasta que por casualidad algo más
+    (ej: visitar Caja Grande) termine creando Efectivo primero.
+    """
+    for moneda, _label in Moneda.choices:
+        _cuenta_default(moneda=moneda, caja=caja)
+
+
 def _concepto_default(nombre, tipo_default):
     concepto, _creado = ConceptoMovimiento.objects.get_or_create(
         nombre=nombre,
@@ -303,58 +335,78 @@ def _borrar_movimiento_origen(origen_app, origen_tipo, origen_id):
 @transaction.atomic
 def sincronizar_movimiento_venta(venta):
     """
-    Sincroniza el MovimientoCaja asociado a una Venta con su estado actual.
+    Sincroniza los MovimientoCaja asociados a una Venta con su estado actual.
 
     - BORRADOR: no genera movimiento (no es plata real todavía).
-    - CONFIRMADA: ingreso por venta.total, en la cuenta efectivo default
-      según la moneda predominante de sus ítems (ARS por defecto).
-    - ANULADA: no debe quedar movimiento (la venta no se concretó).
+    - CONFIRMADA: un ingreso en CAJA GRANDE por cada línea de pago que
+      NO sea efectivo (transferencia/débito/crédito/QR), cada una en
+      su cuenta real (PagoVenta.cuenta) — esa plata ya está o no está
+      en la cuenta digital en el momento del cobro, no hay nada que
+      contar físicamente, así que no tiene sentido esperar al cierre
+      de turno para que aparezca. Un negocio abierto 24hs vería su
+      Mercado Pago/banco desactualizado por horas si no fuera así.
+    - El pago en EFECTIVO es la excepción: no genera nada acá. Sigue
+      esperando al cierre de turno (ver TurnoCaja.cerrar), que es el
+      único momento en que se concilia contra lo contado físicamente
+      — por eso "caja diaria" existe como concepto, solo para eso.
+    - ANULADA: no debe quedar ningún movimiento (la venta no se concretó).
 
-    IMPORTANTE: este movimiento se registra en CAJA DIARIA, NUNCA en
-    caja grande. El dinero de una venta recién "existe" para la caja
-    grande cuando el turno se cierra y TurnoCaja.cerrar() transfiere lo
-    correspondiente (ver ese método). Si esto generara caja=GRANDE acá,
-    se duplicaría con la transferencia del cierre de turno.
-
-    Se llama desde Venta.confirmar(), Venta.anular() [si existiera] y
+    Se llama desde Venta.confirmar(), Venta.anular() y
     Venta.editar_completa() (que internamente re-confirma).
     """
     _borrar_movimiento_origen('ventas', OrigenMovimiento.VENTA, venta.pk)
 
     # Import local para evitar dependencia circular a nivel de módulo
-    from ventas.models import EstadoVenta
+    from ventas.models import EstadoVenta, MedioPago
 
     if venta.estado != EstadoVenta.CONFIRMADA:
-        return None
+        return []
 
-    moneda = venta.items.values_list('moneda', flat=True).first() or Moneda.ARS
-    cuenta   = _cuenta_default(moneda=moneda, caja=TipoCaja.DIARIA)
     concepto = _concepto_default(CONCEPTO_VENTA_NOMBRE, TipoMovimientoCaja.INGRESO)
 
-    return MovimientoCaja.objects.create(
-        caja        = TipoCaja.DIARIA,
-        cuenta      = cuenta,
-        concepto    = concepto,
-        tipo        = TipoMovimientoCaja.INGRESO,
-        monto       = venta.total,
-        moneda      = moneda,
-        fecha       = venta.fecha,
-        descripcion = f'Venta {venta.numero}',
-        referencia  = venta.numero,
-        origen      = OrigenMovimiento.VENTA,
-        origen_app  = 'ventas',
-        origen_id   = venta.pk,
-        creado_por  = venta.confirmado_por,
+    pagos_no_efectivo = (
+        venta.pagos
+        .exclude(medio=MedioPago.EFECTIVO)
+        .exclude(cuenta__isnull=True)
+        .select_related('cuenta')
     )
+
+    movimientos = []
+    for pago in pagos_no_efectivo:
+        movimientos.append(MovimientoCaja.objects.create(
+            caja        = TipoCaja.GRANDE,
+            cuenta      = pago.cuenta,
+            concepto    = concepto,
+            tipo        = TipoMovimientoCaja.INGRESO,
+            monto       = pago.monto,
+            moneda      = pago.cuenta.moneda,
+            fecha       = venta.fecha,
+            descripcion = f'Venta {venta.numero} ({pago.get_medio_display()})',
+            referencia  = venta.numero,
+            origen      = OrigenMovimiento.VENTA,
+            origen_app  = 'ventas',
+            origen_id   = venta.pk,
+            creado_por  = venta.confirmado_por,
+        ))
+    return movimientos
 
 
 @transaction.atomic
 def sincronizar_movimiento_compra(compra):
     """
-    Sincroniza el MovimientoCaja asociado a una Compra con su estado actual.
+    Sincroniza los MovimientoCaja asociados a una Compra con su estado
+    actual.
 
     - BORRADOR: no genera movimiento.
-    - CONFIRMADA: egreso por compra.total.
+    - CONFIRMADA: un egreso en CAJA GRANDE por cada línea de pago
+      (PagoCompra), cada una en su cuenta real. A diferencia de
+      Ventas, acá no hay turno de por medio — toda línea (incluida
+      efectivo) impacta caja grande de inmediato, como siempre lo
+      hizo Compras. Excepción: las líneas pagadas con tarjeta de
+      crédito (medio=CREDITO) NO generan egreso acá — esa plata no
+      sale de la caja al confirmar la compra, sale de a poco cuando
+      se confirma cada CuotaDeuda de la Deuda asociada (ver
+      sincronizar_movimiento_cuota).
     - ANULADA: no debe quedar movimiento (se revirtió, no hubo gasto neto).
 
     Se llama desde Compra.confirmar(), Compra.anular(), Compra.reactivar()
@@ -362,30 +414,37 @@ def sincronizar_movimiento_compra(compra):
     """
     _borrar_movimiento_origen('compras', OrigenMovimiento.COMPRA, compra.pk)
 
-    from compras.models import EstadoCompra
+    from compras.models import EstadoCompra, MedioPagoCompra
 
     if compra.estado != EstadoCompra.CONFIRMADA:
-        return None
+        return []
 
-    moneda = compra.items.values_list('moneda', flat=True).first() or Moneda.ARS
-    cuenta   = _cuenta_default(moneda=moneda, caja=TipoCaja.GRANDE)
     concepto = _concepto_default(CONCEPTO_COMPRA_NOMBRE, TipoMovimientoCaja.EGRESO)
 
-    return MovimientoCaja.objects.create(
-        caja        = TipoCaja.GRANDE,
-        cuenta      = cuenta,
-        concepto    = concepto,
-        tipo        = TipoMovimientoCaja.EGRESO,
-        monto       = compra.total,
-        moneda      = moneda,
-        fecha       = compra.fecha,
-        descripcion = f'Compra {compra.numero}',
-        referencia  = compra.numero,
-        origen      = OrigenMovimiento.COMPRA,
-        origen_app  = 'compras',
-        origen_id   = compra.pk,
-        creado_por  = compra.creado_por,
+    movimientos = []
+    pagos_caja = (
+        compra.pagos
+        .exclude(cuenta__isnull=True)
+        .exclude(medio=MedioPagoCompra.CREDITO)
+        .select_related('cuenta')
     )
+    for pago in pagos_caja:
+        movimientos.append(MovimientoCaja.objects.create(
+            caja        = TipoCaja.GRANDE,
+            cuenta      = pago.cuenta,
+            concepto    = concepto,
+            tipo        = TipoMovimientoCaja.EGRESO,
+            monto       = pago.monto,
+            moneda      = pago.cuenta.moneda,
+            fecha       = compra.fecha,
+            descripcion = f'Compra {compra.numero} ({pago.get_medio_display()})',
+            referencia  = compra.numero,
+            origen      = OrigenMovimiento.COMPRA,
+            origen_app  = 'compras',
+            origen_id   = compra.pk,
+            creado_por  = compra.creado_por,
+        ))
+    return movimientos
 
 
 def _normalizar_cajas(cajas):
@@ -610,39 +669,41 @@ class TurnoCaja(models.Model):
             
             return turno
     
-    def calcular_totales_por_medio_pago(self):
-        """
-        Calcula los totales de ventas agrupados por medio de pago
-        para este turno.
-        
-        Usa PagoVenta para soportar pagos divididos (ej: mitad efectivo, mitad transferencia).
-        """
-        from ventas.models import Venta, MedioPago, PagoVenta
-        
-        ventas_en_turno = Venta.objects.filter(
+    def _ventas_en_turno(self):
+        """Ventas confirmadas dentro de la ventana horaria de este turno."""
+        from ventas.models import Venta
+        return Venta.objects.filter(
             estado='confirmada',
             fecha_alta__gte=self.fecha_apertura,
             fecha_alta__lte=self.fecha_cierre if self.fecha_cierre else timezone.now()
         )
-        
-        # Obtener todos los pagos de las ventas en este turno
-        pagos_en_turno = PagoVenta.objects.filter(
-            venta__in=ventas_en_turno
-        )
-        
+
+    def calcular_totales_por_medio_pago(self):
+        """
+        Calcula los totales de ventas agrupados por medio de pago
+        para este turno (informativo — para el desglose que se muestra
+        en pantalla y se congela en totales_cierre). Usa PagoVenta para
+        soportar pagos divididos (ej: mitad efectivo, mitad transferencia).
+        """
+        from ventas.models import MedioPago, PagoVenta
+
+        pagos_en_turno = PagoVenta.objects.filter(venta__in=self._ventas_en_turno())
+
         totales = {}
         for medio, label in MedioPago.choices:
             totales[medio] = pagos_en_turno.filter(medio=medio).aggregate(
                 total=Sum('monto')
             )['total'] or 0
-        
+
         return totales
     
     def cerrar(self, cajas, usuario, notas=''):
         """
-        Cierra el turno. Es el ÚNICO momento en que el dinero de un
-        turno "aparece" en caja grande — ninguna venta individual
-        impacta ahí antes de esto (ver sincronizar_movimiento_venta).
+        Cierra el turno. Es el momento en que el EFECTIVO de un turno
+        "aparece" en caja grande — el resto de medios de pago (no
+        efectivo) ya impactaron caja grande al confirmarse cada venta
+        (ver sincronizar_movimiento_venta): no requieren conteo físico,
+        así que no tiene sentido hacerlos esperar al cierre.
 
         `cajas`: lista de dicts [{'id': <CajaFisicaTurno.pk opcional>,
         'nombre': 'Caja 1', 'monto': 2000}, ...] — lo que el cajero
@@ -674,8 +735,8 @@ class TurnoCaja(models.Model):
            (ver alerta_diferencia / mensaje_alerta) — no se "esconde"
            la diferencia ni se ajusta silenciosamente.
         3. Resto de medios de pago (transferencia, débito, QR, etc.):
-           se transfieren a caja grande por el monto que el sistema
-           registró (no requieren conteo físico).
+           nada que hacer acá — ya están en caja grande desde que se
+           confirmó cada venta.
         """
         from django.db import transaction
 
@@ -761,33 +822,14 @@ class TurnoCaja(models.Model):
                     creado_por=usuario,
                 )
 
-            # ── 2. Resto de medios de pago: van por lo que el sistema
-            #      registró (no hay conteo físico posible para esto) ──
-            from ventas.models import MedioPago
-            labels_medio = dict(MedioPago.choices)
-
-            for medio, monto in totales.items():
-                if medio == 'efectivo' or not monto or monto <= 0:
-                    continue
-                medio_label = labels_medio.get(medio, medio.capitalize())
-                cuenta_medio = _cuenta_grande_para_medio_pago(medio, medio_label, moneda=Moneda.ARS)
-                concepto_medio = _concepto_default(f'Cierre de turno - {medio_label}', TipoMovimientoCaja.INGRESO)
-
-                MovimientoCaja.objects.create(
-                    caja=TipoCaja.GRANDE,
-                    cuenta=cuenta_medio,
-                    concepto=concepto_medio,
-                    tipo=TipoMovimientoCaja.INGRESO,
-                    monto=monto,
-                    moneda=Moneda.ARS,
-                    fecha=fecha_cierre,
-                    descripcion=f'Cierre turno #{self.numero} — {medio_label}',
-                    referencia=f'Turno #{self.numero}',
-                    origen=OrigenMovimiento.AJUSTE,
-                    origen_app='caja',
-                    origen_id=self.pk,
-                    creado_por=usuario,
-                )
+            # ── 2. Resto de medios de pago: YA NO se tocan acá. Desde que
+            #      sincronizar_movimiento_venta() postea cada pago no
+            #      efectivo a caja grande en el momento de confirmar la
+            #      venta (ver caja/models.py), volver a acreditarlos acá
+            #      los duplicaría. El cierre de turno solo liquida lo
+            #      único que de verdad necesita esperar: el efectivo,
+            #      porque recién ahí existe un conteo físico contra el
+            #      cual conciliar.
 
 
 class CajaFisicaTurno(models.Model):
@@ -834,19 +876,30 @@ class CajaFisicaTurno(models.Model):
 
 class Gasto(models.Model):
     """
-    Registro de gastos operativos (alquiler, mecánico, luz, etc.).
-    
-    Cada gasto genera automáticamente un MovimientoCaja en la caja grande
-    como egreso manual. Al editar/eliminar el gasto, se sincroniza el
+    Movimiento manual de caja grande: ingreso o egreso libre (sueldo,
+    herencia, regalo, alquiler, mecánico, luz, etc. — la descripción
+    queda libre a propósito, no hay catálogo de categorías).
+
+    El nombre de la clase quedó como "Gasto" por compatibilidad con
+    el resto del código (tabla, permisos, FKs) aunque ahora también
+    representa ingresos — ver `tipo`. Cada instancia genera un
+    MovimientoCaja en la caja grande contra la `cuenta` elegida
+    (nunca forzado a Efectivo). Al editar/eliminar, se sincroniza el
     movimiento de caja correspondiente.
     """
-    
-    fecha = models.DateField(help_text='Fecha del gasto')
-    hora = models.TimeField(help_text='Hora del gasto (automática)')
+
+    tipo = models.CharField(max_length=10, choices=TipoMovimientoCaja.choices,
+               default=TipoMovimientoCaja.EGRESO)
+    cuenta = models.ForeignKey(CuentaCaja, on_delete=models.PROTECT,
+                 related_name='gastos',
+                 help_text='Cuenta que se acredita o debita con este movimiento.')
+
+    fecha = models.DateField(help_text='Fecha del movimiento')
+    hora = models.TimeField(help_text='Hora del movimiento (automática)')
     monto = models.DecimalField(max_digits=14, decimal_places=2)
     moneda = models.CharField(max_length=5, choices=Moneda.choices, default=Moneda.ARS)
-    descripcion = models.CharField(max_length=300, help_text='Descripción del gasto (ej: alquiler, mecánico, luz)')
-    
+    descripcion = models.CharField(max_length=300, help_text='Ej: alquiler, mecánico, luz, sueldo, herencia, regalo')
+
     # ── Auditoría ────────────────────────────────────────────────
     creado_por = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
@@ -854,14 +907,15 @@ class Gasto(models.Model):
     )
     fecha_alta = models.DateTimeField(auto_now_add=True)
     fecha_modificacion = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
-        verbose_name = 'Gasto'
-        verbose_name_plural = 'Gastos'
+        verbose_name = 'Ingreso o egreso manual'
+        verbose_name_plural = 'Ingresos y egresos manuales'
         ordering = ['-fecha', '-hora']
-    
+
     def __str__(self):
-        return f'{self.descripcion} - {self.monto} {self.moneda} ({self.fecha})'
+        signo = '+' if self.tipo == TipoMovimientoCaja.INGRESO else '-'
+        return f'{signo}{self.monto} {self.moneda} — {self.descripcion} ({self.fecha})'
     
     def save(self, *args, **kwargs):
         is_new = self.pk is None
@@ -890,10 +944,12 @@ class Gasto(models.Model):
 @transaction.atomic
 def sincronizar_movimiento_gasto(gasto):
     """
-    Sincroniza el MovimientoCaja asociado a un Gasto.
-    
-    - Si el gasto existe: crea/actualiza el movimiento de caja como egreso
-    - Si el gasto se elimina: borra el movimiento de caja asociado
+    Sincroniza el MovimientoCaja asociado a un Gasto (ingreso o egreso
+    manual) con su cuenta y tipo actuales.
+
+    - Si el gasto existe: crea/actualiza el movimiento de caja contra
+      `gasto.cuenta`, como ingreso o egreso según `gasto.tipo`.
+    - Si el gasto se elimina: borra el movimiento de caja asociado.
     """
     # Buscar movimiento existente asociado a este gasto
     movimiento = MovimientoCaja.objects.filter(
@@ -901,23 +957,24 @@ def sincronizar_movimiento_gasto(gasto):
         origen_app='caja',
         origen_id=gasto.pk,
     ).first()
-    
+
     # Si el gasto ya no existe (se está borrando), eliminar el movimiento
     if not Gasto.objects.filter(pk=gasto.pk).exists():
         if movimiento:
             movimiento.delete()
         return
-    
+
     # Crear o actualizar el movimiento
     moneda = gasto.moneda
-    cuenta = _cuenta_default(moneda=moneda, caja=TipoCaja.GRANDE)
-    concepto = _concepto_default('Gasto', TipoMovimientoCaja.EGRESO)
-    
+    cuenta = gasto.cuenta
+    nombre_concepto = 'Ingreso' if gasto.tipo == TipoMovimientoCaja.INGRESO else 'Gasto'
+    concepto = _concepto_default(nombre_concepto, gasto.tipo)
+
     if movimiento:
         # Actualizar movimiento existente
         movimiento.cuenta = cuenta
         movimiento.concepto = concepto
-        movimiento.tipo = TipoMovimientoCaja.EGRESO
+        movimiento.tipo = gasto.tipo
         movimiento.monto = gasto.monto
         movimiento.moneda = moneda
         movimiento.fecha = gasto.fecha
@@ -929,7 +986,7 @@ def sincronizar_movimiento_gasto(gasto):
             caja = TipoCaja.GRANDE,
             cuenta = cuenta,
             concepto = concepto,
-            tipo = TipoMovimientoCaja.EGRESO,
+            tipo = gasto.tipo,
             monto = gasto.monto,
             moneda = moneda,
             fecha = gasto.fecha,
@@ -939,6 +996,350 @@ def sincronizar_movimiento_gasto(gasto):
             origen_app = 'caja',
             origen_id = gasto.pk,
             creado_por = gasto.creado_por,
+        )
+
+
+# ══════════════════════════════════════════════════════════════════
+#  DEUDAS (créditos con tarjeta y préstamos)
+#
+#  Una Deuda es dinero que el negocio debe pagar (compra a crédito) o
+#  ya recibió y debe devolver (préstamo). Se paga/devuelve en cuotas
+#  (CuotaDeuda), cada una con su propia fecha de vencimiento. Nada
+#  impacta la caja grande hasta que la cuota se confirma a mano — ni
+#  siquiera al vencer la fecha (no hay débito automático).
+#
+#  Compra a crédito: nace desde compras._crear_deudas_desde_pagos()
+#  cuando una línea de PagoCompra usa medio=CREDITO, o se carga manual
+#  acá mismo para gastos con tarjeta que no son mercadería (ej. una
+#  notebook). No genera movimiento propio al crearse — el costo real
+#  ya quedó reflejado en la Compra (si la hay); acá solo se generan
+#  egresos a medida que se confirman las cuotas.
+#
+#  Préstamo: genera un ingreso inmediato en `cuenta_acreditacion` al
+#  crearse (el dinero ya entró), y luego un egreso por cada cuota de
+#  devolución confirmada.
+# ══════════════════════════════════════════════════════════════════
+
+class TipoDeuda(models.TextChoices):
+    COMPRA_CREDITO = 'compra_credito', 'Compra con tarjeta de crédito'
+    PRESTAMO       = 'prestamo',       'Préstamo'
+
+
+class EstadoDeuda(models.TextChoices):
+    ACTIVA  = 'activa',  'Activa'
+    ANULADA = 'anulada', 'Anulada'
+
+
+class EstadoCuota(models.TextChoices):
+    PENDIENTE  = 'pendiente',  'Pendiente'
+    CONFIRMADA = 'confirmada', 'Confirmada'
+    ANULADA    = 'anulada',    'Anulada'
+
+
+def _sumar_meses(fecha, n):
+    """
+    Suma `n` meses a una fecha, clampeando el día si el mes de destino
+    es más corto (ej: 31/01 + 1 mes → 28/02, no 03/03).
+    """
+    import calendar
+
+    mes_total = fecha.month - 1 + n
+    anio = fecha.year + mes_total // 12
+    mes  = mes_total % 12 + 1
+    dia  = min(fecha.day, calendar.monthrange(anio, mes)[1])
+    return fecha.replace(year=anio, month=mes, day=dia)
+
+
+class Deuda(models.Model):
+    """
+    Cabecera de una deuda (compra a crédito o préstamo). El detalle de
+    pago vive en CuotaDeuda — ver comentario de sección más arriba.
+    """
+
+    tipo = models.CharField(max_length=20, choices=TipoDeuda.choices)
+
+    # — Origen (compra a crédito desde el checkout de Compras) —
+    pago_compra = models.OneToOneField(
+        'compras.PagoCompra', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='deuda',
+        help_text='Solo si esta deuda nació de una línea de pago con tarjeta en una compra.',
+    )
+    descripcion = models.CharField(max_length=300, blank=True,
+                      help_text='Obligatoria si no viene de una compra (ej: "Notebook oficina", "Préstamo Banco Nación").')
+
+    # — Cuentas involucradas —
+    cuenta_tarjeta = models.ForeignKey(
+        CuentaCaja, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='deudas_tarjeta',
+        help_text='Tarjeta (CuentaCaja con es_credito=True) usada. Solo para compra_credito.',
+    )
+    cuenta_acreditacion = models.ForeignKey(
+        CuentaCaja, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='deudas_acreditadas',
+        help_text='Cuenta que recibe el dinero del préstamo. Solo para prestamo.',
+    )
+
+    monto_original     = models.DecimalField(max_digits=14, decimal_places=2,
+                              help_text='Capital, sin interés.')
+    porcentaje_interes  = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    moneda              = models.CharField(max_length=5, choices=Moneda.choices, default=Moneda.ARS)
+    cantidad_cuotas     = models.PositiveSmallIntegerField()
+    fecha_inicio        = models.DateField(help_text='Vencimiento de la primera cuota. Las siguientes son mensuales a partir de acá.')
+
+    estado = models.CharField(max_length=10, choices=EstadoDeuda.choices, default=EstadoDeuda.ACTIVA)
+    notas  = models.CharField(max_length=300, blank=True)
+
+    creado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='deudas_creadas',
+    )
+    fecha_alta         = models.DateTimeField(auto_now_add=True)
+    fecha_modificacion = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name        = 'Deuda'
+        verbose_name_plural = 'Deudas'
+        ordering             = ['-fecha_alta']
+
+    def __str__(self):
+        return f'{self.get_tipo_display()} — {self.descripcion or self.pk} ({self.monto_total} {self.moneda})'
+
+    @property
+    def monto_total(self):
+        """Suma de las cuotas ya generadas (capital + interés). No se cachea."""
+        return self.cuotas.aggregate(total=models.Sum('monto'))['total'] or Decimal('0')
+
+    @property
+    def cuotas_pagadas(self):
+        return self.cuotas.filter(estado=EstadoCuota.CONFIRMADA).count()
+
+    @property
+    def saldo_pendiente(self):
+        return self.cuotas.filter(estado=EstadoCuota.PENDIENTE).aggregate(
+            total=models.Sum('monto'))['total'] or Decimal('0')
+
+    @classmethod
+    @transaction.atomic
+    def crear_con_cuotas(cls, *, tipo, monto_original, porcentaje_interes, cantidad_cuotas,
+                          fecha_inicio, moneda=Moneda.ARS, descripcion='', notas='',
+                          pago_compra=None, cuenta_tarjeta=None, cuenta_acreditacion=None,
+                          creado_por=None):
+        """
+        Crea la Deuda y su plan de cuotas. Si tipo=PRESTAMO, además
+        genera de inmediato el ingreso a `cuenta_acreditacion`.
+        """
+        if cantidad_cuotas < 1:
+            raise ValueError('La cantidad de cuotas debe ser al menos 1.')
+        if monto_original <= 0:
+            raise ValueError('El monto debe ser mayor a 0.')
+        if tipo == TipoDeuda.COMPRA_CREDITO and not cuenta_tarjeta:
+            raise ValueError('Elegí la tarjeta con la que se pagó.')
+        if tipo == TipoDeuda.PRESTAMO and not cuenta_acreditacion:
+            raise ValueError('Elegí la cuenta que recibe el préstamo.')
+        if not pago_compra and not descripcion:
+            raise ValueError('La descripción es obligatoria cuando la deuda no viene de una compra.')
+
+        deuda = cls.objects.create(
+            tipo=tipo, pago_compra=pago_compra, descripcion=descripcion,
+            cuenta_tarjeta=cuenta_tarjeta, cuenta_acreditacion=cuenta_acreditacion,
+            monto_original=monto_original, porcentaje_interes=porcentaje_interes,
+            moneda=moneda, cantidad_cuotas=cantidad_cuotas, fecha_inicio=fecha_inicio,
+            notas=notas, creado_por=creado_por,
+        )
+        generar_cuotas(deuda)
+
+        if tipo == TipoDeuda.PRESTAMO:
+            sincronizar_movimiento_deuda(deuda)
+
+        return deuda
+
+    @transaction.atomic
+    def anular(self):
+        if self.estado == EstadoDeuda.ANULADA:
+            raise ValueError('La deuda ya está anulada.')
+        if self.cuotas.filter(estado=EstadoCuota.CONFIRMADA).exists():
+            raise ValueError('No se puede anular: ya hay cuotas confirmadas de esta deuda.')
+
+        self.estado = EstadoDeuda.ANULADA
+        self.save(update_fields=['estado'])
+        self.cuotas.filter(estado=EstadoCuota.PENDIENTE).update(estado=EstadoCuota.ANULADA)
+
+        sincronizar_movimiento_deuda(self)
+
+    def delete(self, *args, **kwargs):
+        if self.cuotas.filter(estado=EstadoCuota.CONFIRMADA).exists():
+            raise ValueError('No se puede eliminar: ya hay cuotas confirmadas de esta deuda.')
+        with transaction.atomic():
+            movimiento = MovimientoCaja.objects.filter(
+                origen=OrigenMovimiento.DEUDA, origen_app='caja', origen_id=self.pk,
+            ).first()
+            if movimiento:
+                movimiento.delete()
+            super().delete(*args, **kwargs)
+
+
+DIAS_HABILITACION_CUOTA = 2
+
+
+class CuotaDeuda(models.Model):
+    """
+    Una cuota del plan de pago/devolución de una Deuda. Se habilita
+    para confirmar recién DIAS_HABILITACION_CUOTA días antes de su
+    vencimiento (no tiene sentido habilitarla el mismo día) — una vez
+    habilitada, sigue estándolo aunque se pase la fecha.
+    """
+
+    deuda   = models.ForeignKey(Deuda, on_delete=models.CASCADE, related_name='cuotas')
+    numero  = models.PositiveSmallIntegerField()
+    monto   = models.DecimalField(max_digits=14, decimal_places=2)
+    fecha_vencimiento = models.DateField()
+
+    estado  = models.CharField(max_length=10, choices=EstadoCuota.choices, default=EstadoCuota.PENDIENTE)
+    cuenta_pago = models.ForeignKey(
+        CuentaCaja, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='cuotas_pagadas',
+        help_text='Cuenta real (banco/efectivo) de donde sale la plata al confirmar. Nunca una tarjeta.',
+    )
+    fecha_confirmacion = models.DateTimeField(null=True, blank=True)
+    confirmado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='cuotas_deuda_confirmadas',
+    )
+
+    class Meta:
+        verbose_name        = 'Cuota de deuda'
+        verbose_name_plural = 'Cuotas de deuda'
+        ordering            = ['deuda', 'numero']
+        unique_together     = [('deuda', 'numero')]
+
+    def __str__(self):
+        return f'{self.deuda} — cuota {self.numero}/{self.deuda.cantidad_cuotas}'
+
+    @property
+    def habilitada(self):
+        """True desde DIAS_HABILITACION_CUOTA días antes del vencimiento en adelante."""
+        return timezone.now().date() >= self.fecha_vencimiento - timedelta(days=DIAS_HABILITACION_CUOTA)
+
+    @transaction.atomic
+    def confirmar(self, cuenta_pk, usuario):
+        if self.estado != EstadoCuota.PENDIENTE:
+            raise ValueError('Solo se pueden confirmar cuotas pendientes.')
+        if not self.habilitada:
+            fecha_habilitacion = self.fecha_vencimiento - timedelta(days=DIAS_HABILITACION_CUOTA)
+            raise ValueError(
+                f'Esta cuota se habilita para pagar a partir del {fecha_habilitacion.strftime("%d/%m/%Y")}.'
+            )
+
+        cuenta = CuentaCaja.objects.filter(
+            pk=cuenta_pk, caja=TipoCaja.GRANDE, activa=True,
+            es_credito=False, moneda=self.deuda.moneda,
+        ).first()
+        if not cuenta:
+            raise ValueError('Elegí una cuenta válida para pagar la cuota.')
+
+        self.cuenta_pago = cuenta
+        self.estado = EstadoCuota.CONFIRMADA
+        self.fecha_confirmacion = timezone.now()
+        self.confirmado_por = usuario
+        self.save(update_fields=['cuenta_pago', 'estado', 'fecha_confirmacion', 'confirmado_por'])
+
+        sincronizar_movimiento_cuota(self)
+
+
+def generar_cuotas(deuda):
+    """
+    Genera el plan de CuotaDeuda de una Deuda recién creada: interés
+    simple sobre el monto original, repartido en partes iguales entre
+    `cantidad_cuotas` (la última absorbe el resto del redondeo).
+    """
+    monto_total = (deuda.monto_original * (Decimal('1') + deuda.porcentaje_interes / Decimal('100'))) \
+        .quantize(Decimal('0.01'))
+    cuota_base = (monto_total / deuda.cantidad_cuotas).quantize(Decimal('0.01'))
+
+    acumulado = Decimal('0')
+    for i in range(1, deuda.cantidad_cuotas + 1):
+        if i < deuda.cantidad_cuotas:
+            monto_cuota = cuota_base
+            acumulado += monto_cuota
+        else:
+            monto_cuota = monto_total - acumulado
+
+        CuotaDeuda.objects.create(
+            deuda=deuda, numero=i, monto=monto_cuota,
+            fecha_vencimiento=_sumar_meses(deuda.fecha_inicio, i - 1),
+        )
+
+
+@transaction.atomic
+def sincronizar_movimiento_deuda(deuda):
+    """
+    Sincroniza el MovimientoCaja de acreditación de un préstamo (no
+    aplica a compra_credito, que nunca genera movimiento propio — solo
+    sus cuotas lo hacen).
+    """
+    movimiento = MovimientoCaja.objects.filter(
+        origen=OrigenMovimiento.DEUDA, origen_app='caja', origen_id=deuda.pk,
+    ).first()
+
+    if deuda.tipo != TipoDeuda.PRESTAMO or deuda.estado != EstadoDeuda.ACTIVA:
+        if movimiento:
+            movimiento.delete()
+        return
+
+    concepto = _concepto_default('Préstamo recibido', TipoMovimientoCaja.INGRESO)
+
+    if movimiento:
+        movimiento.cuenta = deuda.cuenta_acreditacion
+        movimiento.concepto = concepto
+        movimiento.tipo = TipoMovimientoCaja.INGRESO
+        movimiento.monto = deuda.monto_original
+        movimiento.moneda = deuda.moneda
+        movimiento.fecha = deuda.fecha_alta.date()
+        movimiento.descripcion = f'Préstamo — {deuda.descripcion}'
+        movimiento.save()
+    else:
+        MovimientoCaja.objects.create(
+            caja=TipoCaja.GRANDE, cuenta=deuda.cuenta_acreditacion, concepto=concepto,
+            tipo=TipoMovimientoCaja.INGRESO, monto=deuda.monto_original, moneda=deuda.moneda,
+            fecha=deuda.fecha_alta.date(), descripcion=f'Préstamo — {deuda.descripcion}',
+            referencia=f'Deuda #{deuda.pk}', origen=OrigenMovimiento.DEUDA,
+            origen_app='caja', origen_id=deuda.pk, creado_por=deuda.creado_por,
+        )
+
+
+@transaction.atomic
+def sincronizar_movimiento_cuota(cuota):
+    """Sincroniza el MovimientoCaja (egreso) de una CuotaDeuda con su estado actual."""
+    movimiento = MovimientoCaja.objects.filter(
+        origen=OrigenMovimiento.CUOTA_DEUDA, origen_app='caja', origen_id=cuota.pk,
+    ).first()
+
+    if cuota.estado != EstadoCuota.CONFIRMADA:
+        if movimiento:
+            movimiento.delete()
+        return
+
+    deuda = cuota.deuda
+    entidad = deuda.descripcion or (deuda.cuenta_tarjeta.nombre if deuda.cuenta_tarjeta else '')
+    concepto = _concepto_default('Pago de cuota (deuda)', TipoMovimientoCaja.EGRESO)
+    descripcion = f'Cuota {cuota.numero}/{deuda.cantidad_cuotas} — {entidad}'.strip(' —')
+
+    if movimiento:
+        movimiento.cuenta = cuota.cuenta_pago
+        movimiento.concepto = concepto
+        movimiento.tipo = TipoMovimientoCaja.EGRESO
+        movimiento.monto = cuota.monto
+        movimiento.moneda = deuda.moneda
+        movimiento.fecha = cuota.fecha_confirmacion.date()
+        movimiento.descripcion = descripcion
+        movimiento.save()
+    else:
+        MovimientoCaja.objects.create(
+            caja=TipoCaja.GRANDE, cuenta=cuota.cuenta_pago, concepto=concepto,
+            tipo=TipoMovimientoCaja.EGRESO, monto=cuota.monto, moneda=deuda.moneda,
+            fecha=cuota.fecha_confirmacion.date(), descripcion=descripcion,
+            referencia=f'Deuda #{deuda.pk}', origen=OrigenMovimiento.CUOTA_DEUDA,
+            origen_app='caja', origen_id=cuota.pk, creado_por=cuota.confirmado_por,
         )
 
 

@@ -2,12 +2,11 @@
 #  views_transacciones.py
 #  AJAX views para el módulo de Transacciones de Caja Grande.
 #
-#  Estrategia de cuentas:
-#  En vez de requerir que el usuario administre CuentaCaja
-#  individualmente, el formulario expone contenedores fijos
-#  (Efectivo ARS, Banco ARS, Efectivo USD, etc.) y el backend
-#  resuelve la CuentaCaja correspondiente con get_or_create.
-#  Esto evita la necesidad de un CRUD de cuentas por ahora.
+#  El usuario elige directamente las CuentaCaja reales (origen y
+#  destino) que ya carga desde Configuración — no hay contenedores
+#  fijos ni get_or_create automático acá. Se excluyen las cuentas de
+#  crédito: una transacción mueve plata real entre cuentas, y una
+#  tarjeta de crédito no tiene "saldo disponible" para mover.
 # ══════════════════════════════════════════════════════════════════
 
 import json
@@ -24,59 +23,26 @@ from .models import (
     TransaccionCaja,
     TipoTransaccion,
     TipoCaja,
-    TipoCuenta,
+    CUENTA_EFECTIVO_DEFAULT_NOMBRE,
+    asegurar_cuentas_efectivo,
 )
-from productos.models import Moneda
 
 
-# ──────────────────────────────────────────────────────────────────
-#  Contenedores disponibles (fijos, sin gestión manual)
-# ──────────────────────────────────────────────────────────────────
-
-# Cada contenedor tiene una clave única que el frontend envía,
-# y se mapea a (tipo_cuenta, moneda, nombre_legible).
-# Mapa de contenedores: clave → (tipo_cuenta, moneda, nombre_en_db, label_frontend)
-#
-# CRÍTICO: nombre_en_db para 'efectivo_*' debe ser exactamente 'Efectivo' —
-# el mismo valor de CUENTA_EFECTIVO_DEFAULT_NOMBRE en models.py — para que
-# las transacciones y los movimientos de ventas/compras/turnos compartan
-# la misma CuentaCaja y aparezcan en el mismo balance.
-# Los bancos usan 'Banco' como nombre base; no tienen default en models.py
-# así que cualquier nombre consistente sirve.
-
-CONTENEDORES = {
-    'efectivo_ars': (TipoCuenta.EFECTIVO, Moneda.ARS, 'Efectivo', 'Efectivo ARS'),
-    'banco_ars':    (TipoCuenta.BANCO,    Moneda.ARS, 'Banco',    'Banco ARS'),
-    'efectivo_usd': (TipoCuenta.EFECTIVO, Moneda.USD, 'Efectivo', 'Efectivo USD'),
-    'banco_usd':    (TipoCuenta.BANCO,    Moneda.USD, 'Banco',    'Banco USD'),
-    'efectivo_eur': (TipoCuenta.EFECTIVO, Moneda.EUR, 'Efectivo', 'Efectivo EUR'),
-    'banco_eur':    (TipoCuenta.BANCO,    Moneda.EUR, 'Banco',    'Banco EUR'),
-}
-
-# Monedas de cada contenedor (para validaciones rápidas)
-_MONEDA_DE = {k: v[1] for k, v in CONTENEDORES.items()}
-
-
-def _resolver_cuenta(clave: str) -> CuentaCaja:
-    """
-    Dado un contenedor (ej: 'efectivo_ars'), devuelve la CuentaCaja
-    correspondiente, creándola si no existe todavía.
-
-    Busca por (nombre_en_db, moneda, caja) para coincidir con la cuenta
-    que ya crea _cuenta_default() en models.py al registrar ventas y turnos.
-    """
-    tipo, moneda, nombre_db, _ = CONTENEDORES[clave]
-    cuenta, _ = CuentaCaja.objects.get_or_create(
-        nombre=nombre_db,
-        caja=TipoCaja.GRANDE,
-        moneda=moneda,
-        defaults={
-            'tipo':   tipo,
-            'activa': True,
-            'orden':  list(CONTENEDORES.keys()).index(clave),
-        },
+def _cuentas_disponibles():
+    """Cuentas de caja grande utilizables en una transacción (sin crédito)."""
+    asegurar_cuentas_efectivo(caja=TipoCaja.GRANDE)
+    return (
+        CuentaCaja.objects
+        .filter(caja=TipoCaja.GRANDE, activa=True, es_credito=False)
+        .order_by('orden', 'nombre')
     )
-    return cuenta
+
+
+def _resolver_cuenta(pk):
+    """Devuelve la CuentaCaja si es válida para transacciones, o None."""
+    if not pk:
+        return None
+    return _cuentas_disponibles().filter(pk=pk).first()
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -132,11 +98,16 @@ class TransaccionesPageView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        # Pasamos los contenedores al template para que el JS los use
-        ctx['contenedores'] = [
-            {'clave': k, 'label': v[3], 'moneda': v[1]}
-            for k, v in CONTENEDORES.items()
-        ]
+        ctx['cuentas_json'] = json.dumps([
+            {
+                'pk': c.pk,
+                'nombre': c.nombre,
+                'moneda': c.moneda,
+                'es_efectivo': c.nombre == CUENTA_EFECTIVO_DEFAULT_NOMBRE,
+                'saldo': str(c.saldo),
+            }
+            for c in _cuentas_disponibles()
+        ])
         return ctx
 
 
@@ -149,8 +120,6 @@ class CalcularTransaccionAjax(LoginRequiredMixin, View):
     POST /caja/transacciones/calcular/
     {
         "tipo":           "compra_divisa",
-        "contenedor_origen":  "efectivo_ars",
-        "contenedor_destino": "efectivo_usd",
         "monto_origen":   15000,
         "tipo_cambio":    1200,
         "costo_extra":    450
@@ -208,8 +177,8 @@ class CrearTransaccionAjax(LoginRequiredMixin, View):
     POST /caja/transacciones/crear/
     {
         "tipo":                "compra_divisa",
-        "contenedor_origen":   "efectivo_ars",
-        "contenedor_destino":  "efectivo_usd",
+        "cuenta_origen_pk":    3,
+        "cuenta_destino_pk":   7,
         "monto_origen":        15000,
         "tipo_cambio":         1200,
         "costo_extra":         450,
@@ -231,20 +200,19 @@ class CrearTransaccionAjax(LoginRequiredMixin, View):
         if tipo not in TipoTransaccion.values:
             return _json_error('Tipo de transacción inválido.')
 
-        # ── Contenedores ──────────────────────────────────────────
-        clave_origen  = data.get('contenedor_origen', '')
-        clave_destino = data.get('contenedor_destino', '')
+        # ── Cuentas ───────────────────────────────────────────────
+        cuenta_origen = _resolver_cuenta(data.get('cuenta_origen_pk'))
+        cuenta_destino = _resolver_cuenta(data.get('cuenta_destino_pk'))
 
-        if clave_origen not in CONTENEDORES:
-            return _json_error('Contenedor origen inválido.')
-        if clave_destino not in CONTENEDORES:
-            return _json_error('Contenedor destino inválido.')
-        if clave_origen == clave_destino:
-            return _json_error('El origen y el destino no pueden ser el mismo.')
+        if not cuenta_origen:
+            return _json_error('Elegí una cuenta de origen válida.')
+        if not cuenta_destino:
+            return _json_error('Elegí una cuenta de destino válida.')
+        if cuenta_origen.pk == cuenta_destino.pk:
+            return _json_error('El origen y el destino no pueden ser la misma cuenta.')
 
-        # Validar monedas según tipo
-        moneda_origen  = _MONEDA_DE[clave_origen]
-        moneda_destino = _MONEDA_DE[clave_destino]
+        moneda_origen  = cuenta_origen.moneda
+        moneda_destino = cuenta_destino.moneda
 
         if tipo in (TipoTransaccion.DEPOSITO, TipoTransaccion.EXTRACCION):
             if moneda_origen != moneda_destino:
@@ -252,6 +220,18 @@ class CrearTransaccionAjax(LoginRequiredMixin, View):
                     f'Para {TipoTransaccion(tipo).label} el origen y destino '
                     f'deben ser de la misma moneda.'
                 )
+
+        if tipo == TipoTransaccion.DEPOSITO:
+            if cuenta_origen.nombre != CUENTA_EFECTIVO_DEFAULT_NOMBRE:
+                return _json_error('Un depósito sale de la cuenta Efectivo.')
+            if cuenta_destino.nombre == CUENTA_EFECTIVO_DEFAULT_NOMBRE:
+                return _json_error('El destino de un depósito no puede ser Efectivo.')
+
+        if tipo == TipoTransaccion.EXTRACCION:
+            if cuenta_origen.nombre == CUENTA_EFECTIVO_DEFAULT_NOMBRE:
+                return _json_error('El origen de una extracción no puede ser Efectivo.')
+            if cuenta_destino.nombre != CUENTA_EFECTIVO_DEFAULT_NOMBRE:
+                return _json_error('Una extracción entra a la cuenta Efectivo.')
 
         if tipo in (TipoTransaccion.COMPRA_DIVISA, TipoTransaccion.VENTA_DIVISA):
             if moneda_origen == moneda_destino:
@@ -298,15 +278,17 @@ class CrearTransaccionAjax(LoginRequiredMixin, View):
         except ValueError:
             return _json_error('Fecha inválida. Usar formato YYYY-MM-DD.')
 
-        # ── Resolver cuentas (get_or_create) ──────────────────────
-        cuenta_origen  = _resolver_cuenta(clave_origen)
-        cuenta_destino = _resolver_cuenta(clave_destino)
-
-        # NOTA: La validación de saldo está deshabilitada intencionalmente.
-        # Las cuentas de CuentaCaja (caja grande) todavía no están sincronizadas
-        # automáticamente con los movimientos de caja diaria (ventas/compras),
-        # por lo que el saldo calculado no refleja la realidad.
-        # Se habilitará cuando exista esa sincronización.
+        # ── Saldo suficiente ──────────────────────────────────────
+        # Chequeo justo antes de crear, para achicar la ventana de
+        # concurrencia (dos transacciones cargándose casi al mismo
+        # tiempo podrían igual dejar el saldo en negativo, pero no
+        # hay uso concurrente real en este sistema).
+        total_a_debitar = monto_origen + (costo_extra or Decimal('0'))
+        if cuenta_origen.saldo < total_a_debitar:
+            return _json_error(
+                f'Saldo insuficiente en {cuenta_origen.nombre}: '
+                f'disponible {cuenta_origen.saldo}, se necesitan {total_a_debitar}.'
+            )
 
         # ── Crear ─────────────────────────────────────────────────
         transaccion = TransaccionCaja.objects.create(

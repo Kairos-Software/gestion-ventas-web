@@ -150,16 +150,24 @@ document.addEventListener('DOMContentLoaded', function () {
         cuentasGrid.innerHTML = cuentas.map(cuenta => {
             const esNegativo = parseFloat(cuenta.saldo) < 0;
             const icono = ICONOS_TIPO_CUENTA[cuenta.tipo] || ICONOS_TIPO_CUENTA.otra;
+            const detalle = [
+                cuenta.terminada_en ? `term. en ${cuenta.terminada_en}` : null,
+                cuenta.titular || null,
+            ].filter(Boolean).join(' · ');
             return `
                 <div class="cg-cuenta-card">
                     <div class="cg-cuenta-icon">
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">${icono}</svg>
                     </div>
                     <div class="cg-cuenta-info">
-                        <div class="cg-cuenta-nombre">${cuenta.nombre}</div>
+                        <div class="cg-cuenta-nombre">
+                            <span class="cg-cuenta-nombre-texto">${cuenta.nombre}</span>
+                            ${cuenta.es_credito ? '<span class="cg-cuenta-badge">Crédito</span>' : ''}
+                        </div>
                         <div class="cg-cuenta-saldo ${esNegativo ? 'cg-cuenta-saldo--negativo' : ''}">
                             ${formatMonto(cuenta.saldo, monedaActual)}
                         </div>
+                        ${detalle ? `<div class="cg-cuenta-detalle">${detalle}</div>` : ''}
                     </div>
                 </div>
             `;

@@ -10,9 +10,10 @@ from django.utils import timezone
 
 from django.db.models import Q
 
-from productos.models import Producto, Proveedor, CombinacionVariante
-from .models import Compra, ItemCompra, EstadoCompra
+from productos.models import Producto, Proveedor, CombinacionVariante, ListaDescuento
+from .models import Compra, ItemCompra, EstadoCompra, MedioPagoCompra
 from core.permisos import chequear_permiso
+from caja.models import CuentaCaja, TipoCaja
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -36,6 +37,11 @@ class NuevaCompraView(LoginRequiredMixin, TemplateView):
             return ctx
         ctx['puede_crear'] = True
         ctx['today'] = timezone.now().date().isoformat()
+
+        ctx['listas_descuento'] = [
+            {'nombre': l.nombre, 'porcentaje': str(l.porcentaje)}
+            for l in ListaDescuento.objects.filter(activa=True).order_by('orden', 'nombre')
+        ]
 
         ctx['editing_pk'] = None
         ctx['items_json'] = []
@@ -61,6 +67,7 @@ class NuevaCompraView(LoginRequiredMixin, TemplateView):
                         'costo':            str(item.costo_unitario),
                         'moneda':           item.moneda,
                         'descuento':        str(item.descuento_pct),
+                        'lista_descuento_nombre': item.lista_descuento_nombre,
                         'condicion':        item.condicion_pago,
                         'referencia':       item.referencia,
                         'fecha_vencimiento': item.fecha_vencimiento.strftime('%Y-%m-%d') if item.fecha_vencimiento else '',
@@ -387,6 +394,7 @@ class GuardarBorradorAjax(LoginRequiredMixin, View):
                 costo_unitario = costo_unitario,
                 moneda         = raw.get('moneda', 'ARS'),
                 descuento_pct  = descuento_pct,
+                lista_descuento_nombre = raw.get('lista_descuento_nombre', ''),
                 condicion_pago = raw.get('condicion_pago', 'contado'),
                 referencia     = raw.get('referencia', ''),
                 notas          = raw.get('notas', ''),
@@ -514,6 +522,7 @@ class ActualizarBorradorAjax(LoginRequiredMixin, View):
                 producto=producto, proveedor=proveedor, combinacion=combinacion,
                 cantidad=cantidad, costo_unitario=costo_unitario,
                 moneda=raw.get('moneda', 'ARS'), descuento_pct=descuento_pct,
+                lista_descuento_nombre=raw.get('lista_descuento_nombre', ''),
                 condicion_pago=raw.get('condicion_pago', 'contado'),
                 referencia=raw.get('referencia', ''), notas=raw.get('notas', ''),
                 fecha_vencimiento=fecha_vencimiento,
@@ -549,15 +558,22 @@ class ConfirmarCompraAjax(LoginRequiredMixin, View):
     """
     POST JSON:
     {
-        "compra_pk": 42,
-        "fecha":     "2025-01-15",
-        "notas":     "..."
+        "compra_pk":  42,
+        "fecha":      "2025-01-15",
+        "notas":      "...",
+        "medio_pago": "efectivo",          // medio principal (el primero de "pagos")
+        "pagos": [                          // pago dividido (o único)
+            {"medio": "efectivo",      "monto": 3000, "cuenta_pk": 1},
+            {"medio": "transferencia", "monto": 999.97, "cuenta_pk": 5}
+        ]
     }
 
     1. Carga el borrador existente.
     2. Actualiza fecha y notas con editar_cabecera().
-    3. Llama a compra.confirmar() → suma stock, calcula total, pasa a CONFIRMADA.
-    4. Devuelve { ok, pk, numero, total }.
+    3. Valida que la suma de "pagos" cubra el total.
+    4. Llama a compra.confirmar(medio_pago, pagos) → suma stock,
+       calcula total, resuelve las cuentas de pago, pasa a CONFIRMADA.
+    5. Devuelve { ok, pk, numero, total }.
     """
 
     def post(self, request):
@@ -569,8 +585,9 @@ class ConfirmarCompraAjax(LoginRequiredMixin, View):
         except json.JSONDecodeError:
             return JsonResponse({'error': 'JSON inválido.'}, status=400)
 
-        compra_pk = body.get('compra_pk')
-        fecha     = body.get('fecha', '').strip()
+        compra_pk  = body.get('compra_pk')
+        fecha      = body.get('fecha', '').strip()
+        pagos_raw  = body.get('pagos')
 
         if not compra_pk:
             return JsonResponse({'error': 'compra_pk requerido.'}, status=400)
@@ -585,15 +602,58 @@ class ConfirmarCompraAjax(LoginRequiredMixin, View):
                 status=400
             )
 
+        valores_validos = MedioPagoCompra.values
+
+        # ── Validar pagos ──
+        if not pagos_raw:
+            return JsonResponse({'error': 'Agregá al menos un medio de pago con monto.'}, status=400)
+
+        pagos_normalizados = []
+        suma = Decimal('0')
+        for p in pagos_raw:
+            medio_p = p.get('medio', '').strip()
+            if medio_p not in valores_validos:
+                return JsonResponse({'error': f'Medio de pago inválido en pagos: {medio_p}'}, status=400)
+            try:
+                monto_p = Decimal(str(p.get('monto', 0)))
+            except Exception:
+                return JsonResponse({'error': 'Monto de pago inválido.'}, status=400)
+            if monto_p <= 0:
+                continue
+            suma += monto_p
+            linea = {
+                'medio': medio_p,
+                'monto': monto_p,
+                'cuenta_pk': p.get('cuenta_pk'),
+            }
+            if medio_p == MedioPagoCompra.CREDITO:
+                linea['cuotas'] = p.get('cuotas')
+                linea['interes_pct'] = p.get('interes_pct')
+                linea['fecha_inicio_debito'] = p.get('fecha_inicio_debito')
+            pagos_normalizados.append(linea)
+
+        if not pagos_normalizados:
+            return JsonResponse({'error': 'Agregá al menos un medio de pago con monto.'}, status=400)
+
+        medio_pago = pagos_normalizados[0]['medio']
+
         # Actualizar cabecera antes de confirmar
         try:
             compra.editar_cabecera(fecha=fecha, notas=body.get('notas', ''))
         except ValueError as e:
             return JsonResponse({'error': str(e)}, status=400)
 
-        # Confirmar: suma stock + calcula total + pasa a CONFIRMADA
+        # El total recién se recalcula en confirmar(); usamos el total actual del borrador
+        compra.calcular_total()
+        diferencia = abs(suma - compra.total)
+        if diferencia > Decimal('0.01'):
+            return JsonResponse({
+                'error': f'La suma de los pagos (${suma}) no coincide con el total (${compra.total}).'
+            }, status=400)
+
+        # Confirmar: suma stock + calcula total + resuelve pagos + pasa a CONFIRMADA
         try:
-            compra.confirmar()
+            compra.confirmar(medio_pago=medio_pago, pagos=pagos_normalizados)
         except ValueError as e:
             return JsonResponse({'error': str(e)}, status=400)
 
@@ -762,17 +822,46 @@ class DetalleCompraView(LoginRequiredMixin, View):
                 'items__proveedor',
                 'items__combinacion',
                 'documentos',
+                'pagos__cuenta',
             ),
             pk=pk
         )
+
+        from caja.models import asegurar_cuentas_efectivo
+        asegurar_cuentas_efectivo(caja=TipoCaja.GRANDE)
+
+        moneda_compra = compra.items.values_list('moneda', flat=True).first() or 'ARS'
+        cuentas = (
+            CuentaCaja.objects
+            .filter(caja=TipoCaja.GRANDE, activa=True, es_credito=False)
+            .order_by('orden', 'nombre')
+        )
+        cuentas_json = json.dumps([
+            {'pk': c.pk, 'nombre': c.nombre, 'moneda': c.moneda}
+            for c in cuentas
+        ])
+
+        tarjetas = (
+            CuentaCaja.objects
+            .filter(caja=TipoCaja.GRANDE, activa=True, es_credito=True)
+            .order_by('orden', 'nombre')
+        )
+        tarjetas_json = json.dumps([
+            {'pk': t.pk, 'nombre': t.nombre, 'moneda': t.moneda, 'terminada_en': t.terminada_en}
+            for t in tarjetas
+        ])
 
         from django.urls import reverse
         return _render(request, self.template_name, {
             'compra':     compra,
             'items':      compra.items.select_related('producto', 'proveedor', 'combinacion').all(),
             'documentos': compra.documentos.all(),
+            'pagos':      compra.pagos.all(),
             # — Flags para el template —
             'es_borrador': compra.estado == EstadoCompra.BORRADOR,
+            'compra_moneda': moneda_compra,
+            'cuentas_json': cuentas_json,
+            'tarjetas_json': tarjetas_json,
             # — URLs para el JS del template —
             'url_confirmar':        reverse('compras:confirmar_compra'),
             'url_eliminar_borrador': reverse('compras:eliminar_borrador'),

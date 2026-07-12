@@ -32,6 +32,15 @@ function _pagoMediosOpts(seleccionado) {
     ).join('');
 }
 
+/** Cuentas reales disponibles en la moneda de la venta (excluye
+ *  efectivo — ese se resuelve solo — y tarjetas de crédito). */
+function _pagoCuentaOpts(seleccionada) {
+    const disponibles = (VDT.cuentas || []).filter(c => c.moneda === VDT.ventaMoneda);
+    return '<option value="">— Elegí cuenta —</option>' + disponibles.map(c =>
+        `<option value="${c.pk}" ${String(c.pk) === String(seleccionada) ? 'selected' : ''}>${c.nombre}</option>`
+    ).join('');
+}
+
 function _renderLineas() {
     const contenedor = document.getElementById('vdtPagoLineas');
     if (!contenedor) return;
@@ -46,19 +55,25 @@ function _renderLineas() {
     }
 
     contenedor.innerHTML = pagoState.lineas.map(l => `
-    <div class="vdt-pago-linea" data-linea-id="${l.id}">
-        <select class="vdt-pago-select" data-campo="medio" data-id="${l.id}">
-            ${_pagoMediosOpts(l.medio)}
-        </select>
-        <input type="number" class="vdt-pago-monto" min="0" step="0.01"
-               placeholder="Monto"
-               value="${l.monto > 0 ? l.monto : ''}"
-               data-campo="monto" data-id="${l.id}">
-        <button class="vdt-pago-btn-quitar" data-id="${l.id}" title="Quitar">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <path d="M2 2L10 10M10 2L2 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            </svg>
-        </button>
+    <div class="vdt-pago-linea-wrap" data-linea-id="${l.id}">
+        <div class="vdt-pago-linea">
+            <select class="vdt-pago-select" data-campo="medio" data-id="${l.id}">
+                ${_pagoMediosOpts(l.medio)}
+            </select>
+            <input type="number" class="vdt-pago-monto" min="0" step="0.01"
+                   placeholder="Monto"
+                   value="${l.monto > 0 ? l.monto : ''}"
+                   data-campo="monto" data-id="${l.id}">
+            <button class="vdt-pago-btn-quitar" data-id="${l.id}" title="Quitar">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path d="M2 2L10 10M10 2L2 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
+        ${l.medio !== 'efectivo' ? `
+        <select class="vdt-pago-cuenta" data-campo="cuenta" data-id="${l.id}">
+            ${_pagoCuentaOpts(l.cuenta)}
+        </select>` : ''}
     </div>`).join('');
 
     contenedor.querySelectorAll('[data-campo]').forEach(el => {
@@ -67,6 +82,18 @@ function _renderLineas() {
             const campo = el.dataset.campo;
             const linea = pagoState.lineas.find(l => l.id === id);
             if (!linea) return;
+
+            if (campo === 'medio') {
+                linea.medio  = el.value;
+                linea.cuenta = '';
+                _renderLineas();
+                return;
+            }
+            if (campo === 'cuenta') {
+                linea.cuenta = el.value;
+                _actualizarResumen();
+                return;
+            }
             linea[campo] = campo === 'monto' ? (parseFloat(el.value) || 0) : el.value;
             _actualizarResumen();
         });
@@ -145,8 +172,17 @@ function _pagoEsCubierto() {
     return Math.abs(pagoState.total - asignado) < 0.005 && pagoState.lineas.length > 0;
 }
 
+/** Toda línea que no sea efectivo necesita una cuenta elegida. */
+function _pagoFaltanCuentas() {
+    return pagoState.lineas.some(l => l.medio !== 'efectivo' && !l.cuenta);
+}
+
 function _getPagoPayload() {
-    const pagos     = pagoState.lineas.map(l => ({ medio: l.medio, monto: l.monto }));
+    const pagos = pagoState.lineas.map(l => ({
+        medio: l.medio,
+        monto: l.monto,
+        cuenta_pk: l.medio === 'efectivo' ? null : (l.cuenta || null),
+    }));
     const principal = pagos.length ? pagos[0].medio : 'efectivo';
     return { medio_pago: principal, pagos };
 }
@@ -199,6 +235,11 @@ if (VDT.esBorrador) {
                 } else {
                     vdtToast('Pago incompleto', `Falta cubrir ${_fmtARS(pendiente)}.`);
                 }
+                return;
+            }
+
+            if (_pagoFaltanCuentas()) {
+                vdtToast('Cuenta requerida', 'Elegí a qué cuenta se acredita cada pago que no sea efectivo.');
                 return;
             }
 

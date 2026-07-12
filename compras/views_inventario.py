@@ -7,15 +7,19 @@ al confirmar/anular/reactivar una Compra (ver compras/models.py).
 Esta pantalla es de solo lectura — no crea ni modifica lotes.
 """
 
+import json
+from decimal import Decimal, InvalidOperation
+
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views import View
 from django.views.generic import TemplateView
 from django.http import JsonResponse
+from django.shortcuts import get_object_or_404
 from django.db.models import Q, F
 from django.utils import timezone
 from datetime import timedelta
 
-from .models import LoteCompra
+from .models import LoteCompra, Perdida, MotivoPerdida, registrar_perdida, procesar_lotes_vencidos
 from core.permisos import chequear_permiso
 
 
@@ -50,6 +54,11 @@ class ListarLotesAjax(LoginRequiredMixin, View):
     def get(self, request):
         if not chequear_permiso(request.user, 'crear_compras'):
             return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        # Da de baja como pérdida (automática) lo que venció desde la
+        # última vez que alguien visitó esta pantalla — ver
+        # procesar_lotes_vencidos() para el porqué de este approach.
+        procesar_lotes_vencidos()
 
         qs = (
             LoteCompra.objects
@@ -157,3 +166,99 @@ class BuscarLotePorCodigoAjax(LoginRequiredMixin, View):
 
         listador = ListarLotesAjax()
         return JsonResponse({'result': listador._serializar(lote)})
+
+
+# ══════════════════════════════════════════════════════════════════
+#  AJAX — Registrar pérdida manual (rotura, extravío, otro)
+# ══════════════════════════════════════════════════════════════════
+
+class RegistrarPerdidaAjax(LoginRequiredMixin, View):
+    """
+    POST JSON:
+    {
+        "lote_pk":         12,
+        "cantidad":        2,
+        "motivo":          "rotura" | "otro",   // "vencimiento" es automático, no se elige a mano
+        "motivo_detalle":  "Llegó roto del transporte"
+    }
+    """
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'ajustar_stock'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        lote_pk = body.get('lote_pk')
+        motivo  = (body.get('motivo') or '').strip()
+        detalle = (body.get('motivo_detalle') or '').strip()
+
+        if not lote_pk:
+            return JsonResponse({'error': 'Falta lote_pk.'}, status=400)
+        if motivo == MotivoPerdida.VENCIMIENTO:
+            return JsonResponse({
+                'error': 'El vencimiento se registra solo — elegí "Rotura / daño" u "Otro".'
+            }, status=400)
+        if motivo not in MotivoPerdida.values:
+            return JsonResponse({'error': f'Motivo inválido: {motivo}'}, status=400)
+
+        try:
+            cantidad = int(body.get('cantidad'))
+            if cantidad <= 0:
+                raise ValueError
+        except (TypeError, ValueError):
+            return JsonResponse({'error': 'La cantidad debe ser un número entero positivo.'}, status=400)
+
+        lote = get_object_or_404(LoteCompra, pk=lote_pk)
+
+        try:
+            perdida = registrar_perdida(
+                lote=lote, cantidad=cantidad, motivo=motivo,
+                motivo_detalle=detalle, usuario=request.user, automatica=False,
+            )
+        except ValueError as e:
+            return JsonResponse({'error': str(e)}, status=400)
+
+        lote.refresh_from_db()
+        return JsonResponse({
+            'ok':                True,
+            'pk':                perdida.pk,
+            'lote_cantidad_actual': lote.cantidad_actual,
+        })
+
+
+# ══════════════════════════════════════════════════════════════════
+#  AJAX — Listado de pérdidas (vencimiento + manuales)
+# ══════════════════════════════════════════════════════════════════
+
+class ListarPerdidasAjax(LoginRequiredMixin, View):
+    """GET — últimas pérdidas registradas, más nuevas primero."""
+
+    def get(self, request):
+        if not chequear_permiso(request.user, 'crear_compras'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        qs = Perdida.objects.select_related('registrado_por')[:100]
+
+        resultados = [{
+            'pk':               p.pk,
+            'fecha':            p.fecha.strftime('%d/%m/%Y'),
+            'producto_nombre':  p.producto_nombre_snapshot,
+            'variante_desc':    p.combinacion_desc_snapshot,
+            'lote_codigo':      p.lote_codigo_snapshot,
+            'cantidad':         p.cantidad,
+            'costo_unitario':   str(p.costo_unitario_snapshot),
+            'costo_total':      str(p.costo_total),
+            'motivo':           p.motivo,
+            'motivo_label':     p.get_motivo_display(),
+            'motivo_detalle':   p.motivo_detalle,
+            'automatica':       p.automatica,
+            'registrado_por':   p.registrado_por.get_full_name() if p.registrado_por else ('Sistema' if p.automatica else '—'),
+        } for p in qs]
+
+        total_costo = sum((p.costo_total for p in qs), Decimal('0'))
+
+        return JsonResponse({'results': resultados, 'total_costo': str(total_costo)})

@@ -186,6 +186,7 @@
                     <th>Precio unit.</th>
                     <th>Moneda</th>
                     <th>Desc. %</th>
+                    <th>Lista</th>
                     <th>Cond. pago</th>
                     <th>Cliente</th>
                     <th>Referencia</th>
@@ -238,6 +239,7 @@
 {% block extra_js %}
 {% if not sin_permiso %}
 {{ items_iniciales|json_script:"vtaItemsIniciales" }}
+{{ listas_descuento|json_script:"vtaListasDescuento" }}
 <script>
 window.VTA_CONFIG = {
     urlBuscarProducto:  "{% url 'ventas:buscar_producto' %}",
@@ -249,6 +251,7 @@ window.VTA_CONFIG = {
     csrfToken:          "{{ csrf_token }}",
     ventaEditarPk:      {{ venta_editar_pk|default:"null" }},
     itemsIniciales:     JSON.parse(document.getElementById('vtaItemsIniciales').textContent),
+    listasDescuento:    JSON.parse(document.getElementById('vtaListasDescuento').textContent),
 };
 </script>
 <script src="{% static 'ventas/js/nueva_venta.js' %}"></script>

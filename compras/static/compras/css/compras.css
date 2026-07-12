@@ -361,6 +361,15 @@
     transition: border-color .18s;
 }
 
+.cmp-select-inline.w-xs  { min-width: 56px;  max-width: 100px; }
+.cmp-select-inline.w-sm  { min-width: 72px;  max-width: 128px; }
+.cmp-select-inline.w-md  { min-width: 100px; max-width: 160px; }
+
+.cmp-lista-vacia {
+    color: var(--text-muted);
+    font-size: .8rem;
+}
+
 .cmp-select-inline:focus {
     outline: none;
     border-color: var(--brand-orange);

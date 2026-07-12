@@ -47,7 +47,8 @@ function buildMediosPagoHTML(c) {
     if (c.pagos && c.pagos.length) {
         return c.pagos.map(p => {
             const cls = MEDIO_PAGO_CLASES[p.medio] || '';
-            return `<span class="mp-badge ${cls}">${_esc(p.medio_label)}: ${formatMoney(p.monto)}</span>`;
+            const cuentaTxt = p.cuenta ? ` · ${_esc(p.cuenta)}` : '';
+            return `<span class="mp-badge ${cls}">${_esc(p.medio_label)}: ${formatMoney(p.monto)}${cuentaTxt}</span>`;
         }).join(' ');
     }
     return buildMedioPagoBadge(c.medio_pago, c.medio_pago_label, c.medio_pago_icon);
@@ -129,7 +130,9 @@ function buildItemsHTML(items) {
             ? `<a href="${urlCliente}" target="_blank" rel="noopener" class="link-externo">${_esc(item.cliente)} ${iconExterna()}</a>`
             : `<span style="color:var(--text-muted);">${_esc(item.cliente) || '—'}</span>`;
 
-        const descuento = parseFloat(item.descuento_pct) > 0 ? `<span class="descuento-tag">&nbsp;-${item.descuento_pct}%</span>` : '';
+        const descuento = parseFloat(item.descuento_pct) > 0
+            ? `<span class="descuento-tag" title="${item.lista_descuento_nombre ? 'Lista: ' + _esc(item.lista_descuento_nombre) : 'Descuento manual'}">&nbsp;-${item.descuento_pct}%${item.lista_descuento_nombre ? ` (${_esc(item.lista_descuento_nombre)})` : ''}</span>`
+            : '';
         const origenCell = `<span style="color:var(--text-muted);font-size:0.78rem;" title="De qué lote salió el stock">${_esc(item.origen_label || '—')}</span>`;
 
         return `

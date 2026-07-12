@@ -10,15 +10,13 @@
 {% block content %}
 
 {# ── URLs y datos para JS ─────────────────────────────────────────── #}
+<script id="cuentas-data" type="application/json">{{ cuentas_json|safe }}</script>
 <script>
   window.URL_TRANSACCIONES_CALCULAR = "{% url 'caja:transacciones_calcular' %}";
   window.URL_TRANSACCIONES_CREAR    = "{% url 'caja:transacciones_crear' %}";
   window.URL_TRANSACCIONES_LISTAR   = "{% url 'caja:transacciones_listar' %}";
   window.URL_TRANSACCIONES_DETALLE  = "{% url 'caja:transacciones_detalle' pk=0 %}".replace('/0/', '/__pk__/');
   window.URL_TRANSACCIONES_ANULAR   = "{% url 'caja:transacciones_anular' pk=0 %}".replace('/0/', '/__pk__/');
-
-  // Contenedores inyectados desde la vista (TransaccionesPageView.get_context_data)
-  window.CONTENEDORES_TRANSACCIONES = {{ contenedores|safe }};
 </script>
 
 {# ── Encabezado ───────────────────────────────────────────────────── #}
@@ -33,7 +31,7 @@
     <div class="trx-page-title-text">
       <p>FINANZAS</p>
       <h4>Transacciones</h4>
-      <small>Movimientos entre contenedores de la caja grande.</small>
+      <small>Movimientos de dinero entre tus cuentas de caja grande.</small>
     </div>
   </div>
   <button class="btn btn-primary" onclick="Transacciones.abrirModalCrear()">
@@ -155,23 +153,24 @@
             </select>
           </div>
 
-          {# Contenedor origen #}
+          {# Cuenta origen #}
           <div class="col-12 col-md-6">
             <label class="trx-label" id="trx-label-origen" for="trx-contenedor-origen">
-              Contenedor origen <span class="trx-required">*</span>
+              Cuenta origen <span class="trx-required">*</span>
             </label>
             <select id="trx-contenedor-origen" class="form-select">
-              <option value="">— Seleccionar tipo —</option>
+              <option value="">— Seleccionar cuenta —</option>
             </select>
+            <small id="trx-saldo-disponible" class="form-text"></small>
           </div>
 
-          {# Contenedor destino #}
+          {# Cuenta destino #}
           <div class="col-12 col-md-6">
             <label class="trx-label" id="trx-label-destino" for="trx-contenedor-destino">
-              Contenedor destino <span class="trx-required">*</span>
+              Cuenta destino <span class="trx-required">*</span>
             </label>
             <select id="trx-contenedor-destino" class="form-select">
-              <option value="">— Seleccionar tipo —</option>
+              <option value="">— Seleccionar cuenta —</option>
             </select>
           </div>
 

@@ -305,6 +305,21 @@
     background: var(--brand-orange-light);
 }
 
+/* Contenedor de acciones por fila — Código + Pérdida juntos, sin
+   dejar la tabla con columnas vacías separándolos. */
+.inv-acciones-lote {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    white-space: nowrap;
+}
+
+.btn-perdida:hover {
+    border-color: var(--danger, #EF4444);
+    color: var(--danger, #EF4444);
+    background: rgba(239, 68, 68, .06);
+}
+
 /* Estado vacío / error dentro de la tabla (usa clases bootstrap ya presentes) */
 .inventario-tabla td.text-center.text-muted,
 .inventario-tabla td.text-center.text-danger {

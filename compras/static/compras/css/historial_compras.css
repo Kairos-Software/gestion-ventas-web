@@ -222,6 +222,27 @@
 .badge-estado.confirmada { background: rgba(16,185,129,0.1);  color: var(--success); }
 .badge-estado.anulada    { background: rgba(239,68,68,0.1);   color: var(--danger);  }
 
+.detalle-pagos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 0.6rem;
+}
+
+/* ── Badge de medio de pago (uno por línea, ver PagoCompra) ── */
+.pago-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.6rem;
+    border-radius: 0.4rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    background: rgba(242,106,27,0.1);
+    color: var(--brand-orange-dark, #c2500a);
+    border: 1px solid rgba(242,106,27,0.25);
+    white-space: nowrap;
+}
+
 /* ── Ícono toggle ── */
 .compra-toggle {
     color: var(--text-muted);

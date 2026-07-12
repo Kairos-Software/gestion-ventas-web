@@ -8,6 +8,174 @@
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'compras/css/compras.css' %}">
 <style>
+/* ══════════════════════════════════════════════════════════════
+   MEDIOS DE PAGO (sidebar borrador) — mismo patrón que Ventas
+══════════════════════════════════════════════════════════════ */
+.vdt-pago-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: .69rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .09em;
+    color: var(--text-muted);
+    margin-bottom: .6rem;
+    margin-top: .25rem;
+}
+
+.vdt-pago-lineas {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    margin-bottom: .75rem;
+}
+
+.vdt-pago-linea-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: .3rem;
+    padding-bottom: .4rem;
+    border-bottom: 1px dashed var(--border-color);
+}
+
+.vdt-pago-linea-wrap:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.vdt-pago-linea {
+    display: grid;
+    grid-template-columns: 1fr 110px 30px;
+    gap: .35rem;
+    align-items: center;
+}
+
+.vdt-pago-select,
+.vdt-pago-monto,
+.vdt-pago-cuenta {
+    padding: .45rem .6rem;
+    border: 1px solid var(--border-color);
+    border-radius: .5rem;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-family: 'DM Sans', sans-serif;
+    font-size: .8125rem;
+    width: 100%;
+    transition: border-color .15s, box-shadow .15s;
+}
+
+.vdt-pago-select:focus,
+.vdt-pago-monto:focus,
+.vdt-pago-cuenta:focus {
+    outline: none;
+    border-color: var(--brand-orange);
+    box-shadow: 0 0 0 3px rgba(242, 106, 27, .1);
+    background: var(--bg-white);
+}
+
+.vdt-pago-btn-quitar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: 1px solid var(--border-color);
+    border-radius: .5rem;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: border-color .15s, color .15s, background .15s;
+    flex-shrink: 0;
+}
+
+.vdt-pago-btn-quitar:hover {
+    border-color: var(--danger, #ef4444);
+    color: var(--danger, #ef4444);
+    background: rgba(239, 68, 68, .06);
+}
+
+.vdt-pago-agregar {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .35rem .75rem;
+    border: 1px dashed var(--border-color);
+    border-radius: .5rem;
+    background: transparent;
+    color: var(--text-muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: .78rem;
+    cursor: pointer;
+    transition: border-color .15s, color .15s, background .15s;
+    width: 100%;
+    justify-content: center;
+    margin-bottom: .6rem;
+}
+
+.vdt-pago-agregar:hover {
+    border-color: var(--brand-orange);
+    color: var(--brand-orange);
+    background: var(--brand-orange-light, rgba(242, 106, 27, .06));
+}
+
+.vdt-pago-resumen {
+    padding: .5rem .75rem;
+    border-radius: .5rem;
+    font-size: .78rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    margin-bottom: .75rem;
+}
+
+.vdt-pago-resumen--ok {
+    background: rgba(34, 197, 94, .07);
+    border: 1px solid rgba(34, 197, 94, .2);
+    color: var(--success, #16a34a);
+}
+
+.vdt-pago-resumen--pendiente {
+    background: rgba(245, 158, 11, .07);
+    border: 1px solid rgba(245, 158, 11, .2);
+    color: var(--warning, #b45309);
+}
+
+.vdt-pago-resumen--exceso {
+    background: rgba(239, 68, 68, .07);
+    border: 1px solid rgba(239, 68, 68, .2);
+    color: var(--danger, #dc2626);
+}
+
+.vdt-pago-resumen strong {
+    font-weight: 700;
+}
+
+.vdt-pago-credito-extra {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1.3fr;
+    gap: .35rem;
+}
+
+.vdt-pago-credito-extra .vdt-pago-credito-label {
+    font-size: .68rem;
+    color: var(--text-muted);
+    margin-bottom: .2rem;
+    display: block;
+}
+
+.cmp-medio-pago-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .2rem .6rem;
+    border-radius: .4rem;
+    font-size: .72rem;
+    font-weight: 700;
+    background: var(--brand-orange-light, rgba(242, 106, 27, .1));
+    border: 1px solid var(--brand-orange-mid, rgba(242, 106, 27, .25));
+    color: var(--brand-orange-dark, #c2500a);
+}
+
 .cdt-tabs {
     display: flex;
     border-bottom: 0.5px solid var(--border-color, #e5e7eb);
@@ -356,6 +524,22 @@
                            value="{{ compra.fecha|date:'Y-m-d' }}">
                 </div>
 
+                {# ─── MEDIOS DE PAGO ─── #}
+                <div class="cmp-field" style="margin-bottom:.5rem">
+                    <div class="vdt-pago-title">Medios de pago</div>
+                    <div class="vdt-pago-lineas" id="cdtPagoLineas"></div>
+                    <button class="vdt-pago-agregar" id="cdtBtnAgregarPago" type="button">
+                        <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                            <path d="M7 2V12M2 7H12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                        </svg>
+                        Agregar otro medio
+                    </button>
+                    <div class="vdt-pago-resumen vdt-pago-resumen--pendiente" id="cdtPagoResumen">
+                        <span>Asignado: <strong id="cdtPagoAsignado">$0,00</strong></span>
+                        <span>Pendiente: <strong id="cdtPagoPendiente">${{ compra.total|floatformat:"2" }}</strong></span>
+                    </div>
+                </div>
+
                 <div class="cmp-field">
                     <label class="cmp-label" for="cdtNotas">Notas generales</label>
                     <textarea id="cdtNotas" class="cmp-control"
@@ -423,6 +607,18 @@
                     <span>Estado</span>
                     <span class="cdt-estado cdt-estado--{{ compra.estado }}">{{ compra.get_estado_display }}</span>
                 </div>
+                {% if pagos %}
+                <div class="cdt-resumen-row" style="align-items:flex-start">
+                    <span style="padding-top:.15rem">Pagos</span>
+                    <div style="display:flex;flex-direction:column;gap:.3rem;align-items:flex-end">
+                        {% for pago in pagos %}
+                        <span class="cmp-medio-pago-badge">
+                            {% if pago.medio == 'efectivo' %}Efectivo{% elif pago.medio == 'credito' %}{{ pago.cuenta.nombre }} (crédito){% else %}{{ pago.cuenta.nombre|default:pago.get_medio_display }}{% endif %}: ${{ pago.monto|floatformat:"2" }}
+                        </span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
                 <div class="cdt-resumen-row">
                     <span>Líneas</span>
                     <strong>{{ items|length }}</strong>
@@ -449,6 +645,8 @@
 {% endblock %}
 
 {% block extra_js %}
+<script id="cuentas-data" type="application/json">{{ cuentas_json|safe }}</script>
+<script id="tarjetas-data" type="application/json">{{ tarjetas_json|safe }}</script>
 <script>
 function cdtSwitchTab(id, btn) {
     document.querySelectorAll('.cdt-tab').forEach(t => t.classList.remove('cdt-tab--active'));
@@ -458,6 +656,8 @@ function cdtSwitchTab(id, btn) {
 }
 window.CDT_CONFIG = {
     compraPk:             {{ compra.pk }},
+    compraTotal:          {{ compra.total|stringformat:".2f" }},
+    compraMoneda:         "{{ compra_moneda }}",
     esBorrador:           {{ es_borrador|yesno:"true,false" }},
     urlConfirmar:         "{{ url_confirmar }}",
     urlEliminarBorrador:  "{{ url_eliminar_borrador }}",
@@ -467,6 +667,8 @@ window.CDT_CONFIG = {
     urlDocSubir:          "{{ url_doc_subir }}",
     urlDocEliminar:       "{{ url_doc_eliminar }}",
     csrfToken:            "{{ csrf_token }}",
+    cuentas: JSON.parse(document.getElementById('cuentas-data').textContent),
+    tarjetas: JSON.parse(document.getElementById('tarjetas-data').textContent),
 };
 </script>
 <script src="{% static 'compras/js/detalle_compra.js' %}"></script>

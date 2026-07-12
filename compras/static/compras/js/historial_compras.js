@@ -129,7 +129,8 @@ function buildItemsHTML(items) {
             : `<span style="color:var(--text-muted);">${_esc(item.proveedor) || '—'}</span>`;
 
         const descuento = parseFloat(item.descuento_pct) > 0
-            ? `<span class="descuento-tag">&nbsp;-${item.descuento_pct}%</span>` : '';
+            ? `<span class="descuento-tag" title="${item.lista_descuento_nombre ? 'Lista: ' + _esc(item.lista_descuento_nombre) : 'Descuento manual'}">&nbsp;-${item.descuento_pct}%${item.lista_descuento_nombre ? ` (${_esc(item.lista_descuento_nombre)})` : ''}</span>`
+            : '';
 
         return `
         <tr>
@@ -197,6 +198,15 @@ function buildAccionesHTML(c) {
         : '';
 }
 
+/** Un badge por línea de pago: "Efectivo" o el nombre de la cuenta real. */
+function buildPagosCompraHTML(c) {
+    if (!c.pagos || !c.pagos.length) return '';
+    return `<div class="detalle-pagos">${c.pagos.map(p => {
+        const etiqueta = p.medio === 'efectivo' ? 'Efectivo' : (p.cuenta || p.medio_label);
+        return `<span class="pago-badge">${_esc(etiqueta)}: ${formatMoney(p.monto)}</span>`;
+    }).join(' ')}</div>`;
+}
+
 function buildCompraHTML(c) {
     return `
     <div class="compra-row" data-pk="${c.pk}">
@@ -215,6 +225,7 @@ function buildCompraHTML(c) {
             <p class="detalle-titulo">
                 ${c.items_count} ítem${c.items_count !== 1 ? 's' : ''}
             </p>
+            ${buildPagosCompraHTML(c)}
             ${buildItemsHTML(c.items)}
             <div class="detalle-footer">
                 <span class="compra-notas-detalle">${c.notas ? '📝 ' + _esc(c.notas) : ''}</span>

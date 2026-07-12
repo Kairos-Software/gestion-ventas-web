@@ -366,6 +366,15 @@
     border-color: var(--brand-orange);
 }
 
+.vta-select-inline.w-xs  { min-width: 56px;  max-width: 100px; }
+.vta-select-inline.w-sm  { min-width: 72px;  max-width: 128px; }
+.vta-select-inline.w-md  { min-width: 100px; max-width: 160px; }
+
+.vta-lista-vacia {
+    color: var(--text-muted);
+    font-size: .8rem;
+}
+
 /* Cliente autocomplete en fila */
 .vta-cli-wrap { position: relative; min-width: 140px; }
 

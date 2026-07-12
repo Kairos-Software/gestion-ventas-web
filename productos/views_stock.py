@@ -8,6 +8,7 @@ from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Q, F
+from django.utils import timezone
 
 from .models import Producto, MovimientoStock, TipoMovimiento, MOVIMIENTOS_ENTRADA, CombinacionVariante
 from core.permisos import chequear_permiso
@@ -223,16 +224,38 @@ class StockAjusteAjax(LoginRequiredMixin, View):
                 )
                 mov.save()  # ajusta Producto.stock_actual internamente
 
+                es_entrada = tipo in MOVIMIENTOS_ENTRADA
+
                 if combinacion is not None:
                     # Ajustar la combinación específica y resincronizar el total
                     # (igual que hace _sumar_stock_item / _restar_stock_item en compras)
-                    es_entrada = tipo in MOVIMIENTOS_ENTRADA
                     if es_entrada:
                         combinacion.stock_actual += cantidad
                     else:
                         combinacion.stock_actual -= cantidad
                     combinacion.save(update_fields=['stock_actual'])
                     producto.sincronizar_stock_desde_combinaciones()
+
+                # ── Lote genérico para que el ajuste no rompa el FIFO ──
+                # Sin esto, un ajuste positivo suma a Producto.stock_actual
+                # pero no a ningún LoteCompra, y al vender el sistema busca
+                # stock en lotes reales (no en stock_actual) — la venta se
+                # cae aunque stock_actual "diga" que hay. Se crea sin costo,
+                # sin fecha de vencimiento y sin item_compra (no pasó por
+                # Compra) — no importa si el producto es perecedero o no,
+                # no hay esa información para un ajuste manual.
+                if es_entrada:
+                    from compras.models import LoteCompra
+                    LoteCompra.objects.create(
+                        item_compra       = None,
+                        producto          = producto,
+                        combinacion       = combinacion,
+                        cantidad_inicial  = int(cantidad),
+                        cantidad_actual   = int(cantidad),
+                        costo_unitario    = Decimal('0'),
+                        fecha_vencimiento = None,
+                        fecha_compra      = timezone.now().date(),
+                    )
 
         except ValueError as e:
             return JsonResponse({'ok': False, 'error': str(e)}, status=400)

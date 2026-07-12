@@ -44,7 +44,7 @@ class ListarVentasAjax(LoginRequiredMixin, View):
             'items__combinacion',
             'items__consumos',
             'documentos',
-            'pagos',
+            'pagos__cuenta',
         ).order_by('-fecha', '-fecha_alta')
 
         # — Filtros —
@@ -127,6 +127,7 @@ class ListarVentasAjax(LoginRequiredMixin, View):
                     'precio_unitario':  str(item.precio_unitario),
                     'moneda':           item.moneda,
                     'descuento_pct':    str(item.descuento_pct),
+                    'lista_descuento_nombre': item.lista_descuento_nombre,
                     'condicion_pago':   item.get_condicion_pago_display(),
                     'referencia':       item.referencia,
                     'notas':            item.notas,
@@ -160,7 +161,12 @@ class ListarVentasAjax(LoginRequiredMixin, View):
 
             # — Pagos múltiples —
             pagos = [
-                {'medio': p.medio, 'medio_label': p.get_medio_display(), 'monto': str(p.monto)}
+                {
+                    'medio': p.medio,
+                    'medio_label': p.get_medio_display(),
+                    'monto': str(p.monto),
+                    'cuenta': p.cuenta.nombre if p.cuenta_id else None,
+                }
                 for p in v.pagos.all()
             ]
 

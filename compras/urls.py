@@ -50,4 +50,6 @@ urlpatterns = [
     path('inventario/',               views_inventario.InventarioView.as_view(),         name='inventario'),
     path('inventario/listar/',        views_inventario.ListarLotesAjax.as_view(),         name='inventario_listar'),
     path('inventario/buscar-codigo/', views_inventario.BuscarLotePorCodigoAjax.as_view(), name='inventario_buscar_codigo'),
+    path('inventario/perdida/registrar/', views_inventario.RegistrarPerdidaAjax.as_view(), name='inventario_perdida_registrar'),
+    path('inventario/perdidas/',          views_inventario.ListarPerdidasAjax.as_view(),   name='inventario_perdidas_listar'),
 ]

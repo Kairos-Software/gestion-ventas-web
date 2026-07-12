@@ -76,6 +76,17 @@
                 <div class="inv-stat-label">Vencidos</div>
             </div>
         </div>
+        <div class="inv-stat-card" id="statPerdidasCard" style="cursor:pointer;" title="Ver historial de pérdidas">
+            <div class="inv-stat-icon inv-stat-icon--danger">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M4 4L16 16M16 4L4 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <div>
+                <div class="inv-stat-value" id="statPerdidasCosto">—</div>
+                <div class="inv-stat-label">Pérdidas (últimas 100) · Ver</div>
+            </div>
+        </div>
     </div>
 
     <!-- ══════════════════════════════════════════════════════════
@@ -211,6 +222,86 @@
         </div>
     </div>
 </div>
+
+<!-- ══════════════════════════════════════════════════════════
+     MODAL — Registrar pérdida (sobre un lote puntual)
+══════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalPerdida" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Registrar pérdida</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted" id="perdidaLoteInfo" style="font-size:.85rem;"></p>
+
+                <div class="cmp-field">
+                    <label class="cmp-label" for="perdidaCantidad">Cantidad *</label>
+                    <input type="number" id="perdidaCantidad" class="cmp-control" min="1" step="1">
+                </div>
+
+                <div class="cmp-field">
+                    <label class="cmp-label" for="perdidaMotivo">Motivo *</label>
+                    <select id="perdidaMotivo" class="cmp-control">
+                        <option value="rotura">Rotura / daño</option>
+                        <option value="otro">Otro</option>
+                    </select>
+                </div>
+
+                <div class="cmp-field">
+                    <label class="cmp-label" for="perdidaDetalle">Detalle (opcional)</label>
+                    <textarea id="perdidaDetalle" class="cmp-control" placeholder="Ej: Llegó roto del transporte, se cayó en el depósito..."></textarea>
+                </div>
+
+                <div id="perdidaMsg" style="font-size:.8125rem; color:var(--danger, #EF4444);"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="cmp-btn cmp-btn-ghost" style="width:auto;" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="cmp-btn cmp-btn-primary" style="width:auto;" id="btnConfirmarPerdida">
+                    Registrar pérdida
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     MODAL — Historial de pérdidas
+══════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalPerdidas" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Historial de pérdidas</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="inventario-tabla-wrap">
+                    <table class="table inventario-tabla">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Producto</th>
+                                <th>Lote</th>
+                                <th>Cant.</th>
+                                <th>Motivo</th>
+                                <th>Costo perdido</th>
+                                <th>Registrado por</th>
+                            </tr>
+                        </thead>
+                        <tbody id="perdidasTbody">
+                            <tr><td colspan="7" class="text-center text-muted py-4">Cargando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="cmp-btn cmp-btn-ghost" style="width:auto;" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -218,8 +309,10 @@
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <script>
     window.INVENTARIO_URLS = {
-        listar:        "{% url 'compras:inventario_listar' %}",
-        buscarCodigo:  "{% url 'compras:inventario_buscar_codigo' %}",
+        listar:            "{% url 'compras:inventario_listar' %}",
+        buscarCodigo:      "{% url 'compras:inventario_buscar_codigo' %}",
+        registrarPerdida:  "{% url 'compras:inventario_perdida_registrar' %}",
+        listarPerdidas:    "{% url 'compras:inventario_perdidas_listar' %}",
     };
 </script>
 <script src="{% static 'compras/js/inventario.js' %}"></script>

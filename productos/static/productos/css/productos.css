@@ -1549,3 +1549,179 @@
     border-radius: 0.35rem;
     padding: 0.05rem 0.35rem;
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   LISTAS DE DESCUENTO — modal
+════════════════════════════════════════════════════════════════════ */
+.prd-ld-intro {
+    margin: 0 0 1rem;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    color: var(--text-muted);
+}
+
+.prd-ld-form {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.75rem;
+    padding: 0.9rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+}
+
+.prd-ld-form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.prd-ld-form-field label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.prd-ld-form-field--nombre { flex: 1 1 auto; min-width: 0; }
+.prd-ld-form-field--pct    { flex: 0 0 110px; }
+.prd-ld-form-field--btn    { flex: 0 0 auto; }
+
+.prd-ld-form-field--btn .prd-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    white-space: nowrap;
+}
+
+.prd-ld-pct-input-wrap {
+    position: relative;
+}
+
+.prd-ld-pct-input-wrap .prd-input {
+    padding-right: 1.75rem;
+}
+
+.prd-ld-pct-suffix {
+    position: absolute;
+    right: 0.7rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    pointer-events: none;
+}
+
+.prd-ld-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.prd-ld-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.65rem 0.75rem;
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: 0.65rem;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.prd-ld-row:hover {
+    border-color: var(--brand-orange-mid);
+    background: var(--bg-secondary);
+}
+
+.prd-ld-row--inactiva {
+    opacity: 0.6;
+}
+
+.prd-ld-row-pct {
+    flex: 0 0 auto;
+    min-width: 3.25rem;
+    text-align: center;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--brand-orange-dark);
+    background: var(--brand-orange-light);
+    border: 1px solid var(--brand-orange-mid);
+    border-radius: 0.5rem;
+    padding: 0.3rem 0.5rem;
+}
+
+.prd-ld-row-info {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.prd-ld-row-nombre {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.prd-ld-row-actions {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.prd-ld-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    background: var(--bg-white);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.prd-ld-icon-btn:hover {
+    background: var(--bg-surface-hover);
+    color: var(--text-primary);
+    border-color: var(--border-strong);
+}
+
+.prd-ld-icon-btn--danger:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--danger);
+    border-color: var(--danger);
+}
+
+.prd-ld-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 2rem 1rem;
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+@media (max-width: 560px) {
+    .prd-ld-form {
+        flex-wrap: wrap;
+    }
+    .prd-ld-form-field--nombre { flex: 1 1 100%; }
+    .prd-ld-form-field--pct    { flex: 1 1 auto; }
+    .prd-ld-form-field--btn    { flex: 1 1 100%; }
+    .prd-ld-form-field--btn .prd-btn { width: 100%; justify-content: center; }
+}

@@ -2,7 +2,7 @@
 
 {% load static %}
 
-{% block title %}Gastos{% endblock %}
+{% block title %}Ingresos y egresos{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'caja/css/gastos.css' %}">
@@ -17,7 +17,7 @@
             <path d="M12 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
             <circle cx="12" cy="16.2" r="0.9" fill="currentColor"/>
         </svg>
-        <p>No tenés permiso para ver los gastos.</p>
+        <p>No tenés permiso para ver ingresos y egresos.</p>
     </div>
     {% else %}
     <!-- ══════════════════════════════════
@@ -25,15 +25,17 @@
     ══════════════════════════════════ -->
     <header class="gastos-header">
         <div>
-            <h1 class="gastos-title">Gastos</h1>
-            <p class="gastos-subtitle">Registro de gastos operativos</p>
+            <h1 class="gastos-title">Ingresos y egresos</h1>
+            <p class="gastos-subtitle">Movimientos manuales de caja: sueldos, herencias, regalos, alquiler, mecánico, luz, etc.</p>
         </div>
+        {% if puede_crear %}
         <button type="button" class="btn btn-primary" id="btnNuevoGasto">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                 <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
             </svg>
-            Nuevo gasto
+            Nuevo movimiento
         </button>
+        {% endif %}
     </header>
 
     <!-- ══════════════════════════════════
@@ -60,6 +62,24 @@
                 <input type="date" id="fHasta" name="hasta">
             </div>
             <div class="filtro-campo">
+                <label for="fTipo">Tipo</label>
+                <select id="fTipo" name="tipo">
+                    <option value="">Todos</option>
+                    {% for tipo, label in tipos_movimiento %}
+                    <option value="{{ tipo }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filtro-campo">
+                <label for="fCuenta">Cuenta</label>
+                <select id="fCuenta" name="cuenta">
+                    <option value="">Todas</option>
+                    {% for cuenta in cuentas %}
+                    <option value="{{ cuenta.pk }}">{{ cuenta.nombre }} ({{ cuenta.moneda }}){% if cuenta.es_credito %} · crédito{% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filtro-campo">
                 <label for="fMoneda">Moneda</label>
                 <select id="fMoneda" name="moneda">
                     <option value="">Todas</option>
@@ -80,7 +100,7 @@
     </section>
 
     <!-- ══════════════════════════════════
-         TABLA DE GASTOS
+         TABLA
     ══════════════════════════════════ -->
     <section class="gastos-section">
         <div class="gastos-tabla-wrap">
@@ -89,7 +109,9 @@
                     <tr>
                         <th>Fecha</th>
                         <th>Hora</th>
+                        <th>Tipo</th>
                         <th>Descripción</th>
+                        <th>Cuenta</th>
                         <th>Monto</th>
                         <th>Moneda</th>
                         <th>Creado por</th>
@@ -98,7 +120,7 @@
                 </thead>
                 <tbody id="gastosBody">
                     <tr>
-                        <td colspan="7" class="gastos-tabla-loading">Cargando gastos…</td>
+                        <td colspan="9" class="gastos-tabla-loading">Cargando…</td>
                     </tr>
                 </tbody>
             </table>
@@ -108,13 +130,13 @@
 </div>
 
 <!-- ══════════════════════════════════
-     MODAL NUEVO/EDITAR GASTO
+     MODAL NUEVO/EDITAR MOVIMIENTO
 ══════════════════════════════════ -->
 <div class="modal" id="modalGasto" hidden>
     <div class="modal-backdrop" id="modalBackdrop"></div>
     <div class="modal-content">
         <div class="modal-header">
-            <h2 class="modal-title" id="modalTitle">Nuevo gasto</h2>
+            <h2 class="modal-title" id="modalTitle">Nuevo movimiento</h2>
             <button type="button" class="modal-close" id="btnCerrarModal" aria-label="Cerrar">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                     <path d="M5 5L15 15M5 15L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -123,17 +145,26 @@
         </div>
         <form id="formGasto" class="modal-body">
             <input type="hidden" id="gastoPk" name="pk">
-            
+
+            <div class="form-campo">
+                <label>Tipo *</label>
+                <div class="gastos-tipo-toggle">
+                    <button type="button" class="gastos-tipo-btn gastos-tipo-btn--ingreso" data-tipo="ingreso">Ingreso</button>
+                    <button type="button" class="gastos-tipo-btn gastos-tipo-btn--egreso gastos-tipo-btn--active" data-tipo="egreso">Egreso</button>
+                </div>
+                <input type="hidden" id="gTipo" name="tipo" value="egreso">
+            </div>
+
             <div class="form-campo">
                 <label for="gFecha">Fecha *</label>
                 <input type="date" id="gFecha" name="fecha" required>
             </div>
-            
+
             <div class="form-campo">
                 <label for="gMonto">Monto *</label>
                 <input type="number" id="gMonto" name="monto" step="0.01" min="0.01" required>
             </div>
-            
+
             <div class="form-campo">
                 <label for="gMoneda">Moneda</label>
                 <select id="gMoneda" name="moneda">
@@ -142,12 +173,20 @@
                     {% endfor %}
                 </select>
             </div>
-            
+
+            <div class="form-campo">
+                <label for="gCuenta">Cuenta *</label>
+                <select id="gCuenta" name="cuenta_pk" required>
+                    <option value="">— Elegí una cuenta —</option>
+                </select>
+                <small class="form-campo-ayuda">Solo se muestran cuentas en la moneda elegida arriba.</small>
+            </div>
+
             <div class="form-campo">
                 <label for="gDescripcion">Descripción</label>
-                <input type="text" id="gDescripcion" name="descripcion" placeholder="Ej: Alquiler, Mecánico, Luz...">
+                <input type="text" id="gDescripcion" name="descripcion" placeholder="Ej: Alquiler, Mecánico, Luz, Sueldo, Herencia, Regalo...">
             </div>
-            
+
             <div class="modal-footer">
                 <button type="button" class="btn btn-ghost" id="btnCancelarModal">Cancelar</button>
                 <button type="submit" class="btn btn-primary" id="btnGuardarGasto">Guardar</button>
@@ -162,6 +201,7 @@
 {% endblock %}
 
 {% block extra_js %}
+<script id="cuentas-data" type="application/json">{{ cuentas_json|safe }}</script>
 <script>
     window.gastosUrls = {
         listar: '{{ url_listar }}',

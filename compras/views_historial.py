@@ -4,7 +4,7 @@ from django.views import View
 from django.http import JsonResponse
 from django.db.models import Q
 
-from .models import Compra, EstadoCompra
+from .models import Compra, EstadoCompra, MedioPagoCompra
 from core.permisos import chequear_permiso
 
 
@@ -20,6 +20,7 @@ class HistorialComprasView(LoginRequiredMixin, TemplateView):
         ctx['puede_editar']   = chequear_permiso(self.request.user, 'editar_compras')
         ctx['puede_eliminar'] = chequear_permiso(self.request.user, 'eliminar_compras')
         ctx['estados']        = EstadoCompra.choices
+        ctx['medios_pago']    = MedioPagoCompra.choices
         return ctx
 
 
@@ -37,6 +38,7 @@ class ListarComprasAjax(LoginRequiredMixin, View):
             'items__proveedor',
             'items__combinacion',
             'documentos',
+            'pagos__cuenta',
         ).order_by('-fecha', '-fecha_alta')
 
         q = request.GET.get('q', '').strip()
@@ -89,6 +91,7 @@ class ListarComprasAjax(LoginRequiredMixin, View):
                     'costo_unitario':   str(item.costo_unitario),
                     'moneda':           item.moneda,
                     'descuento_pct':    str(item.descuento_pct),
+                    'lista_descuento_nombre': item.lista_descuento_nombre,
                     'condicion_pago':   item.get_condicion_pago_display(),
                     'referencia':       item.referencia,
                     'notas':            item.notas,
@@ -112,6 +115,16 @@ class ListarComprasAjax(LoginRequiredMixin, View):
                     'subido_el':   doc.subido_el.strftime('%d/%m/%Y %H:%M'),
                 })
 
+            pagos = [
+                {
+                    'medio': p.medio,
+                    'medio_label': p.get_medio_display(),
+                    'monto': str(p.monto),
+                    'cuenta': p.cuenta.nombre if p.cuenta_id else None,
+                }
+                for p in c.pagos.all()
+            ]
+
             data.append({
                 'pk':                     c.pk,
                 'numero':                 c.numero,
@@ -121,6 +134,9 @@ class ListarComprasAjax(LoginRequiredMixin, View):
                 'estado_label':           c.get_estado_display(),
                 'total':                  str(c.total),
                 'notas':                  c.notas,
+                'medio_pago':             c.medio_pago,
+                'medio_pago_label':       c.get_medio_pago_display(),
+                'pagos':                  pagos,
                 'creado_por':             c.creado_por.get_full_name() if c.creado_por else '—',
                 'items':                  items,
                 'items_count':            len(items),

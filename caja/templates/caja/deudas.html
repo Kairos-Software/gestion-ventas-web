@@ -1,0 +1,278 @@
+{% extends 'core/base.html' %}
+
+{% load static %}
+
+{% block title %}Créditos y préstamos{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'caja/css/deudas.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="deudas-container">
+    {% if sin_permiso %}
+    <div class="deudas-sin-permiso">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M12 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="12" cy="16.2" r="0.9" fill="currentColor"/>
+        </svg>
+        <p>No tenés permiso para ver créditos y préstamos.</p>
+    </div>
+    {% else %}
+    <!-- ══════════════════════════════════
+         ENCABEZADO
+    ══════════════════════════════════ -->
+    <header class="deudas-header">
+        <div>
+            <h1 class="deudas-title">Créditos y préstamos</h1>
+            <p class="deudas-subtitle">Compras con tarjeta y préstamos, con su plan de cuotas. Ninguna cuota impacta caja hasta que se confirma.</p>
+        </div>
+        {% if puede_crear %}
+        <button type="button" class="btn btn-primary" id="btnNuevaDeuda">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Nueva deuda
+        </button>
+        {% endif %}
+    </header>
+
+    <!-- ══════════════════════════════════
+         FILTROS
+    ══════════════════════════════════ -->
+    <section class="deudas-section">
+        <div class="deudas-filtros-header">
+            <h2 class="deudas-section-title">Historial</h2>
+            <button type="button" class="btn-filtros-toggle" id="btnToggleFiltros" aria-expanded="false">
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                    <path d="M2 4H14M4.5 8H11.5M7 12H9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                </svg>
+                Filtros
+            </button>
+        </div>
+
+        <form id="formFiltros" class="deudas-filtros" hidden>
+            <div class="filtro-campo">
+                <label for="fTipo">Tipo</label>
+                <select id="fTipo" name="tipo">
+                    <option value="">Todos</option>
+                    {% for tipo, label in tipos_deuda %}
+                    <option value="{{ tipo }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filtro-campo">
+                <label for="fEstado">Estado</label>
+                <select id="fEstado" name="estado">
+                    <option value="">Todos</option>
+                    <option value="activa">Activa</option>
+                    <option value="anulada">Anulada</option>
+                </select>
+            </div>
+            <div class="filtro-campo">
+                <label for="fMoneda">Moneda</label>
+                <select id="fMoneda" name="moneda">
+                    <option value="">Todas</option>
+                    {% for moneda, label in monedas %}
+                    <option value="{{ moneda }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filtro-campo filtro-campo--ancho">
+                <label for="fQ">Buscar</label>
+                <input type="text" id="fQ" name="q" placeholder="Descripción...">
+            </div>
+            <div class="filtro-acciones">
+                <button type="submit" class="btn btn-primary">Filtrar</button>
+                <button type="button" class="btn btn-ghost" id="btnLimpiarFiltros">Limpiar</button>
+            </div>
+        </form>
+    </section>
+
+    <!-- ══════════════════════════════════
+         TABLA
+    ══════════════════════════════════ -->
+    <section class="deudas-section">
+        <div class="deudas-tabla-wrap">
+            <table class="deudas-tabla">
+                <thead>
+                    <tr>
+                        <th>Tipo</th>
+                        <th>Descripción</th>
+                        <th>Monto total</th>
+                        <th>Cuotas</th>
+                        <th>Estado</th>
+                        <th class="th-acciones">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="deudasBody">
+                    <tr>
+                        <td colspan="6" class="deudas-tabla-loading">Cargando…</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="deudas-paginacion" id="paginacionContainer"></div>
+    </section>
+</div>
+
+<!-- ══════════════════════════════════
+     MODAL NUEVA DEUDA
+══════════════════════════════════ -->
+<div class="modal" id="modalDeuda" hidden>
+    <div class="modal-backdrop" id="modalBackdrop"></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title">Nueva deuda</h2>
+            <button type="button" class="modal-close" id="btnCerrarModal" aria-label="Cerrar">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M5 5L15 15M5 15L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
+        <form id="formDeuda" class="modal-body">
+            <div class="form-campo">
+                <label>Tipo *</label>
+                <div class="deudas-tipo-toggle">
+                    <button type="button" class="deudas-tipo-btn deudas-tipo-btn--credito deudas-tipo-btn--active" data-tipo="compra_credito">Compra a crédito</button>
+                    <button type="button" class="deudas-tipo-btn deudas-tipo-btn--prestamo" data-tipo="prestamo">Préstamo</button>
+                </div>
+                <input type="hidden" id="dTipo" name="tipo" value="compra_credito">
+            </div>
+
+            <div class="form-campo">
+                <label for="dDescripcion">Descripción *</label>
+                <input type="text" id="dDescripcion" name="descripcion" placeholder="Ej: Notebook oficina, Préstamo Banco Nación...">
+            </div>
+
+            <div class="form-campo" id="campoTarjeta">
+                <label for="dCuentaTarjeta">Tarjeta *</label>
+                <select id="dCuentaTarjeta" name="cuenta_tarjeta_pk">
+                    <option value="">— Elegí una tarjeta —</option>
+                </select>
+            </div>
+
+            <div class="form-campo" id="campoAcreditacion" hidden>
+                <label for="dCuentaAcreditacion">Cuenta que recibe el préstamo *</label>
+                <select id="dCuentaAcreditacion" name="cuenta_acreditacion_pk">
+                    <option value="">— Elegí una cuenta —</option>
+                </select>
+            </div>
+
+            <div class="form-campo">
+                <label for="dMoneda">Moneda</label>
+                <select id="dMoneda" name="moneda">
+                    {% for moneda, label in monedas %}
+                    <option value="{{ moneda }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="deudas-form-grid">
+                <div class="form-campo">
+                    <label for="dMonto">Monto *</label>
+                    <input type="number" id="dMonto" name="monto_original" step="0.01" min="0.01" required>
+                </div>
+                <div class="form-campo">
+                    <label for="dInteres">Interés %</label>
+                    <input type="number" id="dInteres" name="porcentaje_interes" step="0.01" min="0" value="0">
+                </div>
+            </div>
+
+            <div class="deudas-form-grid">
+                <div class="form-campo">
+                    <label for="dCuotas">Cantidad de cuotas *</label>
+                    <input type="number" id="dCuotas" name="cantidad_cuotas" step="1" min="1" value="1" required>
+                </div>
+                <div class="form-campo">
+                    <label for="dFechaInicio">Inicio de débito *</label>
+                    <input type="date" id="dFechaInicio" name="fecha_inicio" required>
+                </div>
+            </div>
+
+            <div class="form-campo">
+                <label for="dNotas">Notas</label>
+                <input type="text" id="dNotas" name="notas" placeholder="Observaciones (opcional)">
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-ghost" id="btnCancelarModal">Cancelar</button>
+                <button type="submit" class="btn btn-primary" id="btnGuardarDeuda">Guardar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════
+     MODAL DETALLE DEUDA (cuotas)
+══════════════════════════════════ -->
+<div class="modal" id="modalDetalle" hidden>
+    <div class="modal-backdrop" id="modalDetalleBackdrop"></div>
+    <div class="modal-content modal-content--ancho">
+        <div class="modal-header">
+            <h2 class="modal-title" id="detalleTitle">Detalle de deuda</h2>
+            <button type="button" class="modal-close" id="btnCerrarDetalle" aria-label="Cerrar">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M5 5L15 15M5 15L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="deudas-detalle-resumen" id="detalleResumen"></div>
+
+            <div class="deudas-detalle-notas form-campo">
+                <label for="detNotas">Notas</label>
+                <input type="text" id="detNotas" placeholder="Observaciones (opcional)">
+            </div>
+
+            <h3 class="deudas-cuotas-title">Cuotas</h3>
+            <div class="deudas-cuotas-wrap">
+                <table class="deudas-cuotas-tabla">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Vencimiento</th>
+                            <th>Monto</th>
+                            <th>Estado</th>
+                            <th class="th-acciones">Confirmar</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cuotasBody"></tbody>
+                </table>
+            </div>
+
+            <div class="modal-footer">
+                {% if puede_eliminar %}
+                <button type="button" class="btn btn-ghost deudas-btn-danger" id="btnEliminarDeuda">Eliminar deuda</button>
+                {% endif %}
+                {% if puede_editar %}
+                <button type="button" class="btn btn-primary" id="btnGuardarNotas">Guardar notas</button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endif %}
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script id="cuentas-data" type="application/json">{{ cuentas_json|safe }}</script>
+<script>
+    window.deudasUrls = {
+        listar: '{{ url_listar }}',
+        crear: '{{ url_crear }}',
+        editar: '{{ url_editar }}',
+        eliminar: '{{ url_eliminar }}',
+        detalle: '{{ url_detalle }}',
+        confirmarCuota: '{{ url_confirmar_cuota }}',
+    };
+    window.deudasToday = '{{ today }}';
+    window.deudasPuedeConfirmar = {{ puede_confirmar|yesno:"true,false" }};
+    window.deudasPuedeEditar = {{ puede_editar|yesno:"true,false" }};
+</script>
+<script src="{% static 'caja/js/deudas.js' %}"></script>
+{% endblock %}

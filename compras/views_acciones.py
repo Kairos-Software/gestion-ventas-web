@@ -226,6 +226,7 @@ class EditarCompraAjax(LoginRequiredMixin, View):
                 'costo_unitario': costo_unitario,
                 'moneda':         raw.get('moneda', 'ARS'),
                 'descuento_pct':  descuento_pct,
+                'lista_descuento_nombre': raw.get('lista_descuento_nombre', ''),
                 'condicion_pago': raw.get('condicion_pago', 'contado'),
                 'referencia':     raw.get('referencia', ''),
                 'notas':          raw.get('notas', ''),

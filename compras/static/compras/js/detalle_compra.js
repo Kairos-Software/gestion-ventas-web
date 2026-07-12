@@ -10,6 +10,234 @@ const cdtDocInput = document.getElementById('cdtDocInput');
 const cdtDocLista = document.getElementById('cdtDocLista');
 
 /* ════════════════════════════════════════════════════════════════
+   MÓDULO DE PAGOS — solo activo si es borrador
+   Un solo selector por línea: "Efectivo" es una cuenta más de la
+   lista (siempre está — ver asegurar_cuentas_efectivo). No se
+   pregunta transferencia/débito/QR por separado: no importa CÓMO
+   pagaste, importa DE QUÉ CUENTA salió la plata (o que fue efectivo).
+════════════════════════════════════════════════════════════════ */
+const cdtPagoState = {
+    lineas: [],
+    nextId: 0,
+    total:  parseFloat(CDT.compraTotal) || 0,
+};
+
+function _cdtFmtARS(v) {
+    return '$ ' + parseFloat(v || 0).toLocaleString('es-AR', {
+        minimumFractionDigits: 2, maximumFractionDigits: 2,
+    });
+}
+
+function _cdtCuentasDisponibles() {
+    return (CDT.cuentas || []).filter(c => c.moneda === CDT.compraMoneda);
+}
+
+function _cdtTarjetasDisponibles() {
+    return (CDT.tarjetas || []).filter(t => t.moneda === CDT.compraMoneda);
+}
+
+function _cdtEsTarjeta(cuentaPk) {
+    return _cdtTarjetasDisponibles().some(t => String(t.pk) === String(cuentaPk));
+}
+
+function _cdtCuentaEfectivo() {
+    return _cdtCuentasDisponibles().find(c => c.nombre === 'Efectivo');
+}
+
+function _cdtPagoCuentaOpts(seleccionada) {
+    const cuentasOpts = _cdtCuentasDisponibles().map(c =>
+        `<option value="${c.pk}" ${String(c.pk) === String(seleccionada) ? 'selected' : ''}>${c.nombre}</option>`
+    ).join('');
+    const tarjetas = _cdtTarjetasDisponibles();
+    const tarjetasOpts = tarjetas.length ? `<optgroup label="Tarjeta de crédito">${tarjetas.map(t =>
+        `<option value="${t.pk}" ${String(t.pk) === String(seleccionada) ? 'selected' : ''}>${t.nombre}${t.terminada_en ? ' ·· ' + t.terminada_en : ''}</option>`
+    ).join('')}</optgroup>` : '';
+    return '<option value="">— Elegí cuenta o Efectivo —</option>' + cuentasOpts + tarjetasOpts;
+}
+
+function _cdtPagoRenderLineas() {
+    const contenedor = document.getElementById('cdtPagoLineas');
+    if (!contenedor) return;
+
+    if (!cdtPagoState.lineas.length) {
+        contenedor.innerHTML = `
+        <p style="font-size:.8125rem;color:var(--text-muted);margin:.25rem 0">
+            Sin medios de pago. Usá el botón de abajo para agregar.
+        </p>`;
+        _cdtPagoActualizarResumen();
+        return;
+    }
+
+    contenedor.innerHTML = cdtPagoState.lineas.map(l => {
+        const esTarjeta = _cdtEsTarjeta(l.cuenta);
+        return `
+    <div class="vdt-pago-linea-wrap" data-linea-id="${l.id}">
+        <div class="vdt-pago-linea">
+            <select class="vdt-pago-select" data-campo="cuenta" data-id="${l.id}">
+                ${_cdtPagoCuentaOpts(l.cuenta)}
+            </select>
+            <input type="number" class="vdt-pago-monto" min="0" step="0.01"
+                   placeholder="Monto"
+                   value="${l.monto > 0 ? l.monto : ''}"
+                   data-campo="monto" data-id="${l.id}">
+            <button class="vdt-pago-btn-quitar" type="button" data-id="${l.id}" title="Quitar">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path d="M2 2L10 10M10 2L2 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
+        ${esTarjeta ? `
+        <div class="vdt-pago-credito-extra">
+            <div>
+                <span class="vdt-pago-credito-label">Cuotas</span>
+                <input type="number" class="vdt-pago-select" min="1" step="1" placeholder="Cuotas"
+                       value="${l.cuotas || ''}" data-campo="cuotas" data-id="${l.id}">
+            </div>
+            <div>
+                <span class="vdt-pago-credito-label">Interés %</span>
+                <input type="number" class="vdt-pago-select" min="0" step="0.01" placeholder="0"
+                       value="${l.interesPct != null ? l.interesPct : ''}" data-campo="interesPct" data-id="${l.id}">
+            </div>
+            <div>
+                <span class="vdt-pago-credito-label">Inicio débito</span>
+                <input type="date" class="vdt-pago-select"
+                       value="${l.fechaInicioDebito || ''}" data-campo="fechaInicioDebito" data-id="${l.id}">
+            </div>
+        </div>` : ''}
+    </div>`;
+    }).join('');
+
+    contenedor.querySelectorAll('[data-campo]').forEach(el => {
+        el.addEventListener('change', () => {
+            const id    = parseInt(el.dataset.id, 10);
+            const campo = el.dataset.campo;
+            const linea = cdtPagoState.lineas.find(l => l.id === id);
+            if (!linea) return;
+            if (campo === 'monto') {
+                linea.monto = parseFloat(el.value) || 0;
+            } else if (campo === 'cuotas') {
+                linea.cuotas = parseInt(el.value, 10) || null;
+            } else if (campo === 'interesPct') {
+                linea.interesPct = el.value === '' ? 0 : parseFloat(el.value);
+            } else {
+                linea[campo] = el.value;
+            }
+            if (campo === 'cuenta') {
+                _cdtPagoRenderLineas();
+            } else {
+                _cdtPagoActualizarResumen();
+            }
+        });
+        if (el.dataset.campo === 'monto') {
+            el.addEventListener('input', () => {
+                const id    = parseInt(el.dataset.id, 10);
+                const linea = cdtPagoState.lineas.find(l => l.id === id);
+                if (linea) { linea.monto = parseFloat(el.value) || 0; _cdtPagoActualizarResumen(); }
+            });
+        }
+    });
+
+    contenedor.querySelectorAll('.vdt-pago-btn-quitar').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const id = parseInt(btn.dataset.id, 10);
+            cdtPagoState.lineas = cdtPagoState.lineas.filter(l => l.id !== id);
+            _cdtPagoRenderLineas();
+        });
+    });
+
+    _cdtPagoActualizarResumen();
+}
+
+function _cdtPagoActualizarResumen() {
+    const asignado  = cdtPagoState.lineas.reduce((s, l) => s + (l.monto || 0), 0);
+    const pendiente = cdtPagoState.total - asignado;
+    const exceso    = asignado - cdtPagoState.total;
+
+    const resumenEl   = document.getElementById('cdtPagoResumen');
+    const asignadoEl  = document.getElementById('cdtPagoAsignado');
+    const pendienteEl = document.getElementById('cdtPagoPendiente');
+
+    if (asignadoEl)  asignadoEl.textContent  = _cdtFmtARS(asignado);
+    if (pendienteEl) pendienteEl.textContent =
+        exceso > 0.005 ? `Exceso: ${_cdtFmtARS(exceso)}` : _cdtFmtARS(Math.max(0, pendiente));
+
+    if (resumenEl) {
+        resumenEl.className = 'vdt-pago-resumen ';
+        if (Math.abs(pendiente) < 0.005 && cdtPagoState.lineas.length) {
+            resumenEl.classList.add('vdt-pago-resumen--ok');
+            resumenEl.innerHTML = `
+            <span>
+                <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style="vertical-align:middle;margin-right:4px">
+                    <path d="M2 7L5.5 10.5L12 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Pago cubierto
+            </span>
+            <span>Total: <strong>${_cdtFmtARS(asignado)}</strong></span>`;
+        } else if (exceso > 0.005) {
+            resumenEl.classList.add('vdt-pago-resumen--exceso');
+            resumenEl.innerHTML = `
+            <span>Asignado: <strong>${_cdtFmtARS(asignado)}</strong></span>
+            <span>Exceso: <strong>${_cdtFmtARS(exceso)}</strong></span>`;
+        } else {
+            resumenEl.classList.add('vdt-pago-resumen--pendiente');
+            resumenEl.innerHTML = `
+            <span>Asignado: <strong>${_cdtFmtARS(asignado)}</strong></span>
+            <span>Pendiente: <strong>${_cdtFmtARS(pendiente)}</strong></span>`;
+        }
+    }
+}
+
+function _cdtPagoAgregarLinea() {
+    const asignado = cdtPagoState.lineas.reduce((s, l) => s + (l.monto || 0), 0);
+    const restante = Math.max(0, cdtPagoState.total - asignado);
+    const efectivo = _cdtCuentaEfectivo();
+    cdtPagoState.lineas.push({
+        id:    cdtPagoState.nextId++,
+        monto: parseFloat(restante.toFixed(2)),
+        cuenta: efectivo ? efectivo.pk : '',
+    });
+    _cdtPagoRenderLineas();
+}
+
+function _cdtPagoEsCubierto() {
+    const asignado = cdtPagoState.lineas.reduce((s, l) => s + (l.monto || 0), 0);
+    return Math.abs(cdtPagoState.total - asignado) < 0.005 && cdtPagoState.lineas.length > 0;
+}
+
+function _cdtPagoFaltanCuentas() {
+    return cdtPagoState.lineas.some(l => !l.cuenta);
+}
+
+function _cdtPagoFaltanDatosCredito() {
+    return cdtPagoState.lineas.some(l =>
+        _cdtEsTarjeta(l.cuenta) && (!l.cuotas || l.cuotas < 1 || !l.fechaInicioDebito)
+    );
+}
+
+function _cdtGetPagoPayload() {
+    const pagos = cdtPagoState.lineas.map(l => {
+        if (_cdtEsTarjeta(l.cuenta)) {
+            return {
+                medio: 'credito',
+                monto: l.monto,
+                cuenta_pk: l.cuenta || null,
+                cuotas: l.cuotas,
+                interes_pct: l.interesPct != null ? l.interesPct : 0,
+                fecha_inicio_debito: l.fechaInicioDebito || null,
+            };
+        }
+        const cuentaInfo = _cdtCuentasDisponibles().find(c => String(c.pk) === String(l.cuenta));
+        const esEfectivo = cuentaInfo && cuentaInfo.nombre === 'Efectivo';
+        return {
+            medio: esEfectivo ? 'efectivo' : 'transferencia',
+            monto: l.monto,
+            cuenta_pk: l.cuenta || null,
+        };
+    });
+    return { pagos };
+}
+
+/* ════════════════════════════════════════════════════════════════
    BORRADOR — Confirmar y Volver
 ════════════════════════════════════════════════════════════════ */
 if (CDT.esBorrador) {
@@ -18,6 +246,19 @@ if (CDT.esBorrador) {
     const btnVolver    = document.getElementById('cdtBtnVolver');
     const inputFecha   = document.getElementById('cdtFecha');
     const inputNotas   = document.getElementById('cdtNotas');
+
+    /* ── Widget de pagos: línea inicial con el total completo,
+           precargada en Efectivo si existe ──────────────────────── */
+    const cdtEfectivoInicial = _cdtCuentaEfectivo();
+    cdtPagoState.lineas.push({
+        id:    cdtPagoState.nextId++,
+        monto: parseFloat(cdtPagoState.total.toFixed(2)),
+        cuenta: cdtEfectivoInicial ? cdtEfectivoInicial.pk : '',
+    });
+    _cdtPagoRenderLineas();
+
+    const btnAgregarPago = document.getElementById('cdtBtnAgregarPago');
+    if (btnAgregarPago) btnAgregarPago.addEventListener('click', _cdtPagoAgregarLinea);
 
     /* ── Editar carrito (vuelve a Nueva Compra CON los productos cargados) ── */
     btnEditar.addEventListener('click', () => {
@@ -29,10 +270,33 @@ if (CDT.esBorrador) {
         const fecha = inputFecha.value;
         if (!fecha) { cdtToast('Fecha requerida', 'Ingresá una fecha antes de confirmar.'); return; }
 
+        if (!_cdtPagoEsCubierto()) {
+            const asignado  = cdtPagoState.lineas.reduce((s, l) => s + (l.monto || 0), 0);
+            const pendiente = cdtPagoState.total - asignado;
+            if (!cdtPagoState.lineas.length) {
+                cdtToast('Medio de pago requerido', 'Agregá al menos un medio de pago.');
+            } else {
+                cdtToast('Pago incompleto', `Falta cubrir ${_cdtFmtARS(pendiente)}.`);
+            }
+            return;
+        }
+
+        if (_cdtPagoFaltanCuentas()) {
+            cdtToast('Cuenta requerida', 'Elegí a qué cuenta se debita cada línea de pago.');
+            return;
+        }
+
+        if (_cdtPagoFaltanDatosCredito()) {
+            cdtToast('Datos de la tarjeta incompletos', 'Completá cuotas y fecha de inicio de débito para cada pago con tarjeta.');
+            return;
+        }
+
         btnConfirmar.disabled  = true;
         btnConfirmar.innerHTML = `<svg class="cmp-spin" width="16" height="16" viewBox="0 0 16 16" fill="none">
             <circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.5" stroke-dasharray="20 15"/>
         </svg> Confirmando…`;
+
+        const pagoPayload = _cdtGetPagoPayload();
 
         try {
             const res  = await fetch(CDT.urlConfirmar, {
@@ -42,6 +306,7 @@ if (CDT.esBorrador) {
                     compra_pk: CDT.compraPk,
                     fecha:     fecha,
                     notas:     inputNotas ? inputNotas.value.trim() : '',
+                    pagos:     pagoPayload.pagos,
                 }),
             });
             const data = await res.json();

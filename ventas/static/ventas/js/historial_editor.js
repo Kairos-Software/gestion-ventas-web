@@ -201,6 +201,7 @@ function accionEditar(pk, ventaData, listaContainer) {
                 precio_unitario:  parseFloat(item.precio_unitario) || 0,
                 moneda:           item.moneda  || 'ARS',
                 descuento:        parseFloat(item.descuento_pct) || 0,
+                lista_descuento_nombre: item.lista_descuento_nombre || '',
                 condicion:        _condicionRaw(item.condicion_pago),
                 referencia:       item.referencia || '',
             });
@@ -739,6 +740,7 @@ function _editUpdateField(id, campo, valor) {
     if (!item) return;
     if (['cantidad','precio_unitario','descuento'].includes(campo)) item[campo] = parseFloat(valor) || 0;
     else item[campo] = valor;
+    if (campo === 'descuento') item.lista_descuento_nombre = '';
 
     const { pk } = editState;
     const subEl  = document.getElementById(`editSub_${pk}_${id}`);
@@ -942,6 +944,7 @@ function _editAgregarItem(d, combinaciones) {
         precio_unitario:  0,
         moneda:           'ARS',
         descuento:        0,
+        lista_descuento_nombre: '',
         condicion:        'contado',
         referencia:       '',
     });
@@ -1006,6 +1009,7 @@ function _guardarEdicion(ventaData) {
                     precio_unitario: item.precio_unitario,
                     moneda:          item.moneda,
                     descuento_pct:   item.descuento,
+                    lista_descuento_nombre: item.lista_descuento_nombre || '',
                     condicion_pago:  item.condicion,
                     referencia:      item.referencia,
                 });
@@ -1019,6 +1023,7 @@ function _guardarEdicion(ventaData) {
                 precio_unitario: item.precio_unitario,
                 moneda:          item.moneda,
                 descuento_pct:   item.descuento,
+                lista_descuento_nombre: item.lista_descuento_nombre || '',
                 condicion_pago:  item.condicion,
                 referencia:      item.referencia,
             });

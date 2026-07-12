@@ -23,6 +23,9 @@ PERMISOS_CHOICES = [
     # ── Módulo: Empresa ──────────────────────────────────────────
     ('editar_empresa',     'Editar datos de la empresa'),
 
+    # ── Módulo: Cuentas de caja ───────────────────────────────────
+    ('editar_cuentas',     'Cargar y editar cuentas de caja (tarjetas, billeteras, bancos)'),
+
     # ── Módulo: Clientes ──────────────────────────────────────────
     ('ver_clientes',       'Ver lista de clientes'),
     ('crear_clientes',     'Crear clientes'),
@@ -45,6 +48,7 @@ PERMISOS_CHOICES = [
     ('editar_productos',       'Editar productos'),
     ('eliminar_productos',     'Eliminar productos'),
     ('gestionar_categorias',   'Gestionar categorías y tipos de producto'),
+    ('gestionar_listas_descuento', 'Gestionar listas de descuento'),
 
     # ── Módulo: Compras ───────────────────────────────────────────────
     ('ver_compras',       'Ver historial de compras'),
@@ -62,11 +66,20 @@ PERMISOS_CHOICES = [
     ('ver_caja',              'Ver balance y movimientos de caja'),
     ('cargar_movimientos_caja', 'Cargar movimientos manuales en caja'),
 
-    # ── Módulo: Gastos ───────────────────────────────────────────────
-    ('ver_gastos',       'Ver historial de gastos'),
-    ('crear_gastos',     'Crear nuevos gastos'),
-    ('editar_gastos',    'Editar gastos existentes'),
-    ('eliminar_gastos',  'Eliminar gastos'),
+    # ── Módulo: Ingresos y egresos ────────────────────────────────
+    # (códigos sin cambiar a propósito: renombrarlos revocaría en
+    # silencio el permiso de roles que ya lo tengan otorgado)
+    ('ver_gastos',       'Ver historial de ingresos y egresos'),
+    ('crear_gastos',     'Crear ingresos y egresos'),
+    ('editar_gastos',    'Editar ingresos y egresos existentes'),
+    ('eliminar_gastos',  'Eliminar ingresos y egresos'),
+
+    # ── Módulo: Créditos y préstamos ──────────────────────────────
+    ('ver_deudas',              'Ver créditos y préstamos'),
+    ('crear_deudas',            'Crear créditos y préstamos'),
+    ('editar_deudas',           'Editar créditos y préstamos existentes'),
+    ('eliminar_deudas',         'Eliminar créditos y préstamos'),
+    ('confirmar_cuotas_deuda',  'Confirmar el pago de una cuota'),
 ]
 
 CODIGOS_PERMISOS = {codigo for codigo, _ in PERMISOS_CHOICES}
@@ -74,6 +87,7 @@ CODIGOS_PERMISOS = {codigo for codigo, _ in PERMISOS_CHOICES}
 # Permisos que solo pueden ser otorgados por superusuarios
 PERMISOS_RESTRINGIDOS = {
     'editar_empresa',
+    'editar_cuentas',
 }
 
 

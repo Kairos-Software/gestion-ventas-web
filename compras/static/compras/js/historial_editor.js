@@ -46,6 +46,7 @@ function accionEditar(pk, compraData, listaContainer) {
         costo:            parseFloat(item.costo_unitario) || 0,
         moneda:           item.moneda  || 'ARS',
         descuento:        parseFloat(item.descuento_pct) || 0,
+        lista_descuento_nombre: item.lista_descuento_nombre || '',
         condicion:        _condicionRaw(item.condicion_pago),
         referencia:       item.referencia || '',
         fecha_vencimiento: item.fecha_vencimiento || '',
@@ -320,6 +321,7 @@ function _editUpdateField(id, campo, valor) {
     if (!item) return;
     if (['cantidad','costo','descuento'].includes(campo)) item[campo] = parseFloat(valor) || 0;
     else item[campo] = valor;
+    if (campo === 'descuento') item.lista_descuento_nombre = '';
 
     const { pk } = editState;
     const subEl  = document.getElementById(`editSub_${pk}_${id}`);
@@ -374,6 +376,7 @@ function _editAgregarItem(fila) {
         costo:            0,
         moneda:           'ARS',
         descuento:        0,
+        lista_descuento_nombre: '',
         condicion:        'contado',
         referencia:       '',
         fecha_vencimiento: '',
@@ -588,6 +591,7 @@ function _guardarEdicion(compraData, listaContainer) {
         costo_unitario: item.costo,
         moneda:         item.moneda,
         descuento_pct:  item.descuento,
+        lista_descuento_nombre: item.lista_descuento_nombre || '',
         condicion_pago: item.condicion,
         referencia:     item.referencia,
         fecha_vencimiento: item.fecha_vencimiento || null,

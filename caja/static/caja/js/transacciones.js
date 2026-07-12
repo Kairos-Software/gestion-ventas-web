@@ -1,9 +1,11 @@
 /* ══════════════════════════════════════════════════════════════════
    transacciones.js — Kai-Cart
    Módulo de Transacciones de Caja Grande.
-   Los contenedores (Efectivo ARS, Banco ARS, etc.) son fijos —
-   no requieren un CRUD de cuentas. El backend los resuelve con
-   get_or_create al guardar.
+   Las cuentas son las mismas CuentaCaja reales que se cargan desde
+   Configuración (tarjetas, billeteras, bancos, efectivo). Acá solo
+   se eligen origen/destino entre las que no son de crédito — el
+   backend (_cuentas_disponibles en views_transacciones.py) filtra
+   lo mismo.
    ══════════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -18,15 +20,8 @@ const Transacciones = (() => {
         anular:   window.URL_TRANSACCIONES_ANULAR,
     };
 
-    // Contenedores fijos — deben coincidir exactamente con CONTENEDORES en views_transacciones.py
-    const CONTENEDORES = window.CONTENEDORES_TRANSACCIONES || [
-        { clave: 'efectivo_ars', label: 'Efectivo ARS', moneda: 'ARS' },
-        { clave: 'banco_ars',    label: 'Banco ARS',    moneda: 'ARS' },
-        { clave: 'efectivo_usd', label: 'Efectivo USD', moneda: 'USD' },
-        { clave: 'banco_usd',    label: 'Banco USD',    moneda: 'USD' },
-        { clave: 'efectivo_eur', label: 'Efectivo EUR', moneda: 'EUR' },
-        { clave: 'banco_eur',    label: 'Banco EUR',    moneda: 'EUR' },
-    ];
+    const cuentasDataEl = document.getElementById('cuentas-data');
+    const CUENTAS = cuentasDataEl ? JSON.parse(cuentasDataEl.textContent) : [];
 
     let _transacciones = [];
     let _paginaActual  = 1;
@@ -58,29 +53,36 @@ const Transacciones = (() => {
        INIT
     ══════════════════════════════════════════════════════════════ */
     async function init() {
-        _poblarSelectsContenedores();
+        _poblarSelectsCuentas();
         await _cargarListado();
         _bindEventos();
     }
 
     /* ══════════════════════════════════════════════════════════════
-       CONTENEDORES — popular selects
+       CUENTAS — popular selects
     ══════════════════════════════════════════════════════════════ */
-    function _poblarSelectsContenedores() {
+    function _opcionesCuentas(lista) {
+        return lista.map(c =>
+            `<option value="${c.pk}" data-moneda="${c.moneda}">${c.nombre} (${c.moneda})</option>`
+        ).join('');
+    }
+
+    function _poblarSelectsCuentas() {
         const selOrigen  = document.getElementById('trx-contenedor-origen');
         const selDestino = document.getElementById('trx-contenedor-destino');
         if (!selOrigen || !selDestino) return;
 
-        const opciones = CONTENEDORES.map(c =>
-            `<option value="${c.clave}" data-moneda="${c.moneda}">${c.label}</option>`
-        ).join('');
-
-        selOrigen.innerHTML  = '<option value="">— Seleccionar —</option>' + opciones;
-        selDestino.innerHTML = '<option value="">— Seleccionar —</option>' + opciones;
+        const opciones = '<option value="">— Seleccionar cuenta —</option>' + _opcionesCuentas(CUENTAS);
+        selOrigen.innerHTML  = opciones;
+        selDestino.innerHTML = opciones;
     }
 
-    function _monedaDeContenedor(clave) {
-        return CONTENEDORES.find(c => c.clave === clave)?.moneda ?? '';
+    function _monedaDeCuenta(pk) {
+        return CUENTAS.find(c => String(c.pk) === String(pk))?.moneda ?? '';
+    }
+
+    function _cuentaPorPk(pk) {
+        return CUENTAS.find(c => String(c.pk) === String(pk));
     }
 
     /* ══════════════════════════════════════════════════════════════
@@ -208,12 +210,32 @@ const Transacciones = (() => {
             if (el) el.value = '';
         });
         document.getElementById('trx-fecha').value = _hoy();
-        document.getElementById('trx-label-origen').textContent  = 'Contenedor origen';
-        document.getElementById('trx-label-destino').textContent = 'Contenedor destino';
+        document.getElementById('trx-label-origen').textContent  = 'Cuenta origen';
+        document.getElementById('trx-label-destino').textContent = 'Cuenta destino';
         document.getElementById('trx-seccion-divisa').style.display = 'none';
         document.getElementById('trx-tipo-cambio').required = false;
+        _poblarSelectsCuentas();
+        _actualizarSaldoDisponible();
         _limpiarPreview();
         _limpiarError();
+    }
+
+    /* ── Saldo disponible de la cuenta origen elegida ────────────── */
+    function _actualizarSaldoDisponible() {
+        const el = document.getElementById('trx-saldo-disponible');
+        if (!el) return;
+
+        const pkOrigen = document.getElementById('trx-contenedor-origen')?.value;
+        const cuenta   = _cuentaPorPk(pkOrigen);
+        if (!cuenta) { el.textContent = ''; el.classList.remove('trx-saldo-insuficiente'); return; }
+
+        const monto = parseFloat(document.getElementById('trx-monto-origen')?.value || '0');
+        const saldo = parseFloat(cuenta.saldo);
+        const alcanza = !monto || saldo >= monto;
+
+        el.textContent = `Saldo disponible: ${_fmt(cuenta.saldo)} ${cuenta.moneda}`;
+        el.classList.toggle('trx-saldo-insuficiente', !alcanza);
+        if (!alcanza) el.textContent += ' — no alcanza para este monto';
     }
 
     function _onTipoChange() {
@@ -223,56 +245,42 @@ const Transacciones = (() => {
         document.getElementById('trx-seccion-divisa').style.display = esDivisa ? '' : 'none';
         document.getElementById('trx-tipo-cambio').required = esDivisa;
 
-        const labels = {
-            deposito:      ['Efectivo (origen)', 'Banco (destino)'],
-            extraccion:    ['Banco (origen)',    'Efectivo (destino)'],
-            compra_divisa: ['Moneda origen',     'Divisa destino'],
-            venta_divisa:  ['Divisa origen',     'Moneda destino'],
-        };
-        if (labels[tipo]) {
-            document.getElementById('trx-label-origen').textContent  = labels[tipo][0];
-            document.getElementById('trx-label-destino').textContent = labels[tipo][1];
-        }
-
         // Filtrar opciones del select según tipo para evitar errores obvios
-        _filtrarContenedoresPorTipo(tipo);
+        _filtrarCuentasPorTipo(tipo);
         _dispararCalculo();
     }
 
-    function _filtrarContenedoresPorTipo(tipo) {
+    function _filtrarCuentasPorTipo(tipo) {
         const selOrigen  = document.getElementById('trx-contenedor-origen');
         const selDestino = document.getElementById('trx-contenedor-destino');
         if (!selOrigen || !selDestino) return;
 
-        // Para depósito/extracción mostramos todos (el backend valida moneda)
-        // Para compra/venta de divisa resaltamos con optgroup
+        // Compra/venta de divisa: separamos ARS de "resto" para guiar
+        // la elección. Depósito/extracción: un lado es siempre Efectivo,
+        // el otro nunca puede ser Efectivo (el backend valida lo mismo).
         if (['compra_divisa', 'venta_divisa'].includes(tipo)) {
             const arsFiltro = c => c.moneda === 'ARS';
             const divFiltro = c => c.moneda !== 'ARS';
 
-            selOrigen.innerHTML = _buildOptgroups(
-                tipo === 'compra_divisa' ? arsFiltro : divFiltro
-            );
-            selDestino.innerHTML = _buildOptgroups(
-                tipo === 'compra_divisa' ? divFiltro : arsFiltro
-            );
-        } else {
-            // Depósito / extracción: misma moneda en ambos lados
-            const opciones = CONTENEDORES.map(c =>
-                `<option value="${c.clave}" data-moneda="${c.moneda}">${c.label}</option>`
-            ).join('');
-            const base = '<option value="">— Seleccionar —</option>' + opciones;
-            selOrigen.innerHTML  = base;
-            selDestino.innerHTML = base;
-        }
-    }
+            const filtroOrigen  = tipo === 'compra_divisa' ? arsFiltro : divFiltro;
+            const filtroDestino = tipo === 'compra_divisa' ? divFiltro : arsFiltro;
 
-    function _buildOptgroups(filtro) {
-        const opciones = CONTENEDORES
-            .filter(filtro)
-            .map(c => `<option value="${c.clave}" data-moneda="${c.moneda}">${c.label}</option>`)
-            .join('');
-        return '<option value="">— Seleccionar —</option>' + opciones;
+            selOrigen.innerHTML  = '<option value="">— Seleccionar cuenta —</option>' + _opcionesCuentas(CUENTAS.filter(filtroOrigen));
+            selDestino.innerHTML = '<option value="">— Seleccionar cuenta —</option>' + _opcionesCuentas(CUENTAS.filter(filtroDestino));
+        } else if (tipo === 'deposito' || tipo === 'extraccion') {
+            const esEfectivo = c => c.es_efectivo;
+            const noEfectivo = c => !c.es_efectivo;
+
+            const filtroOrigen  = tipo === 'deposito' ? esEfectivo : noEfectivo;
+            const filtroDestino = tipo === 'deposito' ? noEfectivo : esEfectivo;
+
+            selOrigen.innerHTML  = '<option value="">— Seleccionar cuenta —</option>' + _opcionesCuentas(CUENTAS.filter(filtroOrigen));
+            selDestino.innerHTML = '<option value="">— Seleccionar cuenta —</option>' + _opcionesCuentas(CUENTAS.filter(filtroDestino));
+        } else {
+            _poblarSelectsCuentas();
+        }
+
+        _actualizarSaldoDisponible();
     }
 
     /* ── Preview en tiempo real ───────────────────────────────── */
@@ -308,10 +316,10 @@ const Transacciones = (() => {
         const el = document.getElementById('trx-preview');
         if (!el) return;
 
-        const claveOrigen  = document.getElementById('trx-contenedor-origen')?.value;
-        const claveDestino = document.getElementById('trx-contenedor-destino')?.value;
-        const mOrigen  = _monedaDeContenedor(claveOrigen);
-        const mDestino = _monedaDeContenedor(claveDestino);
+        const pkOrigen  = document.getElementById('trx-contenedor-origen')?.value;
+        const pkDestino = document.getElementById('trx-contenedor-destino')?.value;
+        const mOrigen  = _monedaDeCuenta(pkOrigen);
+        const mDestino = _monedaDeCuenta(pkDestino);
 
         let html = `
             <div class="trx-preview-row">
@@ -350,8 +358,8 @@ const Transacciones = (() => {
 
         const body = {
             tipo:                 document.getElementById('trx-tipo')?.value,
-            contenedor_origen:    document.getElementById('trx-contenedor-origen')?.value,
-            contenedor_destino:   document.getElementById('trx-contenedor-destino')?.value,
+            cuenta_origen_pk:     document.getElementById('trx-contenedor-origen')?.value,
+            cuenta_destino_pk:    document.getElementById('trx-contenedor-destino')?.value,
             monto_origen:         document.getElementById('trx-monto-origen')?.value,
             tipo_cambio:          document.getElementById('trx-tipo-cambio')?.value   || null,
             costo_extra:          document.getElementById('trx-costo-extra')?.value   || null,
@@ -484,6 +492,11 @@ const Transacciones = (() => {
          'trx-contenedor-origen', 'trx-contenedor-destino'].forEach(id => {
             document.getElementById(id)?.addEventListener('input',  _dispararCalculo);
             document.getElementById(id)?.addEventListener('change', _dispararCalculo);
+        });
+
+        ['trx-monto-origen', 'trx-contenedor-origen'].forEach(id => {
+            document.getElementById(id)?.addEventListener('input',  _actualizarSaldoDisponible);
+            document.getElementById(id)?.addEventListener('change', _actualizarSaldoDisponible);
         });
 
         document.getElementById('trx-btn-guardar')

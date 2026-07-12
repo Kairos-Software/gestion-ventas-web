@@ -14,7 +14,8 @@ from core.permisos import chequear_permiso
 
 from .models import (
     CuentaCaja, ConceptoMovimiento, MovimientoCaja,
-    TipoCaja, TipoCuenta, TipoMovimientoCaja, OrigenMovimiento,
+    TipoCaja, TipoMovimientoCaja, OrigenMovimiento,
+    _cuenta_default,
 )
 
 
@@ -54,7 +55,6 @@ class CajaGrandeView(LoginRequiredMixin, TemplateView):
             .order_by('orden', 'nombre')
         )
         ctx['monedas']        = Moneda.choices
-        ctx['tipos_cuenta']   = TipoCuenta.choices
         ctx['tipos_movimiento'] = TipoMovimientoCaja.choices
         ctx['today']          = timezone.now().date().isoformat()
 
@@ -137,8 +137,7 @@ class BalanceGrandeAjax(LoginRequiredMixin, View):
     """
     Devuelve:
       - balance_por_moneda: saldo TOTAL (histórico) por moneda, calculado
-        exclusivamente desde MovimientoCaja(caja=GRANDE). Una venta solo
-        aparece acá una vez que su turno se cerró (ver TurnoCaja.cerrar).
+        exclusivamente desde MovimientoCaja(caja=GRANDE).
       - metricas_por_moneda: métricas detalladas por moneda (recaudado,
         gastos, etc.), respetando los filtros de _aplicar_filtros().
     """
@@ -149,29 +148,26 @@ class BalanceGrandeAjax(LoginRequiredMixin, View):
 
         # ── Calcular balance ÚNICAMENTE desde MovimientoCaja(caja=GRANDE) ──
         #
-        # IMPORTANTE: antes esta vista sumaba Venta.total/Compra.total
-        # directamente, además de los movimientos "extra". Para ventas
-        # eso era un bug: contaba la plata de una venta como si ya
-        # estuviera en caja grande apenas se confirmaba, aunque el
-        # turno todavía estuviera abierto y esa plata siguiera "en el
-        # cajón". Ahora una venta NUNCA genera un movimiento en caja
-        # grande directamente — el único momento en que esa plata entra
-        # a caja grande es cuando TurnoCaja.cerrar() la transfiere
-        # (queda registrada con origen=AJUSTE). Por eso alcanza con
-        # sumar MovimientoCaja: ya incluye ventas liquidadas (vía
-        # cierre de turno), compras (origen=COMPRA), gastos y cargas
-        # manuales (origen=MANUAL), transacciones internas
-        # (origen=TRANSACCION) y ajustes de turno (origen=AJUSTE).
-        #
-        # NOTA (fase 2 pendiente): las compras todavía generan su
-        # movimiento apenas se confirman, sin pasar por ningún "cierre"
-        # — eso es intencional por ahora (compras no tienen turno), y
-        # queda incluido acá sin tratamiento especial.
+        # Una venta paga con medios NO efectivo (transferencia, débito,
+        # crédito, QR) impacta caja grande en el momento en que se
+        # confirma (origen=VENTA) — no hay nada que contar físicamente,
+        # así que no tiene sentido esperar. El pago en EFECTIVO es la
+        # excepción: recién entra a caja grande cuando se cierra el
+        # turno (origen=AJUSTE), porque ahí se concilia contra lo
+        # contado. Por eso el desglose de "ventas" más abajo suma
+        # ambos orígenes (VENTA + AJUSTE). El resto de MovimientoCaja
+        # ya cubre compras (origen=COMPRA), gastos y cargas manuales
+        # (origen=MANUAL) y transacciones internas (origen=TRANSACCION).
 
         balance_por_moneda = {}
         metricas_por_moneda = {}
 
         for moneda, _label in Moneda.choices:
+            # El efectivo siempre existe, en las tres monedas, aunque
+            # todavía no tenga movimientos — se auto-provisiona acá
+            # (get_or_create) para que la card nunca falte.
+            _cuenta_default(moneda=moneda, caja=TipoCaja.GRANDE)
+
             qs_moneda = MovimientoCaja.objects.filter(
                 caja=TipoCaja.GRANDE,
                 moneda=moneda,
@@ -185,10 +181,14 @@ class BalanceGrandeAjax(LoginRequiredMixin, View):
             total_egresos  = agregados_totales['egresos']  or 0
             saldo = total_ingresos - total_egresos
 
-            # Desglose informativo por origen (ventas liquidadas, compras,
-            # manuales/gastos, transacciones internas, ajustes de turno)
+            # Desglose informativo por origen (ventas, compras,
+            # manuales/gastos, transacciones internas, ajustes de turno).
+            # "Ventas" suma dos orígenes: lo no-efectivo que entra al
+            # confirmar (origen=VENTA) + el efectivo liquidado recién al
+            # cerrar el turno (origen=AJUSTE) — ver sincronizar_movimiento_venta.
             ventas_liquidadas = qs_moneda.filter(
-                origen=OrigenMovimiento.AJUSTE, tipo=TipoMovimientoCaja.INGRESO,
+                origen__in=[OrigenMovimiento.VENTA, OrigenMovimiento.AJUSTE],
+                tipo=TipoMovimientoCaja.INGRESO,
             ).aggregate(total=Sum('monto'))['total'] or 0
 
             egresos_compras = qs_moneda.filter(
@@ -208,6 +208,9 @@ class BalanceGrandeAjax(LoginRequiredMixin, View):
                     {
                         'nombre': cuenta.nombre,
                         'tipo': cuenta.tipo,
+                        'es_credito': cuenta.es_credito,
+                        'titular': cuenta.titular,
+                        'terminada_en': cuenta.terminada_en,
                         'saldo': str(cuenta.saldo),
                     }
                     for cuenta in CuentaCaja.objects.filter(
@@ -229,10 +232,11 @@ class BalanceGrandeAjax(LoginRequiredMixin, View):
             egresos_filtrados   = agregados_filtrados['egresos']  or 0
             total_movimientos   = agregados_filtrados['total_movimientos'] or 0
 
-            # Ventas liquidadas y compras dentro del mismo filtro, para
-            # desglosar el origen del recaudado/gastos (informativo).
+            # Ventas y compras dentro del mismo filtro, para desglosar
+            # el origen del recaudado/gastos (informativo).
             ventas_filtradas = qs_filtrado.filter(
-                origen=OrigenMovimiento.AJUSTE, tipo=TipoMovimientoCaja.INGRESO,
+                origen__in=[OrigenMovimiento.VENTA, OrigenMovimiento.AJUSTE],
+                tipo=TipoMovimientoCaja.INGRESO,
             ).aggregate(total=Sum('monto'))['total'] or 0
             compras_filtradas = qs_filtrado.filter(
                 origen=OrigenMovimiento.COMPRA,
@@ -410,40 +414,10 @@ class EliminarMovimientoGrandeAjax(LoginRequiredMixin, View):
 
 
 # ══════════════════════════════════════════════════════════════════
-#  AJAX — Crear cuenta de caja (grande)
+#  Nota: la creación/edición de cuentas de caja grande (tarjetas,
+#  billeteras, bancos) se gestiona desde Configuración (app core,
+#  ver core/views_cuentas.py), no acá. Caja Grande solo lee.
 # ══════════════════════════════════════════════════════════════════
-
-class CrearCuentaGrandeAjax(LoginRequiredMixin, View):
-    def post(self, request):
-        if not chequear_permiso(request.user, PERMISO_CARGAR):
-            return JsonResponse({'error': 'Sin permiso.'}, status=403)
-
-        try:
-            body = json.loads(request.body)
-        except json.JSONDecodeError:
-            return JsonResponse({'error': 'JSON inválido.'}, status=400)
-
-        nombre = body.get('nombre', '').strip()
-        moneda = body.get('moneda', '').strip()
-        tipo   = body.get('tipo', TipoCuenta.EFECTIVO).strip()
-
-        if not nombre:
-            return JsonResponse({'error': 'El nombre es requerido.'}, status=400)
-        valores_moneda = [v for v, _ in Moneda.choices]
-        if moneda not in valores_moneda:
-            return JsonResponse({'error': 'Moneda inválida.'}, status=400)
-        valores_tipo = [v for v, _ in TipoCuenta.choices]
-        if tipo not in valores_tipo:
-            return JsonResponse({'error': 'Tipo de cuenta inválido.'}, status=400)
-
-        if CuentaCaja.objects.filter(nombre=nombre, caja=TipoCaja.GRANDE).exists():
-            return JsonResponse({'error': 'Ya existe una cuenta con ese nombre en la caja grande.'}, status=400)
-
-        cuenta = CuentaCaja.objects.create(
-            nombre=nombre, moneda=moneda, tipo=tipo, caja=TipoCaja.GRANDE,
-            notas=body.get('notas', ''),
-        )
-        return JsonResponse({'ok': True, 'pk': cuenta.pk, 'nombre': cuenta.nombre})
 
 
 # ══════════════════════════════════════════════════════════════════

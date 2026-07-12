@@ -6,6 +6,9 @@ from django.urls import reverse_lazy
 from .models import DatosEmpresa
 from .permisos import chequear_permiso
 
+from caja.models import CuentaCaja, TipoCaja, CUENTA_EFECTIVO_DEFAULT_NOMBRE
+from productos.models import Moneda
+
 
 class CustomLoginView(LoginView):
     template_name = 'core/login.html'
@@ -27,7 +30,16 @@ def mi_perfil(request):
 
 @login_required
 def configuracion(request):
+    cuentas = (
+        CuentaCaja.objects
+        .filter(caja=TipoCaja.GRANDE)
+        .exclude(nombre=CUENTA_EFECTIVO_DEFAULT_NOMBRE)
+        .order_by('-activa', 'orden', 'nombre')
+    )
     return render(request, 'core/configuracion.html', {
         'datos_empresa':        DatosEmpresa.get_solo(),
         'puede_editar_empresa': chequear_permiso(request.user, 'editar_empresa'),
+        'cuentas':              cuentas,
+        'puede_editar_cuentas': chequear_permiso(request.user, 'editar_cuentas'),
+        'monedas':              Moneda.choices,
     })

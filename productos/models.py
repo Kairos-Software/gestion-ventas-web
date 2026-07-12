@@ -158,6 +158,33 @@ class CategoriaProducto(models.Model):
 
 
 # ══════════════════════════════════════════════════════════════════
+#  LISTA DE DESCUENTO
+#  Porcentajes predefinidos ("Lista 1", "Mayorista", etc.) que se
+#  pueden elegir desde un desplegable al cargar una compra o una
+#  venta, en vez de escribir el % a mano cada vez. El campo de texto
+#  manual sigue existiendo igual — esto es un atajo, no un reemplazo.
+# ══════════════════════════════════════════════════════════════════
+
+class ListaDescuento(models.Model):
+    nombre     = models.CharField(max_length=100, unique=True)
+    porcentaje = models.DecimalField(
+        'Porcentaje', max_digits=5, decimal_places=2,
+        help_text='Ej: 10 = 10% de descuento.',
+    )
+    activa     = models.BooleanField(default=True)
+    orden      = models.PositiveSmallIntegerField(default=0)
+    fecha_alta = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name        = 'Lista de descuento'
+        verbose_name_plural = 'Listas de descuento'
+        ordering            = ['orden', 'nombre']
+
+    def __str__(self):
+        return f'{self.nombre} ({self.porcentaje}%)'
+
+
+# ══════════════════════════════════════════════════════════════════
 #  TIPO DE PRODUCTO
 # ══════════════════════════════════════════════════════════════════
 

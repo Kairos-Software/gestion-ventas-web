@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // ── Carga inicial ──
     cargarLotes();
     cargarStats();
+    cargarStatsPerdidas();
 
     // ── Búsqueda (con debounce, sirve tanto para tipear como escanear) ──
     inputBuscar.addEventListener('input', function () {
@@ -89,6 +90,20 @@ document.addEventListener('DOMContentLoaded', function () {
             });
     }
 
+    // ── Stat card de Pérdidas (últimas 100, costo total) ──
+    function cargarStatsPerdidas() {
+        const statPerdidasCosto = document.getElementById('statPerdidasCosto');
+        if (!statPerdidasCosto) return;
+
+        fetch(window.INVENTARIO_URLS.listarPerdidas)
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) return;
+                statPerdidasCosto.textContent = '$' + parseFloat(data.total_costo || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 });
+            })
+            .catch(() => { statPerdidasCosto.textContent = '—'; });
+    }
+
     function renderTabla(lotes) {
         if (!lotes.length) {
             tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">No se encontraron lotes.</td></tr>`;
@@ -113,25 +128,46 @@ document.addEventListener('DOMContentLoaded', function () {
                 <td>${l.fecha_compra}</td>
                 <td>${escapeHtml(l.proveedor || '—')}</td>
                 <td>
-                    <button class="btn-ver-codigo" data-lote='${JSON.stringify(l).replace(/'/g, "&#39;")}'>
-                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                            <rect x="2" y="3" width="1.3" height="10" fill="currentColor"/>
-                            <rect x="4.5" y="3" width="0.7" height="10" fill="currentColor"/>
-                            <rect x="6.2" y="3" width="1.3" height="10" fill="currentColor"/>
-                            <rect x="9" y="3" width="0.7" height="10" fill="currentColor"/>
-                            <rect x="10.5" y="3" width="1.3" height="10" fill="currentColor"/>
-                            <rect x="13" y="3" width="0.7" height="10" fill="currentColor"/>
-                        </svg>
-                        Código
-                    </button>
+                    <div class="inv-acciones-lote">
+                        <button class="btn-ver-codigo" data-lote='${JSON.stringify(l).replace(/'/g, "&#39;")}' title="Ver / imprimir código">
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                                <rect x="2" y="3" width="1.3" height="10" fill="currentColor"/>
+                                <rect x="4.5" y="3" width="0.7" height="10" fill="currentColor"/>
+                                <rect x="6.2" y="3" width="1.3" height="10" fill="currentColor"/>
+                                <rect x="9" y="3" width="0.7" height="10" fill="currentColor"/>
+                                <rect x="10.5" y="3" width="1.3" height="10" fill="currentColor"/>
+                                <rect x="13" y="3" width="0.7" height="10" fill="currentColor"/>
+                            </svg>
+                            Código
+                        </button>
+                        <button class="btn-ver-codigo btn-perdida" data-pk="${l.pk}" data-nombre="${escapeHtml(l.producto_nombre)}"
+                                data-codigo="${escapeHtml(l.codigo)}" data-disponible="${l.cantidad_actual}"
+                                title="Registrar pérdida de este lote">
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                                <path d="M3 3L13 13M13 3L3 13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                            </svg>
+                            Pérdida
+                        </button>
+                    </div>
                 </td>
             </tr>
         `).join('');
 
-        tbody.querySelectorAll('.btn-ver-codigo').forEach(btn => {
+        tbody.querySelectorAll('.btn-ver-codigo[data-lote]').forEach(btn => {
             btn.addEventListener('click', () => {
                 const lote = JSON.parse(btn.dataset.lote);
                 abrirModalCodigo(lote);
+            });
+        });
+
+        tbody.querySelectorAll('.btn-ver-codigo[data-pk]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                abrirModalPerdida({
+                    pk: btn.dataset.pk,
+                    nombre: btn.dataset.nombre,
+                    codigo: btn.dataset.codigo,
+                    disponible: btn.dataset.disponible,
+                });
             });
         });
     }
@@ -326,5 +362,131 @@ document.addEventListener('DOMContentLoaded', function () {
         const div = document.createElement('div');
         div.textContent = str;
         return div.innerHTML;
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  PÉRDIDAS
+    // ══════════════════════════════════════════════════════════
+
+    function getCookie(name) {
+        let v = null;
+        document.cookie.split(';').forEach(c => {
+            const [k, val] = c.trim().split('=');
+            if (k === name) v = decodeURIComponent(val);
+        });
+        return v;
+    }
+
+    // ── Registrar pérdida manual (rotura / otro) sobre un lote ──
+    const modalPerdidaEl   = document.getElementById('modalPerdida');
+    const modalPerdida      = new bootstrap.Modal(modalPerdidaEl);
+    const perdidaLoteInfo   = document.getElementById('perdidaLoteInfo');
+    const perdidaCantidad   = document.getElementById('perdidaCantidad');
+    const perdidaMotivo     = document.getElementById('perdidaMotivo');
+    const perdidaDetalle    = document.getElementById('perdidaDetalle');
+    const perdidaMsg        = document.getElementById('perdidaMsg');
+    const btnConfirmarPerdida = document.getElementById('btnConfirmarPerdida');
+
+    let loteParaPerdida = null;
+
+    function abrirModalPerdida(lote) {
+        loteParaPerdida = lote;
+        perdidaLoteInfo.textContent = `${lote.nombre} — lote ${lote.codigo} (disponible: ${lote.disponible})`;
+        perdidaCantidad.value = '';
+        perdidaCantidad.max = lote.disponible;
+        perdidaMotivo.value = 'rotura';
+        perdidaDetalle.value = '';
+        perdidaMsg.textContent = '';
+        modalPerdida.show();
+    }
+
+    btnConfirmarPerdida.addEventListener('click', () => {
+        if (!loteParaPerdida) return;
+        const cantidad = parseInt(perdidaCantidad.value, 10);
+        if (!cantidad || cantidad <= 0) {
+            perdidaMsg.textContent = 'Ingresá una cantidad válida.';
+            return;
+        }
+        if (cantidad > parseInt(loteParaPerdida.disponible, 10)) {
+            perdidaMsg.textContent = `Ese lote solo tiene ${loteParaPerdida.disponible} unidad(es) disponibles.`;
+            return;
+        }
+
+        btnConfirmarPerdida.disabled = true;
+        fetch(window.INVENTARIO_URLS.registrarPerdida, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+            body: JSON.stringify({
+                lote_pk: loteParaPerdida.pk,
+                cantidad: cantidad,
+                motivo: perdidaMotivo.value,
+                motivo_detalle: perdidaDetalle.value.trim(),
+            }),
+        })
+        .then(r => r.json())
+        .then(data => {
+            btnConfirmarPerdida.disabled = false;
+            if (data.error) {
+                perdidaMsg.textContent = data.error;
+                return;
+            }
+            modalPerdida.hide();
+            cargarLotes();
+            cargarStats();
+            cargarStatsPerdidas();
+        })
+        .catch(() => {
+            btnConfirmarPerdida.disabled = false;
+            perdidaMsg.textContent = 'Error de conexión.';
+        });
+    });
+
+    // ── Historial de pérdidas ──
+    const modalPerdidasEl = document.getElementById('modalPerdidas');
+    const modalPerdidas = new bootstrap.Modal(modalPerdidasEl);
+    const perdidasTbody = document.getElementById('perdidasTbody');
+    const statPerdidasCard = document.getElementById('statPerdidasCard');
+
+    if (statPerdidasCard) {
+        statPerdidasCard.addEventListener('click', () => {
+            modalPerdidas.show();
+            cargarListadoPerdidas();
+        });
+    }
+
+    function cargarListadoPerdidas() {
+        perdidasTbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">Cargando...</td></tr>`;
+        fetch(window.INVENTARIO_URLS.listarPerdidas)
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    perdidasTbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">${data.error}</td></tr>`;
+                    return;
+                }
+                if (!data.results.length) {
+                    perdidasTbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">No hay pérdidas registradas.</td></tr>`;
+                    return;
+                }
+                perdidasTbody.innerHTML = data.results.map(p => `
+                    <tr>
+                        <td>${p.fecha}</td>
+                        <td>
+                            ${escapeHtml(p.producto_nombre)}
+                            ${p.variante_desc ? `<div class="inv-variante-desc">${escapeHtml(p.variante_desc)}</div>` : ''}
+                        </td>
+                        <td><span class="inv-codigo-lote">${escapeHtml(p.lote_codigo)}</span></td>
+                        <td>${p.cantidad}</td>
+                        <td>
+                            ${p.motivo_label}${p.automatica ? ' <span class="badge-vencimiento sin-fecha">auto</span>' : ''}
+                            ${p.motivo_detalle ? `<div class="inv-variante-desc">${escapeHtml(p.motivo_detalle)}</div>` : ''}
+                        </td>
+                        <td>$${parseFloat(p.costo_total).toFixed(2)}</td>
+                        <td>${escapeHtml(p.registrado_por)}</td>
+                    </tr>
+                `).join('');
+            })
+            .catch(() => {
+                perdidasTbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">Error al cargar pérdidas.</td></tr>`;
+            });
     }
 });

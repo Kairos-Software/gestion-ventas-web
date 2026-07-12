@@ -9,12 +9,12 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.db.models import Q
 
-from productos.models import Producto, CombinacionVariante
+from productos.models import Producto, CombinacionVariante, ListaDescuento
 from core.models import Cliente, DatosEmpresa
 from compras.models import LoteCompra
 from .models import Venta, ItemVenta, EstadoVenta, MedioPago, TipoResolucionLote
 from core.permisos import chequear_permiso
-from caja.models import TurnoCaja
+from caja.models import TurnoCaja, CuentaCaja, TipoCaja
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -38,6 +38,11 @@ class NuevaVentaView(LoginRequiredMixin, TemplateView):
             ctx['sin_permiso'] = True
             return ctx
         ctx['puede_crear'] = True
+
+        ctx['listas_descuento'] = [
+            {'nombre': l.nombre, 'porcentaje': str(l.porcentaje)}
+            for l in ListaDescuento.objects.filter(activa=True).order_by('orden', 'nombre')
+        ]
 
         # Verificar si hay turno abierto
         turno_actual = TurnoCaja.turno_actual()
@@ -77,6 +82,7 @@ class NuevaVentaView(LoginRequiredMixin, TemplateView):
                         'precio':         str(item.precio_unitario),
                         'moneda':         item.moneda,
                         'descuento':      str(item.descuento_pct),
+                        'lista_descuento_nombre': item.lista_descuento_nombre,
                         'condicion':      item.condicion_pago,
                         'referencia':     item.referencia,
                     })
@@ -464,6 +470,7 @@ class GuardarBorradorAjax(LoginRequiredMixin, View):
                 precio_unitario = precio_unitario,
                 moneda          = raw.get('moneda', 'ARS'),
                 descuento_pct   = descuento_pct,
+                lista_descuento_nombre = raw.get('lista_descuento_nombre', ''),
                 condicion_pago  = raw.get('condicion_pago', 'contado'),
                 referencia      = raw.get('referencia', ''),
                 notas           = raw.get('notas', ''),
@@ -554,7 +561,11 @@ class ConfirmarVentaAjax(LoginRequiredMixin, View):
                 if monto_p <= 0:
                     continue
                 suma += monto_p
-                pagos_normalizados.append({'medio': medio_p, 'monto': monto_p})
+                pagos_normalizados.append({
+                    'medio': medio_p,
+                    'monto': monto_p,
+                    'cuenta_pk': p.get('cuenta_pk'),
+                })
 
             if not pagos_normalizados:
                 return JsonResponse({'error': 'Agregá al menos un medio de pago con monto.'}, status=400)
@@ -716,10 +727,24 @@ class DetalleVentaView(LoginRequiredMixin, View):
         venta = get_object_or_404(
             Venta.objects.prefetch_related(
                 'items__producto', 'items__cliente', 'items__combinacion',
-                'documentos', 'pagos',
+                'documentos', 'pagos__cuenta',
             ),
             pk=pk
         )
+
+        from caja.models import asegurar_cuentas_efectivo
+        asegurar_cuentas_efectivo(caja=TipoCaja.GRANDE)
+
+        moneda_venta = venta.items.values_list('moneda', flat=True).first() or 'ARS'
+        cuentas = (
+            CuentaCaja.objects
+            .filter(caja=TipoCaja.GRANDE, activa=True, es_credito=False)
+            .order_by('orden', 'nombre')
+        )
+        cuentas_json = json.dumps([
+            {'pk': c.pk, 'nombre': c.nombre, 'moneda': c.moneda}
+            for c in cuentas
+        ])
 
         from django.urls import reverse
         return _render(request, self.template_name, {
@@ -730,6 +755,8 @@ class DetalleVentaView(LoginRequiredMixin, View):
             'es_borrador': venta.estado == EstadoVenta.BORRADOR,
             'medios_pago': MedioPago.choices,
             'datos_empresa': DatosEmpresa.get_solo(),
+            'venta_moneda': moneda_venta,
+            'cuentas_json': cuentas_json,
             'url_confirmar':         reverse('ventas:confirmar_venta'),
             'url_eliminar_borrador': reverse('ventas:eliminar_borrador'),
             'url_nueva_venta':       reverse('ventas:nueva_venta'),

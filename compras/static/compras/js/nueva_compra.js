@@ -246,6 +246,7 @@ function _agregarItem(fila) {
         costo:            0,
         moneda:           'ARS',
         descuento:        0,
+        lista_descuento_nombre: '',
         condicion:        'contado',
         referencia:       '',
         fecha_vencimiento: '',
@@ -254,6 +255,23 @@ function _agregarItem(fila) {
     _renderCarrito();
     _actualizarTotales();
     _toast('Producto agregado', fila.nombre);
+}
+
+function _selectListaDescuento(item) {
+    const listas = CFG.listasDescuento || [];
+    if (!listas.length) {
+        return `<span class="cmp-lista-vacia" title="No hay listas de descuento creadas">—</span>`;
+    }
+    const opciones = listas.map(l => `
+        <option value="${_esc(l.nombre)}" data-pct="${l.porcentaje}" ${item.lista_descuento_nombre === l.nombre ? 'selected' : ''}>
+            ${_esc(l.nombre)} (${l.porcentaje}%)
+        </option>`).join('');
+    return `
+        <select class="cmp-select-inline cmp-field-input w-sm" data-item-id="${item.id}" data-campo="lista_descuento"
+                title="Aplicar % de una lista de descuento">
+            <option value="">— Manual —</option>
+            ${opciones}
+        </select>`;
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -327,6 +345,7 @@ function _renderCarrito() {
                        value="${item.descuento}"
                        data-item-id="${item.id}" data-campo="descuento">
             </td>
+            <td>${_selectListaDescuento(item)}</td>
             <td>
                 <select class="cmp-select-inline cmp-field-input"
                         data-item-id="${item.id}" data-campo="condicion">
@@ -405,8 +424,21 @@ function _updateField(id, campo, valor) {
     const item = carrito.find(i => i.id === id);
     if (!item) return;
 
-    if (['cantidad', 'costo', 'descuento'].includes(campo)) {
+    if (campo === 'lista_descuento') {
+        item.lista_descuento_nombre = valor;
+        if (valor) {
+            const lista = (CFG.listasDescuento || []).find(l => l.nombre === valor);
+            if (lista) item.descuento = parseFloat(lista.porcentaje) || 0;
+            const inputDesc = cartBody.querySelector(`input[data-item-id="${id}"][data-campo="descuento"]`);
+            if (inputDesc) inputDesc.value = item.descuento;
+        }
+    } else if (['cantidad', 'costo', 'descuento'].includes(campo)) {
         item[campo] = parseFloat(valor) || 0;
+        if (campo === 'descuento' && item.lista_descuento_nombre) {
+            item.lista_descuento_nombre = '';
+            const selLista = cartBody.querySelector(`select[data-item-id="${id}"][data-campo="lista_descuento"]`);
+            if (selLista) selLista.value = '';
+        }
     } else {
         item[campo] = valor;
     }
@@ -556,6 +588,7 @@ if (btnContinuar) {
             costo_unitario:    item.costo,
             moneda:            item.moneda,
             descuento_pct:     item.descuento,
+            lista_descuento_nombre: item.lista_descuento_nombre || '',
             condicion_pago:    item.condicion,
             referencia:        item.referencia,
             fecha_vencimiento: item.fecha_vencimiento || null,
@@ -624,6 +657,7 @@ if (CFG.itemsIniciales && CFG.itemsIniciales.length) {
         costo:            parseFloat(it.costo) || 0,
         moneda:           it.moneda || 'ARS',
         descuento:        parseFloat(it.descuento) || 0,
+        lista_descuento_nombre: it.lista_descuento_nombre || '',
         condicion:        it.condicion || 'contado',
         referencia:       it.referencia || '',
         fecha_vencimiento: it.fecha_vencimiento || '',

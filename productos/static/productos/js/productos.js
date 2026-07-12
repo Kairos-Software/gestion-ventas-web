@@ -1533,6 +1533,150 @@ document.querySelector('.prd-search-input')?.addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('filtrosForm').submit();
 });
 
+// ════════════════════════════════════════════════════════════════════
+//  LISTAS DE DESCUENTO
+// ════════════════════════════════════════════════════════════════════
+let _cacheListasDescuento = [];
+
+document.getElementById('btnListasDescuento')?.addEventListener('click', () => {
+    _resetFormListaDescuento();
+    abrirModal('modalListasDescuento');
+    cargarListasDescuento();
+});
+
+async function cargarListasDescuento() {
+    const res  = await fetch(URLS.listaDescuentoLista);
+    const data = await res.json();
+    _cacheListasDescuento = data.results || [];
+    _renderListasDescuento();
+}
+
+function _renderListasDescuento() {
+    const cont = document.getElementById('listaDescuentoLista');
+    const empty = document.getElementById('ldEmptyMsg');
+    if (!cont) return;
+
+    if (!_cacheListasDescuento.length) {
+        cont.innerHTML = '';
+        empty.style.display = '';
+        return;
+    }
+    empty.style.display = 'none';
+
+    cont.innerHTML = _cacheListasDescuento.map(l => `
+        <div class="prd-ld-row ${l.activa ? '' : 'prd-ld-row--inactiva'}">
+            <div class="prd-ld-row-pct">${l.porcentaje}%</div>
+            <div class="prd-ld-row-info">
+                <span class="prd-ld-row-nombre">${l.nombre}</span>
+                <span class="prd-badge ${l.activa ? 'prd-badge--tipo' : ''}">${l.activa ? 'Activa' : 'Inactiva'}</span>
+            </div>
+            <div class="prd-ld-row-actions">
+                <button type="button" class="prd-ld-icon-btn" title="Editar" onclick="_editarListaDescuento(${l.pk})">
+                    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                        <path d="M10.5 2L13 4.5L5 12.5H2.5V10L10.5 2Z" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+                <button type="button" class="prd-ld-icon-btn" title="${l.activa ? 'Desactivar' : 'Activar'}" onclick="_toggleActivaListaDescuento(${l.pk})">
+                    ${l.activa
+                        ? `<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M4.5 4.5L10.5 10.5M10.5 4.5L4.5 10.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>`
+                        : `<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M4 2.5L11.5 7.5L4 12.5V2.5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>`}
+                </button>
+                <button type="button" class="prd-ld-icon-btn prd-ld-icon-btn--danger" title="Eliminar" onclick="_eliminarListaDescuento(${l.pk}, '${l.nombre.replace(/'/g, "\\'")}')">
+                    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                        <path d="M2.5 4H12.5M5.5 4V3H9.5V4M6 6.5V10.5M9 6.5V10.5M3.5 4L4.3 12H10.7L11.5 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function _resetFormListaDescuento() {
+    document.getElementById('ldPk').value = '';
+    document.getElementById('ldNombre').value = '';
+    document.getElementById('ldPorcentaje').value = '';
+    document.getElementById('btnGuardarListaTxt').textContent = 'Agregar';
+    document.getElementById('ldFormError').style.display = 'none';
+}
+
+function _editarListaDescuento(pk) {
+    const l = _cacheListasDescuento.find(x => x.pk === pk);
+    if (!l) return;
+    document.getElementById('ldPk').value = l.pk;
+    document.getElementById('ldNombre').value = l.nombre;
+    document.getElementById('ldPorcentaje').value = l.porcentaje;
+    document.getElementById('btnGuardarListaTxt').textContent = 'Guardar cambios';
+    document.getElementById('ldFormError').style.display = 'none';
+    document.getElementById('ldNombre').focus();
+}
+
+async function guardarListaDescuento() {
+    const pk         = document.getElementById('ldPk').value;
+    const nombre     = document.getElementById('ldNombre').value.trim();
+    const porcentaje = document.getElementById('ldPorcentaje').value;
+    const errBox     = document.getElementById('ldFormError');
+    errBox.style.display = 'none';
+
+    if (!nombre || porcentaje === '') {
+        errBox.textContent   = 'Completá el nombre y el porcentaje.';
+        errBox.style.display = '';
+        return;
+    }
+
+    const body = { nombre, porcentaje };
+    if (pk) body.pk = pk;
+
+    const res  = await fetch(URLS.listaDescuentoAcciones, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify(body),
+    });
+    const data = await res.json();
+
+    if (!data.ok) {
+        errBox.textContent = Object.values(data.errors || {}).flat().join(' ') || 'Error al guardar.';
+        errBox.style.display = '';
+        return;
+    }
+
+    showToast(`Lista "${data.nombre}" ${data.creado ? 'creada' : 'actualizada'}.`);
+    _resetFormListaDescuento();
+    await cargarListasDescuento();
+}
+
+async function _toggleActivaListaDescuento(pk) {
+    const l = _cacheListasDescuento.find(x => x.pk === pk);
+    if (!l) return;
+    const res  = await fetch(URLS.listaDescuentoAcciones, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify({ pk: l.pk, nombre: l.nombre, porcentaje: l.porcentaje, activa: !l.activa }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+        await cargarListasDescuento();
+    } else {
+        showToast(data.error || 'Error', 'error');
+    }
+}
+
+async function _eliminarListaDescuento(pk, nombre) {
+    if (!confirm(`¿Eliminar la lista "${nombre}"? Esta acción no se puede deshacer.`)) return;
+    const res  = await fetch(URLS.listaDescuentoEliminar, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify({ pk }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+        showToast(`Lista "${data.nombre}" eliminada.`);
+        _resetFormListaDescuento();
+        await cargarListasDescuento();
+    } else {
+        showToast(data.error || 'Error', 'error');
+    }
+}
+
 // ESC cierra modales
 document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;

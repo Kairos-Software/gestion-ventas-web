@@ -77,6 +77,7 @@
                     <th>Costo unit.</th>
                     <th>Moneda</th>
                     <th>Desc. %</th>
+                    <th>Lista</th>
                     <th>Cond. pago</th>
                     <th>Referencia</th>
                     <th>Vencimiento</th>
@@ -133,6 +134,7 @@
 
 {% block extra_js %}
 {{ items_json|json_script:"cmpItemsData" }}
+{{ listas_descuento|json_script:"cmpListasDescuento" }}
 <script>
 window.CMP_CONFIG = {
     urlBuscarProducto:  "{% url 'compras:buscar_producto' %}",
@@ -142,6 +144,7 @@ window.CMP_CONFIG = {
     urlDetalle:         "{% url 'compras:detalle_compra' pk=0 %}".replace("/0/", "/"),
     editingPk:          {{ editing_pk|default:"null" }},
     csrfToken:          "{{ csrf_token }}",
+    listasDescuento:    JSON.parse(document.getElementById('cmpListasDescuento').textContent),
 };
 </script>
 <script src="{% static 'compras/js/nueva_compra.js' %}"></script>
