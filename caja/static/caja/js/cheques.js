@@ -22,8 +22,15 @@ document.addEventListener('DOMContentLoaded', function () {
     // Construir URLs base reemplazando el placeholder 0
     const urlEditarBase = urls.editar.replace('/0/', '/');
     const urlEliminarBase = urls.eliminar.replace('/0/', '/');
-    const urlConfirmarBase = urls.confirmar.replace('/0/', '/');
-    const urlRechazarBase = urls.rechazar.replace('/0/', '/');
+
+    // confirmar/rechazar tienen el placeholder en el medio (.../0/confirmar/),
+    // no al final — no sirve el patrón base+pk, hay que reemplazar el 0 por el pk real.
+    function urlConfirmarCheque(pk) {
+        return urls.confirmar.replace('/0/', `/${pk}/`);
+    }
+    function urlRechazarCheque(pk) {
+        return urls.rechazar.replace('/0/', `/${pk}/`);
+    }
 
     let paginaActual = 1;
     let porPagina = 50;
@@ -351,7 +358,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     async function _confirmarChequeRequest(pk, cuentaPk) {
         try {
-            const response = await fetch(`${urlConfirmarBase}${pk}/confirmar/`, {
+            const response = await fetch(urlConfirmarCheque(pk), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
                 body: JSON.stringify(cuentaPk ? { cuenta_pk: cuentaPk } : {}),
@@ -373,7 +380,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!await KaiConfirm('¿Marcar este cheque como rechazado? Si ya estaba confirmado, se revierte el movimiento de caja.', { danger: true, confirmText: 'Rechazar' })) return;
 
         try {
-            const response = await fetch(`${urlRechazarBase}${pk}/rechazar/`, {
+            const response = await fetch(urlRechazarCheque(pk), {
                 method: 'POST',
                 headers: { 'X-CSRFToken': getCookie('csrftoken') },
             });

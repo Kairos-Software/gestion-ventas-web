@@ -309,11 +309,32 @@ class Venta(models.Model):
     def delete(self, *args, **kwargs):
         with transaction.atomic():
             if self.estado == EstadoVenta.CONFIRMADA:
+                # No permitir el borrado físico de una venta que pertenece a
+                # un turno ya cerrado: el turno guardó una foto congelada de
+                # sus totales al cerrar (ver TurnoCaja.totales_cierre) para
+                # que el historial contable no cambie retroactivamente. Acá
+                # sí se puede anular (Venta.anular) sin problema — anular no
+                # toca el efectivo ya conciliado de un turno viejo, solo
+                # revierte stock y cualquier movimiento no-efectivo asociado.
+                from caja.models import TurnoCaja, EstadoTurno
+                turno = TurnoCaja.turno_que_contiene(self.fecha_alta)
+                if turno and turno.estado == EstadoTurno.CERRADO:
+                    raise ValueError(
+                        f'No se puede eliminar: esta venta pertenece al turno #{turno.numero}, '
+                        f'que ya está cerrado. Anulala en su lugar (revierte el stock y el '
+                        f'movimiento de caja, sin reescribir el historial de ese turno).'
+                    )
                 for item in self.items.select_related('producto', 'combinacion'):
                     _revertir_stock_venta_item(item)
-            # Sincronizar movimiento de caja grande antes de borrar
-            from caja.models import sincronizar_movimiento_venta
-            sincronizar_movimiento_venta(self)
+            # Borrar el movimiento de caja asociado (si lo hay). OJO: NO usar
+            # sincronizar_movimiento_venta acá — esa función decide si recrea
+            # el movimiento mirando self.estado, que en este punto sigue siendo
+            # CONFIRMADA (delete() nunca lo cambia), así que lo recrearía justo
+            # antes de que la Venta desaparezca. Como MovimientoCaja no tiene
+            # una FK real hacia Venta (se vincula por origen_app/origen_id), el
+            # cascade del delete no lo alcanza y queda huérfano para siempre.
+            from caja.models import _borrar_movimiento_origen, OrigenMovimiento
+            _borrar_movimiento_origen('ventas', OrigenMovimiento.VENTA, self.pk)
             super().delete(*args, **kwargs)
 
     # ── Métodos de negocio ───────────────────────────────────────

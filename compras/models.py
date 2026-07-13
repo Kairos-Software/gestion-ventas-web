@@ -338,9 +338,15 @@ class Compra(models.Model):
             if self.estado == EstadoCompra.CONFIRMADA:
                 for item in self.items.select_related('producto', 'combinacion'):
                     _restar_stock_item(item)
-            # Sincronizar movimiento de caja grande antes de borrar
-            from caja.models import sincronizar_movimiento_compra
-            sincronizar_movimiento_compra(self)
+            # Borrar el movimiento de caja asociado (si lo hay). OJO: NO usar
+            # sincronizar_movimiento_compra acá — esa función decide si recrea
+            # el movimiento mirando self.estado, que en este punto sigue siendo
+            # CONFIRMADA (delete() nunca lo cambia), así que lo recrearía justo
+            # antes de que la Compra desaparezca. Como MovimientoCaja no tiene
+            # una FK real hacia Compra (se vincula por origen_app/origen_id),
+            # el cascade del delete no lo alcanza y queda huérfano para siempre.
+            from caja.models import _borrar_movimiento_origen, OrigenMovimiento
+            _borrar_movimiento_origen('compras', OrigenMovimiento.COMPRA, self.pk)
             super().delete(*args, **kwargs)
             # Los lotes se borraron en cascada: recalcular ya sin ellos.
             for producto in productos_afectados:

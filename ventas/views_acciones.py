@@ -85,6 +85,8 @@ class EliminarVentaAjax(LoginRequiredMixin, View):
 
         try:
             venta.delete()
+        except ValueError as e:
+            return JsonResponse({'error': str(e)}, status=400)
         except Exception as e:
             return JsonResponse({'error': f'Error al eliminar: {str(e)}'}, status=500)
 

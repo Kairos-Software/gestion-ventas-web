@@ -598,6 +598,21 @@ class TurnoCaja(models.Model):
         """Obtiene el siguiente número de turno."""
         ultimo = cls.objects.order_by('-numero').first()
         return (ultimo.numero + 1) if ultimo else 1
+
+    @classmethod
+    def turno_que_contiene(cls, momento):
+        """
+        Devuelve el turno (abierto o cerrado) cuya ventana de tiempo
+        contiene `momento`, o None si no cae en ningún turno (ej: dato
+        viejo previo a la existencia de turnos). Se usa para saber si
+        una venta puntual pertenece a un turno ya cerrado y así decidir
+        si se la puede eliminar o solo anular (ver Venta.delete()).
+        """
+        return cls.objects.filter(
+            fecha_apertura__lte=momento,
+        ).filter(
+            Q(fecha_cierre__isnull=True) | Q(fecha_cierre__gte=momento)
+        ).order_by('-fecha_apertura').first()
     
     @classmethod
     def abrir(cls, cajas, usuario):
