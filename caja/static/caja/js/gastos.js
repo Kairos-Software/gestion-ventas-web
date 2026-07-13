@@ -212,11 +212,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 cerrarModal();
                 cargarGastos();
             } else {
-                alert(result.error || 'Error al guardar');
+                KaiToast.show(result.error || 'Error al guardar', 'danger');
             }
         } catch (error) {
             console.error('Error al guardar:', error);
-            alert('Error al guardar');
+            KaiToast.show('Error al guardar', 'danger');
         } finally {
             btnGuardarGasto.disabled = false;
         }
@@ -230,7 +230,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const gasto = data.results.find(g => g.pk === pk);
             if (!gasto) {
-                alert('Movimiento no encontrado');
+                KaiToast.show('Movimiento no encontrado', 'danger');
                 return;
             }
 
@@ -245,12 +245,12 @@ document.addEventListener('DOMContentLoaded', function () {
             abrirModal('Editar movimiento');
         } catch (error) {
             console.error('Error al cargar movimiento:', error);
-            alert('Error al cargar movimiento');
+            KaiToast.show('Error al cargar movimiento', 'danger');
         }
     };
 
     window.eliminarGasto = async function (pk) {
-        if (!confirm('¿Estás seguro de eliminar este movimiento?')) {
+        if (!await KaiConfirm('¿Estás seguro de eliminar este movimiento?', { danger: true, confirmText: 'Eliminar' })) {
             return;
         }
 
@@ -267,11 +267,11 @@ document.addEventListener('DOMContentLoaded', function () {
             if (result.success) {
                 cargarGastos();
             } else {
-                alert(result.error || 'Error al eliminar');
+                KaiToast.show(result.error || 'Error al eliminar', 'danger');
             }
         } catch (error) {
             console.error('Error al eliminar:', error);
-            alert('Error al eliminar');
+            KaiToast.show('Error al eliminar', 'danger');
         }
     };
 

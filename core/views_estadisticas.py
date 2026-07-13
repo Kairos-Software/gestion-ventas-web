@@ -15,6 +15,7 @@ from django.shortcuts import render
 from django.utils import timezone
 
 from . import services_estadisticas as stats
+from .permisos import chequear_permiso
 
 
 # Texto en criollo para la comparación con el período anterior,
@@ -99,4 +100,8 @@ def estadisticas(request):
         'serie_mensual_json': serie_json,
         'gastos_categoria_json': gastos_categoria_json,
     }
+
+    if chequear_permiso(request.user, 'ver_caja'):
+        contexto['situacion_financiera'] = stats.situacion_financiera()
+
     return render(request, 'core/estadisticas.html', contexto)

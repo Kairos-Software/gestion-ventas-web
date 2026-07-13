@@ -25,7 +25,8 @@ class CajaDiariaView(LoginRequiredMixin, TemplateView):
             ctx['sin_permiso'] = True
             return ctx
         ctx['puede_ver'] = True
-        
+        ctx['puede_abrir_cerrar_turno'] = chequear_permiso(self.request.user, 'abrir_cerrar_turno')
+
         # Obtener turno actual
         turno_actual = TurnoCaja.turno_actual()
         ctx['turno_actual'] = turno_actual
@@ -74,14 +75,14 @@ class AbrirTurnoAjax(LoginRequiredMixin, View):
     """
     
     def post(self, request):
-        if not chequear_permiso(request.user, 'gestionar_caja'):
+        if not chequear_permiso(request.user, 'abrir_cerrar_turno'):
             return JsonResponse({'error': 'Sin permiso.'}, status=403)
-        
+
         try:
             body = json.loads(request.body)
         except json.JSONDecodeError:
             return JsonResponse({'error': 'JSON inválido.'}, status=400)
-        
+
         cajas_input = body.get('cajas')
         if cajas_input is None:
             # Compatibilidad con el formato viejo de una sola caja
@@ -148,14 +149,14 @@ class CerrarTurnoAjax(LoginRequiredMixin, View):
     """
     
     def post(self, request):
-        if not chequear_permiso(request.user, 'gestionar_caja'):
+        if not chequear_permiso(request.user, 'abrir_cerrar_turno'):
             return JsonResponse({'error': 'Sin permiso.'}, status=403)
-        
+
         try:
             body = json.loads(request.body)
         except json.JSONDecodeError:
             return JsonResponse({'error': 'JSON inválido.'}, status=400)
-        
+
         notas = body.get('notas', '')
         cajas_input = body.get('cajas')
         

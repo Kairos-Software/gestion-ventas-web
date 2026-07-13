@@ -104,9 +104,9 @@ async function cdConfirmarAbrir() {
         });
         const data = await res.json();
         if (data.ok) { cdCerrarModal('cd-modal-abrir'); location.reload(); }
-        else { alert(data.error || 'Error al abrir turno'); }
+        else { KaiToast.show(data.error || 'Error al abrir turno', 'danger'); }
     } catch (e) {
-        alert('Error de conexión');
+        KaiToast.show('Error de conexión', 'danger');
     }
 
     btn.disabled = false;
@@ -121,7 +121,7 @@ async function cdCerrarTurno() {
     const btn = document.querySelector('.cd-btn-cerrar');
     if (btn) {
         btn.disabled = true;
-        btn.innerHTML = '<span style="margin-right:0.25rem">⏳</span> Cargando...';
+        btn.innerHTML = 'Cargando...';
     }
 
     try {
@@ -143,11 +143,11 @@ async function cdCerrarTurno() {
             cdActualizarTotales('cerrar');
             document.getElementById('cd-modal-cerrar').style.display = 'flex';
         } else {
-            alert('No hay un turno abierto para cerrar.');
-            location.reload();
+            KaiToast.show('No hay un turno abierto para cerrar.', 'warning');
+            setTimeout(() => location.reload(), 1800);
         }
     } catch (e) {
-        alert('Error al obtener el estado de la caja.');
+        KaiToast.show('Error al obtener el estado de la caja.', 'danger');
     } finally {
         if (btn) {
             btn.disabled = false;
@@ -219,13 +219,15 @@ async function cdConfirmarCerrar() {
             // avisa con urgencia ANTES de recargar la página — no se
             // "esconde" silenciosamente detrás de un reload.
             if (data.alerta && data.alerta.hay_diferencia) {
-                alert('⚠️ ' + data.alerta.mensaje);
+                KaiToast.show(data.alerta.mensaje, 'warning', 3200);
+                setTimeout(() => location.reload(), 2600);
+            } else {
+                location.reload();
             }
-            location.reload();
         }
-        else { alert(data.error || 'Error al cerrar turno'); }
+        else { KaiToast.show(data.error || 'Error al cerrar turno', 'danger'); }
     } catch (e) {
-        alert('Error de conexión');
+        KaiToast.show('Error de conexión', 'danger');
     }
 
     btn.disabled = false;

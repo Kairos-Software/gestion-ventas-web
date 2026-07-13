@@ -294,7 +294,7 @@ function reiniciarSistema() {
     );
     if (confirmacion === null) return;
     if (confirmacion.trim() !== FRASE) {
-        alert('Cancelado: el texto no coincide con "' + FRASE + '".');
+        KaiToast.show('Cancelado: el texto no coincide con "' + FRASE + '".', 'warning');
         return;
     }
 
@@ -302,7 +302,7 @@ function reiniciarSistema() {
     if (!password) return;
 
     if (!window.RESET_SISTEMA_URL) {
-        alert('No se encontró la URL de reinicio.');
+        KaiToast.show('No se encontró la URL de reinicio.', 'danger');
         return;
     }
 
@@ -318,14 +318,14 @@ function reiniciarSistema() {
         .then(function (r) { return r.json(); })
         .then(function (data) {
             if (data.ok) {
-                alert('Listo, se reinició la base de datos. La página se va a recargar.');
-                window.location.href = '/';
+                KaiToast.show('Listo, se reinició la base de datos. La página se va a recargar.', 'success', 2200);
+                setTimeout(function () { window.location.href = '/'; }, 1800);
             } else {
-                alert('No se pudo reiniciar: ' + (data.error || 'error desconocido.'));
+                KaiToast.show('No se pudo reiniciar: ' + (data.error || 'error desconocido.'), 'danger');
             }
         })
         .catch(function () {
-            alert('Error de red al intentar reiniciar el sistema.');
+            KaiToast.show('Error de red al intentar reiniciar el sistema.', 'danger');
         });
 }
 

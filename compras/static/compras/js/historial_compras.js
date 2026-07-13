@@ -228,7 +228,7 @@ function buildCompraHTML(c) {
             ${buildPagosCompraHTML(c)}
             ${buildItemsHTML(c.items)}
             <div class="detalle-footer">
-                <span class="compra-notas-detalle">${c.notas ? '📝 ' + _esc(c.notas) : ''}</span>
+                <span class="compra-notas-detalle">${c.notas ? _esc(c.notas) : ''}</span>
                 <div class="detalle-footer-right">
                     <span style="color:var(--text-muted);font-size:0.82rem;">
                         Registrado por <strong>${_esc(c.creado_por)}</strong>

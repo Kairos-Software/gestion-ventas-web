@@ -167,7 +167,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     <label class="field-label">Archivo actual</label>
                     <div class="doc-archivo-actual">
                         <a href="${datos.archivo_url}" target="_blank" class="doc-link-actual" title="Ver / descargar">
-                            📄 ${datos.archivo_nombre || 'Ver archivo'}
+                            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="flex-shrink:0"><path d="M4 1.5H9.5L12.5 4.5V13.5C12.5 14.05 12.05 14.5 11.5 14.5H4.5C3.95 14.5 3.5 14.05 3.5 13.5V2.5C3.5 1.95 3.95 1.5 4.5 1.5Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M9.5 1.5V4.5H12.5" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+                            ${datos.archivo_nombre || 'Ver archivo'}
                         </a>
                         <label class="doc-cambiar-label">
                             <input type="file" name="doc_archivo[]" class="doc-archivo-input" accept=".pdf,.jpg,.png,.jpeg" style="display:none;">
@@ -491,7 +492,7 @@ document.addEventListener('DOMContentLoaded', function () {
             document.querySelector(`#tablaUsuarios tbody tr[data-id="${id}"]`)?.remove();
             confirmModal?.hide();
         } else {
-            alert('Error al eliminar.');
+            KaiToast.show('Error al eliminar.', 'danger');
         }
     }
 

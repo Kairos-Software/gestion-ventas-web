@@ -36,9 +36,9 @@ const MEDIO_PAGO_CLASES = {
     credito:       'mp--credito',
     qr:            'mp--qr',
 };
-function buildMedioPagoBadge(medioPago, medioPagoLabel, medioPagoIcon) {
+function buildMedioPagoBadge(medioPago, medioPagoLabel) {
     const cls = MEDIO_PAGO_CLASES[medioPago] || '';
-    return `<span class="mp-badge ${cls}">${_esc(medioPagoIcon)} ${_esc(medioPagoLabel)}</span>`;
+    return `<span class="mp-badge ${cls}">${_esc(medioPagoLabel)}</span>`;
 }
 
 /** Si la venta tiene pagos divididos (c.pagos), muestra un badge por
@@ -51,7 +51,7 @@ function buildMediosPagoHTML(c) {
             return `<span class="mp-badge ${cls}">${_esc(p.medio_label)}: ${formatMoney(p.monto)}${cuentaTxt}</span>`;
         }).join(' ');
     }
-    return buildMedioPagoBadge(c.medio_pago, c.medio_pago_label, c.medio_pago_icon);
+    return buildMedioPagoBadge(c.medio_pago, c.medio_pago_label);
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -253,8 +253,8 @@ function buildAccionesHTML(c) {
 function buildVentaHTML(c) {
     const esPagoDividido = c.pagos && c.pagos.length > 1;
     const medioBadgeCabecera = esPagoDividido
-        ? `<span class="mp-badge mp--dividido">💱 Pago dividido (${c.pagos.length})</span>`
-        : buildMedioPagoBadge(c.medio_pago, c.medio_pago_label, c.medio_pago_icon);
+        ? `<span class="mp-badge mp--dividido">Pago dividido (${c.pagos.length})</span>`
+        : buildMedioPagoBadge(c.medio_pago, c.medio_pago_label);
     const mediosBadgeDetalle = buildMediosPagoHTML(c);
 
     // Línea de usuario en la cabecera: "por admin"
@@ -280,7 +280,7 @@ function buildVentaHTML(c) {
             <p class="detalle-titulo">${c.items_count} ítem${c.items_count !== 1 ? 's' : ''}</p>
             ${buildItemsHTML(c.items)}
             <div class="detalle-footer">
-                <span class="venta-notas-detalle">${c.notas ? '📝 ' + _esc(c.notas) : ''}</span>
+                <span class="venta-notas-detalle">${c.notas ? _esc(c.notas) : ''}</span>
                 <div class="detalle-footer-right">
                     ${mediosBadgeDetalle}
                     ${c.confirmado_por && c.confirmado_por !== '—'

@@ -8,7 +8,7 @@
    ═══════════════════════════════════════════ */
 .est-kpi-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
     gap: 1rem;
     margin-bottom: 1.5rem;
 }
@@ -76,6 +76,71 @@
 .est-kpi-delta.up   { color: var(--success); }
 .est-kpi-delta.down { color: var(--danger); }
 .est-kpi-delta.flat { color: var(--text-muted); font-weight: 500; }
+
+/* ═══════════════════════════════════════════
+   SITUACIÓN FINANCIERA ACTUAL (tiempo real)
+   ═══════════════════════════════════════════ */
+.est-finanzas-card {
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+    position: relative;
+}
+
+.est-finanzas-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--brand-blue) 0%, var(--brand-orange) 100%);
+}
+
+.est-finanzas-header {
+    padding: 1.125rem 1.375rem 0.5rem;
+}
+
+.est-finanzas-body {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    padding: 0.75rem 1.375rem 1.375rem;
+}
+
+.est-finanzas-grupo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.875rem 1rem;
+    background: var(--bg-primary);
+    border-radius: var(--radius-md);
+}
+
+.est-finanzas-grupo-titulo {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.est-finanzas-monto {
+    font-family: var(--font-heading);
+    font-size: 1.25rem;
+    font-weight: 800;
+    letter-spacing: -0.3px;
+}
+
+.est-finanzas-monto span {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-left: 0.2rem;
+}
+
+.est-finanzas-monto.positivo { color: var(--success); }
+.est-finanzas-monto.negativo { color: var(--danger); }
+.est-finanzas-monto.neutro   { color: var(--text-muted); }
 
 /* ═══════════════════════════════════════════
    FILTROS DE FECHA (2 formularios separados)
@@ -315,15 +380,15 @@
    RESPONSIVE
    ═══════════════════════════════════════════ */
 @media (max-width: 1023px) {
-    .est-kpi-grid { grid-template-columns: repeat(2, 1fr); }
     .est-row, .est-row-2 { grid-template-columns: 1fr; }
     .est-perdida-grid { grid-template-columns: 1fr; }
+    .est-finanzas-body { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 767px) {
-    .est-kpi-grid { grid-template-columns: 1fr; }
     .est-filtros { flex-direction: column; align-items: stretch; }
     .est-filtros-custom { margin-left: 0; flex-wrap: wrap; }
     .est-kpi-value { font-size: 1.4rem; }
     .est-resumen-fila { grid-template-columns: 20px 1fr auto; font-size: 0.8125rem; }
+    .est-finanzas-body { grid-template-columns: 1fr; }
 }

@@ -1,7 +1,10 @@
-function htEliminarHistorial() {
+async function htEliminarHistorial() {
     const cantidad = HT_URLS.cantidadTurnos;
-    if (!confirm('¿Estás seguro de eliminar TODO el historial de turnos? Esta acción no se puede deshacer.')) return;
-    if (!confirm('Esta acción eliminará ' + cantidad + ' turnos. ¿Continuar?')) return;
+    const ok = await KaiConfirm(
+        `Se van a eliminar ${cantidad} turnos de forma permanente. Esta acción no se puede deshacer.`,
+        { title: '¿Eliminar todo el historial?', danger: true, confirmText: 'Eliminar todo' }
+    );
+    if (!ok) return;
 
     fetch(HT_URLS.eliminar, {
         method: 'POST',
@@ -12,8 +15,12 @@ function htEliminarHistorial() {
     })
         .then(res => res.json())
         .then(data => {
-            if (data.ok) { alert(data.mensaje); location.reload(); }
-            else { alert(data.error || 'Error al eliminar historial'); }
+            if (data.ok) {
+                KaiToast.show(data.mensaje, 'success');
+                setTimeout(() => location.reload(), 1400);
+            } else {
+                KaiToast.show(data.error || 'Error al eliminar historial', 'danger');
+            }
         })
-        .catch(() => alert('Error de conexión'));
+        .catch(() => KaiToast.show('Error de conexión', 'danger'));
 }

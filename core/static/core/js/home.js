@@ -25,21 +25,15 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // ── Stat Cards staggered reveal ──────────────────────────────────
-    const statCards = document.querySelectorAll('.stat-card');
-    statCards.forEach((card, index) => {
+    // ── Acciones primarias: reveal escalonado ────────────────────────
+    const ctaCards = document.querySelectorAll('.home-cta');
+    ctaCards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(10px)';
         setTimeout(() => {
-            card.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
-            card.classList.add('animated');
-        }, index * 90);
-    });
-
-    // ── Module Cards staggered reveal ───────────────────────────────
-    const moduleCards = document.querySelectorAll('.module-card');
-    moduleCards.forEach((card, index) => {
-        setTimeout(() => {
-            card.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
-            card.classList.add('animated');
-        }, 280 + index * 70);
+            card.style.transition = 'opacity 0.35s ease, transform 0.35s ease';
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, index * 80);
     });
 });

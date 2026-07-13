@@ -126,10 +126,11 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         document.querySelectorAll('.btn-baja-cuenta').forEach(function (btn) {
-            btn.addEventListener('click', function () {
+            btn.addEventListener('click', async function () {
                 const row = btn.closest('.cuenta-row');
                 const accion = row.dataset.activa === '1' ? 'dar de baja' : 'reactivar';
-                if (!confirm(`¿Seguro que querés ${accion} la cuenta "${row.dataset.nombre}"?`)) return;
+                const ok = await KaiConfirm(`¿Seguro que querés ${accion} la cuenta "${row.dataset.nombre}"?`);
+                if (!ok) return;
                 fetch(urls.baja, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
@@ -137,7 +138,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 })
                 .then(r => r.json())
                 .then(data => {
-                    if (data.error) { alert(data.error); return; }
+                    if (data.error) { KaiToast.show(data.error, 'danger'); return; }
                     window.location.reload();
                 });
             });

@@ -18,6 +18,8 @@ from django.http import JsonResponse
 from django.views import View
 from django.views.generic import TemplateView
 
+from core.permisos import chequear_permiso
+
 from .models import (
     CuentaCaja,
     TransaccionCaja,
@@ -98,6 +100,15 @@ class TransaccionesPageView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
+
+        if not chequear_permiso(self.request.user, 'ver_transacciones'):
+            ctx['sin_permiso'] = True
+            return ctx
+
+        ctx['puede_ver']    = True
+        ctx['puede_crear']  = chequear_permiso(self.request.user, 'crear_transacciones')
+        ctx['puede_anular'] = chequear_permiso(self.request.user, 'anular_transacciones')
+
         ctx['cuentas_json'] = json.dumps([
             {
                 'pk': c.pk,
@@ -127,6 +138,9 @@ class CalcularTransaccionAjax(LoginRequiredMixin, View):
     """
 
     def post(self, request):
+        if not chequear_permiso(request.user, 'crear_transacciones'):
+            return _json_error('Sin permiso.', status=403)
+
         try:
             data = json.loads(request.body)
         except (json.JSONDecodeError, ValueError):
@@ -190,6 +204,9 @@ class CrearTransaccionAjax(LoginRequiredMixin, View):
 
     @transaction.atomic
     def post(self, request):
+        if not chequear_permiso(request.user, 'crear_transacciones'):
+            return _json_error('Sin permiso.', status=403)
+
         try:
             data = json.loads(request.body)
         except (json.JSONDecodeError, ValueError):
@@ -323,6 +340,9 @@ class ListarTransaccionesAjax(LoginRequiredMixin, View):
     """
 
     def get(self, request):
+        if not chequear_permiso(request.user, 'ver_transacciones'):
+            return _json_error('Sin permiso.', status=403)
+
         qs = (
             TransaccionCaja.objects
             .select_related('cuenta_origen', 'cuenta_destino', 'creado_por')
@@ -370,6 +390,9 @@ class ListarTransaccionesAjax(LoginRequiredMixin, View):
 
 class DetalleTransaccionAjax(LoginRequiredMixin, View):
     def get(self, request, pk):
+        if not chequear_permiso(request.user, 'ver_transacciones'):
+            return _json_error('Sin permiso.', status=403)
+
         try:
             t = TransaccionCaja.objects.select_related(
                 'cuenta_origen', 'cuenta_destino', 'creado_por'
@@ -386,7 +409,7 @@ class DetalleTransaccionAjax(LoginRequiredMixin, View):
 class AnularTransaccionAjax(LoginRequiredMixin, View):
     @transaction.atomic
     def post(self, request, pk):
-        if not (request.user.is_staff or request.user.is_superuser):
+        if not chequear_permiso(request.user, 'anular_transacciones'):
             return _json_error('No tenés permisos para anular transacciones.', status=403)
         try:
             t = TransaccionCaja.objects.get(pk=pk)

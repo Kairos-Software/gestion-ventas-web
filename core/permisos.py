@@ -50,23 +50,69 @@ def chequear_permiso(usuario, codigo_permiso):
     return False
 
 
+def _permisos_efectivos(usuario):
+    """
+    Devuelve el set de códigos de permiso que `usuario` tiene
+    concedidos ahora mismo (rol + overrides ya resueltos).
+    Una sola query extra — se usa para no repetir chequear_permiso()
+    (que consulta la base) por cada código del catálogo.
+    """
+    if usuario.is_superuser:
+        return set(CODIGOS_PERMISOS)
+
+    permisos_rol = usuario.rol.get_permisos() if usuario.rol else set()
+    overrides = {
+        o.permiso: o.concedido
+        for o in UsuarioPermisoOverride.objects.filter(usuario=usuario)
+    }
+
+    resultado = set()
+    for codigo in CODIGOS_PERMISOS:
+        if codigo in overrides:
+            if overrides[codigo]:
+                resultado.add(codigo)
+        elif codigo in permisos_rol:
+            resultado.add(codigo)
+    return resultado
+
+
 def filtrar_permisos_otorgables(codigos, solicitante):
     """
     Dado un conjunto de códigos de permiso que alguien quiere otorgar
     (a un usuario individual o a un Rol completo), devuelve solo los
     que `solicitante` está autorizado a otorgar.
 
-    Los códigos en PERMISOS_RESTRINGIDOS (ej: 'editar_empresa') solo
-    pueden ser otorgados por un superusuario — ni siquiera alguien
-    con 'gestionar_permisos' puede asignarlos. Hay que llamar a esta
-    función en TODO lugar donde se guarden permisos: tanto al guardar
-    overrides individuales (guardar_permisos_usuario) como al guardar
-    el listado de permisos de un Rol (en views_permisos.py).
+    Dos reglas, ambas obligatorias:
+
+    1. Nadie puede otorgar un permiso que no tiene él mismo. Un
+       solicitante sin 'eliminar_clientes' no puede dárselo a otro
+       usuario aunque tenga 'gestionar_permisos' — solo puede
+       redistribuir lo que ya posee. Esto es transitivo y por lo
+       tanto siempre seguro: si A le da 'gestionar_permisos' a B sin
+       darle 'eliminar_clientes', B tampoco va a poder otorgar
+       'eliminar_clientes' a nadie, porque B no lo tiene.
+    2. Los códigos en PERMISOS_RESTRINGIDOS (ej: 'editar_empresa')
+       solo puede otorgarlos un superusuario, incluso si el
+       solicitante los tiene concedidos a sí mismo.
+
+    Los superusuarios están exentos de ambas reglas.
+
+    Hay que llamar a esta función en TODO lugar donde se guarden
+    permisos: tanto al guardar overrides individuales
+    (guardar_permisos_usuario) como al guardar el listado de permisos
+    de un Rol (en views_permisos.py).
     """
     codigos = set(codigos)
-    if solicitante and solicitante.is_superuser:
+    if not solicitante:
+        return set()
+    if solicitante.is_superuser:
         return codigos
-    return codigos - PERMISOS_RESTRINGIDOS
+
+    permisos_solicitante = _permisos_efectivos(solicitante)
+    return {
+        c for c in codigos
+        if c not in PERMISOS_RESTRINGIDOS and c in permisos_solicitante
+    }
 
 
 def permisos_del_usuario(usuario, solicitante=None):
@@ -75,16 +121,18 @@ def permisos_del_usuario(usuario, solicitante=None):
     Útil para renderizar la pantalla de gestión de permisos.
 
     `solicitante` es el usuario logueado que está viendo/editando la
-    pantalla (el admin). Se usa solo para calcular 'editable': si es
+    pantalla (el admin). Se usa para calcular 'editable': si es
     False, el template debe renderizar ese permiso como bloqueado
-    (el solicitante puede ver su estado actual, pero no cambiarlo).
+    (el solicitante puede ver su estado actual, pero no cambiarlo) —
+    'motivo_bloqueo' explica por qué (candado distinto en cada caso).
 
     Formato devuelto:
     {
         'ver_usuarios': {
             'concedido': True,
             'fuente': 'rol' | 'override_positivo' | 'override_negativo' | 'sin_permiso' | 'superusuario',
-            'editable': True | False
+            'editable': True | False,
+            'motivo_bloqueo': None | 'restringido' | 'sin_permiso_propio' | 'sin_solicitante',
         },
         ...
     }
@@ -93,7 +141,10 @@ def permisos_del_usuario(usuario, solicitante=None):
 
     if usuario.is_superuser:
         return {
-            codigo: {'concedido': True, 'fuente': 'superusuario', 'editable': False}
+            codigo: {
+                'concedido': True, 'fuente': 'superusuario',
+                'editable': False, 'motivo_bloqueo': None,
+            }
             for codigo, _ in PERMISOS_CHOICES
         }
 
@@ -103,6 +154,16 @@ def permisos_del_usuario(usuario, solicitante=None):
         o.permiso: o.concedido
         for o in UsuarioPermisoOverride.objects.filter(usuario=usuario)
     }
+
+    # Permisos que el propio `solicitante` tiene concedidos ahora mismo —
+    # se usa para no poder otorgar más de lo que uno mismo posee (ver
+    # filtrar_permisos_otorgables). Una sola query extra, no una por código.
+    solicitante_superuser = bool(solicitante and solicitante.is_superuser)
+    permisos_solicitante = (
+        _permisos_efectivos(solicitante)
+        if solicitante and not solicitante_superuser
+        else set()
+    )
 
     resultado = {}
     for codigo, _ in PERMISOS_CHOICES:
@@ -117,12 +178,23 @@ def permisos_del_usuario(usuario, solicitante=None):
             fuente = 'sin_permiso'
 
         es_restringido = codigo in PERMISOS_RESTRINGIDOS
-        editable = not es_restringido or (solicitante is not None and solicitante.is_superuser)
+
+        if solicitante is None:
+            editable, motivo_bloqueo = False, 'sin_solicitante'
+        elif solicitante_superuser:
+            editable, motivo_bloqueo = True, None
+        elif es_restringido:
+            editable, motivo_bloqueo = False, 'restringido'
+        elif codigo not in permisos_solicitante:
+            editable, motivo_bloqueo = False, 'sin_permiso_propio'
+        else:
+            editable, motivo_bloqueo = True, None
 
         resultado[codigo] = {
             'concedido': concedido,
             'fuente': fuente,
             'editable': editable,
+            'motivo_bloqueo': motivo_bloqueo,
         }
 
     return resultado

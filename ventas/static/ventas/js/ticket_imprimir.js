@@ -106,14 +106,7 @@ function ticketImprimir(formato) {
 function _abrirVentanaImpresion(html) {
     const ventana = window.open('', '_blank', 'width=750,height=950');
     if (!ventana) {
-        // Si el navegador bloquea el popup, notificar al usuario.
-        // La función vdtToast puede no existir fuera del contexto de detalle_venta.js,
-        // así que usamos alert como fallback.
-        if (typeof vdtToast === 'function') {
-            vdtToast('Popup bloqueado', 'Permitir popups para este sitio y volver a intentarlo.');
-        } else {
-            alert('El navegador bloqueó la ventana de impresión.\nPermitir popups para este sitio e intentar de nuevo.');
-        }
+        KaiToast.show('El navegador bloqueó la ventana de impresión. Permití popups para este sitio e intentá de nuevo.', 'warning', 6000);
         return;
     }
 

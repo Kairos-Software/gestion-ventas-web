@@ -221,11 +221,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 cerrarModal();
                 cargarDeudas();
             } else {
-                alert(result.error || 'Error al guardar');
+                KaiToast.show(result.error || 'Error al guardar', 'danger');
             }
         } catch (error) {
             console.error('Error al guardar:', error);
-            alert('Error al guardar');
+            KaiToast.show('Error al guardar', 'danger');
         } finally {
             btnGuardarDeuda.disabled = false;
         }
@@ -252,7 +252,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const data = await response.json();
 
             if (!data.deuda) {
-                alert('Deuda no encontrada');
+                KaiToast.show('Deuda no encontrada', 'danger');
                 return;
             }
 
@@ -261,7 +261,7 @@ document.addEventListener('DOMContentLoaded', function () {
             abrirDetalle();
         } catch (error) {
             console.error('Error al cargar deuda:', error);
-            alert('Error al cargar deuda');
+            KaiToast.show('Error al cargar deuda', 'danger');
         }
     };
 
@@ -319,10 +319,10 @@ document.addEventListener('DOMContentLoaded', function () {
         const select = document.getElementById(`cuentaCuota${cuotaPk}`);
         const cuentaPk = select ? select.value : '';
         if (!cuentaPk) {
-            alert('Elegí la cuenta de la que sale el pago.');
+            KaiToast.show('Elegí la cuenta de la que sale el pago.', 'warning');
             return;
         }
-        if (!confirm('¿Confirmar el pago de esta cuota? Esto va a impactar la caja.')) return;
+        if (!await KaiConfirm('¿Confirmar el pago de esta cuota? Esto va a impactar la caja.')) return;
 
         try {
             const response = await fetch(urlConfirmarCuota(cuotaPk), {
@@ -339,11 +339,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 window.verDeuda(deudaDetalleActual.pk);
                 cargarDeudas();
             } else {
-                alert(result.error || 'Error al confirmar la cuota');
+                KaiToast.show(result.error || 'Error al confirmar la cuota', 'danger');
             }
         } catch (error) {
             console.error('Error al confirmar cuota:', error);
-            alert('Error al confirmar la cuota');
+            KaiToast.show('Error al confirmar la cuota', 'danger');
         }
     };
 
@@ -362,17 +362,17 @@ document.addEventListener('DOMContentLoaded', function () {
             if (result.success) {
                 cargarDeudas();
             } else {
-                alert(result.error || 'Error al guardar');
+                KaiToast.show(result.error || 'Error al guardar', 'danger');
             }
         } catch (error) {
             console.error('Error al guardar notas:', error);
-            alert('Error al guardar notas');
+            KaiToast.show('Error al guardar notas', 'danger');
         }
     });
 
     btnEliminarDeuda?.addEventListener('click', async () => {
         if (!deudaDetalleActual) return;
-        if (!confirm('¿Estás seguro de eliminar esta deuda?')) return;
+        if (!await KaiConfirm('¿Estás seguro de eliminar esta deuda?', { danger: true, confirmText: 'Eliminar' })) return;
 
         try {
             const response = await fetch(`${urlEliminarBase}${deudaDetalleActual.pk}/`, {
@@ -385,11 +385,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 cerrarDetalle();
                 cargarDeudas();
             } else {
-                alert(result.error || 'Error al eliminar');
+                KaiToast.show(result.error || 'Error al eliminar', 'danger');
             }
         } catch (error) {
             console.error('Error al eliminar:', error);
-            alert('Error al eliminar');
+            KaiToast.show('Error al eliminar', 'danger');
         }
     });
 

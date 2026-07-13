@@ -18,14 +18,18 @@ Convenciones:
 from datetime import timedelta
 from decimal import Decimal
 
-from django.db.models import F, Sum, Count, Avg, ExpressionWrapper, DecimalField
+from django.db.models import F, Q, Sum, Count, Avg, ExpressionWrapper, DecimalField
 from django.db.models.functions import TruncMonth
 from django.utils import timezone
 
 from ventas.models import ItemVenta, Venta, EstadoVenta, ConsumoLoteVenta
 from compras.models import LoteCompra
-from productos.models import MovimientoStock, TipoMovimiento
-from caja.models import Gasto
+from productos.models import MovimientoStock, TipoMovimiento, Moneda
+from caja.models import (
+    Gasto, MovimientoCaja, TipoCaja, TipoMovimientoCaja,
+    CuotaDeuda, EstadoCuota, EstadoDeuda,
+    Cheque, TipoCheque, EstadoCheque,
+)
 
 
 MONEY = DecimalField(max_digits=14, decimal_places=2)
@@ -437,3 +441,71 @@ def gastos_por_categoria(desde, hasta, top=8):
         .annotate(total=Sum('monto'))
         .order_by('-total')[:top]
     )
+
+
+# ══════════════════════════════════════════════════════════════════
+#  SITUACIÓN FINANCIERA ACTUAL
+#  (estado en tiempo real — no depende del filtro de fecha del
+#  dashboard. Responde "¿cuánta plata tengo, cuánto debo, cuánto me
+#  deben?" de un vistazo.)
+# ══════════════════════════════════════════════════════════════════
+
+def _por_moneda(lista, campo_total='total'):
+    """Filtra a solo las monedas con movimiento y les agrega el label."""
+    labels = dict(Moneda.choices)
+    return [
+        {'moneda': f['moneda'], 'label': labels.get(f['moneda'], f['moneda']),
+         'total': f[campo_total] or Decimal('0')}
+        for f in lista if f[campo_total]
+    ]
+
+
+def situacion_financiera():
+    # — Plata disponible: cuentas reales (no tarjetas) de caja grande —
+    saldos = (
+        MovimientoCaja.objects
+        .filter(caja=TipoCaja.GRANDE, cuenta__activa=True, cuenta__es_credito=False)
+        .values('moneda')
+        .annotate(
+            ingresos=Sum('monto', filter=Q(tipo=TipoMovimientoCaja.INGRESO)),
+            egresos=Sum('monto', filter=Q(tipo=TipoMovimientoCaja.EGRESO)),
+        )
+    )
+    saldo_cuentas = _por_moneda([
+        {'moneda': f['moneda'], 'total': (f['ingresos'] or Decimal('0')) - (f['egresos'] or Decimal('0'))}
+        for f in saldos
+    ])
+
+    # — Deudas propias pendientes (cuotas de crédito/préstamos activos) —
+    deudas = (
+        CuotaDeuda.objects
+        .filter(estado=EstadoCuota.PENDIENTE, deuda__estado=EstadoDeuda.ACTIVA)
+        .values('deuda__moneda')
+        .annotate(total=Sum('monto'))
+    )
+    deudas_pendientes = _por_moneda([
+        {'moneda': f['deuda__moneda'], 'total': f['total']} for f in deudas
+    ])
+
+    # — Cheques pendientes: a cobrar (a favor) vs a pagar (en contra) —
+    cheques = (
+        Cheque.objects
+        .filter(estado=EstadoCheque.PENDIENTE)
+        .values('tipo', 'moneda')
+        .annotate(total=Sum('monto'))
+    )
+    cheques_a_cobrar = _por_moneda([
+        {'moneda': f['moneda'], 'total': f['total']}
+        for f in cheques if f['tipo'] == TipoCheque.A_COBRAR
+    ])
+    cheques_a_pagar = _por_moneda([
+        {'moneda': f['moneda'], 'total': f['total']}
+        for f in cheques if f['tipo'] == TipoCheque.A_PAGAR
+    ])
+
+    return {
+        'saldo_cuentas': saldo_cuentas,
+        'deudas_pendientes': deudas_pendientes,
+        'cheques_a_cobrar': cheques_a_cobrar,
+        'cheques_a_pagar': cheques_a_pagar,
+    }

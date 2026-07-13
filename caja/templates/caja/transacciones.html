@@ -9,6 +9,18 @@
 
 {% block content %}
 
+{% if sin_permiso %}
+<div class="trx-page-header">
+  <div class="trx-page-title">
+    <div class="trx-page-title-text">
+      <p>FINANZAS</p>
+      <h4>Transacciones</h4>
+      <small>No tenés permiso para ver las transacciones entre cuentas.</small>
+    </div>
+  </div>
+</div>
+{% else %}
+
 {# ── URLs y datos para JS ─────────────────────────────────────────── #}
 <script id="cuentas-data" type="application/json">{{ cuentas_json|safe }}</script>
 <script>
@@ -17,6 +29,8 @@
   window.URL_TRANSACCIONES_LISTAR   = "{% url 'caja:transacciones_listar' %}";
   window.URL_TRANSACCIONES_DETALLE  = "{% url 'caja:transacciones_detalle' pk=0 %}".replace('/0/', '/__pk__/');
   window.URL_TRANSACCIONES_ANULAR   = "{% url 'caja:transacciones_anular' pk=0 %}".replace('/0/', '/__pk__/');
+  window.PUEDE_CREAR_TRANSACCIONES  = {{ puede_crear|yesno:'true,false' }};
+  window.PUEDE_ANULAR_TRANSACCIONES = {{ puede_anular|yesno:'true,false' }};
 </script>
 
 {# ── Encabezado ───────────────────────────────────────────────────── #}
@@ -34,6 +48,7 @@
       <small>Movimientos de dinero entre tus cuentas de caja grande.</small>
     </div>
   </div>
+  {% if puede_crear %}
   <button class="btn btn-primary" onclick="Transacciones.abrirModalCrear()">
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="margin-right:.4rem">
       <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/>
@@ -41,6 +56,7 @@
     </svg>
     Nueva transacción
   </button>
+  {% endif %}
 </div>
 
 {# ── Filtros ──────────────────────────────────────────────────────── #}
@@ -146,10 +162,10 @@
             </label>
             <select id="trx-tipo" class="form-select">
               <option value="">— Seleccionar —</option>
-              <option value="deposito">💰  Depósito bancario (Efectivo → Banco)</option>
-              <option value="extraccion">🏧  Extracción bancaria (Banco → Efectivo)</option>
-              <option value="compra_divisa">💱  Compra de divisa (ej: ARS → USD / EUR)</option>
-              <option value="venta_divisa">💱  Venta de divisa (ej: USD / EUR → ARS)</option>
+              <option value="deposito">Depósito bancario (Efectivo → Banco)</option>
+              <option value="extraccion">Extracción bancaria (Banco → Efectivo)</option>
+              <option value="compra_divisa">Compra de divisa (ej: ARS → USD / EUR)</option>
+              <option value="venta_divisa">Venta de divisa (ej: USD / EUR → ARS)</option>
             </select>
           </div>
 
@@ -285,7 +301,7 @@
 
       <div class="modal-footer border-0 px-4 pb-4 pt-1">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
-        {% if user.is_staff or user.is_superuser %}
+        {% if puede_anular %}
         <button type="button" id="trx-detalle-btn-anular" class="btn btn-outline-danger">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="margin-right:.35rem">
             <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3"/>
@@ -327,8 +343,12 @@
   </div>
 </div>
 
+{% endif %}
+
 {% endblock %}
 
 {% block extra_js %}
+{% if puede_ver %}
 <script src="{% static 'caja/js/transacciones.js' %}"></script>
+{% endif %}
 {% endblock %}

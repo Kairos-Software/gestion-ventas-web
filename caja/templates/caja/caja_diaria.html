@@ -190,12 +190,16 @@ Caja Diaria
                 <p class="cd-empty-inline">Sin ventas en este turno.</p>
                 {% endif %}
             </div>
+            {% if puede_abrir_cerrar_turno %}
             <button class="vta-btn vta-btn-primary cd-btn-cerrar" onclick="cdCerrarTurno()">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                     <path d="M3 8H13M8 3V13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
                 </svg>
                 Cerrar Turno
             </button>
+            {% else %}
+            <p class="cd-empty-inline">No tenés permiso para cerrar turnos.</p>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -213,12 +217,16 @@ Caja Diaria
         </svg>
         <h3>Sin turno abierto</h3>
         <p>Abrí un turno para comenzar a vender.</p>
+        {% if puede_abrir_cerrar_turno %}
         <button class="vta-btn vta-btn-primary" onclick="cdAbrirTurno()">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                 <path d="M3 8H13M8 3V13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
             </svg>
             Abrir Turno
         </button>
+        {% else %}
+        <p class="cd-empty-inline">No tenés permiso para abrir turnos.</p>
+        {% endif %}
     </div>
 </div>
 

@@ -739,7 +739,9 @@
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 160px;
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
 }
 
 .doc-link-actual:hover {

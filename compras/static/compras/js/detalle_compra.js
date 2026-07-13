@@ -330,7 +330,7 @@ if (CDT.esBorrador) {
 
     /* ── Cancelar compra (descarta todo el borrador) ──────────── */
     btnVolver.addEventListener('click', async () => {
-        const ok = confirm('¿Cancelar esta compra? El borrador y todos los productos cargados se van a perder.');
+        const ok = await KaiConfirm('¿Cancelar esta compra? El borrador y todos los productos cargados se van a perder.', { danger: true, confirmText: 'Cancelar compra' });
         if (!ok) return;
 
         btnVolver.disabled  = true;
@@ -448,7 +448,7 @@ async function cdtSubirArchivos(files) {
    DOCUMENTOS — Eliminar
 ════════════════════════════════════════════════════════════════ */
 async function cdtEliminarDoc(pk) {
-    if (!confirm('¿Eliminar este documento? Esta acción no se puede deshacer.')) return;
+    if (!await KaiConfirm('¿Eliminar este documento? Esta acción no se puede deshacer.', { danger: true, confirmText: 'Eliminar' })) return;
     try {
         const res  = await fetch(CDT.urlDocEliminar, {
             method:  'POST',

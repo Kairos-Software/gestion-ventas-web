@@ -298,7 +298,7 @@ if (VDT.esBorrador) {
 
     if (btnCancelar) {
         btnCancelar.addEventListener('click', async () => {
-            const ok = confirm('¿Cancelar esta venta? El borrador y sus ítems se van a borrar.');
+            const ok = await KaiConfirm('¿Cancelar esta venta? El borrador y sus ítems se van a borrar.', { danger: true, confirmText: 'Cancelar venta' });
             if (!ok) return;
 
             btnCancelar.disabled  = true;

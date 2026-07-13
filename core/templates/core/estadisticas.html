@@ -36,6 +36,67 @@
     Mostrando del <strong>{{ desde|date:'d/m/Y' }}</strong> al <strong>{{ hasta|date:'d/m/Y' }}</strong>
 </p>
 
+<!-- ══════════ SITUACIÓN FINANCIERA ACTUAL (tiempo real, no depende del filtro) ══════════ -->
+{% if situacion_financiera %}
+<div class="est-finanzas-card">
+    <div class="est-finanzas-header">
+        <div>
+            <p class="card-title">Situación financiera actual</p>
+            <p class="text-muted" style="font-size:.8125rem;">Esto es en tiempo real — cuánta plata tenés, cuánto debés y cuánto te deben</p>
+        </div>
+    </div>
+    <div class="est-finanzas-body">
+
+        <div class="est-finanzas-grupo">
+            <span class="est-finanzas-grupo-titulo">Disponible en cuentas</span>
+            {% if situacion_financiera.saldo_cuentas %}
+                {% for s in situacion_financiera.saldo_cuentas %}
+                <div class="est-finanzas-monto {% if s.total < 0 %}negativo{% else %}positivo{% endif %}">
+                    ${{ s.total|floatformat:0|intcomma }} <span>{{ s.moneda }}</span>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="est-finanzas-monto neutro">$0</div>
+            {% endif %}
+        </div>
+
+        <div class="est-finanzas-grupo">
+            <span class="est-finanzas-grupo-titulo">Debés (créditos y préstamos)</span>
+            {% if situacion_financiera.deudas_pendientes %}
+                {% for d in situacion_financiera.deudas_pendientes %}
+                <div class="est-finanzas-monto negativo">${{ d.total|floatformat:0|intcomma }} <span>{{ d.moneda }}</span></div>
+                {% endfor %}
+            {% else %}
+                <div class="est-finanzas-monto neutro">$0</div>
+            {% endif %}
+        </div>
+
+        <div class="est-finanzas-grupo">
+            <span class="est-finanzas-grupo-titulo">Cheques a cobrar</span>
+            {% if situacion_financiera.cheques_a_cobrar %}
+                {% for c in situacion_financiera.cheques_a_cobrar %}
+                <div class="est-finanzas-monto positivo">${{ c.total|floatformat:0|intcomma }} <span>{{ c.moneda }}</span></div>
+                {% endfor %}
+            {% else %}
+                <div class="est-finanzas-monto neutro">$0</div>
+            {% endif %}
+        </div>
+
+        <div class="est-finanzas-grupo">
+            <span class="est-finanzas-grupo-titulo">Cheques a pagar</span>
+            {% if situacion_financiera.cheques_a_pagar %}
+                {% for c in situacion_financiera.cheques_a_pagar %}
+                <div class="est-finanzas-monto negativo">${{ c.total|floatformat:0|intcomma }} <span>{{ c.moneda }}</span></div>
+                {% endfor %}
+            {% else %}
+                <div class="est-finanzas-monto neutro">$0</div>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+{% endif %}
+
 <!-- ══════════ KPIs PRINCIPALES ══════════ -->
 <div class="est-kpi-grid">
 
@@ -74,6 +135,18 @@
             </div>
         {% endif %}
         <div class="est-kpi-sub">De cada $100 vendidos, ganás ${{ resumen.margen_pct|floatformat:0 }}</div>
+    </div>
+
+    <!-- Ticket promedio -->
+    <div class="est-kpi-card">
+        <div class="est-kpi-top">
+            <div class="est-kpi-icon azul">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="2" y="5" width="16" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M6 5V3.5C6 2.95 6.45 2.5 7 2.5H13C13.55 2.5 14 2.95 14 3.5V5" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="10.5" r="2" stroke="currentColor" stroke-width="1.3"/></svg>
+            </div>
+            <div class="est-kpi-label">Ticket promedio</div>
+        </div>
+        <div class="est-kpi-value">${{ ticket_promedio|floatformat:0|intcomma }}</div>
+        <div class="est-kpi-sub">{{ resumen.cantidad_ventas }} venta{{ resumen.cantidad_ventas|pluralize }} confirmada{{ resumen.cantidad_ventas|pluralize }}</div>
     </div>
 
     <!-- Total gastado -->
@@ -303,7 +376,7 @@
         </div>
         {% elif perdidas_periodo.total_mermas_periodo == 0 %}
             <div class="empty-state">
-                <p>🎉 No perdiste nada por vencimiento ni por rotura en este período.</p>
+                <p>No perdiste nada por vencimiento ni por rotura en este período.</p>
             </div>
         {% endif %}
     </div>
@@ -377,7 +450,7 @@
 
         {% if not perdidas_actuales.lotes_vencidos and not perdidas_actuales.lotes_por_vencer %}
             <div class="empty-state">
-                <p>🎉 No tenés productos vencidos ni por vencer en los próximos 30 días.</p>
+                <p>No tenés productos vencidos ni por vencer en los próximos 30 días.</p>
             </div>
         {% endif %}
     </div>

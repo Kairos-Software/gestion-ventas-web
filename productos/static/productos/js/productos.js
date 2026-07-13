@@ -427,7 +427,7 @@ async function eliminarCategoriaSeleccionada() {
     const pk  = sel.value;
     const nombre = sel.options[sel.selectedIndex]?.text;
     if (!pk) { showToast('Seleccioná una categoría para eliminar.', 'error'); return; }
-    if (!confirm(`¿Eliminar la categoría "${nombre}"? Solo se puede si no tiene productos asociados.`)) return;
+    if (!await KaiConfirm(`¿Eliminar la categoría "${nombre}"? Solo se puede si no tiene productos asociados.`)) return;
     const res  = await fetch(URLS.categoriaEliminar, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
@@ -471,7 +471,7 @@ async function eliminarTipoSeleccionado() {
     const pk  = sel.value;
     const nombre = sel.options[sel.selectedIndex]?.text;
     if (!pk) { showToast('Seleccioná un tipo para eliminar.', 'error'); return; }
-    if (!confirm(`¿Eliminar el tipo "${nombre}"? Solo se puede si no tiene productos asociados.`)) return;
+    if (!await KaiConfirm(`¿Eliminar el tipo "${nombre}"? Solo se puede si no tiene productos asociados.`)) return;
     const res  = await fetch(URLS.tipoEliminar, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
@@ -588,7 +588,7 @@ async function marcarPortada(pk) {
 }
 
 async function eliminarImagen(pk) {
-    if (!confirm('¿Eliminar esta imagen?')) return;
+    if (!await KaiConfirm('¿Eliminar esta imagen?')) return;
     const res  = await fetch(URLS.imagenEliminar, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
@@ -711,7 +711,7 @@ function _seleccionarChipCatalogo(tipoPk, opcionPk) {
 }
 
 async function _eliminarValorCatalogo(pk, nombre) {
-    if (!confirm(`¿Eliminar el valor "${nombre}"?`)) return;
+    if (!await KaiConfirm(`¿Eliminar el valor "${nombre}"?`)) return;
     const res  = await fetch(URLS.opcionEliminar, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
@@ -754,7 +754,7 @@ async function eliminarVarianteSeleccionada() {
     const pk  = sel.value;
     const nombre = sel.options[sel.selectedIndex]?.text;
     if (!pk) { showToast('Seleccioná un tipo de variante para eliminar.', 'error'); return; }
-    if (!confirm(`¿Eliminar el tipo "${nombre}"? Solo se puede si no tiene valores asociados.`)) return;
+    if (!await KaiConfirm(`¿Eliminar el tipo "${nombre}"? Solo se puede si no tiene valores asociados.`)) return;
     const res  = await fetch(URLS.varianteEliminar, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
@@ -802,7 +802,7 @@ async function eliminarOpcionSeleccionada() {
     const pk  = sel.value;
     const nombre = sel.options[sel.selectedIndex]?.text;
     if (!pk) { showToast('Seleccioná un valor para eliminar.', 'error'); return; }
-    if (!confirm(`¿Eliminar el valor "${nombre}"?`)) return;
+    if (!await KaiConfirm(`¿Eliminar el valor "${nombre}"?`)) return;
     const res  = await fetch(URLS.opcionEliminar, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
@@ -1698,7 +1698,7 @@ async function _toggleActivaListaDescuento(pk) {
 }
 
 async function _eliminarListaDescuento(pk, nombre) {
-    if (!confirm(`¿Eliminar la lista "${nombre}"? Esta acción no se puede deshacer.`)) return;
+    if (!await KaiConfirm(`¿Eliminar la lista "${nombre}"? Esta acción no se puede deshacer.`)) return;
     const res  = await fetch(URLS.listaDescuentoEliminar, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },

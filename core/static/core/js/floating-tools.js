@@ -187,7 +187,7 @@
         const cantidad = parseInt(cantidadInput.value, 10) || 0;
 
         if (!valor || valor <= 0) {
-            alert('Ingresá un valor de billete válido.');
+            KaiToast.show('Ingresá un valor de billete válido.', 'warning');
             valorInput.focus();
             return;
         }
@@ -212,10 +212,10 @@
     // quedan guardadas, porque eso casi no cambia y no tiene sentido
     // volver a cargarlas cada vez. Para sacar una denominación puntual
     // sigue estando el × de cada fila.
-    window.reiniciarContadorBilletes = function () {
+    window.reiniciarContadorBilletes = async function () {
         const lista = leerBilletes();
         if (lista.length === 0) return;
-        if (!confirm('¿Poner todas las cantidades en 0? Las denominaciones cargadas se mantienen.')) return;
+        if (!await KaiConfirm('¿Poner todas las cantidades en 0? Las denominaciones cargadas se mantienen.')) return;
         lista.forEach(function (item) { item.cantidad = 0; });
         guardarBilletes(lista);
         renderBilletes();

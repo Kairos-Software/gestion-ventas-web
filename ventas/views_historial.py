@@ -80,14 +80,6 @@ class ListarVentasAjax(LoginRequiredMixin, View):
         puede_editar   = chequear_permiso(request.user, 'editar_ventas')
         puede_eliminar = chequear_permiso(request.user, 'eliminar_ventas')
 
-        MEDIO_PAGO_ICON = {
-            'efectivo':      '💵',
-            'transferencia': '🏦',
-            'debito':        '💳',
-            'credito':       '💳',
-            'qr':            '📱',
-        }
-
         def _nombre_usuario(u):
             if not u:
                 return None
@@ -182,7 +174,6 @@ class ListarVentasAjax(LoginRequiredMixin, View):
                 # — Medio de pago —
                 'medio_pago':              v.medio_pago,
                 'medio_pago_label':        v.get_medio_pago_display(),
-                'medio_pago_icon':         MEDIO_PAGO_ICON.get(v.medio_pago, '💰'),
                 'pagos':                   pagos,
                 # — Auditoría —
                 'creado_por':              creado_por or '—',

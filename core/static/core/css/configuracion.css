@@ -189,3 +189,20 @@
 }
 
 .config-logo-box img { width: 100%; height: 100%; object-fit: contain; }
+
+/* ═══════════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════════ */
+@media (max-width: 767px) {
+    .config-section-header { padding: 0.875rem 1rem; }
+    .config-row { padding: 0.875rem 1rem; }
+    .config-empresa-msg { padding: 0 1rem 0.875rem; }
+}
+
+@media (max-width: 479px) {
+    .config-row {
+        flex-wrap: wrap;
+        align-items: flex-start;
+    }
+    .config-row-info { flex-basis: 100%; }
+}

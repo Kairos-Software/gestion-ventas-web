@@ -38,7 +38,7 @@
         </div>
         <div class="permisos-lista">
             {% for p in permisos %}
-            <div class="permiso-row {% if p.concedido %}concedido{% else %}denegado{% endif %}" data-codigo="{{ p.codigo }}">
+            <div class="permiso-row {% if p.concedido %}concedido{% else %}denegado{% endif %} {% if not p.editable %}bloqueado{% endif %}" data-codigo="{{ p.codigo }}">
                 <div class="permiso-info">
                     <label class="permiso-label" for="perm_{{ p.codigo }}">{{ p.label }}</label>
                     <span class="fuente-badge fuente-{{ p.fuente }}">
@@ -49,13 +49,23 @@
                         {% else %}—{% endif %}
                     </span>
                     <span class="permiso-codigo">{{ p.codigo }}</span>
+                    {% if not p.editable %}
+                    <span class="candado-badge"
+                          title="{% if p.motivo_bloqueo == 'restringido' %}Solo un superusuario puede otorgar este permiso.{% else %}No podés otorgar este permiso porque vos mismo no lo tenés.{% endif %}">
+                        <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
+                            <rect x="3.5" y="7" width="9" height="6.5" rx="1.2" stroke="currentColor" stroke-width="1.3"/>
+                            <path d="M5.5 7V4.8a2.5 2.5 0 0 1 5 0V7" stroke="currentColor" stroke-width="1.3"/>
+                        </svg>
+                        {% if p.motivo_bloqueo == 'restringido' %}Solo superusuario{% else %}No lo tenés vos{% endif %}
+                    </span>
+                    {% endif %}
                 </div>
                 <label class="toggle-switch">
                     <input type="checkbox"
                            id="perm_{{ p.codigo }}"
                            name="{{ p.codigo }}"
                            {% if p.concedido %}checked{% endif %}
-                           {% if p.fuente == 'superusuario' %}disabled{% endif %}>
+                           {% if not p.editable %}disabled{% endif %}>
                     <span class="toggle-track">
                         <span class="toggle-thumb"></span>
                     </span>

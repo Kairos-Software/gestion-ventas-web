@@ -248,11 +248,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 cerrarModal();
                 cargarCheques();
             } else {
-                alert(result.error || 'Error al guardar');
+                KaiToast.show(result.error || 'Error al guardar', 'danger');
             }
         } catch (error) {
             console.error('Error al guardar:', error);
-            alert('Error al guardar');
+            KaiToast.show('Error al guardar', 'danger');
         } finally {
             btnGuardarCheque.disabled = false;
         }
@@ -291,7 +291,7 @@ document.addEventListener('DOMContentLoaded', function () {
     };
 
     window.eliminarCheque = async function (pk) {
-        if (!confirm('¿Estás seguro de eliminar este cheque?')) return;
+        if (!await KaiConfirm('¿Estás seguro de eliminar este cheque?', { danger: true, confirmText: 'Eliminar' })) return;
 
         try {
             const response = await fetch(`${urlEliminarBase}${pk}/`, {
@@ -303,21 +303,21 @@ document.addEventListener('DOMContentLoaded', function () {
             if (result.success) {
                 cargarCheques();
             } else {
-                alert(result.error || 'Error al eliminar');
+                KaiToast.show(result.error || 'Error al eliminar', 'danger');
             }
         } catch (error) {
             console.error('Error al eliminar:', error);
-            alert('Error al eliminar');
+            KaiToast.show('Error al eliminar', 'danger');
         }
     };
 
     // ── Confirmar / Rechazar ─────────────────────────────────────────
-    window.confirmarCheque = function (pk) {
+    window.confirmarCheque = async function (pk) {
         const cheque = CHEQUES_CACHE.find(c => c.pk === pk);
         if (!cheque) return;
 
         if (cheque.tipo === 'a_pagar') {
-            if (!confirm('¿Confirmar el pago de este cheque? Esto va a impactar la caja.')) return;
+            if (!await KaiConfirm('¿Confirmar el pago de este cheque? Esto va a impactar la caja.')) return;
             _confirmarChequeRequest(pk, null);
             return;
         }
@@ -341,7 +341,7 @@ document.addEventListener('DOMContentLoaded', function () {
     btnConfirmarCobro.addEventListener('click', () => {
         const cuentaPk = conf_cuenta_destino.value;
         if (!cuentaPk) {
-            alert('Elegí la cuenta donde vas a depositar el cheque.');
+            KaiToast.show('Elegí la cuenta donde vas a depositar el cheque.', 'warning');
             return;
         }
         const pk = chequeConfirmarActual;
@@ -361,16 +361,16 @@ document.addEventListener('DOMContentLoaded', function () {
             if (result.success) {
                 cargarCheques();
             } else {
-                alert(result.error || 'Error al confirmar el cheque');
+                KaiToast.show(result.error || 'Error al confirmar el cheque', 'danger');
             }
         } catch (error) {
             console.error('Error al confirmar:', error);
-            alert('Error al confirmar el cheque');
+            KaiToast.show('Error al confirmar el cheque', 'danger');
         }
     }
 
     window.rechazarCheque = async function (pk) {
-        if (!confirm('¿Marcar este cheque como rechazado? Si ya estaba confirmado, se revierte el movimiento de caja.')) return;
+        if (!await KaiConfirm('¿Marcar este cheque como rechazado? Si ya estaba confirmado, se revierte el movimiento de caja.', { danger: true, confirmText: 'Rechazar' })) return;
 
         try {
             const response = await fetch(`${urlRechazarBase}${pk}/rechazar/`, {
@@ -382,11 +382,11 @@ document.addEventListener('DOMContentLoaded', function () {
             if (result.success) {
                 cargarCheques();
             } else {
-                alert(result.error || 'Error al rechazar el cheque');
+                KaiToast.show(result.error || 'Error al rechazar el cheque', 'danger');
             }
         } catch (error) {
             console.error('Error al rechazar:', error);
-            alert('Error al rechazar el cheque');
+            KaiToast.show('Error al rechazar el cheque', 'danger');
         }
     };
 

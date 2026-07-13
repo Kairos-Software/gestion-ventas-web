@@ -65,6 +65,12 @@ PERMISOS_CHOICES = [
     # ── Módulo: Caja ───────────────────────────────────────────────
     ('ver_caja',              'Ver balance y movimientos de caja'),
     ('cargar_movimientos_caja', 'Cargar movimientos manuales en caja'),
+    ('abrir_cerrar_turno',    'Abrir y cerrar turnos de caja diaria'),
+
+    # ── Módulo: Transacciones (caja grande) ─────────────────────────
+    ('ver_transacciones',     'Ver transacciones entre cuentas'),
+    ('crear_transacciones',   'Crear transacciones entre cuentas'),
+    ('anular_transacciones',  'Anular transacciones'),
 
     # ── Módulo: Ingresos y egresos ────────────────────────────────
     # (códigos sin cambiar a propósito: renombrarlos revocaría en

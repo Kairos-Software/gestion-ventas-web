@@ -158,7 +158,7 @@ document.addEventListener('DOMContentLoaded', function () {
         btnCrearGrupo.addEventListener('click', async () => {
             const apellido  = document.getElementById('ng_apellido').value.trim();
             const direccion = document.getElementById('ng_direccion').value.trim();
-            if (!apellido) { alert('Ingresá el apellido de referencia.'); return; }
+            if (!apellido) { KaiToast.show('Ingresá el apellido de referencia.', 'warning'); return; }
             const fd = new FormData();
             fd.append('apellido_referencia', apellido);
             fd.append('direccion_referencia', direccion);
@@ -169,7 +169,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 nuevoGrupoForm.style.display = 'none';
                 document.getElementById('ng_apellido').value = '';
                 document.getElementById('ng_direccion').value = '';
-            } else alert('Error al crear grupo: ' + JSON.stringify(data.errors));
+            } else KaiToast.show('Error al crear grupo: ' + JSON.stringify(data.errors), 'danger');
         });
     }
 
@@ -476,7 +476,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     modal?.hide(); location.reload();
                 } else {
                     const err = Object.entries(data.errors||{}).map(([k,v])=>`${k}: ${v.join(', ')}`).join(' | ');
-                    if (formError) { formError.textContent = '⚠ ' + (err||'Error al guardar.'); formError.style.display = 'block'; }
+                    if (formError) { formError.textContent = err || 'Error al guardar.'; formError.style.display = 'block'; }
                 }
             } catch (e) { if (formError) { formError.textContent = 'Error de conexión.'; formError.style.display = 'block'; } }
             finally { btnGuardar.disabled = false; btnGuardar.textContent = 'Guardar cliente'; }
@@ -497,6 +497,6 @@ document.addEventListener('DOMContentLoaded', function () {
         const fd = new FormData(); fd.append('pk', pkEliminar);
         const resp = await postForm(window.clienteEliminarUrl, fd);
         const data = await resp.json();
-        if (data.success) location.reload(); else alert('Error al eliminar.');
+        if (data.success) location.reload(); else KaiToast.show('Error al eliminar.', 'danger');
     });
 });

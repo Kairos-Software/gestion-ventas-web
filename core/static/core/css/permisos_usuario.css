@@ -342,6 +342,31 @@
     border: 1px solid var(--border-color);
 }
 
+/* Fila bloqueada: el solicitante no puede tocar este permiso */
+.permiso-row.bloqueado {
+    background: var(--bg-secondary);
+    opacity: 0.75;
+}
+
+.permiso-row.bloqueado .permiso-label {
+    cursor: not-allowed;
+    color: var(--text-muted);
+}
+
+.candado-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--warning);
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    padding: 0.15rem 0.5rem;
+    border-radius: 1rem;
+    cursor: help;
+}
+
 /* ═══════════════════════════════════════════════
    TOGGLE SWITCH
    ═══════════════════════════════════════════════ */
