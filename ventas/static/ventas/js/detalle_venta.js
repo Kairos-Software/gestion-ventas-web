@@ -354,25 +354,14 @@ function vdtEsc(str) {
 }
 
 /* ════════════════════════════════════════════════════════════════
-   TICKET — ver e imprimir
+   TICKET — imprimir
    ──────────────────────────────────────────────────────────────
-   vdtVerTicket()      → abre el modal de vista previa en pantalla
-   vdtCerrarTicket()   → cierra ese modal
    vdtImprimirTicket() → abre el selector de formato (A4 / 80mm / 58mm)
-                         y delega la generación del HTML a ticket_imprimir.js
+                         y delega la generación del HTML a ticket_imprimir.js.
+   La vista previa real es la herramienta de impresión del navegador
+   (window.print()) — no hay una vista previa propia en HTML: no
+   sirve para saber cómo va a salir en papel real.
 ════════════════════════════════════════════════════════════════ */
-
-/** Abre el modal de vista previa del ticket en pantalla */
-function vdtVerTicket() {
-    const modal = document.getElementById('cdt-ticket-modal');
-    if (modal) modal.style.display = 'flex';
-}
-
-/** Cierra el modal de vista previa */
-function vdtCerrarTicket() {
-    const modal = document.getElementById('cdt-ticket-modal');
-    if (modal) modal.style.display = 'none';
-}
 
 /**
  * Abre el selector de formato de impresión.
@@ -385,14 +374,4 @@ function vdtImprimirTicket() {
         return;
     }
     ticketAbrirSelector();
-}
-
-/* ════════════════════════════════════════════════════════════════
-   CERRAR MODAL AL CLICK FUERA
-════════════════════════════════════════════════════════════════ */
-const _ticketModal = document.getElementById('cdt-ticket-modal');
-if (_ticketModal) {
-    _ticketModal.addEventListener('click', function(e) {
-        if (e.target === this) vdtCerrarTicket();
-    });
 }

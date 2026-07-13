@@ -80,6 +80,13 @@ PERMISOS_CHOICES = [
     ('editar_deudas',           'Editar créditos y préstamos existentes'),
     ('eliminar_deudas',         'Eliminar créditos y préstamos'),
     ('confirmar_cuotas_deuda',  'Confirmar el pago de una cuota'),
+
+    # ── Módulo: Cheques ────────────────────────────────────────────
+    ('ver_cheques',        'Ver cheques'),
+    ('crear_cheques',      'Crear cheques'),
+    ('editar_cheques',     'Editar cheques existentes'),
+    ('eliminar_cheques',   'Eliminar cheques'),
+    ('confirmar_cheques',  'Confirmar o rechazar el cobro/pago de un cheque'),
 ]
 
 CODIGOS_PERMISOS = {codigo for codigo, _ in PERMISOS_CHOICES}

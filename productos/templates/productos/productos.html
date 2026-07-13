@@ -493,6 +493,15 @@
 
             {# — TAB: PRECIOS — #}
             <div class="prd-tab-panel" id="tab-precios">
+                <div class="prd-field">
+                    <label>¿Cómo se calcula el precio de venta?</label>
+                    <div class="prd-precio-toggle">
+                        <button type="button" class="prd-precio-toggle-btn prd-precio-toggle-btn--active" data-modo="manual">Manual</button>
+                        <button type="button" class="prd-precio-toggle-btn" data-modo="automatico">Automático (costo + % ganancia)</button>
+                    </div>
+                    <input type="hidden" id="f_modo_precio" value="manual">
+                </div>
+
                 <div class="prd-form-grid prd-form-grid--2">
                     <div class="prd-field">
                         <label>Precio de venta <span class="prd-hint">(IVA 21% incluido)</span></label>
@@ -501,6 +510,17 @@
                             <input type="number" id="f_precio_venta" class="prd-input prd-input--prefixed" placeholder="0.00" step="0.01" min="0">
                         </div>
                     </div>
+                    <div class="prd-field" id="campo_porcentaje_ganancia" hidden>
+                        <label>% de ganancia</label>
+                        <div class="prd-input-prefix-wrap">
+                            <input type="number" id="f_porcentaje_ganancia" class="prd-input" placeholder="Ej: 35" step="0.01" min="0">
+                            <span class="prd-input-suffix">%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="prd-precio-costo-badge" id="badge_costo_actual">
+                    Sin compras registradas todavía.
                 </div>
             </div>
 

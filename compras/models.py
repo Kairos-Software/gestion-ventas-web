@@ -249,6 +249,18 @@ def _crear_lote_desde_item(item, fecha_compra):
     )
 
 
+def _actualizar_precios_automaticos(compra):
+    """
+    Recalcula costo_actual/precio_venta (si corresponde) de cada producto
+    afectado por esta compra, a partir del lote activo más reciente. Se
+    llama después de que los lotes ya reflejan el estado nuevo (creados,
+    desactivados o reactivados) — ver Producto.actualizar_costo_y_precio().
+    """
+    productos_afectados = {item.producto for item in compra.items.all() if item.producto_id}
+    for producto in productos_afectados:
+        producto.actualizar_costo_y_precio()
+
+
 # ══════════════════════════════════════════════════════════════════
 #  COMPRA  (cabecera)
 # ══════════════════════════════════════════════════════════════════
@@ -322,6 +334,7 @@ class Compra(models.Model):
         with transaction.atomic():
             # Falla rápido: bloquea el borrado si hay cuotas ya confirmadas.
             _anular_deudas_de_compra(self)
+            productos_afectados = {item.producto for item in self.items.all() if item.producto_id}
             if self.estado == EstadoCompra.CONFIRMADA:
                 for item in self.items.select_related('producto', 'combinacion'):
                     _restar_stock_item(item)
@@ -329,6 +342,9 @@ class Compra(models.Model):
             from caja.models import sincronizar_movimiento_compra
             sincronizar_movimiento_compra(self)
             super().delete(*args, **kwargs)
+            # Los lotes se borraron en cascada: recalcular ya sin ellos.
+            for producto in productos_afectados:
+                producto.actualizar_costo_y_precio()
 
     # ── Métodos de negocio ───────────────────────────────────────
 
@@ -379,6 +395,9 @@ class Compra(models.Model):
         from caja.models import sincronizar_movimiento_compra
         sincronizar_movimiento_compra(self)
 
+        # Recalcular costo_actual/precio_venta automático de los productos
+        _actualizar_precios_automaticos(self)
+
     @transaction.atomic
     def anular(self):
         """
@@ -408,6 +427,10 @@ class Compra(models.Model):
         from caja.models import sincronizar_movimiento_compra
         sincronizar_movimiento_compra(self)
 
+        # Los lotes de esta compra ya no están activos: recalcular con el
+        # lote anterior que haya quedado activo (o volver a costo_actual=None).
+        _actualizar_precios_automaticos(self)
+
     @transaction.atomic
     def reactivar(self):
         """
@@ -422,6 +445,8 @@ class Compra(models.Model):
         # Reactivar lotes asociados
         for item in self.items.all():
             item.lotes.update(activo=True)
+
+        _actualizar_precios_automaticos(self)
 
         self.estado = EstadoCompra.BORRADOR
         self.save(update_fields=['estado'])
@@ -456,6 +481,10 @@ class Compra(models.Model):
             raise ValueError('La compra debe tener al menos un ítem.')
 
         # — Reemplazar ítems (los lotes se borran en cascada) —
+        # Productos que tenían ítem antes de editar: si el nuevo carrito ya
+        # no los incluye, su costo_actual también debe recalcularse (el
+        # lote que tenían se borró en cascada).
+        productos_afectados = {item.producto for item in self.items.all() if item.producto_id}
         self.items.all().delete()
 
         for d in items_data:
@@ -501,6 +530,12 @@ class Compra(models.Model):
         # Sincronizar movimiento de caja grande
         from caja.models import sincronizar_movimiento_compra
         sincronizar_movimiento_compra(self)
+
+        # Recalcular costo_actual/precio_venta de los productos del carrito
+        # nuevo, más los que salieron del carrito en esta edición.
+        productos_afectados |= {item.producto for item in self.items.all() if item.producto_id}
+        for producto in productos_afectados:
+            producto.actualizar_costo_y_precio()
 
     @transaction.atomic
     def editar_cabecera(self, fecha, notas):

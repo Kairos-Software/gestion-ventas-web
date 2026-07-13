@@ -50,6 +50,9 @@ def _serializar_producto(p):
         'ancho_cm':              str(p.ancho_cm) if p.ancho_cm else '',
         'profundidad_cm':        str(p.profundidad_cm) if p.profundidad_cm else '',
         'precio_venta':          str(p.precio_venta) if p.precio_venta else '',
+        'modo_precio':           p.modo_precio,
+        'porcentaje_ganancia':   str(p.porcentaje_ganancia) if p.porcentaje_ganancia is not None else '',
+        'costo_actual':          str(p.costo_actual) if p.costo_actual is not None else '',
         # alicuota_iva: se guarda siempre como '21' (general). No se expone al frontend.
         'stock_actual':          str(p.stock_actual),
         'stock_minimo':          str(p.stock_minimo),

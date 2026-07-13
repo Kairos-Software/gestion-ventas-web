@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import models
 from django.utils.text import slugify
 from django.conf import settings
@@ -118,6 +120,18 @@ class AlicuotaIVA(models.TextChoices):
     REDUCIDO = '10.5', 'Reducido (10,5%)'
     GENERAL  = '21',   'General (21%)'
     ESPECIAL = '27',   'Especial (27%)'
+
+
+class ModoPrecio(models.TextChoices):
+    """
+    MANUAL: precio_venta se carga y edita a mano, como siempre.
+    AUTOMATICO: precio_venta se recalcula solo a partir de costo_actual
+    (el costo del lote activo más reciente) + porcentaje_ganancia, cada
+    vez que se confirma/anula una compra de este producto — nunca al
+    vender (ver Producto.actualizar_costo_y_precio()).
+    """
+    MANUAL     = 'manual',     'Manual'
+    AUTOMATICO = 'automatico', 'Automático (costo + % ganancia)'
 
 
 class EstadoProducto(models.TextChoices):
@@ -307,6 +321,21 @@ class Producto(models.Model):
                        null=True, blank=True,
                        help_text='Precio final de venta al público (IVA incluido).')
 
+    # — Precio automático (costo + % de ganancia) —
+    # MANUAL (default): precio_venta se carga a mano, como siempre.
+    # AUTOMATICO: precio_venta se recalcula solo cada vez que cambia
+    # costo_actual (ver actualizar_costo_y_precio(), disparado desde
+    # compras al confirmar/anular una compra de este producto).
+    modo_precio = models.CharField('Modo de precio', max_length=10,
+                       choices=ModoPrecio.choices, default=ModoPrecio.MANUAL)
+    porcentaje_ganancia = models.DecimalField('% de ganancia', max_digits=6, decimal_places=2,
+                       null=True, blank=True,
+                       help_text='Solo si modo_precio=automático. Ej: 35 → precio = costo × 1.35.')
+    costo_actual = models.DecimalField('Costo actual', max_digits=12, decimal_places=2,
+                       null=True, blank=True, editable=False,
+                       help_text='Costo del lote activo más reciente. Se recalcula solo desde '
+                                  'compras — nunca se edita a mano.')
+
     # — Impuestos —
     # Se guarda la alícuota porque es un dato del producto (varía según rubro).
     # El precio siempre es con IVA incluido; la alícuota permite desdoblar
@@ -407,6 +436,37 @@ class Producto(models.Model):
         )
         Producto.objects.filter(pk=self.pk).update(stock_actual=total)
         self.stock_actual = total
+
+    def actualizar_costo_y_precio(self):
+        """
+        Recalcula costo_actual desde el lote ACTIVO más reciente del
+        producto, y si modo_precio=AUTOMATICO, recalcula precio_venta a
+        partir de ese costo + porcentaje_ganancia. Se llama únicamente
+        desde compras (confirmar/anular/reactivar/editar_completa/delete
+        de una Compra) — nunca al vender, nunca en el momento de la venta.
+        """
+        from compras.models import LoteCompra  # import diferido, evita circularidad
+
+        ultimo_lote = LoteCompra.objects.filter(
+            producto=self, activo=True,
+        ).order_by('-fecha_compra', '-fecha_alta').first()
+
+        nuevo_costo = ultimo_lote.costo_unitario if ultimo_lote else None
+        update_fields = []
+
+        if nuevo_costo != self.costo_actual:
+            self.costo_actual = nuevo_costo
+            update_fields.append('costo_actual')
+
+        if self.modo_precio == ModoPrecio.AUTOMATICO and self.costo_actual is not None:
+            margen = self.porcentaje_ganancia or Decimal('0')
+            nuevo_precio = (self.costo_actual * (Decimal('1') + margen / Decimal('100'))).quantize(Decimal('0.01'))
+            if nuevo_precio != self.precio_venta:
+                self.precio_venta = nuevo_precio
+                update_fields.append('precio_venta')
+
+        if update_fields:
+            self.save(update_fields=update_fields)
 
     def delete(self, *args, **kwargs):
         """

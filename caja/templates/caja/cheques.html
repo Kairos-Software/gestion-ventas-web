@@ -1,0 +1,268 @@
+{% extends 'core/base.html' %}
+
+{% load static %}
+
+{% block title %}Cheques{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'caja/css/cheques.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="chq-container">
+    {% if sin_permiso %}
+    <div class="chq-sin-permiso">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M12 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="12" cy="16.2" r="0.9" fill="currentColor"/>
+        </svg>
+        <p>No tenés permiso para ver cheques.</p>
+    </div>
+    {% else %}
+    <!-- ══════════════════════════════════
+         ENCABEZADO
+    ══════════════════════════════════ -->
+    <header class="chq-header">
+        <div>
+            <h1 class="chq-title">Cheques</h1>
+            <p class="chq-subtitle">Cheques a cobrar (de terceros) y a pagar (propios). Ninguno impacta caja hasta que se confirma.</p>
+        </div>
+        {% if puede_crear %}
+        <button type="button" class="btn btn-primary" id="btnNuevoCheque">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Nuevo cheque
+        </button>
+        {% endif %}
+    </header>
+
+    <!-- ══════════════════════════════════
+         FILTROS
+    ══════════════════════════════════ -->
+    <section class="chq-section">
+        <div class="chq-filtros-header">
+            <h2 class="chq-section-title">Historial</h2>
+            <button type="button" class="btn-filtros-toggle" id="btnToggleFiltros" aria-expanded="false">
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                    <path d="M2 4H14M4.5 8H11.5M7 12H9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                </svg>
+                Filtros
+            </button>
+        </div>
+
+        <form id="formFiltros" class="chq-filtros" hidden>
+            <div class="filtro-campo">
+                <label for="fTipo">Tipo</label>
+                <select id="fTipo" name="tipo">
+                    <option value="">Todos</option>
+                    {% for tipo, label in tipos_cheque %}
+                    <option value="{{ tipo }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filtro-campo">
+                <label for="fEstado">Estado</label>
+                <select id="fEstado" name="estado">
+                    <option value="">Todos</option>
+                    <option value="pendiente">Pendiente</option>
+                    <option value="confirmado">Confirmado</option>
+                    <option value="rechazado">Rechazado</option>
+                    <option value="anulado">Anulado</option>
+                </select>
+            </div>
+            <div class="filtro-campo">
+                <label for="fMoneda">Moneda</label>
+                <select id="fMoneda" name="moneda">
+                    <option value="">Todas</option>
+                    {% for moneda, label in monedas %}
+                    <option value="{{ moneda }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filtro-campo filtro-campo--ancho">
+                <label for="fQ">Buscar</label>
+                <input type="text" id="fQ" name="q" placeholder="N° de cheque o contraparte...">
+            </div>
+            <div class="filtro-acciones">
+                <button type="submit" class="btn btn-primary">Filtrar</button>
+                <button type="button" class="btn btn-ghost" id="btnLimpiarFiltros">Limpiar</button>
+            </div>
+        </form>
+    </section>
+
+    <!-- ══════════════════════════════════
+         TABLA
+    ══════════════════════════════════ -->
+    <section class="chq-section">
+        <div class="chq-tabla-wrap">
+            <table class="chq-tabla">
+                <thead>
+                    <tr>
+                        <th>Tipo</th>
+                        <th>N°</th>
+                        <th>Contraparte</th>
+                        <th>Monto</th>
+                        <th>Fecha de cobro</th>
+                        <th>Estado</th>
+                        <th class="th-acciones">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="chequesBody">
+                    <tr>
+                        <td colspan="7" class="chq-tabla-loading">Cargando…</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="chq-paginacion" id="paginacionContainer"></div>
+    </section>
+</div>
+
+<!-- ══════════════════════════════════
+     MODAL NUEVO/EDITAR CHEQUE
+══════════════════════════════════ -->
+<div class="modal" id="modalCheque" hidden>
+    <div class="modal-backdrop" id="modalBackdrop"></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title" id="modalChequeTitulo">Nuevo cheque</h2>
+            <button type="button" class="modal-close" id="btnCerrarModal" aria-label="Cerrar">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M5 5L15 15M5 15L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
+        <form id="formCheque" class="modal-body">
+            <input type="hidden" id="chqPk">
+
+            <div class="form-campo">
+                <label>Tipo *</label>
+                <div class="chq-tipo-toggle">
+                    <button type="button" class="chq-tipo-btn chq-tipo-btn--cobrar chq-tipo-btn--active" data-tipo="a_cobrar">A cobrar (de terceros)</button>
+                    <button type="button" class="chq-tipo-btn chq-tipo-btn--pagar" data-tipo="a_pagar">A pagar (propio)</button>
+                </div>
+                <input type="hidden" id="f_tipo" value="a_cobrar">
+            </div>
+
+            <div class="chq-form-grid">
+                <div class="form-campo">
+                    <label for="f_numero_cheque">N° de cheque</label>
+                    <input type="text" id="f_numero_cheque" placeholder="Opcional">
+                </div>
+                <div class="form-campo">
+                    <label for="f_moneda">Moneda</label>
+                    <select id="f_moneda">
+                        {% for moneda, label in monedas %}
+                        <option value="{{ moneda }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="chq-form-grid">
+                <div class="form-campo">
+                    <label for="f_monto">Monto *</label>
+                    <input type="number" id="f_monto" step="0.01" min="0.01" required>
+                </div>
+                <div class="form-campo">
+                    <label for="f_contraparte">Contraparte</label>
+                    <input type="text" id="f_contraparte" placeholder="A quién se le paga / quién lo entregó">
+                </div>
+            </div>
+
+            <div class="chq-form-grid">
+                <div class="form-campo">
+                    <label for="f_fecha_emision">Fecha de emisión *</label>
+                    <input type="date" id="f_fecha_emision" required>
+                </div>
+                <div class="form-campo">
+                    <label for="f_fecha_cobro">Fecha de cobro *</label>
+                    <input type="date" id="f_fecha_cobro" required>
+                </div>
+            </div>
+
+            <div class="form-campo" id="campoCuentaOrigen">
+                <label for="f_cuenta_origen">Cuenta propia (chequera) *</label>
+                <select id="f_cuenta_origen">
+                    <option value="">— Elegí una cuenta —</option>
+                </select>
+            </div>
+
+            <div class="chq-form-grid" id="camposLibrador" hidden>
+                <div class="form-campo">
+                    <label for="f_banco_librador">Banco del cheque</label>
+                    <input type="text" id="f_banco_librador" placeholder="Ej: Banco Galicia">
+                </div>
+                <div class="form-campo">
+                    <label for="f_titular_librador">Titular del cheque</label>
+                    <input type="text" id="f_titular_librador" placeholder="Quién lo entregó">
+                </div>
+            </div>
+
+            <div class="form-campo">
+                <label for="f_notas">Notas</label>
+                <input type="text" id="f_notas" placeholder="Observaciones (opcional)">
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-ghost" id="btnCancelarModal">Cancelar</button>
+                <button type="submit" class="btn btn-primary" id="btnGuardarCheque">Guardar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════
+     MODAL CONFIRMAR CHEQUE A COBRAR (elegir cuenta destino)
+══════════════════════════════════ -->
+<div class="modal" id="modalConfirmarCheque" hidden>
+    <div class="modal-backdrop" id="modalConfirmarBackdrop"></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title">Confirmar cobro</h2>
+            <button type="button" class="modal-close" id="btnCerrarConfirmar" aria-label="Cerrar">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M5 5L15 15M5 15L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="form-campo">
+                <label for="conf_cuenta_destino">¿En qué cuenta propia lo depositás?</label>
+                <select id="conf_cuenta_destino">
+                    <option value="">— Elegí una cuenta —</option>
+                </select>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-ghost" id="btnCancelarConfirmar">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnConfirmarCobro">Confirmar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endif %}
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script id="cuentas-data" type="application/json">{{ cuentas_json|safe }}</script>
+<script>
+    window.chequesUrls = {
+        listar: '{{ url_listar }}',
+        crear: '{{ url_crear }}',
+        editar: '{{ url_editar }}',
+        eliminar: '{{ url_eliminar }}',
+        confirmar: '{{ url_confirmar }}',
+        rechazar: '{{ url_rechazar }}',
+    };
+    window.chequesToday = '{{ today }}';
+    window.chequesPuedeEditar = {{ puede_editar|yesno:"true,false" }};
+    window.chequesPuedeEliminar = {{ puede_eliminar|yesno:"true,false" }};
+    window.chequesPuedeConfirmar = {{ puede_confirmar|yesno:"true,false" }};
+</script>
+<script src="{% static 'caja/js/cheques.js' %}"></script>
+{% endblock %}

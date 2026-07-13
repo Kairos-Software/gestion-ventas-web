@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views, views_gastos, views_caja_diaria, views_transacciones, views_deudas
+from . import views, views_gastos, views_caja_diaria, views_transacciones, views_deudas, views_cheques
 
 app_name = 'caja'
 
@@ -15,6 +15,7 @@ urlpatterns = [
     path('gastos/',                  views_gastos.GastosView.as_view(),               name='gastos'),
     path('transacciones/',           views_transacciones.TransaccionesPageView.as_view(), name='transacciones_listar_page'),
     path('deudas/',                  views_deudas.DeudasView.as_view(),               name='deudas'),
+    path('cheques/',                 views_cheques.ChequesView.as_view(),             name='cheques'),
 
     # ══════════════════════════════════════════════════════════════════
     #  AJAX — Caja grande
@@ -38,6 +39,16 @@ urlpatterns = [
     path('deudas/eliminar/<int:pk>/',        views_deudas.EliminarDeudaAjax.as_view(),   name='eliminar_deuda'),
     path('deudas/<int:pk>/',                 views_deudas.DetalleDeudaAjax.as_view(),    name='detalle_deuda'),
     path('deudas/cuotas/<int:pk>/confirmar/', views_deudas.ConfirmarCuotaAjax.as_view(), name='confirmar_cuota_deuda'),
+
+    # ══════════════════════════════════════════════════════════════════
+    #  AJAX — Cheques
+    # ══════════════════════════════════════════════════════════════════
+    path('cheques/listar/',            views_cheques.ListarChequesAjax.as_view(),    name='listar_cheques'),
+    path('cheques/crear/',             views_cheques.CrearChequeAjax.as_view(),      name='crear_cheque'),
+    path('cheques/editar/<int:pk>/',   views_cheques.EditarChequeAjax.as_view(),     name='editar_cheque'),
+    path('cheques/eliminar/<int:pk>/', views_cheques.EliminarChequeAjax.as_view(),   name='eliminar_cheque'),
+    path('cheques/<int:pk>/confirmar/', views_cheques.ConfirmarChequeAjax.as_view(), name='confirmar_cheque'),
+    path('cheques/<int:pk>/rechazar/',  views_cheques.RechazarChequeAjax.as_view(),  name='rechazar_cheque'),
 
     # ══════════════════════════════════════════════════════════════════
     #  AJAX — Comunes

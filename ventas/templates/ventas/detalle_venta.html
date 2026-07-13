@@ -418,14 +418,6 @@
     {% if not es_borrador %}
     <div class="cdt-header-actions">
         <div class="cdt-ticket-actions">
-            <button class="cdt-ticket-btn" onclick="vdtVerTicket()">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                    <circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.3" />
-                    <path d="M1.5 8C3 4.5 5.5 2.5 8 2.5S13 4.5 14.5 8C13 11.5 10.5 13.5 8 13.5S3 11.5 1.5 8Z"
-                        stroke="currentColor" stroke-width="1.3" />
-                </svg>
-                Ver ticket
-            </button>
             <button class="cdt-ticket-btn" onclick="vdtImprimirTicket()">
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                     <path d="M4 5V2H12V5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" />
@@ -755,8 +747,7 @@
                     {% if venta.confirmado_por %}
                     <div class="cdt-audit-row">
                         <span class="cdt-audit-label">Confirmado por</span>
-                        <span class="cdt-audit-val">{{
-                            venta.confirmado_por.get_full_name|default:venta.confirmado_por.username }}</span>
+                        <span class="cdt-audit-val">{{ venta.confirmado_por.get_full_name|default:venta.confirmado_por.username }}</span>
                         {% if venta.fecha_confirmacion %}
                         <span class="cdt-audit-fecha">{{ venta.fecha_confirmacion|date:"d/m/Y H:i" }}</span>
                         {% endif %}
@@ -766,8 +757,7 @@
                     {% if venta.anulado_por %}
                     <div class="cdt-audit-row">
                         <span class="cdt-audit-label">Anulado por</span>
-                        <span class="cdt-audit-val">{{
-                            venta.anulado_por.get_full_name|default:venta.anulado_por.username }}</span>
+                        <span class="cdt-audit-val">{{ venta.anulado_por.get_full_name|default:venta.anulado_por.username }}</span>
                         {% if venta.fecha_anulacion %}
                         <span class="cdt-audit-fecha">{{ venta.fecha_anulacion|date:"d/m/Y H:i" }}</span>
                         {% endif %}
@@ -777,8 +767,7 @@
                     {% if venta.editado_por %}
                     <div class="cdt-audit-row">
                         <span class="cdt-audit-label">Editado por</span>
-                        <span class="cdt-audit-val">{{
-                            venta.editado_por.get_full_name|default:venta.editado_por.username }}</span>
+                        <span class="cdt-audit-val">{{ venta.editado_por.get_full_name|default:venta.editado_por.username }}</span>
                         {% if venta.fecha_edicion %}
                         <span class="cdt-audit-fecha">{{ venta.fecha_edicion|date:"d/m/Y H:i" }}</span>
                         {% endif %}
@@ -788,23 +777,14 @@
                     {% if venta.creado_por %}
                     <div class="cdt-audit-row">
                         <span class="cdt-audit-label">Creado por</span>
-                        <span class="cdt-audit-val">{{ venta.creado_por.get_full_name|default:venta.creado_por.username
-                            }}</span>
+                        <span class="cdt-audit-val">{{ venta.creado_por.get_full_name|default:venta.creado_por.username }}</span>
                         <span class="cdt-audit-fecha">{{ venta.fecha_alta|date:"d/m/Y H:i" }}</span>
                     </div>
                     {% endif %}
                 </div>
 
-                {# — Botones de ticket — #}
+                {# — Botón de ticket — #}
                 <div style="margin-top:1rem;display:flex;flex-direction:column;gap:.5rem">
-                    <button class="cdt-ticket-btn" onclick="vdtVerTicket()" style="width:100%;justify-content:center">
-                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                            <circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.3" />
-                            <path d="M1.5 8C3 4.5 5.5 2.5 8 2.5S13 4.5 14.5 8C13 11.5 10.5 13.5 8 13.5S3 11.5 1.5 8Z"
-                                stroke="currentColor" stroke-width="1.3" />
-                        </svg>
-                        Ver ticket de venta
-                    </button>
                     <button class="cdt-ticket-btn" onclick="vdtImprimirTicket()"
                         style="width:100%;justify-content:center">
                         <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
@@ -872,8 +852,7 @@
             style="text-align:center; padding-bottom:.75rem; margin-bottom:.75rem; border-bottom:1px solid var(--border-color)">
             <div style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.05rem; font-weight:800">Ticket de Venta
             </div>
-            <div style="font-size:.8125rem; color:var(--text-muted);">{{ venta.numero }} · {{ venta.fecha|date:"d/m/Y"
-                }}</div>
+            <div style="font-size:.8125rem; color:var(--text-muted);">{{ venta.numero }} · {{ venta.fecha|date:"d/m/Y" }}</div>
         </div>
         <table style="width:100%; border-collapse:collapse; font-size:.8125rem; margin-bottom:1rem">
             <thead>
@@ -899,8 +878,7 @@
                         </div>
                     </td>
                     <td style="text-align:center; padding:.45rem .5rem">{{ item.cantidad|floatformat:"-3" }}</td>
-                    <td style="text-align:right; padding:.45rem .5rem; font-weight:700">{{ item.moneda }} {{
-                        item.subtotal|floatformat:"2" }}</td>
+                    <td style="text-align:right; padding:.45rem .5rem; font-weight:700">{{ item.moneda }} {{ item.subtotal|floatformat:"2" }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -909,8 +887,7 @@
             style="display:flex; justify-content:space-between; align-items:center; padding:.6rem 0; border-top:2px solid var(--border-color); margin-bottom:.75rem">
             <span style="font-weight:600">Total</span>
             <span
-                style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.1rem; font-weight:800; color:var(--brand-orange)">${{
-                venta.total|floatformat:"2" }}</span>
+                style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.1rem; font-weight:800; color:var(--brand-orange)">${{ venta.total|floatformat:"2" }}</span>
         </div>
         <div style="display:flex; gap:.5rem; justify-content:flex-end">
             <button onclick="document.getElementById('vdtPreviewModal').style.display='none'"
@@ -926,105 +903,6 @@
                 </svg>
                 Confirmar venta
             </button>
-        </div>
-    </div>
-</div>
-
-{# ══ MODAL TICKET — vista previa en pantalla (venta confirmada) ══ #}
-<div id="cdt-ticket-modal" style="
-    display:none; position:fixed; inset:0; z-index:9000;
-    background:rgba(0,0,0,.45); align-items:center; justify-content:center;">
-    <div style="
-        background:var(--bg-white,#fff); border-radius:1rem;
-        max-width:560px; width:90%; max-height:90vh; overflow-y:auto;
-        padding:2rem; position:relative; box-shadow:0 20px 60px rgba(0,0,0,.25);">
-        <button onclick="vdtCerrarTicket()" style="
-            position:absolute; top:1rem; right:1rem;
-            background:none; border:none; cursor:pointer;
-            color:var(--text-muted); font-size:1.25rem; line-height:1;">✕</button>
-        <div
-            style="text-align:center; border-bottom:2px solid var(--border-color); padding-bottom:1rem; margin-bottom:1rem">
-            <div style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.1rem; font-weight:800">Ticket de Venta
-            </div>
-            <div style="font-size:.875rem; color:var(--text-muted); margin-top:.25rem">{{ venta.numero }} · {{
-                venta.fecha }}</div>
-            {% if pagos %}
-            <div style="margin-top:.5rem;display:flex;gap:.35rem;justify-content:center;flex-wrap:wrap">
-                {% for pago in pagos %}
-                <span class="cdt-medio-pago-badge">{{ pago.get_medio_display }}: ${{ pago.monto|floatformat:"2"
-                    }}</span>
-                {% endfor %}
-            </div>
-            {% elif venta.medio_pago %}
-            <div style="margin-top:.5rem">
-                <span class="cdt-medio-pago-badge">{{ venta.get_medio_pago_display }}</span>
-            </div>
-            {% endif %}
-        </div>
-        <table style="width:100%; border-collapse:collapse; font-size:.8125rem; margin-bottom:1rem">
-            <thead>
-                <tr style="border-bottom:1px solid var(--border-color)">
-                    <th
-                        style="text-align:left; padding:.4rem .5rem; color:var(--text-muted); font-weight:600; font-size:.72rem; text-transform:uppercase">
-                        Producto</th>
-                    <th
-                        style="text-align:center; padding:.4rem .5rem; color:var(--text-muted); font-weight:600; font-size:.72rem; text-transform:uppercase">
-                        Cant.</th>
-                    <th
-                        style="text-align:right; padding:.4rem .5rem; color:var(--text-muted); font-weight:600; font-size:.72rem; text-transform:uppercase">
-                        Subtotal</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for item in items %}
-                <tr style="border-bottom:1px solid var(--border-color)">
-                    <td style="padding:.5rem">
-                        <div style="font-weight:500">{{ item.nombre_producto_display }}</div>
-                        <div style="font-size:.72rem; color:var(--text-muted)">
-                            {{ item.producto_codigo }}
-                            {% if item.combinacion_descripcion %}· {{ item.nombre_combinacion_display }}{% endif %}
-                            {% if item.nombre_cliente_display != '(sin cliente)' %}· {{ item.nombre_cliente_display }}{% endif %}
-                            · {{ item.get_condicion_pago_display }}
-                        </div>
-                        {% if item.descuento_pct %}
-                        <div style="font-size:.72rem; color:var(--success)">Desc. {{ item.descuento_pct }}%</div>
-                        {% endif %}
-                    </td>
-                    <td style="text-align:center; padding:.5rem">{{ item.cantidad|floatformat:"-3" }}</td>
-                    <td style="text-align:right; padding:.5rem; font-weight:700">{{ item.moneda }} {{ item.subtotal|floatformat:"2" }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        <div
-            style="display:flex; justify-content:space-between; align-items:center; padding:.75rem 0; border-top:2px solid var(--border-color)">
-            <span style="font-weight:600">Total</span>
-            <span
-                style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.2rem; font-weight:800; color:var(--brand-orange)">${{ venta.total|floatformat:"2" }}</span>
-        </div>
-        {% if venta.confirmado_por %}
-        <div style="font-size:.78rem; color:var(--text-muted); margin-top:.5rem">
-            Registrado por {{ venta.confirmado_por.get_full_name|default:venta.confirmado_por.username }}
-        </div>
-        {% endif %}
-        {% if venta.notas %}
-        <div
-            style="font-size:.78rem; color:var(--text-muted); margin-top:.25rem; padding:.5rem; background:var(--bg-subtle); border-radius:.4rem">
-            {{ venta.notas }}
-        </div>
-        {% endif %}
-        <div style="display:flex; gap:.5rem; margin-top:1.25rem">
-            <button onclick="vdtImprimirTicket()" class="vta-btn vta-btn-primary" style="flex:1; width:auto; margin:0">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                    <path d="M4 5V2H12V5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" />
-                    <rect x="2" y="5" width="12" height="7" rx="1.5" stroke="currentColor" stroke-width="1.3" />
-                    <path d="M4 9H12M4 12H12V14H4V12Z" stroke="currentColor" stroke-width="1.2"
-                        stroke-linecap="round" />
-                </svg>
-                Imprimir / PDF
-            </button>
-            <button onclick="vdtCerrarTicket()" class="vta-btn vta-btn-ghost"
-                style="width:auto; margin:0">Cerrar</button>
         </div>
     </div>
 </div>

@@ -243,11 +243,14 @@ function ticketHtmlA4(data) {
 
     <script>
         window.addEventListener('load', function () {
-            setTimeout(function () {
-                window.print();
-                setTimeout(function () { window.close(); }, 3500);
-            }, 250);
+            // La herramienta de impresión del navegador ES la vista previa
+            // (ahí se ve el papel real y las impresoras conectadas) — no
+            // hace falta ninguna vista previa propia en HTML.
+            setTimeout(function () { window.print(); }, 150);
         });
+        // Cerrar la ventana recién cuando el usuario termina con el
+        // diálogo de impresión (imprime o cancela) — nunca antes.
+        window.addEventListener('afterprint', function () { window.close(); });
     <\/script>
 </body>
 </html>`;

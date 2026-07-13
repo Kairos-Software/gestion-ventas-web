@@ -46,6 +46,7 @@ class OrigenMovimiento(models.TextChoices):
     TRANSACCION = 'transaccion', 'Transacción interna'
     DEUDA       = 'deuda',       'Deuda (acreditación de préstamo)'
     CUOTA_DEUDA = 'cuota_deuda', 'Cuota de deuda'
+    CHEQUE      = 'cheque',      'Cheque'
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -1340,6 +1341,188 @@ def sincronizar_movimiento_cuota(cuota):
             fecha=cuota.fecha_confirmacion.date(), descripcion=descripcion,
             referencia=f'Deuda #{deuda.pk}', origen=OrigenMovimiento.CUOTA_DEUDA,
             origen_app='caja', origen_id=cuota.pk, creado_por=cuota.confirmado_por,
+        )
+
+
+# ══════════════════════════════════════════════════════════════════
+#  CHEQUES (a cobrar / a pagar)
+#
+#  A_PAGAR: cheque propio, librado contra una cuenta bancaria PROPIA
+#  (la chequera) — esa cuenta es fija desde que se carga el cheque, el
+#  egreso siempre sale de ahí.
+#
+#  A_COBRAR: cheque de terceros, librado contra la cuenta del que lo
+#  entregó (banco ajeno, solo informativo — no se modela como
+#  CuentaCaja). El negocio elige en cuál de SUS PROPIAS cuentas lo
+#  deposita/cobra recién al confirmarlo, no al cargarlo.
+#
+#  En ambos casos: nada impacta caja hasta que se confirma a mano —
+#  mismo patrón que CuotaDeuda. Un cheque puede además "rechazarse"
+#  (rebotar) — si ya estaba confirmado, revierte el movimiento.
+# ══════════════════════════════════════════════════════════════════
+
+class TipoCheque(models.TextChoices):
+    A_COBRAR = 'a_cobrar', 'A cobrar (de terceros)'
+    A_PAGAR  = 'a_pagar',  'A pagar (propio)'
+
+
+class EstadoCheque(models.TextChoices):
+    PENDIENTE  = 'pendiente',  'Pendiente'
+    CONFIRMADO = 'confirmado', 'Confirmado'
+    RECHAZADO  = 'rechazado',  'Rechazado'
+    ANULADO    = 'anulado',    'Anulado'
+
+
+class Cheque(models.Model):
+    """Un cheque a cobrar (de terceros) o a pagar (propio)."""
+
+    tipo = models.CharField(max_length=10, choices=TipoCheque.choices)
+
+    numero_cheque = models.CharField(max_length=30, blank=True,
+                        help_text='Opcional, ayuda a evitar duplicados.')
+    monto  = models.DecimalField(max_digits=14, decimal_places=2)
+    moneda = models.CharField(max_length=5, choices=Moneda.choices, default=Moneda.ARS)
+
+    fecha_emision = models.DateField(help_text='Fecha en que se emitió/recibió el cheque.')
+    fecha_cobro   = models.DateField(help_text='Fecha en que se puede/debe cobrar (cubre cheque común y de pago diferido).')
+
+    # — A_PAGAR: chequera propia, fija desde que se carga —
+    cuenta_origen = models.ForeignKey(
+        CuentaCaja, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='cheques_a_pagar',
+        help_text='Cuenta bancaria propia (la chequera). Solo para A_PAGAR.',
+    )
+
+    # — A_COBRAR: datos del que lo entregó (informativos) + cuenta propia
+    # de destino, que se elige recién al confirmar —
+    banco_librador   = models.CharField(max_length=100, blank=True,
+                            help_text='Banco del cheque de terceros. Solo informativo.')
+    titular_librador = models.CharField(max_length=150, blank=True,
+                            help_text='Quién entregó el cheque. Solo para A_COBRAR.')
+    cuenta_destino = models.ForeignKey(
+        CuentaCaja, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='cheques_a_cobrar',
+        help_text='Cuenta propia donde se deposita/cobra. Se completa al confirmar, no antes.',
+    )
+
+    contraparte = models.CharField(max_length=150, blank=True,
+                      help_text='A quién se le paga (A_PAGAR) o quién lo entregó (A_COBRAR).')
+
+    estado = models.CharField(max_length=10, choices=EstadoCheque.choices, default=EstadoCheque.PENDIENTE)
+    notas  = models.CharField(max_length=300, blank=True)
+
+    fecha_confirmacion = models.DateTimeField(null=True, blank=True)
+    confirmado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='cheques_confirmados',
+    )
+
+    creado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='cheques_creados',
+    )
+    fecha_alta         = models.DateTimeField(auto_now_add=True)
+    fecha_modificacion = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name        = 'Cheque'
+        verbose_name_plural = 'Cheques'
+        ordering             = ['-fecha_alta']
+
+    def __str__(self):
+        return f'{self.get_tipo_display()} — {self.numero_cheque or "s/n"} — {self.monto} {self.moneda}'
+
+    @transaction.atomic
+    def confirmar(self, usuario, cuenta_pk=None):
+        if self.estado != EstadoCheque.PENDIENTE:
+            raise ValueError('Solo se pueden confirmar cheques pendientes.')
+
+        if self.tipo == TipoCheque.A_COBRAR:
+            cuenta = CuentaCaja.objects.filter(
+                pk=cuenta_pk, caja=TipoCaja.GRANDE, activa=True,
+                es_credito=False, moneda=self.moneda,
+            ).first()
+            if not cuenta:
+                raise ValueError('Elegí una cuenta válida para depositar el cheque.')
+            self.cuenta_destino = cuenta
+
+        self.estado = EstadoCheque.CONFIRMADO
+        self.fecha_confirmacion = timezone.now()
+        self.confirmado_por = usuario
+        self.save(update_fields=['estado', 'fecha_confirmacion', 'confirmado_por', 'cuenta_destino'])
+
+        sincronizar_movimiento_cheque(self)
+
+    @transaction.atomic
+    def rechazar(self):
+        """Un cheque puede rebotar recién al intentar cobrarlo, ya confirmado."""
+        if self.estado not in (EstadoCheque.PENDIENTE, EstadoCheque.CONFIRMADO):
+            raise ValueError('Solo se pueden rechazar cheques pendientes o confirmados.')
+
+        self.estado = EstadoCheque.RECHAZADO
+        self.save(update_fields=['estado'])
+
+        sincronizar_movimiento_cheque(self)
+
+    @transaction.atomic
+    def anular(self):
+        if self.estado != EstadoCheque.PENDIENTE:
+            raise ValueError('Solo se pueden anular cheques pendientes (si ya se confirmó, hay que rechazarlo).')
+
+        self.estado = EstadoCheque.ANULADO
+        self.save(update_fields=['estado'])
+
+    def delete(self, *args, **kwargs):
+        if self.estado == EstadoCheque.CONFIRMADO:
+            raise ValueError('No se puede eliminar un cheque confirmado — hay que rechazarlo primero.')
+        with transaction.atomic():
+            movimiento = MovimientoCaja.objects.filter(
+                origen=OrigenMovimiento.CHEQUE, origen_app='caja', origen_id=self.pk,
+            ).first()
+            if movimiento:
+                movimiento.delete()
+            super().delete(*args, **kwargs)
+
+
+@transaction.atomic
+def sincronizar_movimiento_cheque(cheque):
+    """Sincroniza el MovimientoCaja de un Cheque con su estado actual."""
+    movimiento = MovimientoCaja.objects.filter(
+        origen=OrigenMovimiento.CHEQUE, origen_app='caja', origen_id=cheque.pk,
+    ).first()
+
+    if cheque.estado != EstadoCheque.CONFIRMADO:
+        if movimiento:
+            movimiento.delete()
+        return
+
+    if cheque.tipo == TipoCheque.A_PAGAR:
+        tipo_mov = TipoMovimientoCaja.EGRESO
+        cuenta = cheque.cuenta_origen
+        concepto = _concepto_default('Cheque emitido', TipoMovimientoCaja.EGRESO)
+    else:
+        tipo_mov = TipoMovimientoCaja.INGRESO
+        cuenta = cheque.cuenta_destino
+        concepto = _concepto_default('Cheque cobrado', TipoMovimientoCaja.INGRESO)
+
+    descripcion = f'Cheque {cheque.numero_cheque or "s/n"} — {cheque.contraparte}'.strip(' —')
+
+    if movimiento:
+        movimiento.cuenta = cuenta
+        movimiento.concepto = concepto
+        movimiento.tipo = tipo_mov
+        movimiento.monto = cheque.monto
+        movimiento.moneda = cheque.moneda
+        movimiento.fecha = cheque.fecha_confirmacion.date()
+        movimiento.descripcion = descripcion
+        movimiento.save()
+    else:
+        MovimientoCaja.objects.create(
+            caja=TipoCaja.GRANDE, cuenta=cuenta, concepto=concepto,
+            tipo=tipo_mov, monto=cheque.monto, moneda=cheque.moneda,
+            fecha=cheque.fecha_confirmacion.date(), descripcion=descripcion,
+            referencia=f'Cheque #{cheque.pk}', origen=OrigenMovimiento.CHEQUE,
+            origen_app='caja', origen_id=cheque.pk, creado_por=cheque.confirmado_por,
         )
 
 

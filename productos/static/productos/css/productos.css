@@ -692,6 +692,55 @@
 }
 .prd-input--prefixed { padding-left: 1.5rem; }
 
+/* Input con sufijo % */
+.prd-input-suffix {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    pointer-events: none;
+}
+
+/* Toggle Manual / Automático (precio de venta) */
+.prd-precio-toggle {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+.prd-precio-toggle-btn {
+    flex: 1;
+    padding: 0.55rem 0.85rem;
+    border-radius: var(--radius-md, 0.5rem);
+    border: 1px solid var(--border-color);
+    background: var(--bg-white);
+    color: var(--text-secondary);
+    font-weight: 700;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.prd-precio-toggle-btn--active {
+    background: rgba(242, 106, 27, 0.1);
+    border-color: var(--brand-orange, #f26a1b);
+    color: var(--brand-orange, #f26a1b);
+}
+.prd-input--readonly {
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+    cursor: not-allowed;
+}
+.prd-precio-costo-badge {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm, 0.4rem);
+    padding: 0.5rem 0.75rem;
+    margin-top: 0.25rem;
+}
+
 /* Checkboxes personalizados */
 .prd-checks-row {
     display: flex;

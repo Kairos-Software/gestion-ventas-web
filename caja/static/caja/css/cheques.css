@@ -1,0 +1,458 @@
+/* ══════════════════════════════════════════════════════════════════
+   CHEQUES — estilos
+   Usa las variables del sistema base.css para consistencia visual.
+   ══════════════════════════════════════════════════════════════════ */
+
+.chq-container {
+    font-family: var(--font-body);
+    color: var(--text-primary);
+    padding-bottom: 2rem;
+}
+
+.chq-sin-permiso {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 4rem 2rem;
+    color: var(--text-secondary);
+}
+
+.chq-sin-permiso svg {
+    color: var(--text-muted);
+}
+
+/* ── Encabezado ───────────────────────────────────────────────── */
+.chq-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.75rem;
+}
+
+.chq-title {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 1.5rem;
+    margin: 0 0 0.25rem;
+}
+
+.chq-subtitle {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+.btn--sm {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.78rem;
+}
+
+/* ── Secciones ────────────────────────────────────────────────── */
+.chq-section {
+    margin-bottom: 1.75rem;
+}
+
+.chq-section-title {
+    font-family: var(--font-heading);
+    font-weight: 600;
+    font-size: 1.05rem;
+    margin: 0 0 0.9rem;
+}
+
+/* ── Filtros ──────────────────────────────────────────────────── */
+.chq-filtros-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.9rem;
+}
+
+.chq-filtros-header .chq-section-title {
+    margin: 0;
+}
+
+.btn-filtros-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: none;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 0.45rem 0.8rem;
+    font-size: 0.825rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.btn-filtros-toggle:hover {
+    background: var(--bg-secondary);
+}
+
+.chq-filtros {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 0.85rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 1.1rem;
+}
+
+.filtro-campo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.filtro-campo--ancho {
+    grid-column: span 2;
+}
+
+.filtro-campo label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.filtro-campo input,
+.filtro-campo select {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 0.5rem 0.6rem;
+    font-size: 0.85rem;
+    background: var(--bg-white);
+    color: var(--text-primary);
+}
+
+.filtro-campo input:focus,
+.filtro-campo select:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px var(--accent-light);
+}
+
+.filtro-acciones {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.5rem;
+}
+
+/* ── Tabla ────────────────────────────────────────────────────── */
+.chq-tabla-wrap {
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    overflow-x: auto;
+}
+
+.chq-tabla {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.chq-tabla thead th {
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-secondary);
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+    white-space: nowrap;
+}
+
+.chq-tabla tbody td {
+    padding: 0.7rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: middle;
+}
+
+.chq-tabla tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.chq-tabla tbody tr:hover {
+    background: var(--bg-secondary);
+}
+
+.th-acciones { width: 1%; }
+
+.chq-tabla-loading {
+    text-align: center;
+    color: var(--text-secondary);
+    padding: 2rem 1rem !important;
+}
+
+.chq-monto {
+    text-align: right;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.chq-badge-tipo,
+.chq-badge-estado {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.15rem 0.5rem;
+    border-radius: 0.35rem;
+    white-space: nowrap;
+}
+
+.chq-badge-tipo--a_cobrar {
+    background: rgba(16,185,129,0.1);
+    color: var(--success);
+    border: 1px solid rgba(16,185,129,0.25);
+}
+
+.chq-badge-tipo--a_pagar {
+    background: rgba(239,68,68,0.1);
+    color: var(--danger);
+    border: 1px solid rgba(239,68,68,0.25);
+}
+
+.chq-badge-estado--pendiente {
+    background: rgba(245,158,11,0.1);
+    color: var(--warning, #b45309);
+    border: 1px solid rgba(245,158,11,0.25);
+}
+
+.chq-badge-estado--confirmado {
+    background: rgba(16,185,129,0.1);
+    color: var(--success);
+    border: 1px solid rgba(16,185,129,0.25);
+}
+
+.chq-badge-estado--rechazado,
+.chq-badge-estado--anulado {
+    background: rgba(239,68,68,0.1);
+    color: var(--danger);
+    border: 1px solid rgba(239,68,68,0.25);
+}
+
+/* Toggle A cobrar / A pagar en el modal */
+.chq-tipo-toggle {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.chq-tipo-btn {
+    flex: 1;
+    padding: 0.55rem 1rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    background: var(--bg-white);
+    color: var(--text-secondary);
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.chq-tipo-btn--cobrar.chq-tipo-btn--active {
+    background: rgba(16,185,129,0.1);
+    border-color: var(--success);
+    color: var(--success);
+}
+
+.chq-tipo-btn--pagar.chq-tipo-btn--active {
+    background: rgba(239,68,68,0.1);
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
+.chq-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.85rem;
+}
+
+.chq-tabla-acciones {
+    display: flex;
+    gap: 0.35rem;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+}
+
+.th-acciones,
+.chq-tabla td:last-child {
+    white-space: nowrap;
+}
+
+.icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: var(--bg-white);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: background .15s, color .15s, border-color .15s;
+}
+
+.icon-btn:hover:not(:disabled) {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.icon-btn--success {
+    color: var(--success);
+    border-color: rgba(16,185,129,0.3);
+}
+.icon-btn--success:hover:not(:disabled) {
+    background: rgba(16,185,129,0.08);
+    color: var(--success);
+}
+
+.icon-btn--danger {
+    color: var(--danger);
+    border-color: rgba(239,68,68,0.3);
+}
+.icon-btn--danger:hover:not(:disabled) {
+    background: rgba(239,68,68,0.08);
+    color: var(--danger);
+}
+
+/* ── Paginación ──────────────────────────────────────────────── */
+.chq-paginacion {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+/* ── Modal ────────────────────────────────────────────────────── */
+.modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1001;
+}
+
+.modal-content {
+    position: relative;
+    z-index: 1002;
+    background: var(--bg-white);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    max-width: 520px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-title {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 1.25rem;
+    margin: 0;
+}
+
+.modal-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.modal-close:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.modal-body {
+    padding: 1.5rem;
+}
+
+.form-campo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-bottom: 1rem;
+}
+
+.form-campo label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.form-campo input,
+.form-campo select {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 0.6rem 0.75rem;
+    font-size: 0.9rem;
+    background: var(--bg-white);
+    color: var(--text-primary);
+}
+
+.form-campo input:focus,
+.form-campo select:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px var(--accent-light);
+}
+
+.form-campo input:disabled,
+.form-campo select:disabled {
+    opacity: 0.6;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+}
+
+/* ── Responsive ──────────────────────────────────────────────── */
+@media (max-width: 640px) {
+    .chq-header {
+        flex-direction: column;
+    }
+    .filtro-campo--ancho {
+        grid-column: span 1;
+    }
+    .chq-form-grid {
+        grid-template-columns: 1fr;
+    }
+}

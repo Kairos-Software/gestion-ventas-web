@@ -48,6 +48,36 @@ document.querySelectorAll('.prd-tab').forEach(tab => {
 });
 
 // ════════════════════════════════════════════════════════════════════
+//  PRECIO — toggle Manual / Automático
+// ════════════════════════════════════════════════════════════════════
+function setModoPrecio(modo) {
+    document.getElementById('f_modo_precio').value = modo;
+    document.querySelectorAll('.prd-precio-toggle-btn').forEach(btn => {
+        btn.classList.toggle('prd-precio-toggle-btn--active', btn.dataset.modo === modo);
+    });
+
+    const esAutomatico = modo === 'automatico';
+    document.getElementById('campo_porcentaje_ganancia').hidden = !esAutomatico;
+
+    const inputPrecio = document.getElementById('f_precio_venta');
+    inputPrecio.readOnly = esAutomatico;
+    inputPrecio.classList.toggle('prd-input--readonly', esAutomatico);
+}
+
+function actualizarBadgeCosto(costoActual) {
+    const badge = document.getElementById('badge_costo_actual');
+    if (!costoActual) {
+        badge.textContent = 'Sin compras registradas todavía.';
+        return;
+    }
+    badge.textContent = `Último costo de compra: $${parseFloat(costoActual).toFixed(2)}`;
+}
+
+document.querySelectorAll('.prd-precio-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', () => setModoPrecio(btn.dataset.modo));
+});
+
+// ════════════════════════════════════════════════════════════════════
 //  NUEVO PRODUCTO
 // ════════════════════════════════════════════════════════════════════
 document.getElementById('btnNuevoProducto').addEventListener('click', () => {
@@ -66,7 +96,7 @@ function limpiarFormProducto() {
         'f_codigo','f_sku','f_codigo_barras','f_nombre','f_nombre_corto',
         'f_marca','f_modelo','f_fabricante','f_pais_origen',
         'f_contenido_neto','f_descripcion','f_descripcion_publica',
-        'f_precio_venta',
+        'f_precio_venta','f_porcentaje_ganancia',
         'f_notas','f_tags',
         'f_peso_kg','f_alto_cm','f_ancho_cm','f_profundidad_cm',
         'f_stock_minimo', 'f_posicion_deposito',
@@ -100,6 +130,8 @@ function limpiarFormProducto() {
     cancelarFormCombinacion();
     _actualizarPanelVariantes(false);
     _actualizarCampoCodigoBarras(false);
+    setModoPrecio('manual');
+    actualizarBadgeCosto(null);
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -138,6 +170,9 @@ async function abrirEditar(pk) {
     document.getElementById('f_estado').value                  = data.estado || 'activo';
     document.getElementById('f_tags').value                    = data.tags || '';
     document.getElementById('f_precio_venta').value            = data.precio_venta || '';
+    setModoPrecio(data.modo_precio || 'manual');
+    document.getElementById('f_porcentaje_ganancia').value     = data.porcentaje_ganancia || '';
+    actualizarBadgeCosto(data.costo_actual);
     document.getElementById('f_notas').value                   = data.notas || '';
     document.getElementById('f_peso_kg').value                 = data.peso_kg || '';
     document.getElementById('f_alto_cm').value                 = data.alto_cm || '';
@@ -209,6 +244,8 @@ async function guardarProducto() {
         ancho_cm:               document.getElementById('f_ancho_cm').value || null,
         profundidad_cm:         document.getElementById('f_profundidad_cm').value || null,
         precio_venta:           document.getElementById('f_precio_venta').value || null,
+        modo_precio:            document.getElementById('f_modo_precio').value,
+        porcentaje_ganancia:    document.getElementById('f_porcentaje_ganancia').value || null,
         estado:                 document.getElementById('f_estado').value,
         destacado:              document.getElementById('f_destacado').checked,
         requiere_refrigeracion: document.getElementById('f_requiere_refrigeracion').checked,

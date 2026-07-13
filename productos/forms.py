@@ -1,7 +1,7 @@
 from django import forms
 from .models import (
     Proveedor,
-    Producto, ProductoImagen,
+    Producto, ProductoImagen, ModoPrecio,
     CategoriaProducto, TipoProducto,
     Variante, OpcionVariante, CombinacionVariante,
 )
@@ -241,7 +241,7 @@ class ProductoForm(forms.ModelForm):
             # Dimensiones
             'peso_kg', 'alto_cm', 'ancho_cm', 'profundidad_cm',
             # Precios
-            'precio_venta',
+            'precio_venta', 'modo_precio', 'porcentaje_ganancia',
             # Estado y visibilidad (publicado se maneja con botón toggle en tabla)
             'estado', 'publicado', 'destacado',
             # Logística
@@ -316,6 +316,8 @@ class ProductoForm(forms.ModelForm):
  
             # — Precios —
             'precio_venta':     forms.NumberInput(attrs={'class': 'form-control nx-input', 'step': '0.01', 'min': '0', 'placeholder': '0.00'}),
+            'modo_precio':      forms.Select(attrs={'class': 'form-select nx-input'}),
+            'porcentaje_ganancia': forms.NumberInput(attrs={'class': 'form-control nx-input', 'step': '0.01', 'min': '0', 'placeholder': '0.00'}),
  
             # — Estado —
             'estado':     forms.Select(attrs={'class': 'form-select nx-input'}),
@@ -367,6 +369,14 @@ class ProductoForm(forms.ModelForm):
         if qs.exists():
             raise forms.ValidationError('Ya existe un producto con ese código.')
         return codigo
+
+    def clean(self):
+        cleaned_data = super().clean()
+        modo_precio = cleaned_data.get('modo_precio')
+        porcentaje_ganancia = cleaned_data.get('porcentaje_ganancia')
+        if modo_precio == ModoPrecio.AUTOMATICO and porcentaje_ganancia is None:
+            self.add_error('porcentaje_ganancia', 'Requerido cuando el precio es automático.')
+        return cleaned_data
  
  
  
