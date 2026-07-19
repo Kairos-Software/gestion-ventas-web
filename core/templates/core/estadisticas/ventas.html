@@ -1,0 +1,229 @@
+{% extends "core/base.html" %}
+{% load static humanize %}
+
+{% block title %}Estadísticas — Ventas{% endblock %}
+{% block breadcrumb %}<strong>Estadísticas</strong> · Ventas{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/estadisticas.css' %}">
+{% endblock %}
+
+{% block content %}
+
+{% if sin_permiso %}
+<div class="est-sin-permiso">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M12 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="12" cy="16.2" r="0.9" fill="currentColor"/>
+    </svg>
+    <p>No tenés permiso para ver estadísticas de ventas.</p>
+</div>
+{% else %}
+
+{% include "core/estadisticas/_filtros.html" %}
+
+<!-- ══════════ EMPLEADOS + PRODUCTOS ══════════ -->
+<div class="est-row-2">
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <p class="card-title">¿Quién vende mejor?</p>
+                <p class="text-muted" style="font-size:.8125rem;">Ordenado por la ganancia real que generó cada uno, no solo por cuánto vendió</p>
+            </div>
+        </div>
+        <div class="card-body">
+            {% if ranking_empleados %}
+                {% for e in ranking_empleados %}
+                <div class="est-ranking-row">
+                    <div class="est-ranking-left">
+                        <span class="est-ranking-pos">{{ forloop.counter }}</span>
+                        <div>
+                            <div class="est-ranking-nombre">{{ e.nombre }}</div>
+                            <div class="est-ranking-detalle">{{ e.cant_ventas }} venta{{ e.cant_ventas|pluralize }} · promedio ${{ e.ticket_promedio|floatformat:0|intcomma }} c/u</div>
+                        </div>
+                    </div>
+                    <div class="est-ranking-right">
+                        <div class="est-ranking-ganancia">${{ e.ganancia|floatformat:0|intcomma }}</div>
+                        <div class="est-ranking-vendido">${{ e.ingresos|floatformat:0|intcomma }} vendido</div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <p>Todavía no hay ventas confirmadas con un vendedor asignado en este período.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <p class="card-title">Tus productos estrella</p>
+                <p class="text-muted" style="font-size:.8125rem;">Los que te generaron más ganancia en este período</p>
+            </div>
+        </div>
+        <div class="card-body">
+            {% if ranking_productos %}
+                {% for p in ranking_productos %}
+                <div class="est-ranking-row">
+                    <div class="est-ranking-left">
+                        <span class="est-ranking-pos">{{ forloop.counter }}</span>
+                        <div>
+                            <div class="est-ranking-nombre">{{ p.nombre }}</div>
+                            <div class="est-ranking-detalle">{{ p.codigo }} · {{ p.unidades }} unid. vendidas</div>
+                        </div>
+                    </div>
+                    <div class="est-ranking-right">
+                        <div class="est-ranking-ganancia">${{ p.ganancia|floatformat:0|intcomma }}</div>
+                        <div class="est-ranking-vendido">${{ p.ingresos|floatformat:0|intcomma }} vendido</div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <p>Todavía no hay ventas confirmadas en este período.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- ══════════ CATEGORÍAS + DÍA DE LA SEMANA ══════════ -->
+<div class="est-row mt-4">
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <p class="card-title">¿Qué categoría rinde más?</p>
+                <p class="text-muted" style="font-size:.8125rem;">Por ganancia real generada en este período</p>
+            </div>
+        </div>
+        <div class="card-body">
+            {% if ranking_categorias %}
+                {% for cat in ranking_categorias %}
+                <div class="est-ranking-row">
+                    <div class="est-ranking-left">
+                        <span class="est-ranking-pos">{{ forloop.counter }}</span>
+                        <div>
+                            <div class="est-ranking-nombre">{{ cat.nombre }}</div>
+                            <div class="est-ranking-detalle">{{ cat.unidades }} unid. vendidas</div>
+                        </div>
+                    </div>
+                    <div class="est-ranking-right">
+                        <div class="est-ranking-ganancia">${{ cat.ganancia|floatformat:0|intcomma }}</div>
+                        <div class="est-ranking-vendido">${{ cat.ingresos|floatformat:0|intcomma }} vendido</div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <p>Todavía no hay ventas confirmadas con productos categorizados en este período.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <p class="card-title">¿Qué días vendés más?</p>
+                <p class="text-muted" style="font-size:.8125rem;">Para saber qué días conviene reforzar personal</p>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="est-chart-wrap chico">
+                <canvas id="chartDiaSemana"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════ MEDIOS DE PAGO + IMPACTO DE DESCUENTOS ══════════ -->
+<div class="est-row mt-4">
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <p class="card-title">¿Cómo te pagan?</p>
+                <p class="text-muted" style="font-size:.8125rem;">Agrupado también por moneda — no se mezclan pesos con dólares</p>
+            </div>
+        </div>
+        <div class="card-body">
+            {% if por_medio_pago %}
+                {% for m in por_medio_pago %}
+                <div class="est-ranking-row">
+                    <div class="est-ranking-left">
+                        <div>
+                            <div class="est-ranking-nombre">{{ m.medio_label }}</div>
+                            <div class="est-ranking-detalle">{{ m.moneda }}</div>
+                        </div>
+                    </div>
+                    <div class="est-ranking-right">
+                        <div class="est-ranking-ganancia">${{ m.total|floatformat:0|intcomma }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <p>Todavía no hay pagos registrados en este período.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <p class="card-title">Lo que descontaste en ofertas y promociones</p>
+                <p class="text-muted" style="font-size:.8125rem;">Cuánto dejaste de cobrar por cada oferta/lista aplicada</p>
+            </div>
+        </div>
+        <div class="card-body">
+            {% if impacto_descuentos.ofertas or impacto_descuentos.listas_descuento %}
+                {% for o in impacto_descuentos.ofertas %}
+                <div class="est-ranking-row">
+                    <div class="est-ranking-left">
+                        <div>
+                            <div class="est-ranking-nombre">{{ o.nombre }}</div>
+                            <div class="est-ranking-detalle">{{ o.unidades }} unid. · {{ o.cant_items }} línea{{ o.cant_items|pluralize }}</div>
+                        </div>
+                    </div>
+                    <div class="est-ranking-right">
+                        <div class="est-ranking-ganancia" style="color:var(--danger);">−${{ o.descuento_total|floatformat:0|intcomma }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+                {% for l in impacto_descuentos.listas_descuento %}
+                <div class="est-ranking-row">
+                    <div class="est-ranking-left">
+                        <div>
+                            <div class="est-ranking-nombre">{{ l.nombre }}</div>
+                            <div class="est-ranking-detalle">{{ l.unidades }} unid. · {{ l.cant_items }} línea{{ l.cant_items|pluralize }}</div>
+                        </div>
+                    </div>
+                    <div class="est-ranking-right">
+                        <div class="est-ranking-ganancia" style="color:var(--danger);">−${{ l.descuento_total|floatformat:0|intcomma }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <p>No se aplicaron ofertas ni listas de descuento en este período.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="{% static 'core/js/estadisticas.js' %}"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        initChartDiaSemana({{ por_dia_semana_json|safe }});
+    });
+</script>
+{% endblock %}

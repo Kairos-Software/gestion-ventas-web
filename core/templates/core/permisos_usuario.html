@@ -23,7 +23,11 @@
             <p class="rol-info sin-rol">Este usuario no tiene rol asignado. Todos los permisos son overrides individuales.</p>
         {% endif %}
     </div>
-    <button class="btn btn-primary btn-sm" id="btnGuardar">Guardar permisos</button>
+    <div class="page-header-acciones">
+        <button type="button" class="btn btn-secondary btn-sm" id="btnSeleccionarTodo">Seleccionar todo</button>
+        <button type="button" class="btn btn-secondary btn-sm" id="btnDeseleccionarTodo">Deseleccionar todo</button>
+        <button class="btn btn-primary btn-sm" id="btnGuardar">Guardar permisos</button>
+    </div>
 </div>
 
 <div id="alertGuardado" class="alerta-guardado" style="display:none;"></div>
@@ -87,5 +91,5 @@
 <script>
     window.guardarPermisosUrl = "{% url 'core:guardar_permisos' usuario_obj.pk %}";
 </script>
-<script src="{% static 'core/js/permisos_usuario.js' %}"></script>
+<script src="{% static 'core/js/permisos_usuario.js' %}?v=2"></script>
 {% endblock %}

@@ -28,6 +28,15 @@ from .views_acciones import (
     EditarVentaAjax,
 )
 
+from .views_balanza import (
+    BalanzaView,
+    BalanzaBuscarProductoAjax,
+    BalanzaGenerarAjax,
+    BalanzaListarAjax,
+    BalanzaAnularAjax,
+    BalanzaBuscarCodigoAjax,
+)
+
 # Exportar todas las vistas para que urls.py pueda importarlas
 __all__ = [
     # Nueva venta
@@ -49,4 +58,11 @@ __all__ = [
     'ReactivarVentaAjax',
     'EliminarVentaAjax',
     'EditarVentaAjax',
+    # Balanza
+    'BalanzaView',
+    'BalanzaBuscarProductoAjax',
+    'BalanzaGenerarAjax',
+    'BalanzaListarAjax',
+    'BalanzaAnularAjax',
+    'BalanzaBuscarCodigoAjax',
 ]

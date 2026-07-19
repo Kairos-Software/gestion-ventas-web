@@ -19,7 +19,11 @@ from django.db.models import Q, F
 from django.utils import timezone
 from datetime import timedelta
 
-from .models import LoteCompra, Perdida, MotivoPerdida, registrar_perdida, procesar_lotes_vencidos
+from .models import (
+    LoteCompra, Perdida, MotivoPerdida, registrar_perdida, procesar_lotes_vencidos,
+    Fraccionamiento, fraccionar,
+)
+from productos.models import Producto, cantidad_valida_para_unidad
 from core.permisos import chequear_permiso
 
 
@@ -120,6 +124,9 @@ class ListarLotesAjax(LoginRequiredMixin, View):
             'proveedor':             item.nombre_proveedor_display if item else '',
             'cantidad_actual':       lote.cantidad_actual,
             'cantidad_inicial':      lote.cantidad_inicial,
+            'unidad_medida':         producto.get_unidad_medida_display() if producto else '',
+            'unidades_por_presentacion': (producto.unidades_por_presentacion or '') if producto else '',
+            'contenido_neto':        str(producto.contenido_neto) if producto and producto.contenido_neto else '',
             'porcentaje_restante':   lote.porcentaje_restante,
             'costo_unitario':        str(lote.costo_unitario),
             'fecha_vencimiento':     lote.fecha_vencimiento.strftime('%d/%m/%Y') if lote.fecha_vencimiento else None,
@@ -206,13 +213,19 @@ class RegistrarPerdidaAjax(LoginRequiredMixin, View):
             return JsonResponse({'error': f'Motivo inválido: {motivo}'}, status=400)
 
         try:
-            cantidad = int(body.get('cantidad'))
+            cantidad = Decimal(str(body.get('cantidad')))
             if cantidad <= 0:
                 raise ValueError
-        except (TypeError, ValueError):
-            return JsonResponse({'error': 'La cantidad debe ser un número entero positivo.'}, status=400)
+        except (TypeError, ValueError, InvalidOperation):
+            return JsonResponse({'error': 'La cantidad debe ser un número positivo.'}, status=400)
 
         lote = get_object_or_404(LoteCompra, pk=lote_pk)
+
+        if lote.producto and not cantidad_valida_para_unidad(lote.producto.unidad_medida, cantidad):
+            return JsonResponse({
+                'error': f'"{lote.producto.nombre}" se maneja por {lote.producto.get_unidad_medida_display()} '
+                         f'— la cantidad tiene que ser un número entero.'
+            }, status=400)
 
         try:
             perdida = registrar_perdida(
@@ -241,7 +254,7 @@ class ListarPerdidasAjax(LoginRequiredMixin, View):
         if not chequear_permiso(request.user, 'crear_compras'):
             return JsonResponse({'error': 'Sin permiso.'}, status=403)
 
-        qs = Perdida.objects.select_related('registrado_por')[:100]
+        qs = Perdida.objects.select_related('registrado_por', 'producto')[:100]
 
         resultados = [{
             'pk':               p.pk,
@@ -250,6 +263,7 @@ class ListarPerdidasAjax(LoginRequiredMixin, View):
             'variante_desc':    p.combinacion_desc_snapshot,
             'lote_codigo':      p.lote_codigo_snapshot,
             'cantidad':         p.cantidad,
+            'unidad_medida':    p.producto.get_unidad_medida_display() if p.producto else '',
             'costo_unitario':   str(p.costo_unitario_snapshot),
             'costo_total':      str(p.costo_total),
             'motivo':           p.motivo,
@@ -262,3 +276,138 @@ class ListarPerdidasAjax(LoginRequiredMixin, View):
         total_costo = sum((p.costo_total for p in qs), Decimal('0'))
 
         return JsonResponse({'results': resultados, 'total_costo': str(total_costo)})
+
+
+# ══════════════════════════════════════════════════════════════════
+#  FRACCIONAMIENTO — armar un producto empaquetado a partir de otro
+#  a granel (ver fraccionar() en models.py para la lógica completa).
+# ══════════════════════════════════════════════════════════════════
+
+class BuscarProductosFraccionarAjax(LoginRequiredMixin, View):
+    """
+    GET ?q=texto&excluir=<pk>
+    Busca productos simples (sin variantes) para elegir como origen o
+    destino de un fraccionamiento. `excluir` saca un pk puntual de los
+    resultados (para que el destino no pueda ser el mismo que el origen).
+    """
+
+    def get(self, request):
+        if not chequear_permiso(request.user, 'crear_compras'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        q = request.GET.get('q', '').strip()
+        excluir_pk = request.GET.get('excluir', '').strip()
+
+        qs = Producto.objects.filter(
+            estado='activo', gestiona_stock=True, gestiona_variantes=False,
+        )
+        if q:
+            qs = qs.filter(Q(nombre__icontains=q) | Q(codigo__icontains=q))
+        if excluir_pk:
+            qs = qs.exclude(pk=excluir_pk)
+
+        resultados = [{
+            'pk':               p.pk,
+            'nombre':           p.nombre,
+            'codigo':           p.codigo,
+            'marca':            p.marca,
+            'unidad_medida':    p.get_unidad_medida_display(),
+            'unidad_medida_key': p.unidad_medida,
+            'permite_fraccion': p.permite_fraccion,
+            'stock_actual':     str(p.stock_actual),
+            'unidades_por_presentacion': p.unidades_por_presentacion or '',
+            'contenido_neto':   str(p.contenido_neto) if p.contenido_neto else '',
+        } for p in qs.order_by('nombre')[:20]]
+
+        return JsonResponse({'results': resultados})
+
+
+class FraccionarAjax(LoginRequiredMixin, View):
+    """
+    POST JSON:
+    {
+        "producto_origen_pk":  5,
+        "producto_destino_pk": 8,
+        "cantidad_origen":     "5",
+        "cantidad_paquetes":   "50",
+        "notas":               ""
+    }
+    `cantidad_origen` = cuánto de producto_origen se va a usar.
+    `cantidad_paquetes` = cuántas unidades de producto_destino se arman.
+    """
+
+    def post(self, request):
+        # Mismo permiso que BuscarProductosFraccionarAjax y ListarFraccionamientosAjax
+        # (antes pedía 'ajustar_stock', que no es el que se chequea para buscar/listar —
+        # un usuario podía armar todo el fraccionamiento en pantalla y recién enterarse
+        # que no tenía permiso al confirmar).
+        if not chequear_permiso(request.user, 'crear_compras'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        origen_pk  = body.get('producto_origen_pk')
+        destino_pk = body.get('producto_destino_pk')
+        if not origen_pk or not destino_pk:
+            return JsonResponse({'error': 'Elegí el producto de origen y el de destino.'}, status=400)
+
+        try:
+            cantidad_origen = Decimal(str(body.get('cantidad_origen')))
+            paquetes        = Decimal(str(body.get('cantidad_paquetes')))
+        except (TypeError, ValueError, InvalidOperation):
+            return JsonResponse({'error': 'Las cantidades tienen que ser números válidos.'}, status=400)
+
+        producto_origen  = get_object_or_404(Producto, pk=origen_pk)
+        producto_destino = get_object_or_404(Producto, pk=destino_pk)
+
+        try:
+            frac = fraccionar(
+                producto_origen=producto_origen,
+                producto_destino=producto_destino,
+                cantidad_origen=cantidad_origen,
+                cantidad_paquetes=paquetes,
+                usuario=request.user,
+                notas=(body.get('notas') or '').strip(),
+            )
+        except ValueError as e:
+            return JsonResponse({'error': str(e)}, status=400)
+
+        producto_origen.refresh_from_db()
+        producto_destino.refresh_from_db()
+
+        return JsonResponse({
+            'ok': True,
+            'pk': frac.pk,
+            'costo_unitario_calculado': str(frac.costo_unitario_calculado),
+            'stock_origen':  str(producto_origen.stock_actual),
+            'stock_destino': str(producto_destino.stock_actual),
+        })
+
+
+class ListarFraccionamientosAjax(LoginRequiredMixin, View):
+    """GET — historial de fraccionamientos, más nuevos primero."""
+
+    def get(self, request):
+        if not chequear_permiso(request.user, 'crear_compras'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        qs = Fraccionamiento.objects.select_related('creado_por', 'producto_origen', 'producto_destino')[:100]
+
+        resultados = [{
+            'pk':                       f.pk,
+            'fecha':                    f.fecha.strftime('%d/%m/%Y'),
+            'producto_origen':          f.producto_origen_nombre_snapshot,
+            'producto_destino':         f.producto_destino_nombre_snapshot,
+            'cantidad_total_origen':    str(f.cantidad_total_origen),
+            'unidad_origen':            f.producto_origen.get_unidad_medida_display() if f.producto_origen else '',
+            'cantidad_paquetes':        str(f.cantidad_paquetes),
+            'unidad_destino':           f.producto_destino.get_unidad_medida_display() if f.producto_destino else '',
+            'costo_unitario_calculado': str(f.costo_unitario_calculado),
+            'notas':                    f.notas,
+            'creado_por':               f.creado_por.get_full_name() if f.creado_por else '—',
+        } for f in qs]
+
+        return JsonResponse({'results': resultados})

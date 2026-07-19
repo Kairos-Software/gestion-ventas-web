@@ -87,6 +87,20 @@
                 <div class="inv-stat-label">Pérdidas (últimas 100) · Ver</div>
             </div>
         </div>
+        <div class="inv-stat-card" id="statFraccionamientosCard" style="cursor:pointer;" title="Ver historial de fraccionamientos">
+            <div class="inv-stat-icon" style="background:rgba(139,92,246,0.1); color:#8b5cf6;">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <rect x="2.5" y="2.5" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.5"/>
+                    <rect x="11.5" y="2.5" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.5"/>
+                    <rect x="11.5" y="11.5" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.5"/>
+                    <path d="M5.5 8.5V11.5C5.5 12.6 6.4 13.5 7.5 13.5H11.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <div>
+                <div class="inv-stat-value" id="statFraccionamientosCantidad">—</div>
+                <div class="inv-stat-label">Fraccionamientos · Ver</div>
+            </div>
+        </div>
     </div>
 
     <!-- ══════════════════════════════════════════════════════════
@@ -109,6 +123,16 @@
                 <button class="filtro-btn" data-filtro="por_vencer">Por vencer (7 días)</button>
                 <button class="filtro-btn" data-filtro="ok">OK</button>
             </div>
+
+            <button type="button" class="cmp-btn cmp-btn-ghost" style="width:auto; margin-left:auto;" id="btnAbrirFraccionar">
+                <svg width="15" height="15" viewBox="0 0 20 20" fill="none" style="margin-right:.35rem">
+                    <rect x="2.5" y="2.5" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.5"/>
+                    <rect x="11.5" y="2.5" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.5"/>
+                    <rect x="11.5" y="11.5" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.5"/>
+                    <path d="M5.5 8.5V11.5C5.5 12.6 6.4 13.5 7.5 13.5H11.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                </svg>
+                Fraccionar producto
+            </button>
         </div>
 
         <div class="inventario-tabla-wrap">
@@ -238,7 +262,7 @@
 
                 <div class="cmp-field">
                     <label class="cmp-label" for="perdidaCantidad">Cantidad *</label>
-                    <input type="number" id="perdidaCantidad" class="cmp-control" min="1" step="1">
+                    <input type="number" id="perdidaCantidad" class="cmp-control" min="0.001" step="any">
                 </div>
 
                 <div class="cmp-field">
@@ -302,6 +326,121 @@
         </div>
     </div>
 </div>
+
+<!-- ══════════════════════════════════════════════════════════
+     MODAL — Fraccionar producto (armar paquetes desde un producto
+     a granel: ej. 50kg de manzana suelta → 50 bolsas de 1kg)
+══════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalFraccionar" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Fraccionar producto</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted" style="font-size:.85rem; margin-bottom:1rem;">
+                    Tomá stock de un producto a granel y armá paquetes de otro producto.
+                    La compra original no se toca — esto es una transformación aparte, con su propio historial.
+                </p>
+
+                <div class="cmp-field" style="position:relative;">
+                    <label class="cmp-label kai-label-help" for="fracOrigenBuscar">
+                        Producto de origen (a granel) *
+                        <button type="button" class="kai-help-btn" data-help-target="ayuda_frac_origen" aria-label="Ayuda">?</button>
+                    </label>
+                    <input type="text" id="fracOrigenBuscar" class="cmp-control" placeholder="Buscá por nombre o código..." autocomplete="off">
+                    <input type="hidden" id="fracOrigenPk">
+                    <div class="frac-dropdown" id="fracOrigenDropdown"></div>
+                    <small class="text-muted" id="fracOrigenStock" style="font-size:.75rem;"></small>
+                    <div class="kai-help-popover" id="ayuda_frac_origen">El producto grande que vas a abrir para armar los paquetes.</div>
+                </div>
+
+                <div class="cmp-field" style="position:relative;">
+                    <label class="cmp-label kai-label-help" for="fracDestinoBuscar">
+                        Producto de destino (empaquetado) *
+                        <button type="button" class="kai-help-btn" data-help-target="ayuda_frac_destino" aria-label="Ayuda">?</button>
+                    </label>
+                    <input type="text" id="fracDestinoBuscar" class="cmp-control" placeholder="Buscá por nombre o código..." autocomplete="off">
+                    <input type="hidden" id="fracDestinoPk">
+                    <div class="frac-dropdown" id="fracDestinoDropdown"></div>
+                    <div class="kai-help-popover" id="ayuda_frac_destino">El producto chico que armás y después vendés.</div>
+                </div>
+
+                <div class="cmp-form-grid-2">
+                    <div class="cmp-field">
+                        <label class="cmp-label kai-label-help" for="fracCantidadOrigen">
+                            ¿Cuánto vas a usar del origen? *
+                            <button type="button" class="kai-help-btn" data-help-target="ayuda_frac_cantidad_origen" aria-label="Ayuda">?</button>
+                        </label>
+                        <input type="number" id="fracCantidadOrigen" class="cmp-control" placeholder="Ej: 5" min="0.001" step="any">
+                        <small class="text-muted" id="fracCantidadOrigenHint" style="font-size:.72rem;"></small>
+                        <div class="kai-help-popover" id="ayuda_frac_cantidad_origen">Cuánto se descuenta del producto grande.</div>
+                    </div>
+                    <div class="cmp-field">
+                        <label class="cmp-label kai-label-help" for="fracPaquetes">
+                            ¿Cuántas unidades vas a armar? *
+                            <button type="button" class="kai-help-btn" data-help-target="ayuda_frac_paquetes" aria-label="Ayuda">?</button>
+                        </label>
+                        <input type="number" id="fracPaquetes" class="cmp-control" placeholder="Ej: 50" min="0.001" step="any">
+                        <small class="text-muted" id="fracPaquetesHint" style="font-size:.72rem;"></small>
+                        <div class="kai-help-popover" id="ayuda_frac_paquetes">Cuánto stock nuevo se suma al producto chico.</div>
+                    </div>
+                </div>
+                <p class="text-muted" id="fracSugerencia" style="font-size:.75rem; display:none; margin:-.5rem 0 .75rem;"></p>
+
+                <div class="cmp-field">
+                    <label class="cmp-label" for="fracNotas">Notas (opcional)</label>
+                    <textarea id="fracNotas" class="cmp-control" placeholder="Ej: Repaquetado de manzanas para venta al detalle"></textarea>
+                </div>
+
+                <div id="fracPreview" class="frac-preview" style="display:none;"></div>
+                <div id="fracMsg" style="font-size:.8125rem; color:var(--danger, #EF4444);"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="cmp-btn cmp-btn-ghost" style="width:auto;" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="cmp-btn cmp-btn-primary" style="width:auto;" id="btnConfirmarFraccionar">
+                    Fraccionar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     MODAL — Historial de fraccionamientos
+══════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalFraccionamientos" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Historial de fraccionamientos</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="inventario-tabla-wrap">
+                    <table class="table inventario-tabla">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Origen usado</th>
+                                <th>Destino armado</th>
+                                <th>Costo unit.</th>
+                                <th>Hecho por</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fraccionamientosTbody">
+                            <tr><td colspan="5" class="text-center text-muted py-4">Cargando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="cmp-btn cmp-btn-ghost" style="width:auto;" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -309,10 +448,13 @@
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <script>
     window.INVENTARIO_URLS = {
-        listar:            "{% url 'compras:inventario_listar' %}",
-        buscarCodigo:      "{% url 'compras:inventario_buscar_codigo' %}",
-        registrarPerdida:  "{% url 'compras:inventario_perdida_registrar' %}",
-        listarPerdidas:    "{% url 'compras:inventario_perdidas_listar' %}",
+        listar:              "{% url 'compras:inventario_listar' %}",
+        buscarCodigo:        "{% url 'compras:inventario_buscar_codigo' %}",
+        registrarPerdida:    "{% url 'compras:inventario_perdida_registrar' %}",
+        listarPerdidas:      "{% url 'compras:inventario_perdidas_listar' %}",
+        fraccionarBuscar:    "{% url 'compras:inventario_fraccionar_buscar' %}",
+        fraccionar:          "{% url 'compras:inventario_fraccionar' %}",
+        listarFraccionamientos: "{% url 'compras:inventario_fraccionamientos_listar' %}",
     };
 </script>
 <script src="{% static 'compras/js/inventario.js' %}"></script>

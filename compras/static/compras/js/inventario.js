@@ -118,12 +118,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 </td>
                 <td><span class="inv-codigo-lote">${escapeHtml(l.codigo)}</span></td>
                 <td>
-                    ${l.cantidad_actual} / ${l.cantidad_inicial}
+                    ${KaiFormat.cantidad(l.cantidad_actual)} / ${KaiFormat.cantidad(l.cantidad_inicial)} <span class="inv-unidad-medida">${escapeHtml(l.unidad_medida || '')}</span>
+                    ${l.unidades_por_presentacion ? `<div class="inv-contenido-neto">cada ${escapeHtml(l.unidad_medida || '')} trae ${l.unidades_por_presentacion} piezas${l.contenido_neto ? ` de ${KaiFormat.cantidad(l.contenido_neto)} c/u` : ''}</div>` : (l.contenido_neto ? `<div class="inv-contenido-neto">cada ${escapeHtml(l.unidad_medida || '')} trae ${KaiFormat.cantidad(l.contenido_neto)} → ${KaiFormat.cantidad(parseFloat(l.cantidad_actual) * parseFloat(l.contenido_neto))} en total</div>` : '')}
                     <div class="inv-barra-restante">
                         <div class="inv-barra-restante-fill" style="width:${l.porcentaje_restante}%"></div>
                     </div>
                 </td>
-                <td>$${parseFloat(l.costo_unitario).toFixed(2)}</td>
+                <td>$${KaiFormat.moneda(l.costo_unitario)}</td>
                 <td>${badgeVencimiento(l)}</td>
                 <td>${l.fecha_compra}</td>
                 <td>${escapeHtml(l.proveedor || '—')}</td>
@@ -141,7 +142,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             Código
                         </button>
                         <button class="btn-ver-codigo btn-perdida" data-pk="${l.pk}" data-nombre="${escapeHtml(l.producto_nombre)}"
-                                data-codigo="${escapeHtml(l.codigo)}" data-disponible="${l.cantidad_actual}"
+                                data-codigo="${escapeHtml(l.codigo)}" data-disponible="${l.cantidad_actual}" data-unidad="${escapeHtml(l.unidad_medida || '')}"
                                 title="Registrar pérdida de este lote">
                             <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                                 <path d="M3 3L13 13M13 3L3 13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
@@ -167,6 +168,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     nombre: btn.dataset.nombre,
                     codigo: btn.dataset.codigo,
                     disponible: btn.dataset.disponible,
+                    unidad: btn.dataset.unidad,
                 });
             });
         });
@@ -207,7 +209,7 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('etiquetaVariante').textContent = lote.variante_desc || '';
 
         const detalles = [];
-        detalles.push(`Costo: $${parseFloat(lote.costo_unitario).toFixed(2)}`);
+        detalles.push(`Costo: $${KaiFormat.moneda(lote.costo_unitario)}`);
         if (lote.fecha_vencimiento) detalles.push(`Vence: ${lote.fecha_vencimiento}`);
         detalles.push(`Ingreso: ${lote.fecha_compra}`);
         document.getElementById('etiquetaDetalle').textContent = detalles.join('  ·  ');
@@ -391,7 +393,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function abrirModalPerdida(lote) {
         loteParaPerdida = lote;
-        perdidaLoteInfo.textContent = `${lote.nombre} — lote ${lote.codigo} (disponible: ${lote.disponible})`;
+        perdidaLoteInfo.textContent = `${lote.nombre} — lote ${lote.codigo} (disponible: ${KaiFormat.cantidad(lote.disponible)} ${lote.unidad || ''})`;
         perdidaCantidad.value = '';
         perdidaCantidad.max = lote.disponible;
         perdidaMotivo.value = 'rotura';
@@ -402,13 +404,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
     btnConfirmarPerdida.addEventListener('click', () => {
         if (!loteParaPerdida) return;
-        const cantidad = parseInt(perdidaCantidad.value, 10);
+        const cantidad = parseFloat(perdidaCantidad.value);
         if (!cantidad || cantidad <= 0) {
             perdidaMsg.textContent = 'Ingresá una cantidad válida.';
             return;
         }
-        if (cantidad > parseInt(loteParaPerdida.disponible, 10)) {
-            perdidaMsg.textContent = `Ese lote solo tiene ${loteParaPerdida.disponible} unidad(es) disponibles.`;
+        if (cantidad > parseFloat(loteParaPerdida.disponible)) {
+            perdidaMsg.textContent = `Ese lote solo tiene ${KaiFormat.cantidad(loteParaPerdida.disponible)} unidad(es) disponibles.`;
             return;
         }
 
@@ -475,18 +477,366 @@ document.addEventListener('DOMContentLoaded', function () {
                             ${p.variante_desc ? `<div class="inv-variante-desc">${escapeHtml(p.variante_desc)}</div>` : ''}
                         </td>
                         <td><span class="inv-codigo-lote">${escapeHtml(p.lote_codigo)}</span></td>
-                        <td>${p.cantidad}</td>
+                        <td>${KaiFormat.cantidad(p.cantidad)} <span class="inv-unidad-medida">${escapeHtml(p.unidad_medida || '')}</span></td>
                         <td>
                             ${p.motivo_label}${p.automatica ? ' <span class="badge-vencimiento sin-fecha">auto</span>' : ''}
                             ${p.motivo_detalle ? `<div class="inv-variante-desc">${escapeHtml(p.motivo_detalle)}</div>` : ''}
                         </td>
-                        <td>$${parseFloat(p.costo_total).toFixed(2)}</td>
+                        <td>$${KaiFormat.moneda(p.costo_total)}</td>
                         <td>${escapeHtml(p.registrado_por)}</td>
                     </tr>
                 `).join('');
             })
             .catch(() => {
                 perdidasTbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">Error al cargar pérdidas.</td></tr>`;
+            });
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  FRACCIONAMIENTO — armar un producto empaquetado desde otro
+    //  a granel (ver fraccionar() en compras/models.py).
+    // ══════════════════════════════════════════════════════════
+
+    cargarStatsFraccionamientos();
+
+    function cargarStatsFraccionamientos() {
+        const statFrac = document.getElementById('statFraccionamientosCantidad');
+        if (!statFrac || !window.INVENTARIO_URLS.listarFraccionamientos) return;
+
+        fetch(window.INVENTARIO_URLS.listarFraccionamientos)
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) return;
+                statFrac.textContent = data.results.length;
+            })
+            .catch(() => { statFrac.textContent = '—'; });
+    }
+
+    const modalFraccionarEl = document.getElementById('modalFraccionar');
+    const modalFraccionar   = modalFraccionarEl ? new bootstrap.Modal(modalFraccionarEl) : null;
+    const btnAbrirFraccionar = document.getElementById('btnAbrirFraccionar');
+
+    const fracOrigenBuscar   = document.getElementById('fracOrigenBuscar');
+    const fracOrigenPk       = document.getElementById('fracOrigenPk');
+    const fracOrigenDropdown = document.getElementById('fracOrigenDropdown');
+    const fracOrigenStock    = document.getElementById('fracOrigenStock');
+
+    const fracDestinoBuscar   = document.getElementById('fracDestinoBuscar');
+    const fracDestinoPk       = document.getElementById('fracDestinoPk');
+    const fracDestinoDropdown = document.getElementById('fracDestinoDropdown');
+
+    const fracCantidadOrigen     = document.getElementById('fracCantidadOrigen');
+    const fracCantidadOrigenHint = document.getElementById('fracCantidadOrigenHint');
+    const fracPaquetes           = document.getElementById('fracPaquetes');
+    const fracPaquetesHint       = document.getElementById('fracPaquetesHint');
+    const fracSugerencia         = document.getElementById('fracSugerencia');
+    const fracNotas     = document.getElementById('fracNotas');
+    const fracPreview   = document.getElementById('fracPreview');
+    const fracMsg       = document.getElementById('fracMsg');
+    const btnConfirmarFraccionar = document.getElementById('btnConfirmarFraccionar');
+
+    // Datos del producto elegido (unidad, si permite fracción, contenido neto)
+    // — se guardan al elegir de la lista, se usan para validar y sugerir.
+    let fracOrigenDatos = null;
+    let fracDestinoDatos = null;
+
+    if (btnAbrirFraccionar && modalFraccionar) {
+        btnAbrirFraccionar.addEventListener('click', () => {
+            fracOrigenBuscar.value = '';
+            fracOrigenPk.value = '';
+            fracOrigenStock.textContent = '';
+            fracOrigenDatos = null;
+            fracDestinoBuscar.value = '';
+            fracDestinoPk.value = '';
+            fracDestinoDatos = null;
+            fracCantidadOrigen.value = '';
+            fracCantidadOrigenHint.textContent = '';
+            fracPaquetes.value = '';
+            fracPaquetesHint.textContent = '';
+            fracSugerencia.style.display = 'none';
+            fracNotas.value = '';
+            fracMsg.textContent = '';
+            fracPreview.style.display = 'none';
+            modalFraccionar.show();
+        });
+    }
+
+    function _buscarProductosFraccionar(query, excluirPk, dropdownEl, onElegir) {
+        const params = new URLSearchParams();
+        if (query) params.set('q', query);
+        if (excluirPk) params.set('excluir', excluirPk);
+
+        fetch(`${window.INVENTARIO_URLS.fraccionarBuscar}?${params.toString()}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.error || !data.results.length) {
+                    dropdownEl.innerHTML = `<div class="frac-dropdown-empty">Sin resultados.</div>`;
+                    dropdownEl.classList.add('visible');
+                    return;
+                }
+                dropdownEl.innerHTML = data.results.map(p => `
+                    <div class="frac-dropdown-item" data-pk="${p.pk}" data-nombre="${escapeHtml(p.nombre)}"
+                         data-stock="${p.stock_actual}" data-unidad="${escapeHtml(p.unidad_medida)}"
+                         data-unidad-key="${escapeHtml(p.unidad_medida_key)}" data-permite-fraccion="${p.permite_fraccion}"
+                         data-contenido-neto="${p.contenido_neto}"
+                         data-unidades-por-presentacion="${p.unidades_por_presentacion}">
+                        ${escapeHtml(p.nombre)}${p.marca ? ` <span class="frac-dropdown-marca">· ${escapeHtml(p.marca)}</span>` : ''}
+                        <small>${escapeHtml(p.codigo)} · Stock: ${KaiFormat.cantidad(p.stock_actual)} ${escapeHtml(p.unidad_medida)}</small>
+                    </div>
+                `).join('');
+                dropdownEl.classList.add('visible');
+                dropdownEl.querySelectorAll('.frac-dropdown-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        onElegir(item.dataset);
+                        dropdownEl.classList.remove('visible');
+                    });
+                });
+            })
+            .catch(() => {
+                dropdownEl.innerHTML = `<div class="frac-dropdown-empty">Error al buscar.</div>`;
+                dropdownEl.classList.add('visible');
+            });
+    }
+
+    let fracOrigenDebounce = null;
+    if (fracOrigenBuscar) {
+        fracOrigenBuscar.addEventListener('input', () => {
+            fracOrigenPk.value = '';
+            fracOrigenDatos = null;
+            fracOrigenStock.textContent = '';
+            clearTimeout(fracOrigenDebounce);
+            fracOrigenDebounce = setTimeout(() => {
+                _buscarProductosFraccionar(fracOrigenBuscar.value.trim(), fracDestinoPk.value, fracOrigenDropdown, (ds) => {
+                    fracOrigenBuscar.value = ds.nombre;
+                    fracOrigenPk.value = ds.pk;
+                    fracOrigenDatos = ds;
+                    fracOrigenStock.textContent = `Stock disponible: ${KaiFormat.cantidad(ds.stock)} ${ds.unidad}`;
+                    fracCantidadOrigenHint.textContent = ds.permiteFraccion === 'true'
+                        ? `Se mide en ${ds.unidad} — admite decimales.`
+                        : `Se cuenta en ${ds.unidad} — solo números enteros.`;
+                    _sugerirCantidadOrigen();
+                });
+            }, 250);
+        });
+        fracOrigenBuscar.addEventListener('focus', () => {
+            if (fracOrigenDropdown.innerHTML) fracOrigenDropdown.classList.add('visible');
+        });
+    }
+
+    let fracDestinoDebounce = null;
+    if (fracDestinoBuscar) {
+        fracDestinoBuscar.addEventListener('input', () => {
+            fracDestinoPk.value = '';
+            fracDestinoDatos = null;
+            clearTimeout(fracDestinoDebounce);
+            fracDestinoDebounce = setTimeout(() => {
+                _buscarProductosFraccionar(fracDestinoBuscar.value.trim(), fracOrigenPk.value, fracDestinoDropdown, (ds) => {
+                    fracDestinoBuscar.value = ds.nombre;
+                    fracDestinoPk.value = ds.pk;
+                    fracDestinoDatos = ds;
+                    fracPaquetesHint.textContent = ds.permiteFraccion === 'true'
+                        ? `Se mide en ${ds.unidad} — admite decimales.`
+                        : `Se cuenta en ${ds.unidad} — solo números enteros.`;
+                    _sugerirCantidadOrigen();
+                });
+            }, 250);
+        });
+        fracDestinoBuscar.addEventListener('focus', () => {
+            if (fracDestinoDropdown.innerHTML) fracDestinoDropdown.classList.add('visible');
+        });
+    }
+
+    document.addEventListener('click', (e) => {
+        if (fracOrigenDropdown && !fracOrigenDropdown.contains(e.target) && e.target !== fracOrigenBuscar) {
+            fracOrigenDropdown.classList.remove('visible');
+        }
+        if (fracDestinoDropdown && !fracDestinoDropdown.contains(e.target) && e.target !== fracDestinoBuscar) {
+            fracDestinoDropdown.classList.remove('visible');
+        }
+    });
+
+    function _wireUsarSugerencia(inputEl, valor) {
+        const link = document.getElementById('fracUsarSugerencia');
+        if (link) {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                inputEl.value = valor;
+                _actualizarPreviewFraccionar();
+            });
+        }
+    }
+
+    // Camino simple: si el producto de origen tiene cargado "¿trae piezas
+    // sueltas adentro?", con ese solo dato alcanza para sugerir la otra
+    // cantidad — no hace falta que el destino tenga nada cargado.
+    // Si no está cargado, usamos el contenido neto de ambos como referencia
+    // (menos directo, pero sirve de todos modos). El usuario puede pisar
+    // cualquier sugerencia sin problema.
+    function _sugerirCantidadOrigen() {
+        fracSugerencia.style.display = 'none';
+        if (!fracOrigenDatos) return;
+        const porPresentacion = parseInt(fracOrigenDatos.unidadesPorPresentacion, 10);
+
+        if (porPresentacion) {
+            const origenActual = parseFloat(fracCantidadOrigen.value);
+            const paquetesActual = parseFloat(fracPaquetes.value);
+
+            if (origenActual > 0 && !paquetesActual) {
+                const sugerido = Math.round(origenActual * porPresentacion * 1000) / 1000;
+                fracSugerencia.style.display = 'block';
+                fracSugerencia.innerHTML = `"${escapeHtml(fracOrigenDatos.nombre)}" trae ${porPresentacion} piezas por ${escapeHtml(fracOrigenDatos.unidad)} → con ${KaiFormat.cantidad(origenActual)} ${escapeHtml(fracOrigenDatos.unidad)} salen <strong>${KaiFormat.cantidad(sugerido)}</strong> piezas.
+                    <a href="#" id="fracUsarSugerencia" style="text-decoration:underline;">Usar este valor</a>`;
+                _wireUsarSugerencia(fracPaquetes, sugerido);
+                return;
+            }
+            if (paquetesActual > 0 && !origenActual) {
+                const sugerido = Math.round((paquetesActual / porPresentacion) * 1000) / 1000;
+                fracSugerencia.style.display = 'block';
+                fracSugerencia.innerHTML = `"${escapeHtml(fracOrigenDatos.nombre)}" trae ${porPresentacion} piezas por ${escapeHtml(fracOrigenDatos.unidad)} → para armar ${KaiFormat.cantidad(paquetesActual)} necesitás <strong>${KaiFormat.cantidad(sugerido)}</strong> ${escapeHtml(fracOrigenDatos.unidad)} de origen.
+                    <a href="#" id="fracUsarSugerencia" style="text-decoration:underline;">Usar este valor</a>`;
+                _wireUsarSugerencia(fracCantidadOrigen, sugerido);
+                return;
+            }
+            return;
+        }
+
+        if (!fracDestinoDatos) return;
+        const contenidoOrigen  = parseFloat(fracOrigenDatos.contenidoNeto);
+        const contenidoDestino = parseFloat(fracDestinoDatos.contenidoNeto);
+        const paquetes = parseFloat(fracPaquetes.value);
+        if (!contenidoOrigen || !contenidoDestino || !paquetes) return;
+
+        const sugerido = (contenidoDestino * paquetes) / contenidoOrigen;
+        const sugeridoFmt = Math.round(sugerido * 1000) / 1000;
+        fracSugerencia.style.display = 'block';
+        fracSugerencia.innerHTML = `Según el contenido neto cargado, para armar ${KaiFormat.cantidad(paquetes)} necesitarías <strong>${KaiFormat.cantidad(sugeridoFmt)}</strong> ${escapeHtml(fracOrigenDatos.unidad)} de origen.
+            <a href="#" id="fracUsarSugerencia" style="text-decoration:underline;">Usar este valor</a>`;
+        _wireUsarSugerencia(fracCantidadOrigen, sugeridoFmt);
+    }
+    if (fracPaquetes) fracPaquetes.addEventListener('input', _sugerirCantidadOrigen);
+    if (fracCantidadOrigen) fracCantidadOrigen.addEventListener('input', _sugerirCantidadOrigen);
+
+    function _actualizarPreviewFraccionar() {
+        const cantidadOrigen = parseFloat(fracCantidadOrigen.value);
+        const paquetes = parseFloat(fracPaquetes.value);
+        if (!cantidadOrigen || !paquetes || cantidadOrigen <= 0 || paquetes <= 0) {
+            fracPreview.style.display = 'none';
+            return;
+        }
+        fracPreview.style.display = 'block';
+        fracPreview.innerHTML = `Vas a descontar <strong>${KaiFormat.cantidad(cantidadOrigen)}</strong> de "${escapeHtml(fracOrigenBuscar.value || '—')}" y vas a armar <strong>${KaiFormat.cantidad(paquetes)}</strong> unidad(es) de "${escapeHtml(fracDestinoBuscar.value || '—')}".`;
+    }
+    if (fracCantidadOrigen) fracCantidadOrigen.addEventListener('input', _actualizarPreviewFraccionar);
+    if (fracPaquetes) fracPaquetes.addEventListener('input', _actualizarPreviewFraccionar);
+
+    function _esEntero(valor) {
+        return Math.abs(valor - Math.round(valor)) < 1e-9;
+    }
+
+    if (btnConfirmarFraccionar) {
+        btnConfirmarFraccionar.addEventListener('click', () => {
+            fracMsg.textContent = '';
+
+            if (!fracOrigenPk.value) {
+                fracMsg.textContent = 'Elegí el producto de origen de la lista.';
+                return;
+            }
+            if (!fracDestinoPk.value) {
+                fracMsg.textContent = 'Elegí el producto de destino de la lista.';
+                return;
+            }
+            if (fracOrigenPk.value === fracDestinoPk.value) {
+                fracMsg.textContent = 'El origen y el destino no pueden ser el mismo producto.';
+                return;
+            }
+            const cantidadOrigen = parseFloat(fracCantidadOrigen.value);
+            const paquetes = parseFloat(fracPaquetes.value);
+            if (!cantidadOrigen || cantidadOrigen <= 0) {
+                fracMsg.textContent = 'Ingresá cuánto vas a usar del origen.';
+                return;
+            }
+            if (!paquetes || paquetes <= 0) {
+                fracMsg.textContent = 'Ingresá cuántas unidades vas a armar.';
+                return;
+            }
+            if (fracOrigenDatos && fracOrigenDatos.permiteFraccion === 'false' && !_esEntero(cantidadOrigen)) {
+                fracMsg.textContent = `"${fracOrigenBuscar.value}" se cuenta en ${fracOrigenDatos.unidad} — ingresá un número entero.`;
+                return;
+            }
+            if (fracDestinoDatos && fracDestinoDatos.permiteFraccion === 'false' && !_esEntero(paquetes)) {
+                fracMsg.textContent = `"${fracDestinoBuscar.value}" se cuenta en ${fracDestinoDatos.unidad} — ingresá un número entero.`;
+                return;
+            }
+
+            btnConfirmarFraccionar.disabled = true;
+            fetch(window.INVENTARIO_URLS.fraccionar, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                body: JSON.stringify({
+                    producto_origen_pk: fracOrigenPk.value,
+                    producto_destino_pk: fracDestinoPk.value,
+                    cantidad_origen: cantidadOrigen,
+                    cantidad_paquetes: paquetes,
+                    notas: fracNotas.value.trim(),
+                }),
+            })
+            .then(r => r.json())
+            .then(data => {
+                btnConfirmarFraccionar.disabled = false;
+                if (data.error) {
+                    fracMsg.textContent = data.error;
+                    return;
+                }
+                modalFraccionar.hide();
+                cargarLotes();
+                cargarStats();
+                cargarStatsFraccionamientos();
+            })
+            .catch(() => {
+                btnConfirmarFraccionar.disabled = false;
+                fracMsg.textContent = 'Error de conexión.';
+            });
+        });
+    }
+
+    // ── Historial de fraccionamientos ──
+    const modalFraccionamientosEl = document.getElementById('modalFraccionamientos');
+    const modalFraccionamientos   = modalFraccionamientosEl ? new bootstrap.Modal(modalFraccionamientosEl) : null;
+    const fraccionamientosTbody   = document.getElementById('fraccionamientosTbody');
+    const statFraccionamientosCard = document.getElementById('statFraccionamientosCard');
+
+    if (statFraccionamientosCard && modalFraccionamientos) {
+        statFraccionamientosCard.addEventListener('click', () => {
+            modalFraccionamientos.show();
+            cargarListadoFraccionamientos();
+        });
+    }
+
+    function cargarListadoFraccionamientos() {
+        fraccionamientosTbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">Cargando...</td></tr>`;
+        fetch(window.INVENTARIO_URLS.listarFraccionamientos)
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    fraccionamientosTbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-4">${data.error}</td></tr>`;
+                    return;
+                }
+                if (!data.results.length) {
+                    fraccionamientosTbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">Todavía no hiciste ningún fraccionamiento.</td></tr>`;
+                    return;
+                }
+                fraccionamientosTbody.innerHTML = data.results.map(f => `
+                    <tr>
+                        <td>${f.fecha}</td>
+                        <td>${escapeHtml(f.producto_origen)} <span class="inv-unidad-medida">(${KaiFormat.cantidad(f.cantidad_total_origen)} ${escapeHtml(f.unidad_origen)})</span></td>
+                        <td>${escapeHtml(f.producto_destino)} <span class="inv-unidad-medida">(${KaiFormat.cantidad(f.cantidad_paquetes)} ${escapeHtml(f.unidad_destino)})</span></td>
+                        <td>$${KaiFormat.moneda(f.costo_unitario_calculado)}</td>
+                        <td>${escapeHtml(f.creado_por)}</td>
+                    </tr>
+                `).join('');
+            })
+            .catch(() => {
+                fraccionamientosTbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-4">Error al cargar fraccionamientos.</td></tr>`;
             });
     }
 });

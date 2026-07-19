@@ -332,14 +332,6 @@ function _renderCarrito() {
                        data-item-id="${item.id}" data-campo="costo">
             </td>
             <td>
-                <select class="cmp-select-inline cmp-field-input"
-                        data-item-id="${item.id}" data-campo="moneda">
-                    <option value="ARS" ${item.moneda === 'ARS' ? 'selected' : ''}>ARS</option>
-                    <option value="USD" ${item.moneda === 'USD' ? 'selected' : ''}>USD</option>
-                    <option value="EUR" ${item.moneda === 'EUR' ? 'selected' : ''}>EUR</option>
-                </select>
-            </td>
-            <td>
                 <input type="number" min="0" max="100" step="0.01"
                        class="cmp-input-inline w-xs cmp-field-input"
                        value="${item.descuento}"

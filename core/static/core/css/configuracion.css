@@ -85,6 +85,26 @@
     color: var(--text-muted);
 }
 
+/* Campo numérico/select con texto a los costados explicando qué es
+   (ej: "Avisar con [14] días de anticipación"), para que el número
+   nunca quede solo sin decir qué significa. */
+.config-inline-field {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-right: 1rem;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    flex-wrap: wrap;
+}
+
+.config-inline-field input[type="number"] {
+    width: 62px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
 /* Toggle switch */
 .toggle-switch {
     position: relative;

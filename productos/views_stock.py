@@ -10,7 +10,7 @@ from django.db import transaction
 from django.db.models import Q, F
 from django.utils import timezone
 
-from .models import Producto, MovimientoStock, TipoMovimiento, MOVIMIENTOS_ENTRADA, CombinacionVariante
+from .models import Producto, MovimientoStock, TipoMovimiento, MOVIMIENTOS_ENTRADA, CombinacionVariante, cantidad_valida_para_unidad
 from core.permisos import chequear_permiso
 
 TIPOS_AJUSTE = {
@@ -196,6 +196,13 @@ class StockAjusteAjax(LoginRequiredMixin, View):
         except (TypeError, ValueError, InvalidOperation):
             return JsonResponse({'ok': False, 'error': 'La cantidad debe ser un número positivo.'}, status=400)
 
+        if not cantidad_valida_para_unidad(producto.unidad_medida, cantidad):
+            return JsonResponse({
+                'ok': False,
+                'error': f'"{producto.nombre}" se maneja por {producto.get_unidad_medida_display()} '
+                         f'— la cantidad tiene que ser un número entero.',
+            }, status=400)
+
         # ── Validar / resolver combinación ──────────────────────────────
         combinacion = None
         if producto.gestiona_variantes:
@@ -250,8 +257,8 @@ class StockAjusteAjax(LoginRequiredMixin, View):
                         item_compra       = None,
                         producto          = producto,
                         combinacion       = combinacion,
-                        cantidad_inicial  = int(cantidad),
-                        cantidad_actual   = int(cantidad),
+                        cantidad_inicial  = cantidad,
+                        cantidad_actual   = cantidad,
                         costo_unitario    = Decimal('0'),
                         fecha_vencimiento = None,
                         fecha_compra      = timezone.now().date(),

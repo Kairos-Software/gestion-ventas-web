@@ -526,14 +526,6 @@ function _renderEditCarrito() {
                            data-edit-id="${item.id}" data-campo="precio_unitario">
                 </td>
                 <td>
-                    <select class="vta-select-inline edit-field-input"
-                            data-edit-id="${item.id}" data-campo="moneda">
-                        <option value="ARS" ${item.moneda==='ARS'?'selected':''}>ARS</option>
-                        <option value="USD" ${item.moneda==='USD'?'selected':''}>USD</option>
-                        <option value="EUR" ${item.moneda==='EUR'?'selected':''}>EUR</option>
-                    </select>
-                </td>
-                <td>
                     <input type="number" min="0" max="100" step="0.01"
                            class="vta-input-inline w-xs edit-field-input"
                            value="${item.descuento}"

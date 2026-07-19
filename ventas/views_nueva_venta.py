@@ -7,12 +7,19 @@ from django.views import View
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.db import transaction
 from django.db.models import Q
 
-from productos.models import Producto, CombinacionVariante, ListaDescuento
+from productos.models import (
+    Producto, CombinacionVariante, ListaDescuento, cantidad_valida_para_unidad,
+    ofertas_vigentes_hoy,
+)
 from core.models import Cliente, DatosEmpresa
 from compras.models import LoteCompra
-from .models import Venta, ItemVenta, EstadoVenta, MedioPago, TipoResolucionLote
+from .models import (
+    Venta, ItemVenta, EstadoVenta, MedioPago, TipoResolucionLote,
+    EtiquetaBalanza, EstadoEtiquetaBalanza,
+)
 from core.permisos import chequear_permiso
 from caja.models import TurnoCaja, CuentaCaja, TipoCaja
 
@@ -44,6 +51,26 @@ class NuevaVentaView(LoginRequiredMixin, TemplateView):
             for l in ListaDescuento.objects.filter(activa=True).order_by('orden', 'nombre')
         ]
 
+        # Ofertas vigentes HOY (fecha + día de semana): se manda el alcance
+        # (pks de productos/categorías) para que el frontend decida, por
+        # cada línea del carrito, si la oferta aplica — sin ir y volver
+        # al servidor por cada producto agregado.
+        ctx['ofertas_vigentes'] = [
+            {
+                'nombre':         o.nombre,
+                'tipo':           o.tipo,
+                'porcentaje':     str(o.porcentaje) if o.porcentaje is not None else '',
+                'cantidad_lleva': o.cantidad_lleva,
+                'cantidad_paga':  o.cantidad_paga,
+                'monto_minimo':   str(o.monto_minimo) if o.monto_minimo is not None else '',
+                'base_calculo':   o.base_calculo,
+                'aplicacion':     o.aplicacion,
+                'productos':      list(o.productos.values_list('pk', flat=True)),
+                'categorias':     list(o.categorias.values_list('pk', flat=True)),
+            }
+            for o in ofertas_vigentes_hoy()
+        ]
+
         # Verificar si hay turno abierto
         turno_actual = TurnoCaja.turno_actual()
         if not turno_actual:
@@ -63,19 +90,27 @@ class NuevaVentaView(LoginRequiredMixin, TemplateView):
             )
             if venta:
                 ctx['venta_editar_pk'] = venta.pk
+                # Solo importa si era una oferta MANUAL elegida a mano — si
+                # era automática, se vuelve a resolver sola al recargar el
+                # carrito (ver ofertaGlobalManualElegida en nueva_venta.js).
+                ctx['venta_editar_oferta_global_nombre'] = venta.oferta_global_nombre
                 items_iniciales = []
                 for item in venta.items.all():
                     nombre = item.nombre_producto_display
                     if item.combinacion_descripcion:
                         nombre = f'{nombre} — {item.combinacion_descripcion}'
+                    etiqueta = EtiquetaBalanza.objects.filter(item_venta=item).first()
                     items_iniciales.append({
                         'producto_pk':    item.producto_id,
+                        'categoria_id':   item.producto.categoria_id if item.producto_id else None,
                         'combinacion_pk': item.combinacion_id,
                         'nombre':         nombre,
                         'codigo':         item.producto_codigo,
                         'tipo_escaneo':   item.tipo_escaneo,
                         'lote_pk':        item.lote_escaneado_id,
                         'lote_codigo':    item.lote_escaneado.codigo if item.lote_escaneado_id else '',
+                        'etiqueta_balanza_pk':     etiqueta.pk if etiqueta else None,
+                        'etiqueta_balanza_codigo': etiqueta.codigo if etiqueta else '',
                         'cliente_pk':     item.cliente_id,
                         'cliente_nombre': item.nombre_cliente_display if item.cliente_id else '',
                         'cantidad':       str(item.cantidad),
@@ -83,6 +118,7 @@ class NuevaVentaView(LoginRequiredMixin, TemplateView):
                         'moneda':         item.moneda,
                         'descuento':      str(item.descuento_pct),
                         'lista_descuento_nombre': item.lista_descuento_nombre,
+                        'oferta_aplicada_nombre': item.oferta_aplicada_nombre,
                         'condicion':      item.condicion_pago,
                         'referencia':     item.referencia,
                     })
@@ -208,11 +244,13 @@ class BuscarProductoAjax(LoginRequiredMixin, View):
             'pk':                  p.pk,
             'codigo':              p.codigo,
             'unidad_medida':       p.get_unidad_medida_display(),
+            'categoria_id':        p.categoria_id,
             'categoria':           p.categoria.nombre if p.categoria else '',
             'tipo':                p.tipo.nombre if p.tipo else '',
             'marca':               p.marca,
             'modelo':              p.modelo,
             'gestiona_variantes':  p.gestiona_variantes,
+            'es_paquete':          p.es_paquete,
             'precio_venta':        float(p.precio_venta) if p.precio_venta is not None else None,
             'moneda':              'ARS',
             # Origen del stock: por defecto, se resuelve el lote más
@@ -225,12 +263,13 @@ class BuscarProductoAjax(LoginRequiredMixin, View):
 
     def _fila_simple(self, p, match_exacto=False):
         fila = self._base(p)
+        stock = p.stock_disponible_paquete if p.es_paquete else p.stock_actual
         fila.update({
             'tipo_resultado': 'simple',
             'combinacion_pk': None,
             'nombre':         p.nombre,
             'variante_desc':  '',
-            'stock_actual':   float(p.stock_actual),
+            'stock_actual':   float(stock),
             'match_exacto':   match_exacto,
         })
         return fila
@@ -317,6 +356,7 @@ class BuscarLoteVentaAjax(LoginRequiredMixin, View):
         return JsonResponse({'results': [{
             'pk':                       p.pk,
             'codigo':                   p.codigo,
+            'categoria_id':             p.categoria_id,
             'nombre':                   f'{p.nombre} — {c.descripcion_legible()}' if c else p.nombre,
             'tipo_resultado':           'variante' if c else 'simple',
             'combinacion_pk':           c.pk if c else None,
@@ -425,8 +465,37 @@ class GuardarBorradorAjax(LoginRequiredMixin, View):
                 errores.append(f'Ítem {idx}: valores numéricos inválidos.')
                 continue
 
+            # ── Etiqueta de balanza: cantidad y precio ya vienen fijados
+            #    en la etiqueta (se pesó una sola vez) — se ignora lo que
+            #    mande el cliente para esos dos campos y se usa siempre
+            #    el valor real guardado en la etiqueta, por las dudas.
+            etiqueta_balanza = None
+            etiqueta_pk = raw.get('etiqueta_balanza_pk')
+            if etiqueta_pk:
+                etiqueta_balanza = EtiquetaBalanza.objects.filter(pk=etiqueta_pk).first()
+                if not etiqueta_balanza:
+                    errores.append(f'Ítem {idx}: la etiqueta de balanza ya no existe.')
+                    continue
+                if etiqueta_balanza.estado != EstadoEtiquetaBalanza.DISPONIBLE:
+                    errores.append(
+                        f'Ítem {idx}: la etiqueta {etiqueta_balanza.codigo} ya no está disponible '
+                        f'({etiqueta_balanza.get_estado_display()}).'
+                    )
+                    continue
+                if etiqueta_balanza.producto_id != producto.pk:
+                    errores.append(f'Ítem {idx}: la etiqueta no corresponde a este producto.')
+                    continue
+                cantidad        = etiqueta_balanza.cantidad
+                precio_unitario = etiqueta_balanza.precio_unitario
+
             if cantidad <= 0:
                 errores.append(f'Ítem {idx}: la cantidad debe ser mayor a 0.')
+                continue
+            if not cantidad_valida_para_unidad(producto.unidad_medida, cantidad):
+                errores.append(
+                    f'Ítem {idx}: "{producto.nombre}" se vende por {producto.get_unidad_medida_display()} '
+                    f'— la cantidad tiene que ser un número entero.'
+                )
                 continue
             if precio_unitario < 0:
                 errores.append(f'Ítem {idx}: el precio no puede ser negativo.')
@@ -459,7 +528,7 @@ class GuardarBorradorAjax(LoginRequiredMixin, View):
                     errores.append(f'Ítem {idx}: el lote escaneado ya no existe.')
                     continue
 
-            ItemVenta.objects.create(
+            item = ItemVenta.objects.create(
                 venta           = venta,
                 producto        = producto,
                 cliente         = cliente,
@@ -471,17 +540,29 @@ class GuardarBorradorAjax(LoginRequiredMixin, View):
                 moneda          = raw.get('moneda', 'ARS'),
                 descuento_pct   = descuento_pct,
                 lista_descuento_nombre = raw.get('lista_descuento_nombre', ''),
+                oferta_aplicada_nombre = raw.get('oferta_aplicada_nombre', ''),
                 condicion_pago  = raw.get('condicion_pago', 'contado'),
                 referencia      = raw.get('referencia', ''),
                 notas           = raw.get('notas', ''),
             )
+            if etiqueta_balanza:
+                etiqueta_balanza.item_venta = item
+                etiqueta_balanza.save(update_fields=['item_venta'])
 
         if errores:
             venta.delete()
             return JsonResponse({'error': ' | '.join(errores)}, status=400)
 
-        # Calcular el total sumando los subtotales de los ítems creados
-        venta.calcular_total()
+        # Descuento global (oferta por monto mínimo de compra) — se
+        # calcula en el carrito sobre el total de todos los ítems, no
+        # por línea (ver Oferta tipo=umbral en productos/models.py).
+        try:
+            descuento_global_pct = Decimal(str(body.get('descuento_global_pct', 0) or 0))
+        except Exception:
+            descuento_global_pct = Decimal('0')
+        venta.aplicar_descuento_global(
+            descuento_global_pct, body.get('oferta_global_nombre', ''),
+        )
 
         return JsonResponse({'ok': True, 'pk': venta.pk, 'numero': venta.numero})
 
@@ -512,6 +593,7 @@ class ConfirmarVentaAjax(LoginRequiredMixin, View):
     medio_pago principal y las líneas de PagoVenta.
     """
 
+    @transaction.atomic
     def post(self, request):
         if not chequear_permiso(request.user, 'crear_ventas'):
             return JsonResponse({'error': 'Sin permiso.'}, status=403)
@@ -537,7 +619,13 @@ class ConfirmarVentaAjax(LoginRequiredMixin, View):
         if medio_pago not in valores_validos:
             return JsonResponse({'error': f'Medio de pago inválido: {medio_pago}'}, status=400)
 
-        venta = get_object_or_404(Venta, pk=venta_pk)
+        # select_for_update(): bloquea esta venta hasta que termine la
+        # transacción. Si llega un segundo clic/request para el mismo
+        # venta_pk mientras el primero todavía está confirmando, se
+        # queda esperando acá y cuando lo destraba ya la va a encontrar
+        # en estado CONFIRMADA (no BORRADOR) — evita descontar stock
+        # y generar pagos/movimientos de caja duplicados.
+        venta = get_object_or_404(Venta.objects.select_for_update(), pk=venta_pk)
 
         if venta.estado != EstadoVenta.BORRADOR:
             return JsonResponse(
@@ -546,10 +634,15 @@ class ConfirmarVentaAjax(LoginRequiredMixin, View):
             )
 
         # ── Validar pagos divididos, si se mandaron ──
+        # La venta siempre está en pesos: si una línea se cobra en una
+        # cuenta que no es en pesos (ej: transferencia en USD), se
+        # convierte con la cotización que mandó el cajero para poder
+        # validar que la suma cubre venta.total. El efectivo físico
+        # siempre es en pesos (ver PagoVenta).
         pagos_normalizados = None
         if pagos_raw:
             pagos_normalizados = []
-            suma = Decimal('0')
+            suma_ars = Decimal('0')
             for p in pagos_raw:
                 medio_p = p.get('medio', '').strip()
                 if medio_p not in valores_validos:
@@ -560,11 +653,28 @@ class ConfirmarVentaAjax(LoginRequiredMixin, View):
                     return JsonResponse({'error': 'Monto de pago inválido.'}, status=400)
                 if monto_p <= 0:
                     continue
-                suma += monto_p
+
+                cotizacion_p = None
+                monto_ars = monto_p
+                if medio_p != MedioPago.EFECTIVO:
+                    cuenta = CuentaCaja.objects.filter(pk=p.get('cuenta_pk'), caja=TipoCaja.GRANDE, activa=True).first()
+                    if cuenta and cuenta.moneda != 'ARS':
+                        try:
+                            cotizacion_p = Decimal(str(p.get('cotizacion', 0)))
+                        except Exception:
+                            cotizacion_p = None
+                        if not cotizacion_p or cotizacion_p <= 0:
+                            return JsonResponse({
+                                'error': f'Ingresá la cotización usada para el pago en {cuenta.get_moneda_display()}.'
+                            }, status=400)
+                        monto_ars = (monto_p * cotizacion_p).quantize(Decimal('0.01'))
+
+                suma_ars += monto_ars
                 pagos_normalizados.append({
                     'medio': medio_p,
                     'monto': monto_p,
                     'cuenta_pk': p.get('cuenta_pk'),
+                    'cotizacion': cotizacion_p,
                 })
 
             if not pagos_normalizados:
@@ -573,10 +683,10 @@ class ConfirmarVentaAjax(LoginRequiredMixin, View):
             # El total recién se recalcula en confirmar(); usamos el total actual del borrador
             total_actual = venta.calcular_total() or venta.total
             venta.refresh_from_db(fields=['total'])
-            diferencia = abs(suma - venta.total)
+            diferencia = abs(suma_ars - venta.total)
             if diferencia > Decimal('0.01'):
                 return JsonResponse({
-                    'error': f'La suma de los pagos (${suma}) no coincide con el total (${venta.total}).'
+                    'error': f'La suma de los pagos (${suma_ars}) no coincide con el total (${venta.total}).'
                 }, status=400)
 
         try:

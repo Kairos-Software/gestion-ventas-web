@@ -46,13 +46,19 @@ def _sumar_stock_item(item):
     - Si el producto gestiona variantes pero el ítem NO tiene combinación
       (caso raro / migración): suma directamente en Producto.stock_actual.
     - Si el producto no gestiona variantes: suma en Producto.stock_actual.
+
+    Relee la fila que va a modificar con select_for_update() antes de
+    sumar: el `producto`/`combinacion` del ítem puede venir de una
+    lectura anterior a tomar el lock, y si dos compras confirman el
+    mismo producto a la vez, ambas partirían del mismo stock_actual
+    "viejo" y una de las dos sumas se perdería.
     """
     producto = item.producto
     if producto is None or not producto.gestiona_stock:
         return
 
     if producto.gestiona_variantes and item.combinacion is not None:
-        combinacion = item.combinacion
+        combinacion = CombinacionVariante.objects.select_for_update().get(pk=item.combinacion_id)
         nuevo_stock = combinacion.stock_actual + item.cantidad
         if nuevo_stock < 0 and not producto.permite_stock_negativo:
             raise ValueError(f'Stock resultaría negativo para combinación {combinacion.descripcion_legible()}: {nuevo_stock}')
@@ -60,6 +66,7 @@ def _sumar_stock_item(item):
         combinacion.save(update_fields=['stock_actual'])
         producto.sincronizar_stock_desde_combinaciones()
     else:
+        producto = Producto.objects.select_for_update().get(pk=producto.pk)
         nuevo_stock = producto.stock_actual + item.cantidad
         if nuevo_stock < 0 and not producto.permite_stock_negativo:
             raise ValueError(f'Stock resultaría negativo para producto {producto.nombre}: {nuevo_stock}')
@@ -70,14 +77,15 @@ def _sumar_stock_item(item):
 def _restar_stock_item(item):
     """
     Resta el stock correspondiente a un ítem al anular/eliminar una compra.
-    Misma lógica de despacho que _sumar_stock_item.
+    Misma lógica de despacho y misma protección con select_for_update()
+    que _sumar_stock_item.
     """
     producto = item.producto
     if producto is None or not producto.gestiona_stock:
         return
 
     if producto.gestiona_variantes and item.combinacion is not None:
-        combinacion = item.combinacion
+        combinacion = CombinacionVariante.objects.select_for_update().get(pk=item.combinacion_id)
         nuevo_stock = combinacion.stock_actual - item.cantidad
         if nuevo_stock < 0 and not producto.permite_stock_negativo:
             raise ValueError(f'Stock resultaría negativo para combinación {combinacion.descripcion_legible()}: {nuevo_stock}')
@@ -85,6 +93,7 @@ def _restar_stock_item(item):
         combinacion.save(update_fields=['stock_actual'])
         producto.sincronizar_stock_desde_combinaciones()
     else:
+        producto = Producto.objects.select_for_update().get(pk=producto.pk)
         nuevo_stock = producto.stock_actual - item.cantidad
         if nuevo_stock < 0 and not producto.permite_stock_negativo:
             raise ValueError(f'Stock resultaría negativo para producto {producto.nombre}: {nuevo_stock}')
@@ -107,7 +116,6 @@ def _resolver_pagos_compra(compra, pagos):
         return None
 
     from caja.models import CuentaCaja, TipoCaja
-    moneda_compra = compra.items.values_list('moneda', flat=True).first() or 'ARS'
     labels_medio = dict(MedioPagoCompra.choices)
 
     pagos_resueltos = []
@@ -120,15 +128,29 @@ def _resolver_pagos_compra(compra, pagos):
             raise ValueError(f'Medio de pago inválido: {medio}')
 
         es_credito = medio == MedioPagoCompra.CREDITO
+        # La compra en sí siempre está en pesos, pero se puede pagar
+        # con una cuenta en cualquier moneda (transferencia/efectivo/
+        # tarjeta en dólares, etc.) — ver cotización más abajo.
         cuenta = CuentaCaja.objects.filter(
             pk=p.get('cuenta_pk'), caja=TipoCaja.GRANDE, activa=True,
-            es_credito=es_credito, moneda=moneda_compra,
+            es_credito=es_credito,
         ).first()
         if not cuenta:
             raise ValueError(
                 f'Elegí una cuenta válida para el pago con '
                 f'{labels_medio.get(medio, medio)}.'
             )
+
+        cotizacion = None
+        if cuenta.moneda != Moneda.ARS:
+            try:
+                cotizacion = Decimal(str(p.get('cotizacion')))
+                if cotizacion <= 0:
+                    raise ValueError
+            except Exception:
+                raise ValueError(
+                    f'Ingresá la cotización usada para el pago en {cuenta.get_moneda_display()}.'
+                )
 
         cuotas = interes_pct = fecha_inicio_debito = None
         if es_credito:
@@ -153,7 +175,7 @@ def _resolver_pagos_compra(compra, pagos):
                 raise ValueError('Fecha de inicio de débito inválida.')
 
         pagos_resueltos.append({
-            'medio': medio, 'monto': monto, 'cuenta': cuenta,
+            'medio': medio, 'monto': monto, 'cuenta': cuenta, 'cotizacion': cotizacion,
             'cuotas': cuotas, 'interes_pct': interes_pct,
             'fecha_inicio_debito': fecha_inicio_debito,
         })
@@ -173,10 +195,11 @@ def _guardar_pagos_compra(compra, pagos_resueltos):
     creados = []
     for p in pagos_resueltos:
         creados.append(PagoCompra.objects.create(
-            compra = compra,
-            medio  = p['medio'],
-            monto  = p['monto'],
-            cuenta = p['cuenta'],
+            compra     = compra,
+            medio      = p['medio'],
+            monto      = p['monto'],
+            cuenta     = p['cuenta'],
+            cotizacion = p['cotizacion'],
         ))
     return creados
 
@@ -191,7 +214,6 @@ def _crear_deudas_desde_pagos(compra, pagos_resueltos, pagos_creados):
         return
 
     from caja.models import Deuda, TipoDeuda
-    moneda_compra = compra.items.values_list('moneda', flat=True).first() or 'ARS'
 
     for p, pago_obj in zip(pagos_resueltos, pagos_creados):
         if p['medio'] != MedioPagoCompra.CREDITO:
@@ -204,7 +226,7 @@ def _crear_deudas_desde_pagos(compra, pagos_resueltos, pagos_creados):
             porcentaje_interes=p['interes_pct'],
             cantidad_cuotas=p['cuotas'],
             fecha_inicio=p['fecha_inicio_debito'],
-            moneda=moneda_compra,
+            moneda=p['cuenta'].moneda,
             descripcion=f'Compra {compra.numero}',
             creado_por=compra.creado_por,
         )
@@ -241,8 +263,8 @@ def _crear_lote_desde_item(item, fecha_compra):
         item_compra=item,
         producto=item.producto,
         combinacion=item.combinacion,
-        cantidad_inicial=int(item.cantidad),
-        cantidad_actual=int(item.cantidad),
+        cantidad_inicial=item.cantidad,
+        cantidad_actual=item.cantidad,
         costo_unitario=item.costo_unitario,
         fecha_vencimiento=item.fecha_vencimiento,
         fecha_compra=fecha_compra,
@@ -332,10 +354,18 @@ class Compra(models.Model):
         - Si estaba ANULADA: borra directo (stock ya fue revertido al anular).
         """
         with transaction.atomic():
+            # select_for_update(): si dos requests intentan eliminar la
+            # misma compra a la vez, el segundo espera acá; si el
+            # primero ya la borró, esta fila ya no existe y no hay nada
+            # más que hacer (evita revertir el stock dos veces).
+            try:
+                estado_actual = Compra.objects.select_for_update().get(pk=self.pk).estado
+            except Compra.DoesNotExist:
+                return
             # Falla rápido: bloquea el borrado si hay cuotas ya confirmadas.
             _anular_deudas_de_compra(self)
             productos_afectados = {item.producto for item in self.items.all() if item.producto_id}
-            if self.estado == EstadoCompra.CONFIRMADA:
+            if estado_actual == EstadoCompra.CONFIRMADA:
                 for item in self.items.select_related('producto', 'combinacion'):
                     _restar_stock_item(item)
             # Borrar el movimiento de caja asociado (si lo hay). OJO: NO usar
@@ -376,7 +406,10 @@ class Compra(models.Model):
                como en Ventas, compras siempre impactó caja grande
                al confirmar.
         """
-        if self.estado != EstadoCompra.BORRADOR:
+        # select_for_update(): ver el comentario equivalente en
+        # Venta.confirmar() — protege contra doble clic/doble llamada
+        # sin depender de que el caller ya haya bloqueado la fila.
+        if Compra.objects.select_for_update().get(pk=self.pk).estado != EstadoCompra.BORRADOR:
             raise ValueError('Solo se pueden confirmar compras en estado Borrador.')
 
         # Resolver la cuenta real de cada línea de pago ANTES de tocar
@@ -412,9 +445,10 @@ class Compra(models.Model):
         Solo disponible desde CONFIRMADA.
         Si el producto fue eliminado (producto=None): se omite silenciosamente.
         """
-        if self.estado == EstadoCompra.ANULADA:
+        estado_actual = Compra.objects.select_for_update().get(pk=self.pk).estado
+        if estado_actual == EstadoCompra.ANULADA:
             raise ValueError('La compra ya está anulada.')
-        if self.estado == EstadoCompra.BORRADOR:
+        if estado_actual == EstadoCompra.BORRADOR:
             raise ValueError('Las compras en borrador no se anulan — simplemente no se confirman.')
 
         # Falla rápido: si alguna cuota de una deuda por crédito ya fue
@@ -445,7 +479,7 @@ class Compra(models.Model):
         Reactiva los lotes asociados.
         Desde BORRADOR se puede editar y volver a confirmar.
         """
-        if self.estado != EstadoCompra.ANULADA:
+        if Compra.objects.select_for_update().get(pk=self.pk).estado != EstadoCompra.ANULADA:
             raise ValueError('Solo se pueden reactivar compras anuladas.')
 
         # Reactivar lotes asociados
@@ -770,19 +804,27 @@ class CompraDocumento(models.Model):
 class PagoCompra(models.Model):
     """
     Una línea de pago de una compra. Una compra puede tener varias
-    líneas (pago dividido entre distintos medios). La suma de montos
-    de todas las líneas debe igualar compra.total al confirmar.
+    líneas (pago dividido entre distintos medios). La suma en pesos
+    de todas las líneas (ver monto_ars) debe igualar compra.total al
+    confirmar — la compra en sí siempre está expresada en pesos.
 
     A diferencia de Ventas, acá no hay turno/caja diaria de por
     medio: TODA línea (incluido efectivo) impacta caja grande al
     confirmar, en su cuenta real — Compras siempre lo hizo así, esto
     solo agrega DE QUÉ cuenta sale la plata en vez de asumir Efectivo.
+    Por eso, a diferencia de Ventas, acá SÍ se puede pagar en efectivo
+    en otra moneda (no depende de un cierre de caja diaria en pesos).
 
     `cuenta`: para medio=CREDITO apunta a la tarjeta (CuentaCaja con
     es_credito=True) usada, no a una cuenta real de caja — esa línea
     no impacta caja al confirmar, genera una Deuda con cuotas (ver
     `deuda` en el related_name de caja.models.Deuda.pago_compra) que
     van impactando de a una a medida que se confirman.
+
+    `cotizacion`: solo se completa cuando `cuenta` NO es en pesos —
+    cuántos pesos vale 1 unidad de esa moneda, según lo acordado en
+    el momento del pago (no hay ninguna fuente automática de tipo de
+    cambio en el sistema).
     """
     compra = models.ForeignKey(Compra, on_delete=models.CASCADE, related_name='pagos')
     medio  = models.CharField(max_length=20, choices=MedioPagoCompra.choices,
@@ -792,6 +834,10 @@ class PagoCompra(models.Model):
         'caja.CuentaCaja', on_delete=models.PROTECT,
         null=True, blank=True, related_name='pagos_compra',
     )
+    cotizacion = models.DecimalField(
+        'Cotización', max_digits=12, decimal_places=4, null=True, blank=True,
+        help_text='Pesos por unidad de la moneda de la cuenta. Solo aplica si la cuenta no es en pesos.',
+    )
 
     class Meta:
         verbose_name        = 'Pago de compra'
@@ -800,6 +846,13 @@ class PagoCompra(models.Model):
 
     def __str__(self):
         return f'{self.compra.numero} — {self.get_medio_display()}: {self.monto}'
+
+    @property
+    def monto_ars(self):
+        """Equivalente en pesos de este pago (monto tal cual si ya es en pesos)."""
+        if self.cotizacion and self.cuenta_id and self.cuenta.moneda != Moneda.ARS:
+            return (self.monto * self.cotizacion).quantize(Decimal('0.01'))
+        return self.monto
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -887,12 +940,14 @@ class LoteCompra(models.Model):
     )
 
     # — Datos del lote —
-    cantidad_inicial = models.PositiveIntegerField(
-        'Cantidad inicial',
+    # DecimalField: un lote de un producto por kg/lt/mt/etc. puede tener
+    # una cantidad fraccionaria (ej: 50.500 kg), no solo enteros.
+    cantidad_inicial = models.DecimalField(
+        'Cantidad inicial', max_digits=12, decimal_places=3,
         help_text='Cantidad de productos en este lote al momento de la compra.'
     )
-    cantidad_actual = models.PositiveIntegerField(
-        'Cantidad actual',
+    cantidad_actual = models.DecimalField(
+        'Cantidad actual', max_digits=12, decimal_places=3,
         help_text='Cantidad disponible actualmente en este lote.'
     )
     costo_unitario = models.DecimalField(
@@ -952,16 +1007,28 @@ class LoteCompra(models.Model):
         return round((self.cantidad_actual / self.cantidad_inicial) * 100, 2)
 
     def descontar_stock(self, cantidad):
-        """Descuenta stock del lote. Lanza ValueError si no hay suficiente."""
-        if cantidad > self.cantidad_actual:
-            raise ValueError(f'No hay suficiente stock en el lote {self.codigo}. Disponible: {self.cantidad_actual}, requerido: {cantidad}')
-        self.cantidad_actual -= cantidad
-        self.save(update_fields=['cantidad_actual', 'fecha_modificacion'])
+        """
+        Descuenta stock del lote. Lanza ValueError si no hay suficiente.
+
+        Vuelve a leer la fila con select_for_update() antes de restar:
+        si el caller ya la bloqueó (ej: _lotes_candidatos), esto es un
+        no-op dentro de la misma transacción; si no, evita que dos
+        transacciones concurrentes lean el mismo cantidad_actual y una
+        de las dos restas se pierda.
+        """
+        lote = LoteCompra.objects.select_for_update().get(pk=self.pk)
+        if cantidad > lote.cantidad_actual:
+            raise ValueError(f'No hay suficiente stock en el lote {lote.codigo}. Disponible: {lote.cantidad_actual}, requerido: {cantidad}')
+        lote.cantidad_actual = lote.cantidad_actual - cantidad
+        lote.save(update_fields=['cantidad_actual', 'fecha_modificacion'])
+        self.cantidad_actual = lote.cantidad_actual
 
     def agregar_stock(self, cantidad):
-        """Agrega stock al lote (para devoluciones, correcciones, etc.)."""
-        self.cantidad_actual += cantidad
-        self.save(update_fields=['cantidad_actual', 'fecha_modificacion'])
+        """Agrega stock al lote (para devoluciones, correcciones, etc.). Misma protección que descontar_stock."""
+        lote = LoteCompra.objects.select_for_update().get(pk=self.pk)
+        lote.cantidad_actual = lote.cantidad_actual + cantidad
+        lote.save(update_fields=['cantidad_actual', 'fecha_modificacion'])
+        self.cantidad_actual = lote.cantidad_actual
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -1006,7 +1073,7 @@ class Perdida(models.Model):
     )
     combinacion_desc_snapshot = models.CharField(max_length=300, blank=True)
 
-    cantidad = models.PositiveIntegerField()
+    cantidad = models.DecimalField(max_digits=12, decimal_places=3)
     costo_unitario_snapshot = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
     motivo = models.CharField(max_length=20, choices=MotivoPerdida.choices)
@@ -1046,7 +1113,7 @@ def registrar_perdida(lote, cantidad, motivo, motivo_detalle='', usuario=None,
     un MovimientoStock (tipo=MERMA) para que quede también en el
     historial de stock que ya existe en Productos.
     """
-    cantidad = int(cantidad)
+    cantidad = Decimal(str(cantidad))
     if cantidad <= 0:
         raise ValueError('La cantidad debe ser mayor a 0.')
     if cantidad > lote.cantidad_actual:
@@ -1125,3 +1192,197 @@ def procesar_lotes_vencidos():
         )
         for lote in vencidos
     ]
+
+
+# ══════════════════════════════════════════════════════════════════
+#  FRACCIONAMIENTO — armar un producto empaquetado a partir de otro
+#  a granel (ej: 50kg de manzana suelta → 50 bolsas de 1kg; una caja
+#  de 1000 cucharitas → 10 paquetes de 100). El producto de origen no
+#  se toca en su historial de compra: esto es una TRANSFORMACIÓN de
+#  stock, no una compra ni una venta.
+# ══════════════════════════════════════════════════════════════════
+
+class Fraccionamiento(models.Model):
+    """
+    Registro de una operación de fraccionamiento. Guarda snapshots de
+    ambos productos por si se eliminan más adelante — igual criterio
+    que Perdida/ConsumoLoteVenta.
+    """
+    producto_origen = models.ForeignKey(
+        Producto, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='fraccionamientos_como_origen',
+    )
+    producto_origen_nombre_snapshot = models.CharField(max_length=255, blank=True)
+
+    producto_destino = models.ForeignKey(
+        Producto, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='fraccionamientos_como_destino',
+    )
+    producto_destino_nombre_snapshot = models.CharField(max_length=255, blank=True)
+
+    # Calculado solo (cantidad_total_origen / cantidad_paquetes), no se
+    # carga a mano — queda de referencia para ver la equivalencia.
+    # Ej: "Paquete x100" armado desde "Paquete x1000" → factor = 0.100.
+    factor_conversion = models.DecimalField(
+        max_digits=12, decimal_places=3,
+        help_text='Cuánto de producto_origen equivale a una unidad de producto_destino (calculado).',
+    )
+    cantidad_paquetes = models.DecimalField(
+        max_digits=12, decimal_places=3,
+        help_text='Cuántas unidades de producto_destino se armaron.',
+    )
+    cantidad_total_origen = models.DecimalField(
+        max_digits=12, decimal_places=3,
+        help_text='Cuánto de producto_origen se usó para armar los paquetes.',
+    )
+    costo_unitario_calculado = models.DecimalField(
+        max_digits=12, decimal_places=2,
+        help_text='Costo de cada unidad de producto_destino, calculado desde el costo real de origen consumido.',
+    )
+
+    lote_destino = models.ForeignKey(
+        LoteCompra, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='fraccionamiento_de_origen',
+        help_text='Lote creado para producto_destino con este fraccionamiento.',
+    )
+
+    notas = models.CharField(max_length=300, blank=True)
+    creado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='fraccionamientos_creados',
+    )
+    fecha = models.DateField(help_text='Fecha en que se armaron los paquetes.')
+    fecha_alta = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name        = 'Fraccionamiento'
+        verbose_name_plural = 'Fraccionamientos'
+        ordering            = ['-fecha', '-fecha_alta']
+
+    def __str__(self):
+        return (
+            f'{self.producto_origen_nombre_snapshot} → '
+            f'{self.cantidad_paquetes} × {self.producto_destino_nombre_snapshot}'
+        )
+
+
+@transaction.atomic
+def fraccionar(producto_origen, producto_destino, cantidad_origen, cantidad_paquetes,
+               usuario=None, notas='', fecha=None):
+    """
+    Descuenta `cantidad_origen` de producto_origen (consumiendo sus
+    lotes activos, más viejo primero) y da de alta un lote nuevo de
+    `cantidad_paquetes` unidades de producto_destino, con el costo
+    calculado automáticamente a partir del costo real consumido de
+    producto_origen.
+
+    Ambos números son concretos y en la unidad de cada producto —
+    nada de "factor de conversión" abstracto: "de esto usé 5, armé
+    50" es como piensa cualquiera que arma paquetes a mano.
+
+    No modifica ninguna Compra existente — es una transformación de
+    stock aparte, con su propio registro (Fraccionamiento) para poder
+    ver después de dónde salió cada paquete armado.
+    """
+    from productos.models import MovimientoStock, TipoMovimiento, cantidad_valida_para_unidad
+
+    if producto_origen.pk == producto_destino.pk:
+        raise ValueError('El producto de origen y el de destino no pueden ser el mismo.')
+    if not producto_origen.gestiona_stock or not producto_destino.gestiona_stock:
+        raise ValueError('Ambos productos deben tener "Gestiona stock" activado.')
+    if producto_origen.gestiona_variantes or producto_destino.gestiona_variantes:
+        raise ValueError('El fraccionamiento no soporta productos con variantes todavía.')
+    if cantidad_origen <= 0:
+        raise ValueError(f'La cantidad de "{producto_origen.nombre}" a usar debe ser mayor a 0.')
+    if cantidad_paquetes <= 0:
+        raise ValueError(f'La cantidad de "{producto_destino.nombre}" a armar debe ser mayor a 0.')
+    if not cantidad_valida_para_unidad(producto_origen.unidad_medida, cantidad_origen):
+        raise ValueError(
+            f'"{producto_origen.nombre}" se maneja por {producto_origen.get_unidad_medida_display()} '
+            f'— la cantidad a usar tiene que ser un número entero.'
+        )
+    if not cantidad_valida_para_unidad(producto_destino.unidad_medida, cantidad_paquetes):
+        raise ValueError(
+            f'"{producto_destino.nombre}" se maneja por {producto_destino.get_unidad_medida_display()} '
+            f'— la cantidad a armar tiene que ser un número entero.'
+        )
+
+    total_a_consumir = cantidad_origen
+    factor_conversion = (cantidad_origen / cantidad_paquetes).quantize(Decimal('0.001'))
+
+    lotes = list(
+        LoteCompra.objects
+        .filter(activo=True, cantidad_actual__gt=0, producto=producto_origen, combinacion__isnull=True)
+        .order_by('fecha_compra', 'fecha_alta')
+    )
+    if not lotes:
+        raise ValueError(f'No hay lotes con stock disponible de "{producto_origen.nombre}".')
+
+    restante = total_a_consumir
+    costo_total_consumido = Decimal('0')
+    for lote in lotes:
+        if restante <= 0:
+            break
+        disponible = lote.cantidad_actual
+        if disponible <= 0:
+            continue
+        tomar = min(restante, disponible)
+        lote.descontar_stock(tomar)
+        costo_total_consumido += tomar * lote.costo_unitario
+        restante -= tomar
+
+    if restante > 0:
+        # Revertir lo ya consumido antes de fallar (transaction.atomic
+        # ya lo haría al propagar la excepción, esto es solo defensivo).
+        raise ValueError(
+            f'Stock insuficiente de "{producto_origen.nombre}" para este fraccionamiento. '
+            f'Faltan {restante} para completar los {cantidad_paquetes} paquete(s).'
+        )
+
+    # ── Movimiento de salida (producto de origen) ────────────────────
+    # Un solo MovimientoStock para todo el consumo: ya quedó desglosado
+    # lote por lote arriba (cada lote.descontar_stock ya se aplicó).
+    MovimientoStock(
+        producto = producto_origen,
+        tipo     = TipoMovimiento.FRACCIONAMIENTO_S,
+        cantidad = total_a_consumir,
+        motivo   = f'Fraccionado en {cantidad_paquetes} unidad(es) de "{producto_destino.nombre}"',
+        usuario  = usuario,
+    ).save()
+
+    costo_unitario_calculado = (costo_total_consumido / cantidad_paquetes).quantize(Decimal('0.01'))
+
+    # ── Lote nuevo + movimiento de entrada (producto de destino) ─────
+    lote_destino = LoteCompra.objects.create(
+        item_compra       = None,
+        producto          = producto_destino,
+        cantidad_inicial  = cantidad_paquetes,
+        cantidad_actual   = cantidad_paquetes,
+        costo_unitario    = costo_unitario_calculado,
+        fecha_vencimiento = None,
+        fecha_compra      = fecha or timezone.now().date(),
+    )
+    MovimientoStock(
+        producto = producto_destino,
+        tipo     = TipoMovimiento.FRACCIONAMIENTO_E,
+        cantidad = cantidad_paquetes,
+        motivo   = f'Armado desde "{producto_origen.nombre}"',
+        usuario  = usuario,
+    ).save()
+
+    producto_destino.actualizar_costo_y_precio()
+
+    return Fraccionamiento.objects.create(
+        producto_origen                  = producto_origen,
+        producto_origen_nombre_snapshot   = producto_origen.nombre,
+        producto_destino                 = producto_destino,
+        producto_destino_nombre_snapshot  = producto_destino.nombre,
+        factor_conversion                 = factor_conversion,
+        cantidad_paquetes                 = cantidad_paquetes,
+        cantidad_total_origen             = total_a_consumir,
+        costo_unitario_calculado          = costo_unitario_calculado,
+        lote_destino                      = lote_destino,
+        notas                             = notas,
+        creado_por                        = usuario,
+        fecha                             = fecha or timezone.now().date(),
+    )

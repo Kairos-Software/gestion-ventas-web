@@ -9,6 +9,7 @@ from . import views_empresa
 from . import views_cuentas
 from . import views_reiniciar
 from . import views_estadisticas
+from . import views_notas
 
 app_name = 'core'
 
@@ -19,7 +20,12 @@ urlpatterns = [
     path('home/', views.home, name='home'),
 
     # ── Estadísticas ────────────────────────────────────────────────
-    path('estadisticas/', views_estadisticas.estadisticas, name='estadisticas'),
+    path('estadisticas/', views_estadisticas.resumen, name='estadisticas'),
+    path('estadisticas/ventas/', views_estadisticas.ventas, name='estadisticas_ventas'),
+    path('estadisticas/compras/', views_estadisticas.compras, name='estadisticas_compras'),
+    path('estadisticas/productos/', views_estadisticas.productos, name='estadisticas_productos'),
+    path('estadisticas/clientes/', views_estadisticas.clientes, name='estadisticas_clientes'),
+    path('estadisticas/caja/', views_estadisticas.caja, name='estadisticas_caja'),
 
     # ── Usuarios — listado y acciones rápidas (modal) ─────────────
     path('usuarios/', views_usuarios.GestionUsuariosView.as_view(), name='gestion_usuarios'),
@@ -66,4 +72,10 @@ urlpatterns = [
 
     # ── Reinicio de datos (solo superusuarios, solo DEBUG=True) ────
     path('reiniciar/', views_reiniciar.ReiniciarSistemaAjax.as_view(), name='reiniciar_sistema'),
+
+    # ── Notas (Anotador — Herramientas) ────────────────────────────
+    path('notas/', views_notas.NotasView.as_view(), name='notas'),
+    path('notas/listar/', views_notas.NotasListarAjax.as_view(), name='notas_listar'),
+    path('notas/acciones/', views_notas.NotaCrearEditarAjax.as_view(), name='nota_acciones'),
+    path('notas/eliminar/', views_notas.NotaEliminarAjax.as_view(), name='nota_eliminar'),
 ]

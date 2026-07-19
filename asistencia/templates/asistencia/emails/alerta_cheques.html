@@ -1,0 +1,30 @@
+{% extends "asistencia/emails/base_email.html" %}
+
+{% block contenido %}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+  <tr style="background-color:#F4F6F9;">
+    <td style="font-size:11px; color:#4A5568; text-transform:uppercase; padding:8px; border-bottom:1px solid #E4EAF0;">Cheque</td>
+    <td style="font-size:11px; color:#4A5568; text-transform:uppercase; padding:8px; border-bottom:1px solid #E4EAF0;">Tipo</td>
+    <td style="font-size:11px; color:#4A5568; text-transform:uppercase; padding:8px; border-bottom:1px solid #E4EAF0; text-align:right;">Vence en</td>
+    <td style="font-size:11px; color:#4A5568; text-transform:uppercase; padding:8px; border-bottom:1px solid #E4EAF0; text-align:right;">Monto</td>
+  </tr>
+  {% for cheque in cheques %}
+  <tr>
+    <td style="font-size:13px; color:#0D1B2A; padding:8px; border-bottom:1px solid #E4EAF0;">{{ cheque.numero }}</td>
+    <td style="font-size:12px; padding:8px; border-bottom:1px solid #E4EAF0;">
+      <span style="display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:bold; color:#ffffff; background-color:{% if cheque.es_a_cobrar %}#10B981{% else %}#EF4444{% endif %};">
+        {% if cheque.es_a_cobrar %}A cobrar{% else %}A pagar{% endif %}
+      </span>
+    </td>
+    <td style="font-size:13px; padding:8px; border-bottom:1px solid #E4EAF0; text-align:right; color:{% if cheque.dias_restantes <= 3 %}#EF4444{% else %}#F59E0B{% endif %}; font-weight:bold;">
+      {% if cheque.dias_restantes < 0 %}Vencido{% elif cheque.dias_restantes == 0 %}Hoy{% else %}{{ cheque.dias_restantes }} día{{ cheque.dias_restantes|pluralize }}{% endif %}
+    </td>
+    <td style="font-size:13px; color:#0D1B2A; padding:8px; border-bottom:1px solid #E4EAF0; text-align:right;">${{ cheque.monto_fmt }}</td>
+  </tr>
+  {% endfor %}
+</table>
+
+<div style="margin-top:20px; padding:12px 16px; background-color:#FFF0E6; border-left:3px solid #F59E0B; border-radius:4px;">
+  <p style="margin:0; font-size:13px; color:#0D1B2A;">Neto: <strong>${{ neto }}</strong> ({{ cheques|length }} cheque{{ cheques|length|pluralize }} entre a cobrar y a pagar).</p>
+</div>
+{% endblock %}

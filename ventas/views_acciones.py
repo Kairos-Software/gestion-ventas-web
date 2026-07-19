@@ -5,8 +5,9 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views import View
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
+from django.db import transaction
 
-from productos.models import Producto, CombinacionVariante
+from productos.models import Producto, CombinacionVariante, cantidad_valida_para_unidad
 from core.models import Cliente
 from compras.models import LoteCompra
 from .models import Venta, EstadoVenta, TipoResolucionLote
@@ -14,6 +15,7 @@ from core.permisos import chequear_permiso
 
 
 class AnularVentaAjax(LoginRequiredMixin, View):
+    @transaction.atomic
     def post(self, request):
         if not chequear_permiso(request.user, 'editar_ventas'):
             return JsonResponse({'error': 'No tenés permiso para anular ventas.'}, status=403)
@@ -23,7 +25,10 @@ class AnularVentaAjax(LoginRequiredMixin, View):
         except (json.JSONDecodeError, AttributeError):
             return JsonResponse({'error': 'JSON inválido.'}, status=400)
 
-        venta = get_object_or_404(Venta, pk=pk)
+        # select_for_update(): un doble clic en "Anular" no debe revertir
+        # el stock dos veces — el segundo request espera acá y encuentra
+        # la venta ya en ANULADA.
+        venta = get_object_or_404(Venta.objects.select_for_update(), pk=pk)
         try:
             # ← CORREGIDO: se pasa el usuario que anula
             venta.anular(anulado_por=request.user)
@@ -39,6 +44,7 @@ class AnularVentaAjax(LoginRequiredMixin, View):
 
 
 class ReactivarVentaAjax(LoginRequiredMixin, View):
+    @transaction.atomic
     def post(self, request):
         if not chequear_permiso(request.user, 'editar_ventas'):
             return JsonResponse({'error': 'No tenés permiso para reactivar ventas.'}, status=403)
@@ -48,7 +54,7 @@ class ReactivarVentaAjax(LoginRequiredMixin, View):
         except (json.JSONDecodeError, AttributeError):
             return JsonResponse({'error': 'JSON inválido.'}, status=400)
 
-        venta = get_object_or_404(Venta, pk=pk)
+        venta = get_object_or_404(Venta.objects.select_for_update(), pk=pk)
         try:
             venta.reactivar()
         except ValueError as e:
@@ -63,6 +69,7 @@ class ReactivarVentaAjax(LoginRequiredMixin, View):
 
 
 class EliminarVentaAjax(LoginRequiredMixin, View):
+    @transaction.atomic
     def post(self, request):
         if not chequear_permiso(request.user, 'eliminar_ventas'):
             return JsonResponse({'error': 'No tenés permiso para eliminar ventas.'}, status=403)
@@ -72,7 +79,7 @@ class EliminarVentaAjax(LoginRequiredMixin, View):
         except (json.JSONDecodeError, AttributeError):
             return JsonResponse({'error': 'JSON inválido.'}, status=400)
 
-        venta = get_object_or_404(Venta, pk=pk)
+        venta = get_object_or_404(Venta.objects.select_for_update(), pk=pk)
 
         if venta.estado == EstadoVenta.BORRADOR:
             return JsonResponse(
@@ -179,6 +186,12 @@ class EditarVentaAjax(LoginRequiredMixin, View):
             if cantidad <= 0:
                 errores.append(f'Ítem {idx}: la cantidad debe ser mayor a 0.')
                 continue
+            if not cantidad_valida_para_unidad(producto.unidad_medida, cantidad):
+                errores.append(
+                    f'Ítem {idx}: "{producto.nombre}" se vende por {producto.get_unidad_medida_display()} '
+                    f'— la cantidad tiene que ser un número entero.'
+                )
+                continue
             if precio_unitario < 0:
                 errores.append(f'Ítem {idx}: el precio no puede ser negativo.')
                 continue
@@ -230,6 +243,7 @@ class EditarVentaAjax(LoginRequiredMixin, View):
                 'moneda':          raw.get('moneda', 'ARS'),
                 'descuento_pct':   descuento_pct,
                 'lista_descuento_nombre': raw.get('lista_descuento_nombre', ''),
+                'oferta_aplicada_nombre': raw.get('oferta_aplicada_nombre', ''),
                 'condicion_pago':  raw.get('condicion_pago', 'contado'),
                 'referencia':      raw.get('referencia', ''),
                 'notas':           raw.get('notas', ''),
@@ -237,6 +251,16 @@ class EditarVentaAjax(LoginRequiredMixin, View):
 
         if errores:
             return JsonResponse({'error': ' | '.join(errores)}, status=400)
+
+        # El editor de historial (historial_editor.js) todavía no tiene UI
+        # de descuento global — si no manda el campo, no se toca el que ya
+        # tenía la venta (ver default None en Venta.editar_completa).
+        descuento_global_pct = None
+        if 'descuento_global_pct' in body:
+            try:
+                descuento_global_pct = Decimal(str(body.get('descuento_global_pct') or 0))
+            except Exception:
+                descuento_global_pct = None
 
         try:
             # ← CORREGIDO: se pasa el usuario que edita
@@ -246,6 +270,8 @@ class EditarVentaAjax(LoginRequiredMixin, View):
                 medio_pago   = medio_pago,
                 items_data   = items_data,
                 editado_por  = request.user,
+                descuento_global_pct = descuento_global_pct,
+                oferta_global_nombre = body.get('oferta_global_nombre'),
             )
         except ValueError as e:
             return JsonResponse({'error': str(e)}, status=400)

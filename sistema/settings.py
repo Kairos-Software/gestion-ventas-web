@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'compras',  # tu aplicación compras
     'ventas',  # tu aplicación ventas
     'caja',  # tu aplicación caja
+    'asistencia',  # reportes, alertas (whatsapp/mail) y a futuro chat con IA
 ]
 
 MIDDLEWARE = [
@@ -137,3 +138,16 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # https://docs.djangoproject.com/en/6.0/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Envío de mail (app 'asistencia': alertas y reportes)
+# Mientras probamos, el remitente es una cuenta personal (Gmail + contraseña
+# de aplicación). El destinatario real se lee de core.DatosEmpresa, no de acá.
+EMAIL_BACKEND = os.environ.get(
+    'EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend'
+)
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)

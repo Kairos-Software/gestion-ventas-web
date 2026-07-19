@@ -237,7 +237,7 @@ class ProductoForm(forms.ModelForm):
             # Marca
             'marca', 'modelo', 'fabricante', 'pais_origen',
             # Unidad
-            'unidad_medida', 'contenido_neto',
+            'unidad_medida', 'unidades_por_presentacion', 'contenido_neto',
             # Dimensiones
             'peso_kg', 'alto_cm', 'ancho_cm', 'profundidad_cm',
             # Precios
@@ -302,6 +302,11 @@ class ProductoForm(forms.ModelForm):
  
             # — Unidad —
             'unidad_medida':  forms.Select(attrs={'class': 'form-select nx-input'}),
+            'unidades_por_presentacion': forms.NumberInput(attrs={
+                'class': 'form-control nx-input',
+                'placeholder': 'Ej: 10',
+                'step': '1', 'min': '1',
+            }),
             'contenido_neto': forms.NumberInput(attrs={
                 'class': 'form-control nx-input',
                 'placeholder': 'Ej: 500',

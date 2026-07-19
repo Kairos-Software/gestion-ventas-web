@@ -211,17 +211,169 @@
             </div>
             <div>
                 <h2>Notificaciones</h2>
-                <p>Controlá qué alertas recibís</p>
+                <p>Reportes y alertas automáticos por mail / WhatsApp — solo el dueño de la cuenta configura esto</p>
             </div>
         </div>
 
-        <div class="config-coming-soon">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
-                <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
-            </svg>
-            <h3>Próximamente</h3>
-            <p>Las preferencias de notificaciones estarán disponibles en una próxima versión.</p>
+        {% if puede_editar_asistencia %}
+        <form id="formAsistencia">
+            {% csrf_token %}
+
+            <div class="config-row" style="gap:1rem;">
+                <div style="flex:1;">
+                    <label class="config-row-label" for="idCanal">Canal de envío</label>
+                    <select class="form-select" id="idCanal">
+                        {% for valor, etiqueta in canales_notificacion %}
+                        <option value="{{ valor }}" {% if preferencia_asistencia.canal == valor %}selected{% endif %}>{{ etiqueta }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div style="flex:1;">
+                    <label class="config-row-label" for="idEmailDestino">Email para recibir estos reportes</label>
+                    <input type="email" class="form-control" id="idEmailDestino" value="{{ preferencia_asistencia.email_destino }}" placeholder="Obligatorio para recibir por email">
+                </div>
+            </div>
+            <div class="config-row" style="padding-top:0;">
+                <div class="config-row-desc">Es privado — podés usar uno distinto al de "Datos de la empresa" (ese es público, el mismo que ven tus clientes en el ticket). Si lo dejás vacío, no se manda nada por email.</div>
+            </div>
+
+            <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                <label class="config-row-label" for="idWhatsappDestino">WhatsApp de destino</label>
+                <input class="form-control" id="idWhatsappDestino" value="{{ preferencia_asistencia.whatsapp_destino }}" placeholder="Ej: 5491122334455 (con código de país)">
+                <div class="config-row-desc" style="margin-top:0.35rem;">El envío por WhatsApp todavía no está activo — de momento este dato solo se guarda.</div>
+            </div>
+
+            <hr style="border-color:var(--border-color); margin:1.1rem 0;">
+
+            <!-- Reporte mensual -->
+            <div class="config-row">
+                <div class="config-row-info">
+                    <div class="config-row-label">Reporte mensual</div>
+                    <div class="config-row-desc">Resumen de ventas, ganancias y caja del mes</div>
+                </div>
+                <div class="config-inline-field">
+                    <span>Se manda el día</span>
+                    <input type="number" min="1" max="28" class="form-control" id="idDiaMes" value="{{ preferencia_asistencia.dia_mes_reporte }}">
+                    <span>de cada mes</span>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="idRecibirReporteMensual" {% if preferencia_asistencia.recibir_reporte_mensual %}checked{% endif %}>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+
+            <!-- Reporte semanal -->
+            <div class="config-row">
+                <div class="config-row-info">
+                    <div class="config-row-label">Reporte semanal</div>
+                    <div class="config-row-desc">Mismo resumen, cada semana</div>
+                </div>
+                <div class="config-inline-field">
+                    <span>Se manda todos los</span>
+                    <select class="form-select" id="idDiaSemana" style="width:120px;">
+                        <option value="0" {% if preferencia_asistencia.dia_semana_reporte == 0 %}selected{% endif %}>Lunes</option>
+                        <option value="1" {% if preferencia_asistencia.dia_semana_reporte == 1 %}selected{% endif %}>Martes</option>
+                        <option value="2" {% if preferencia_asistencia.dia_semana_reporte == 2 %}selected{% endif %}>Miércoles</option>
+                        <option value="3" {% if preferencia_asistencia.dia_semana_reporte == 3 %}selected{% endif %}>Jueves</option>
+                        <option value="4" {% if preferencia_asistencia.dia_semana_reporte == 4 %}selected{% endif %}>Viernes</option>
+                        <option value="5" {% if preferencia_asistencia.dia_semana_reporte == 5 %}selected{% endif %}>Sábado</option>
+                        <option value="6" {% if preferencia_asistencia.dia_semana_reporte == 6 %}selected{% endif %}>Domingo</option>
+                    </select>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="idRecibirReporteSemanal" {% if preferencia_asistencia.recibir_reporte_semanal %}checked{% endif %}>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+
+            <!-- Alerta de vencimiento -->
+            <div class="config-row">
+                <div class="config-row-info">
+                    <div class="config-row-label">Productos por vencer</div>
+                    <div class="config-row-desc">Recomienda liquidar u ofertar antes de la fecha de vencimiento</div>
+                </div>
+                <div class="config-inline-field">
+                    <span>Avisar con</span>
+                    <input type="number" min="1" max="90" class="form-control" id="idDiasVencimiento" value="{{ preferencia_asistencia.dias_aviso_vencimiento }}">
+                    <span>días de anticipación</span>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="idRecibirAlertaVencimiento" {% if preferencia_asistencia.recibir_alerta_vencimiento %}checked{% endif %}>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+
+            <!-- Alerta de deuda -->
+            <div class="config-row">
+                <div class="config-row-info">
+                    <div class="config-row-label">Deudas por pagar</div>
+                    <div class="config-row-desc">Cuotas de tarjeta/préstamo pendientes de pago (esta ventana de días también se usa para los cheques, más abajo)</div>
+                </div>
+                <div class="config-inline-field">
+                    <span>Avisar con</span>
+                    <input type="number" min="1" max="30" class="form-control" id="idDiasDeuda" value="{{ preferencia_asistencia.dias_aviso_deuda }}">
+                    <span>días de anticipación</span>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="idRecibirAlertaDeuda" {% if preferencia_asistencia.recibir_alerta_deuda %}checked{% endif %}>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+
+            <!-- Deuda pagada -->
+            <div class="config-row">
+                <div class="config-row-info">
+                    <div class="config-row-label">Confirmación de pago</div>
+                    <div class="config-row-desc">Avisar cuando se confirma el pago de una cuota</div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="idRecibirDeudaPagada" {% if preferencia_asistencia.recibir_deuda_pagada %}checked{% endif %}>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+
+            <!-- Stock estancado -->
+            <div class="config-row">
+                <div class="config-row-info">
+                    <div class="config-row-label">Stock sin movimiento</div>
+                    <div class="config-row-desc">Productos con stock cargado pero sin ventas — sugerencia de liquidar/rotar</div>
+                </div>
+                <div class="config-inline-field">
+                    <span>Sin ventas hace más de</span>
+                    <input type="number" min="1" max="365" class="form-control" id="idDiasStock" value="{{ preferencia_asistencia.dias_stock_estancado }}">
+                    <span>días</span>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="idRecibirStockEstancado" {% if preferencia_asistencia.recibir_stock_estancado %}checked{% endif %}>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+
+            <!-- Cheques -->
+            <div class="config-row">
+                <div class="config-row-info">
+                    <div class="config-row-label">Cheques por vencer</div>
+                    <div class="config-row-desc">A cobrar y a pagar, con la misma ventana de días de "Deudas por pagar" (arriba)</div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="idRecibirAlertaCheques" {% if preferencia_asistencia.recibir_alerta_cheques %}checked{% endif %}>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+
+            <div class="config-row" style="justify-content:flex-end;">
+                <button type="submit" class="btn btn-sm" style="background:var(--brand-orange); color:white;">Guardar cambios</button>
+            </div>
+            <div id="asistenciaMsg" class="config-empresa-msg"></div>
+        </form>
+        {% else %}
+        <div class="config-row">
+            <div class="config-row-info">
+                <div class="config-row-label">Configuración restringida</div>
+                <div class="config-row-desc">Solo el dueño de la cuenta puede ver y modificar estas preferencias.</div>
+            </div>
         </div>
+        {% endif %}
     </div>
 
     <!-- ── Sistema ── -->
@@ -337,6 +489,9 @@
     window.CONFIG_CUENTAS_URLS = {
         guardar: "{% url 'core:cuenta_guardar' %}",
         baja:    "{% url 'core:cuenta_baja' %}",
+    };
+    window.CONFIG_ASISTENCIA_URLS = {
+        guardar: "{% url 'asistencia:preferencias_guardar' %}",
     };
 </script>
 <script src="{% static 'core/js/configuracion.js' %}"></script>

@@ -195,9 +195,13 @@ function _t58Item(item) {
     const desc = item.descuento_pct && item.descuento_pct !== '0.00'
         ? ` -${item.descuento_pct}%`
         : '';
+    const detalle = [
+        item.marca ? _esc(item.marca) : '',
+        item.color ? _esc(item.color) : '',
+    ].filter(Boolean).join(' · ');
     return `<div class="t58-item">
         <div class="t58-item-nombre">${_esc(item.nombre)}</div>
-        ${item.color ? `<div class="t58-item-detalle">${_esc(item.color)}</div>` : ''}
+        ${detalle ? `<div class="t58-item-detalle">${detalle}</div>` : ''}
         <div class="t58-item-nums">
             <span>${_esc(String(item.cantidad))}x ${_fmtNum(item.precio_unitario)}${desc}</span>
             <span><strong>${_fmtNum(item.subtotal)}</strong></span>

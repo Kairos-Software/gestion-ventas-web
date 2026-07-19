@@ -1,6 +1,6 @@
 import json
 import os
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import TemplateView
 from django.views import View
@@ -12,6 +12,7 @@ from .models import (
     Producto, ProductoImagen,
     Variante, OpcionVariante, CombinacionVariante,
     CategoriaProducto, TipoProducto, ListaDescuento,
+    cantidad_valida_para_unidad,
 )
 from .forms import (
     ProductoForm, ProductoImagenForm,
@@ -44,6 +45,7 @@ def _serializar_producto(p):
         'pais_origen':           p.pais_origen,
         'proveedor':             p.proveedor_id,
         'unidad_medida':         p.unidad_medida,
+        'unidades_por_presentacion': p.unidades_por_presentacion or '',
         'contenido_neto':        str(p.contenido_neto) if p.contenido_neto else '',
         'peso_kg':               str(p.peso_kg) if p.peso_kg else '',
         'alto_cm':               str(p.alto_cm) if p.alto_cm else '',
@@ -381,22 +383,22 @@ class ProductoCrearEditarAjax(LoginRequiredMixin, View):
             # pueden no estar en los fields del ProductoForm (se ignoran en silence).
             update_fields = []
             try:
-                stock_minimo = int(body.get('stock_minimo') or 0)
+                stock_minimo = Decimal(str(body.get('stock_minimo') or 0))
                 if stock_minimo < 0:
-                    stock_minimo = 0
+                    stock_minimo = Decimal('0')
                 producto.stock_minimo = stock_minimo
                 update_fields.append('stock_minimo')
-            except (TypeError, ValueError):
+            except (TypeError, ValueError, InvalidOperation):
                 pass
 
             raw_maximo = body.get('stock_maximo')
             if raw_maximo not in (None, '', 'null'):
                 try:
-                    stock_maximo = int(raw_maximo)
+                    stock_maximo = Decimal(str(raw_maximo))
                     if stock_maximo >= 0:
                         producto.stock_maximo = stock_maximo
                         update_fields.append('stock_maximo')
-                except (TypeError, ValueError):
+                except (TypeError, ValueError, InvalidOperation):
                     pass
             else:
                 producto.stock_maximo = None
@@ -752,12 +754,19 @@ class CombinacionVarianteAccionesAjax(LoginRequiredMixin, View):
             return JsonResponse({'ok': False, 'errors': errores}, status=400)
 
         try:
-            stock_actual = int(body.get('stock_actual', 0))
+            stock_actual = Decimal(str(body.get('stock_actual', 0)))
             if stock_actual < 0:
                 raise ValueError
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, InvalidOperation):
             return JsonResponse({
                 'ok': False, 'errors': {'stock_actual': ['La cantidad no puede ser negativa.']},
+            }, status=400)
+
+        if not cantidad_valida_para_unidad(producto.unidad_medida, stock_actual):
+            return JsonResponse({
+                'ok': False, 'errors': {'stock_actual': [
+                    f'"{producto.nombre}" se maneja por {producto.get_unidad_medida_display()} — tiene que ser un número entero.'
+                ]},
             }, status=400)
 
         combinacion = CombinacionVariante(
@@ -806,14 +815,21 @@ class CombinacionVarianteStockAjax(LoginRequiredMixin, View):
         combinacion = get_object_or_404(CombinacionVariante, pk=pk)
 
         try:
-            nuevo_stock = int(body.get('stock_actual'))
+            nuevo_stock = Decimal(str(body.get('stock_actual')))
             if nuevo_stock < 0 and not combinacion.producto.permite_stock_negativo:
                 raise ValueError('Stock negativo no permitido para este producto.')
-        except (TypeError, ValueError) as e:
+        except (TypeError, ValueError, InvalidOperation) as e:
             if 'negativo' in str(e):
                 return JsonResponse({'ok': False, 'error': str(e)}, status=400)
             return JsonResponse({
-                'ok': False, 'error': 'La cantidad debe ser un número entero válido.'
+                'ok': False, 'error': 'La cantidad debe ser un número válido.'
+            }, status=400)
+
+        if not cantidad_valida_para_unidad(combinacion.producto.unidad_medida, nuevo_stock):
+            return JsonResponse({
+                'ok': False,
+                'error': f'"{combinacion.producto.nombre}" se maneja por '
+                         f'{combinacion.producto.get_unidad_medida_display()} — tiene que ser un número entero.',
             }, status=400)
 
         stock_anterior   = combinacion.stock_actual

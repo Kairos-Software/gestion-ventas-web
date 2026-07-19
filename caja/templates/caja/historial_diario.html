@@ -90,10 +90,17 @@ Historial Diario
         <span class="vta-card-title">{{ dia.fecha|date:"l d/m/Y"|capfirst }}</span>
         <span class="ht-badge ht-badge-cerrado">{{ dia.cantidad_turnos }} turno{{ dia.cantidad_turnos|pluralize }}</span>
         {% if dia.hay_alerta %}
-        <span class="ht-badge" style="background:rgba(239,68,68,0.12); color:var(--danger); margin-left:auto">
+        <span class="ht-badge" style="background:rgba(239,68,68,0.12); color:var(--danger)">
             Diferencia sin revisar
         </span>
         {% endif %}
+        <a href="{% url 'ventas:historial_ventas' %}?dia={{ dia.fecha|date:'Y-m-d' }}" class="vta-btn vta-btn-ghost" style="margin-left:auto;padding:0.35rem 0.8rem;font-size:0.82rem;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                <path d="M1.5 8C3 4.5 5.5 2.5 8 2.5S13 4.5 14.5 8C13 11.5 10.5 13.5 8 13.5S3 11.5 1.5 8Z" stroke="currentColor" stroke-width="1.3" />
+                <circle cx="8" cy="8" r="2.2" stroke="currentColor" stroke-width="1.3" />
+            </svg>
+            Ver ventas de este día
+        </a>
     </div>
     <div class="vta-card-body">
 
@@ -196,6 +203,15 @@ Historial Diario
                             <strong>{{ turno.cerrado_por.get_full_name|default:turno.cerrado_por.username }}</strong>
                         </span>
                         {% endif %}
+                    </div>
+                    <div class="ht-footer" style="margin-top:0.5rem">
+                        <a href="{% url 'ventas:historial_ventas' %}?turno={{ turno.pk }}" class="vta-btn vta-btn-ghost" style="padding:0.3rem 0.7rem;font-size:0.78rem;">
+                            <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                                <path d="M1.5 8C3 4.5 5.5 2.5 8 2.5S13 4.5 14.5 8C13 11.5 10.5 13.5 8 13.5S3 11.5 1.5 8Z" stroke="currentColor" stroke-width="1.3" />
+                                <circle cx="8" cy="8" r="2.2" stroke="currentColor" stroke-width="1.3" />
+                            </svg>
+                            Ver ventas de este turno
+                        </a>
                     </div>
                 </div>
             </details>

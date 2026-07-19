@@ -78,6 +78,31 @@ document.querySelectorAll('.prd-precio-toggle-btn').forEach(btn => {
 });
 
 // ════════════════════════════════════════════════════════════════════
+//  UNIDAD DE MEDIDA — el campo "¿trae piezas sueltas adentro?" no tiene
+//  sentido solo cuando la unidad ya es "Unidad" (la pieza atómica en sí
+//  misma). Para el resto (Kg, Litro, Caja, Pack, etc.) puede aplicar —
+//  ej: una bolsa de 25 kg de harina que trae 25 bolsitas de 1 kg cada
+//  una — así que se muestra. Si no aplica, el formulario vuelve a
+//  mostrar solo "Contenido de cada pieza", como siempre.
+// ════════════════════════════════════════════════════════════════════
+const UNIDADES_SIN_PIEZAS = ['unidad'];
+
+function _actualizarCampoUnidadesPorPresentacion() {
+    const unidad = document.getElementById('f_unidad_medida').value;
+    const wrap   = document.getElementById('wrap_unidades_por_presentacion');
+    const grid   = document.getElementById('wrap_grid_unidad');
+    const aplica = !UNIDADES_SIN_PIEZAS.includes(unidad);
+
+    wrap.style.display = aplica ? '' : 'none';
+    grid.classList.toggle('prd-form-grid--3', aplica);
+    grid.classList.toggle('prd-form-grid--2', !aplica);
+    if (!aplica) document.getElementById('f_unidades_por_presentacion').value = '';
+}
+
+document.getElementById('f_unidad_medida').addEventListener('change', _actualizarCampoUnidadesPorPresentacion);
+_actualizarCampoUnidadesPorPresentacion();
+
+// ════════════════════════════════════════════════════════════════════
 //  NUEVO PRODUCTO
 // ════════════════════════════════════════════════════════════════════
 document.getElementById('btnNuevoProducto').addEventListener('click', () => {
@@ -95,7 +120,7 @@ function limpiarFormProducto() {
     [
         'f_codigo','f_sku','f_codigo_barras','f_nombre','f_nombre_corto',
         'f_marca','f_modelo','f_fabricante','f_pais_origen',
-        'f_contenido_neto','f_descripcion','f_descripcion_publica',
+        'f_unidades_por_presentacion','f_contenido_neto','f_descripcion','f_descripcion_publica',
         'f_precio_venta','f_porcentaje_ganancia',
         'f_notas','f_tags',
         'f_peso_kg','f_alto_cm','f_ancho_cm','f_profundidad_cm',
@@ -106,6 +131,7 @@ function limpiarFormProducto() {
     document.getElementById('f_estado').value           = 'activo';
     document.getElementById('f_categoria').value        = '';
     document.getElementById('f_tipo').value             = '';
+    _actualizarCampoUnidadesPorPresentacion();
 
     ['f_destacado','f_requiere_refrigeracion','f_es_fragil',
      'f_es_peligroso','f_gestiona_variantes',
@@ -162,6 +188,8 @@ async function abrirEditar(pk) {
     document.getElementById('f_fabricante').value              = data.fabricante || '';
     document.getElementById('f_pais_origen').value             = data.pais_origen || '';
     document.getElementById('f_unidad_medida').value           = data.unidad_medida || 'unidad';
+    document.getElementById('f_unidades_por_presentacion').value = data.unidades_por_presentacion || '';
+    _actualizarCampoUnidadesPorPresentacion();
     document.getElementById('f_contenido_neto').value          = data.contenido_neto || '';
     document.getElementById('f_descripcion').value             = data.descripcion || '';
     document.getElementById('f_descripcion_publica').value     = data.descripcion_publica || '';
@@ -238,6 +266,7 @@ async function guardarProducto() {
         fabricante:             document.getElementById('f_fabricante').value,
         pais_origen:            document.getElementById('f_pais_origen').value,
         unidad_medida:          document.getElementById('f_unidad_medida').value,
+        unidades_por_presentacion: document.getElementById('f_unidades_por_presentacion').value || null,
         contenido_neto:         document.getElementById('f_contenido_neto').value || null,
         peso_kg:                document.getElementById('f_peso_kg').value || null,
         alto_cm:                document.getElementById('f_alto_cm').value || null,
@@ -257,7 +286,7 @@ async function guardarProducto() {
         es_perecedero:          document.getElementById('f_es_perecedero').checked,
         gestiona_stock:         document.getElementById('f_gestiona_stock').checked,
         permite_stock_negativo: document.getElementById('f_permite_stock_negativo').checked,
-        stock_minimo:           parseInt(document.getElementById('f_stock_minimo').value) || 0,
+        stock_minimo:           parseFloat(document.getElementById('f_stock_minimo').value) || 0,
         stock_maximo:           document.getElementById('f_stock_maximo') ? (document.getElementById('f_stock_maximo').value || null) : null,
         posicion_deposito:      document.getElementById('f_posicion_deposito').value,
     };
@@ -1237,7 +1266,7 @@ async function guardarCombinacion() {
         opciones: opcionesResult.opciones,
         codigo_barras: document.getElementById('f_combinacion_codigo_barras').value.trim(),
         sku_variante: document.getElementById('f_combinacion_sku').value.trim(),
-        stock_actual: parseInt(document.getElementById('f_combinacion_stock').value, 10) || 0,
+        stock_actual: parseFloat(document.getElementById('f_combinacion_stock').value) || 0,
     };
 
     if (pk) {

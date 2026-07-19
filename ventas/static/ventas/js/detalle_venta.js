@@ -32,13 +32,54 @@ function _pagoMediosOpts(seleccionado) {
     ).join('');
 }
 
-/** Cuentas reales disponibles en la moneda de la venta (excluye
- *  efectivo — ese se resuelve solo — y tarjetas de crédito). */
+function _cuentaPorId(pk) {
+    return (VDT.cuentas || []).find(c => String(c.pk) === String(pk));
+}
+
+/** Cuentas reales disponibles (excluye efectivo — ese se resuelve
+ *  solo en pesos — y tarjetas de crédito). La venta siempre es en
+ *  pesos, pero el cobro puede ir a una cuenta en cualquier moneda
+ *  (Argentina acepta cualquier moneda si ambas partes acuerdan) —
+ *  ver cotización más abajo para la conversión. */
 function _pagoCuentaOpts(seleccionada) {
-    const disponibles = (VDT.cuentas || []).filter(c => c.moneda === VDT.ventaMoneda);
+    const disponibles = VDT.cuentas || [];
     return '<option value="">— Elegí cuenta —</option>' + disponibles.map(c =>
-        `<option value="${c.pk}" ${String(c.pk) === String(seleccionada) ? 'selected' : ''}>${c.nombre}</option>`
+        `<option value="${c.pk}" ${String(c.pk) === String(seleccionada) ? 'selected' : ''}>${c.nombre} (${c.moneda})</option>`
     ).join('');
+}
+
+/** Input de cotización — solo aparece si la cuenta elegida no es en
+ *  pesos. No hay ninguna fuente automática de tipo de cambio: lo
+ *  carga el vendedor con lo que acordó en el momento del cobro. */
+function _cotizacionInputHTML(l) {
+    if (l.medio === 'efectivo') return '';
+    const cuenta = _cuentaPorId(l.cuenta);
+    if (!cuenta || cuenta.moneda === 'ARS') return '';
+    return `
+        <input type="number" class="vdt-pago-cotizacion" min="0.0001" step="0.0001"
+               placeholder="Cotización ($ por 1 ${cuenta.moneda})"
+               value="${l.cotizacion || ''}"
+               data-campo="cotizacion" data-id="${l.id}">`;
+}
+
+/** "≈ $ X" — cuánto vale en pesos esta línea, para que el vendedor
+ *  vea la conversión mientras escribe. Vacío si no hace falta. */
+function _equivalenteArsHTML(l) {
+    if (l.medio === 'efectivo') return '';
+    const cuenta = _cuentaPorId(l.cuenta);
+    if (!cuenta || cuenta.moneda === 'ARS' || !l.cotizacion) return '';
+    return `<span class="vdt-pago-equivalente">≈ ${_fmtARS(_montoArsLinea(l))}</span>`;
+}
+
+/** Equivalente en pesos de una línea de pago — igual criterio que
+ *  PagoVenta.monto_ars en el backend. */
+function _montoArsLinea(l) {
+    if (l.medio === 'efectivo') return l.monto || 0;
+    const cuenta = _cuentaPorId(l.cuenta);
+    if (cuenta && cuenta.moneda !== 'ARS') {
+        return (l.monto || 0) * (l.cotizacion || 0);
+    }
+    return l.monto || 0;
 }
 
 function _renderLineas() {
@@ -71,9 +112,13 @@ function _renderLineas() {
             </button>
         </div>
         ${l.medio !== 'efectivo' ? `
-        <select class="vdt-pago-cuenta" data-campo="cuenta" data-id="${l.id}">
-            ${_pagoCuentaOpts(l.cuenta)}
-        </select>` : ''}
+        <div class="vdt-pago-linea-cuenta">
+            <select class="vdt-pago-cuenta" data-campo="cuenta" data-id="${l.id}">
+                ${_pagoCuentaOpts(l.cuenta)}
+            </select>
+            ${_cotizacionInputHTML(l)}
+            ${_equivalenteArsHTML(l)}
+        </div>` : ''}
     </div>`).join('');
 
     contenedor.querySelectorAll('[data-campo]').forEach(el => {
@@ -90,8 +135,14 @@ function _renderLineas() {
                 return;
             }
             if (campo === 'cuenta') {
-                linea.cuenta = el.value;
-                _actualizarResumen();
+                linea.cuenta     = el.value;
+                linea.cotizacion = ''; // cambiar de cuenta resetea la cotización cargada
+                _renderLineas();
+                return;
+            }
+            if (campo === 'cotizacion') {
+                linea.cotizacion = parseFloat(el.value) || 0;
+                _renderLineas();
                 return;
             }
             linea[campo] = campo === 'monto' ? (parseFloat(el.value) || 0) : el.value;
@@ -102,6 +153,13 @@ function _renderLineas() {
                 const id    = parseInt(el.dataset.id, 10);
                 const linea = pagoState.lineas.find(l => l.id === id);
                 if (linea) { linea.monto = parseFloat(el.value) || 0; _actualizarResumen(); }
+            });
+        }
+        if (el.dataset.campo === 'cotizacion') {
+            el.addEventListener('input', () => {
+                const id    = parseInt(el.dataset.id, 10);
+                const linea = pagoState.lineas.find(l => l.id === id);
+                if (linea) { linea.cotizacion = parseFloat(el.value) || 0; _actualizarResumen(); }
             });
         }
     });
@@ -118,7 +176,7 @@ function _renderLineas() {
 }
 
 function _actualizarResumen() {
-    const asignado  = pagoState.lineas.reduce((s, l) => s + (l.monto || 0), 0);
+    const asignado  = pagoState.lineas.reduce((s, l) => s + _montoArsLinea(l), 0);
     const pendiente = pagoState.total - asignado;
     const exceso    = asignado - pagoState.total;
 
@@ -157,7 +215,7 @@ function _actualizarResumen() {
 }
 
 function _agregarLinea() {
-    const asignado = pagoState.lineas.reduce((s, l) => s + (l.monto || 0), 0);
+    const asignado = pagoState.lineas.reduce((s, l) => s + _montoArsLinea(l), 0);
     const restante = Math.max(0, pagoState.total - asignado);
     pagoState.lineas.push({
         id:    pagoState.nextId++,
@@ -168,20 +226,27 @@ function _agregarLinea() {
 }
 
 function _pagoEsCubierto() {
-    const asignado = pagoState.lineas.reduce((s, l) => s + (l.monto || 0), 0);
+    const asignado = pagoState.lineas.reduce((s, l) => s + _montoArsLinea(l), 0);
     return Math.abs(pagoState.total - asignado) < 0.005 && pagoState.lineas.length > 0;
 }
 
-/** Toda línea que no sea efectivo necesita una cuenta elegida. */
+/** Toda línea que no sea efectivo necesita una cuenta elegida, y si
+ *  esa cuenta no es en pesos, también la cotización usada. */
 function _pagoFaltanCuentas() {
-    return pagoState.lineas.some(l => l.medio !== 'efectivo' && !l.cuenta);
+    return pagoState.lineas.some(l => {
+        if (l.medio === 'efectivo') return false;
+        if (!l.cuenta) return true;
+        const cuenta = _cuentaPorId(l.cuenta);
+        return !!cuenta && cuenta.moneda !== 'ARS' && !(l.cotizacion > 0);
+    });
 }
 
 function _getPagoPayload() {
     const pagos = pagoState.lineas.map(l => ({
-        medio: l.medio,
-        monto: l.monto,
-        cuenta_pk: l.medio === 'efectivo' ? null : (l.cuenta || null),
+        medio:      l.medio,
+        monto:      l.monto,
+        cuenta_pk:  l.medio === 'efectivo' ? null : (l.cuenta || null),
+        cotizacion: l.medio === 'efectivo' ? null : (l.cotizacion || null),
     }));
     const principal = pagos.length ? pagos[0].medio : 'efectivo';
     return { medio_pago: principal, pagos };
@@ -228,7 +293,7 @@ if (VDT.esBorrador) {
             }
 
             if (!_pagoEsCubierto()) {
-                const asignado  = pagoState.lineas.reduce((s, l) => s + (l.monto || 0), 0);
+                const asignado  = pagoState.lineas.reduce((s, l) => s + _montoArsLinea(l), 0);
                 const pendiente = pagoState.total - asignado;
                 if (!pagoState.lineas.length) {
                     vdtToast('Medio de pago requerido', 'Agregá al menos un medio de pago.');
@@ -239,7 +304,7 @@ if (VDT.esBorrador) {
             }
 
             if (_pagoFaltanCuentas()) {
-                vdtToast('Cuenta requerida', 'Elegí a qué cuenta se acredita cada pago que no sea efectivo.');
+                vdtToast('Cuenta requerida', 'Elegí a qué cuenta se acredita cada pago que no sea efectivo, y la cotización si es en otra moneda.');
                 return;
             }
 

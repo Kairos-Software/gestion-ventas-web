@@ -1,0 +1,26 @@
+{% load static %}
+<!-- ══════════ FILTROS DE FECHA (2 formularios separados a propósito,
+     para que los botones rápidos nunca arrastren fechas manuales viejas) ══════════ -->
+<div class="est-filtros">
+    <form method="get" class="est-filtros-presets">
+        <div class="btn-group">
+            <button type="submit" name="preset" value="hoy" class="btn btn-sm {% if preset == 'hoy' %}btn-primary{% else %}btn-secondary{% endif %}">Hoy</button>
+            <button type="submit" name="preset" value="semana" class="btn btn-sm {% if preset == 'semana' %}btn-primary{% else %}btn-secondary{% endif %}">Últimos 7 días</button>
+            <button type="submit" name="preset" value="mes_actual" class="btn btn-sm {% if preset == 'mes_actual' %}btn-primary{% else %}btn-secondary{% endif %}">Este mes</button>
+            <button type="submit" name="preset" value="mes_anterior" class="btn btn-sm {% if preset == 'mes_anterior' %}btn-primary{% else %}btn-secondary{% endif %}">Mes anterior</button>
+            <button type="submit" name="preset" value="anio" class="btn btn-sm {% if preset == 'anio' %}btn-primary{% else %}btn-secondary{% endif %}">Este año</button>
+        </div>
+    </form>
+
+    <form method="get" class="est-filtros-custom">
+        <input type="hidden" name="preset" value="personalizado">
+        <input type="date" name="desde" value="{{ desde|date:'Y-m-d' }}" class="form-control form-control-sm">
+        <span class="text-muted">a</span>
+        <input type="date" name="hasta" value="{{ hasta|date:'Y-m-d' }}" class="form-control form-control-sm">
+        <button type="submit" class="btn btn-sm {% if preset == 'personalizado' %}btn-primary{% else %}btn-secondary{% endif %}">Aplicar rango</button>
+    </form>
+</div>
+
+<p class="text-muted" style="font-size:.8125rem; margin:-.75rem 0 1.25rem;">
+    Mostrando del <strong>{{ desde|date:'d/m/Y' }}</strong> al <strong>{{ hasta|date:'d/m/Y' }}</strong>
+</p>

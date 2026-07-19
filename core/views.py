@@ -7,11 +7,12 @@ from django.utils import timezone
 
 from .models import DatosEmpresa, Cliente, Usuario
 from .permisos import chequear_permiso
-from .services_estadisticas import resumen_ganancia
+from .services_estadisticas.ventas import resumen_ganancia
 
 from caja.models import CuentaCaja, TipoCaja, CUENTA_EFECTIVO_DEFAULT_NOMBRE, TurnoCaja
 from compras.models import LoteCompra
 from productos.models import Moneda, Producto
+from asistencia.models import CanalNotificacion, PreferenciaAsistencia
 
 
 class CustomLoginView(LoginView):
@@ -96,4 +97,11 @@ def configuracion(request):
         'cuentas':              cuentas,
         'puede_editar_cuentas': chequear_permiso(request.user, 'editar_cuentas'),
         'monedas':              Moneda.choices,
+        # 'gestionar_notificaciones' está en PERMISOS_RESTRINGIDOS: solo
+        # un superusuario puede otorgarlo (ver filtrar_permisos_otorgables),
+        # pero una vez otorgado a alguien —típicamente el dueño del
+        # negocio— esa persona puede configurar esto sin ser superusuario.
+        'puede_editar_asistencia': chequear_permiso(request.user, 'gestionar_notificaciones'),
+        'preferencia_asistencia': PreferenciaAsistencia.get_solo(),
+        'canales_notificacion':   CanalNotificacion.choices,
     })

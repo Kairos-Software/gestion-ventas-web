@@ -532,6 +532,18 @@ class TurnoCaja(models.Model):
         verbose_name = 'Turno de caja'
         verbose_name_plural = 'Turnos de caja'
         ordering = ['-fecha_apertura']
+        constraints = [
+            # Garantiza a nivel de base de datos que nunca haya dos
+            # turnos ABIERTOS a la vez, incluso si dos requests de
+            # "abrir turno" pasan el chequeo de turno_actual() casi al
+            # mismo tiempo (índice único parcial: solo restringe filas
+            # con estado=ABIERTO, no afecta a los turnos cerrados).
+            models.UniqueConstraint(
+                fields=['estado'],
+                condition=Q(estado=EstadoTurno.ABIERTO),
+                name='unico_turno_abierto',
+            ),
+        ]
     
     def __str__(self):
         return f'Turno #{self.numero} - {self.fecha_apertura:%d/%m/%Y %H:%M}'
@@ -630,16 +642,22 @@ class TurnoCaja(models.Model):
         el desglose por caja es puramente declarativo/informativo (ver
         CajaFisicaTurno).
         """
-        from django.db import transaction
+        from django.db import transaction, IntegrityError
 
         cajas = _normalizar_cajas(cajas)
         monto_inicial_total = sum(Decimal(str(c['monto'])) for c in cajas)
 
         with transaction.atomic():
-            # Verificar que no haya un turno abierto
+            # Verificar que no haya un turno abierto (mensaje de error
+            # rápido en el caso común). La garantía real contra dos
+            # aperturas simultáneas es el índice único parcial
+            # 'unico_turno_abierto' en Meta.constraints: si dos
+            # requests pasan este chequeo casi al mismo tiempo, el
+            # segundo turno.save() de abajo va a fallar con
+            # IntegrityError en vez de crear un segundo turno abierto.
             if cls.turno_actual():
                 raise ValueError('Ya existe un turno abierto')
-            
+
             # Crear el turno
             turno = cls(
                 numero=cls.obtener_siguiente_numero(),
@@ -647,7 +665,10 @@ class TurnoCaja(models.Model):
                 estado=EstadoTurno.ABIERTO,
                 abierto_por=usuario,
             )
-            turno.save()
+            try:
+                turno.save()
+            except IntegrityError:
+                raise ValueError('Ya existe un turno abierto')
 
             CajaFisicaTurno.objects.bulk_create([
                 CajaFisicaTurno(
@@ -760,6 +781,19 @@ class TurnoCaja(models.Model):
         monto_final_efectivo = sum(Decimal(str(c['monto'])) for c in cajas)
 
         with transaction.atomic():
+            # select_for_update() + re-chequeo de estado: si dos cierres
+            # del mismo turno llegan casi al mismo tiempo (doble clic),
+            # el segundo espera acá bloqueado y, al destrabarse, ya
+            # encuentra el turno CERRADO por el primero — evita
+            # duplicar el movimiento de "Cierre de turno - Efectivo" y
+            # pisar diferencia_efectivo/totales_cierre dos veces.
+            turno_bloqueado = TurnoCaja.objects.select_for_update().get(pk=self.pk)
+            if turno_bloqueado.estado != EstadoTurno.ABIERTO:
+                raise ValueError(
+                    f'El turno #{turno_bloqueado.numero} ya está '
+                    f'{turno_bloqueado.get_estado_display().lower()}.'
+                )
+
             # Calcular totales por medio de pago (en caliente, todavía
             # no está cerrado el turno en este punto)
             totales = self.calcular_totales_por_medio_pago()
@@ -1238,7 +1272,9 @@ class CuotaDeuda(models.Model):
 
     @transaction.atomic
     def confirmar(self, cuenta_pk, usuario):
-        if self.estado != EstadoCuota.PENDIENTE:
+        # select_for_update(): mismo guard que en Venta/Compra.confirmar()
+        # — un doble clic en "Pagar cuota" no debe generar dos egresos.
+        if CuotaDeuda.objects.select_for_update().get(pk=self.pk).estado != EstadoCuota.PENDIENTE:
             raise ValueError('Solo se pueden confirmar cuotas pendientes.')
         if not self.habilitada:
             fecha_habilitacion = self.fecha_vencimiento - timedelta(days=DIAS_HABILITACION_CUOTA)
@@ -1449,7 +1485,9 @@ class Cheque(models.Model):
 
     @transaction.atomic
     def confirmar(self, usuario, cuenta_pk=None):
-        if self.estado != EstadoCheque.PENDIENTE:
+        # select_for_update(): un doble clic en "Confirmar" no debe
+        # depositar el cheque dos veces.
+        if Cheque.objects.select_for_update().get(pk=self.pk).estado != EstadoCheque.PENDIENTE:
             raise ValueError('Solo se pueden confirmar cheques pendientes.')
 
         if self.tipo == TipoCheque.A_COBRAR:
@@ -1471,7 +1509,7 @@ class Cheque(models.Model):
     @transaction.atomic
     def rechazar(self):
         """Un cheque puede rebotar recién al intentar cobrarlo, ya confirmado."""
-        if self.estado not in (EstadoCheque.PENDIENTE, EstadoCheque.CONFIRMADO):
+        if Cheque.objects.select_for_update().get(pk=self.pk).estado not in (EstadoCheque.PENDIENTE, EstadoCheque.CONFIRMADO):
             raise ValueError('Solo se pueden rechazar cheques pendientes o confirmados.')
 
         self.estado = EstadoCheque.RECHAZADO
@@ -1481,7 +1519,7 @@ class Cheque(models.Model):
 
     @transaction.atomic
     def anular(self):
-        if self.estado != EstadoCheque.PENDIENTE:
+        if Cheque.objects.select_for_update().get(pk=self.pk).estado != EstadoCheque.PENDIENTE:
             raise ValueError('Solo se pueden anular cheques pendientes (si ya se confirmó, hay que rechazarlo).')
 
         self.estado = EstadoCheque.ANULADO

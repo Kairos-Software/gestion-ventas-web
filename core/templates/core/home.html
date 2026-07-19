@@ -83,13 +83,13 @@
         </a>
         {% endif %}
         {% if lotes_vencidos_count %}
-        <a href="{% url 'core:estadisticas' %}" class="home-alert-chip home-alert-chip--danger">
+        <a href="{% url 'core:estadisticas_productos' %}" class="home-alert-chip home-alert-chip--danger">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.8V8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="11" r="0.8" fill="currentColor"/></svg>
             {{ lotes_vencidos_count }} lote{{ lotes_vencidos_count|pluralize }} vencido{{ lotes_vencidos_count|pluralize }} en depósito
         </a>
         {% endif %}
         {% if lotes_por_vencer_count %}
-        <a href="{% url 'core:estadisticas' %}" class="home-alert-chip home-alert-chip--warning">
+        <a href="{% url 'core:estadisticas_productos' %}" class="home-alert-chip home-alert-chip--warning">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.8V8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="11" r="0.8" fill="currentColor"/></svg>
             {{ lotes_por_vencer_count }} lote{{ lotes_por_vencer_count|pluralize }} próximo{{ lotes_por_vencer_count|pluralize }} a vencer
         </a>

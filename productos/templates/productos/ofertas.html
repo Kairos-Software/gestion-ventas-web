@@ -1,0 +1,226 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Ofertas{% endblock %}
+
+{% block breadcrumb %}Ofertas{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'productos/css/productos.css' %}">
+<link rel="stylesheet" href="{% static 'productos/css/ofertas.css' %}">
+{% endblock %}
+
+{% block content %}
+
+<div class="prd-page-header">
+    <div class="prd-page-title">
+        <div class="prd-page-icon">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+                <path d="M2.5 11L10.5 3H19V11.5L11 19.5L2.5 11Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                <circle cx="14" cy="7.5" r="1.3" fill="currentColor"/>
+            </svg>
+        </div>
+        <div>
+            <div class="prd-page-tag">Módulo</div>
+            <h1>Ofertas</h1>
+            <p>Promociones con vigencia — descuentos automáticos o a elección del vendedor</p>
+        </div>
+    </div>
+    {% if not sin_permiso %}
+    <div class="prd-page-actions">
+        <button class="prd-btn prd-btn-primary" id="btnNuevaOferta">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M8 2V14M2 8H14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            Nueva oferta
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+{% if sin_permiso %}
+<div class="of-sin-permiso">
+    <p>No tenés permiso para gestionar ofertas.</p>
+</div>
+{% else %}
+
+<div class="of-panel">
+    <p class="prd-hint prd-ld-intro">
+        Promociones con fecha de inicio y fin. "Descuento %" es un % fijo (ej: 50% el fin
+        de semana). "Llevá X, pagá Y" es el clásico 2x1/3x2. "Gastá $X o más" aplica sobre
+        el total de toda la venta. "Automática" se aplica sola en el carrito; "Manual"
+        queda disponible para que el vendedor la elija.
+    </p>
+
+    <div class="prd-ld-list" id="ofertaLista"></div>
+    <p id="ofEmptyMsg" class="prd-ld-empty" style="display:none;">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+            <path d="M4 7H24M4 14H24M4 21H16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+        No hay ofertas creadas todavía.
+    </p>
+</div>
+
+{# ════════════════════════════════════════════════════════════════════ #}
+{#  MODAL — CREAR / EDITAR OFERTA                                        #}
+{# ════════════════════════════════════════════════════════════════════ #}
+<div class="prd-modal-overlay" id="modalOferta">
+    <div class="prd-modal prd-modal--lg">
+        <div class="prd-modal-header">
+            <div class="prd-modal-title">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M2.5 10.5L9.5 3.5H16.5V10.5L9.5 17.5L2.5 10.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+                    <circle cx="12.5" cy="7.5" r="1.1" fill="currentColor"/>
+                </svg>
+                <span id="modalOfertaTitulo">Nueva oferta</span>
+            </div>
+            <button class="prd-modal-close" onclick="cerrarModal('modalOferta')">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                    <path d="M4 4L14 14M14 4L4 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
+        <div class="prd-modal-body">
+            <input type="hidden" id="ofPk">
+            <input type="hidden" id="ofTipo" value="porcentaje">
+
+            <div class="prd-field">
+                <label>Tipo de oferta</label>
+                <div class="prd-precio-toggle">
+                    <button type="button" class="prd-precio-toggle-btn prd-precio-toggle-btn--active" data-tipo="porcentaje" onclick="setTipoOferta('porcentaje')">Descuento %</button>
+                    <button type="button" class="prd-precio-toggle-btn" data-tipo="nxm" onclick="setTipoOferta('nxm')">Llevá X, pagá Y (2x1, 3x2...)</button>
+                    <button type="button" class="prd-precio-toggle-btn" data-tipo="umbral" onclick="setTipoOferta('umbral')">Gastá $X o más</button>
+                </div>
+            </div>
+
+            <div class="prd-form-grid prd-form-grid--2">
+                <div class="prd-field">
+                    <label>Nombre</label>
+                    <input type="text" id="ofNombre" class="prd-input" placeholder="Ej: Fin de semana, 2x1 desodorantes...">
+                </div>
+                <div class="prd-field" id="campoOfPorcentaje">
+                    <label>Porcentaje</label>
+                    <div class="prd-ld-pct-input-wrap">
+                        <input type="number" id="ofPorcentaje" class="prd-input" min="0" max="100" step="0.01" placeholder="50">
+                        <span class="prd-ld-pct-suffix">%</span>
+                    </div>
+                </div>
+                <div class="prd-form-grid prd-form-grid--2" id="campoOfNxm" hidden>
+                    <div class="prd-field">
+                        <label>Llevá</label>
+                        <input type="number" id="ofCantidadLleva" class="prd-input" min="2" step="1" placeholder="Ej: 3">
+                    </div>
+                    <div class="prd-field">
+                        <label>Pagá</label>
+                        <input type="number" id="ofCantidadPaga" class="prd-input" min="1" step="1" placeholder="Ej: 2">
+                    </div>
+                </div>
+            </div>
+
+            <div class="prd-form-grid prd-form-grid--2" id="campoOfUmbral" hidden>
+                <div class="prd-field">
+                    <label>Monto mínimo de compra</label>
+                    <div class="prd-input-prefix-wrap">
+                        <span class="prd-input-prefix">$</span>
+                        <input type="number" id="ofMontoMinimo" class="prd-input prd-input--prefixed" min="0" step="0.01" placeholder="10000">
+                    </div>
+                </div>
+                <div class="prd-field">
+                    <label>Base de cálculo</label>
+                    <select id="ofBaseCalculo" class="prd-input prd-select">
+                        <option value="neto">Total ya con descuentos de línea aplicados</option>
+                        <option value="bruto">Precio de lista (antes de otros descuentos)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="prd-form-grid prd-form-grid--3">
+                <div class="prd-field">
+                    <label>Vigencia desde</label>
+                    <input type="date" id="ofFechaInicio" class="prd-input">
+                </div>
+                <div class="prd-field">
+                    <label>Vigencia hasta</label>
+                    <input type="date" id="ofFechaFin" class="prd-input">
+                </div>
+                <div class="prd-field">
+                    <label>Aplicación</label>
+                    <select id="ofAplicacion" class="prd-input prd-select">
+                        <option value="automatica">Automática</option>
+                        <option value="manual">Manual</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="prd-field">
+                <label>Días de la semana <span class="prd-hint">(vacío = todos los días)</span></label>
+                <div class="prd-of-dias-row">
+                    <label class="prd-check-label prd-check-label--sm"><input type="checkbox" class="prd-check ofDia" value="0"><span class="prd-check-box"></span><span>Lun</span></label>
+                    <label class="prd-check-label prd-check-label--sm"><input type="checkbox" class="prd-check ofDia" value="1"><span class="prd-check-box"></span><span>Mar</span></label>
+                    <label class="prd-check-label prd-check-label--sm"><input type="checkbox" class="prd-check ofDia" value="2"><span class="prd-check-box"></span><span>Mié</span></label>
+                    <label class="prd-check-label prd-check-label--sm"><input type="checkbox" class="prd-check ofDia" value="3"><span class="prd-check-box"></span><span>Jue</span></label>
+                    <label class="prd-check-label prd-check-label--sm"><input type="checkbox" class="prd-check ofDia" value="4"><span class="prd-check-box"></span><span>Vie</span></label>
+                    <label class="prd-check-label prd-check-label--sm"><input type="checkbox" class="prd-check ofDia" value="5"><span class="prd-check-box"></span><span>Sáb</span></label>
+                    <label class="prd-check-label prd-check-label--sm"><input type="checkbox" class="prd-check ofDia" value="6"><span class="prd-check-box"></span><span>Dom</span></label>
+                </div>
+            </div>
+
+            <div class="prd-form-grid prd-form-grid--2" id="campoOfAlcance">
+                <div class="prd-field">
+                    <label>Categorías alcanzadas <span class="prd-hint">(vacío junto con productos = todo el catálogo)</span></label>
+                    <div class="prd-of-scope-box">
+                        {% for cat in categorias %}
+                        <label class="prd-check-label prd-check-label--sm">
+                            <input type="checkbox" class="prd-check ofCategoria" value="{{ cat.pk }}">
+                            <span class="prd-check-box"></span>
+                            <span>{{ cat.nombre }}</span>
+                        </label>
+                        {% empty %}
+                        <span class="prd-hint">No hay categorías creadas.</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="prd-field">
+                    <label>Productos alcanzados</label>
+                    <input type="text" id="ofProductoBuscar" class="prd-input" placeholder="Buscar por nombre o código..." autocomplete="off">
+                    <div class="prd-of-dropdown" id="ofProductoDropdown"></div>
+                    <div class="prd-of-chips" id="ofProductoChips"></div>
+                </div>
+            </div>
+
+            <div class="prd-checks-row">
+                <label class="prd-check-label">
+                    <input type="checkbox" id="ofActiva" class="prd-check" checked>
+                    <span class="prd-check-box"></span>
+                    <span>Activa</span>
+                </label>
+            </div>
+
+            <div class="prd-form-error" id="ofFormError" style="display:none"></div>
+        </div>
+        <div class="prd-modal-footer">
+            <button class="prd-btn prd-btn-ghost" onclick="cerrarModal('modalOferta')">Cancelar</button>
+            <button class="prd-btn prd-btn-primary" id="btnGuardarOferta" onclick="guardarOferta()">
+                <span id="btnGuardarOfertaTxt">Agregar</span>
+            </button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+{% if not sin_permiso %}
+<script>
+const CSRF = '{{ csrf_token }}';
+const URLS = {
+    ofertaLista       : '{% url "productos:oferta_lista" %}',
+    ofertaAcciones    : '{% url "productos:oferta_acciones" %}',
+    ofertaEliminar    : '{% url "productos:oferta_eliminar" %}',
+    productoBuscar    : '{% url "productos:producto_buscar" %}',
+};
+</script>
+<script src="{% static 'productos/js/ofertas.js' %}"></script>
+{% endif %}
+{% endblock %}

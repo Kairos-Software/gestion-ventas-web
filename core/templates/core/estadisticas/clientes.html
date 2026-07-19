@@ -1,0 +1,164 @@
+{% extends "core/base.html" %}
+{% load static humanize %}
+
+{% block title %}Estadísticas — Clientes{% endblock %}
+{% block breadcrumb %}<strong>Estadísticas</strong> · Clientes{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/estadisticas.css' %}">
+{% endblock %}
+
+{% block content %}
+
+{% if sin_permiso %}
+<div class="est-sin-permiso">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M12 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="12" cy="16.2" r="0.9" fill="currentColor"/>
+    </svg>
+    <p>No tenés permiso para ver estadísticas de clientes.</p>
+</div>
+{% else %}
+
+{% include "core/estadisticas/_filtros.html" %}
+
+<!-- ══════════ NUEVOS VS. RECURRENTES ══════════ -->
+<div class="card mb-4">
+    <div class="card-header">
+        <div>
+            <p class="card-title">¿Quiénes te compraron en este período?</p>
+            <p class="text-muted" style="font-size:.8125rem;">Nuevos: dados de alta en este período. Recurrentes: volvieron a comprar más de una vez.</p>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="est-mini-stat-grid">
+            <div class="est-mini-stat">
+                <div class="est-mini-stat-valor">{{ nuevos_vs_recurrentes.nuevos }}</div>
+                <div class="est-mini-stat-label">Clientes nuevos</div>
+            </div>
+            <div class="est-mini-stat">
+                <div class="est-mini-stat-valor">{{ nuevos_vs_recurrentes.compradores }}</div>
+                <div class="est-mini-stat-label">Te compraron</div>
+            </div>
+            <div class="est-mini-stat">
+                <div class="est-mini-stat-valor">{{ nuevos_vs_recurrentes.recurrentes }}</div>
+                <div class="est-mini-stat-label">Recurrentes</div>
+            </div>
+            <div class="est-mini-stat">
+                <div class="est-mini-stat-valor">{{ nuevos_vs_recurrentes.de_una_sola_vez }}</div>
+                <div class="est-mini-stat-label">Compraron 1 sola vez</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════ MEJORES CLIENTES ══════════ -->
+<div class="card mb-4">
+    <div class="card-header">
+        <div>
+            <p class="card-title">Tus mejores clientes</p>
+            <p class="text-muted" style="font-size:.8125rem;">Por monto comprado en este período</p>
+        </div>
+    </div>
+    <div class="card-body">
+        {% if mejores_clientes %}
+            {% for cl in mejores_clientes %}
+            <div class="est-ranking-row">
+                <div class="est-ranking-left">
+                    <span class="est-ranking-pos">{{ forloop.counter }}</span>
+                    <div>
+                        <div class="est-ranking-nombre">{{ cl.nombre }}</div>
+                        <div class="est-ranking-detalle">{{ cl.cant_ventas }} venta{{ cl.cant_ventas|pluralize }}</div>
+                    </div>
+                </div>
+                <div class="est-ranking-right">
+                    <div class="est-ranking-ganancia">${{ cl.total_comprado|floatformat:0|intcomma }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state">
+                <p>Todavía no hay ventas confirmadas con un cliente asignado en este período.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ══════════ DISTRIBUCIÓN POR RIESGO Y ESTADO (tiempo real) ══════════ -->
+<div class="est-row">
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <p class="card-title">Nivel de riesgo de la cartera</p>
+                <p class="text-muted" style="font-size:.8125rem;">Tiempo real — todos los clientes cargados, no depende del filtro de arriba</p>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="est-mini-stat-grid">
+                {% for r in distribucion_riesgo %}
+                <div class="est-mini-stat">
+                    <div class="est-mini-stat-valor">{{ r.cantidad }}</div>
+                    <div class="est-mini-stat-label">{{ r.label }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <p class="card-title">Estado de la cartera</p>
+                <p class="text-muted" style="font-size:.8125rem;">Tiempo real</p>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="est-mini-stat-grid">
+                {% for e in distribucion_estado %}
+                <div class="est-mini-stat">
+                    <div class="est-mini-stat-valor">{{ e.cantidad }}</div>
+                    <div class="est-mini-stat-label">{{ e.label }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════ CLIENTES INACTIVOS ══════════ -->
+<div class="card">
+    <div class="card-header">
+        <div>
+            <p class="card-title">Clientes activos que dejaron de comprar</p>
+            <p class="text-muted" style="font-size:.8125rem;">Sin ninguna compra en los últimos 60 días — tiempo real, no depende del filtro de arriba</p>
+        </div>
+    </div>
+    <div class="card-body">
+        {% if clientes_inactivos %}
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr><th>Cliente</th><th>Código</th><th>Última compra</th></tr>
+                </thead>
+                <tbody>
+                    {% for cl in clientes_inactivos %}
+                    <tr>
+                        <td>{{ cl.nombre }}</td>
+                        <td><span class="badge badge-secondary">{{ cl.codigo }}</span></td>
+                        <td>{% if cl.ultima_compra %}{{ cl.ultima_compra|date:'d/m/Y' }}{% else %}Nunca compró{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+            <div class="empty-state">
+                <p>Todos tus clientes activos compraron en los últimos 60 días.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endif %}
+{% endblock %}

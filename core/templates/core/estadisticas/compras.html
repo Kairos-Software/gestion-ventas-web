@@ -1,0 +1,148 @@
+{% extends "core/base.html" %}
+{% load static humanize %}
+
+{% block title %}Estadísticas — Compras{% endblock %}
+{% block breadcrumb %}<strong>Estadísticas</strong> · Compras{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/estadisticas.css' %}">
+{% endblock %}
+
+{% block content %}
+
+{% if sin_permiso %}
+<div class="est-sin-permiso">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M12 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="12" cy="16.2" r="0.9" fill="currentColor"/>
+    </svg>
+    <p>No tenés permiso para ver estadísticas de compras.</p>
+</div>
+{% else %}
+
+{% include "core/estadisticas/_filtros.html" %}
+
+<!-- ══════════ KPIs ══════════ -->
+<div class="est-kpi-grid">
+    <div class="est-kpi-card">
+        <div class="est-kpi-top">
+            <div class="est-kpi-icon azul">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 4H6L7.2 10.6C7.3 11.1 7.75 11.46 8.26 11.46H15C15.5 11.46 15.94 11.1 16.04 10.6L17.5 4H6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="15.5" r="1.2" stroke="currentColor" stroke-width="1.3"/><circle cx="15" cy="15.5" r="1.2" stroke="currentColor" stroke-width="1.3"/></svg>
+            </div>
+            <div class="est-kpi-label">Total comprado</div>
+        </div>
+        <div class="est-kpi-value">${{ resumen.total_comprado|floatformat:0|intcomma }}</div>
+        {% if comparacion.variacion_total_comprado is not None %}
+            <div class="est-kpi-delta {% if comparacion.variacion_total_comprado > 0 %}down{% elif comparacion.variacion_total_comprado < 0 %}up{% else %}flat{% endif %}">
+                {% if comparacion.variacion_total_comprado > 0 %}▲ {{ comparacion.variacion_total_comprado }}% más{% elif comparacion.variacion_total_comprado < 0 %}▼ {{ comparacion.variacion_total_comprado|cut:"-" }}% menos{% else %}Igual{% endif %}
+                {{ comparacion_label }}
+            </div>
+        {% else %}
+            <div class="est-kpi-sub">Sin datos del período anterior para comparar todavía</div>
+        {% endif %}
+    </div>
+
+    <div class="est-kpi-card">
+        <div class="est-kpi-top">
+            <div class="est-kpi-icon gris">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="2" y="5" width="16" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M6 5V3.5C6 2.95 6.45 2.5 7 2.5H13C13.55 2.5 14 2.95 14 3.5V5" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="10.5" r="2" stroke="currentColor" stroke-width="1.3"/></svg>
+            </div>
+            <div class="est-kpi-label">Compras confirmadas</div>
+        </div>
+        <div class="est-kpi-value">{{ resumen.cantidad_compras }}</div>
+        <div class="est-kpi-sub">en este período</div>
+    </div>
+</div>
+
+<!-- ══════════ TENDENCIA + PROVEEDORES ══════════ -->
+<div class="est-row">
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <p class="card-title">¿Cuánto estás comprando mes a mes?</p>
+                <p class="text-muted" style="font-size:.8125rem;">Total comprado, últimos 12 meses</p>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="est-chart-wrap">
+                <canvas id="chartComprasTendencia"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <p class="card-title">¿A quién le comprás más?</p>
+                <p class="text-muted" style="font-size:.8125rem;">Proveedores del período, por total comprado</p>
+            </div>
+        </div>
+        <div class="card-body">
+            {% if ranking_proveedores %}
+                {% for p in ranking_proveedores %}
+                <div class="est-ranking-row">
+                    <div class="est-ranking-left">
+                        <span class="est-ranking-pos">{{ forloop.counter }}</span>
+                        <div>
+                            <div class="est-ranking-nombre">{{ p.nombre }}</div>
+                            <div class="est-ranking-detalle">{{ p.cant_compras }} compra{{ p.cant_compras|pluralize }}</div>
+                        </div>
+                    </div>
+                    <div class="est-ranking-right">
+                        <div class="est-ranking-ganancia">${{ p.total|floatformat:0|intcomma }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <p>Todavía no hay compras confirmadas con proveedor en este período.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- ══════════ COMPRAS POR MEDIO DE PAGO ══════════ -->
+<div class="card">
+    <div class="card-header">
+        <div>
+            <p class="card-title">¿Cómo le pagaste a tus proveedores?</p>
+            <p class="text-muted" style="font-size:.8125rem;">Agrupado también por moneda — no se mezclan pesos con dólares</p>
+        </div>
+    </div>
+    <div class="card-body">
+        {% if por_medio_pago %}
+            {% for m in por_medio_pago %}
+            <div class="est-ranking-row">
+                <div class="est-ranking-left">
+                    <div>
+                        <div class="est-ranking-nombre">{{ m.medio_label }}</div>
+                        <div class="est-ranking-detalle">{{ m.moneda }}</div>
+                    </div>
+                </div>
+                <div class="est-ranking-right">
+                    <div class="est-ranking-ganancia">${{ m.total|floatformat:0|intcomma }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state">
+                <p>Todavía no hay pagos a proveedores registrados en este período.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="{% static 'core/js/estadisticas.js' %}"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        initChartComprasTendencia({{ serie_mensual_json|safe }});
+    });
+</script>
+{% endblock %}

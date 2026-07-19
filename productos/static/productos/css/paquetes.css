@@ -1,0 +1,96 @@
+.pq-componentes-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+}
+
+.pq-componente-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    background: var(--bg-secondary);
+}
+
+.pq-componente-info {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.pq-componente-nombre {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pq-componente-codigo {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
+.pq-componente-cantidad {
+    flex: 0 0 90px;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.4rem;
+    background: var(--bg-white);
+    font-size: 0.8125rem;
+    text-align: center;
+}
+
+.pq-componente-quitar {
+    flex-shrink: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0.2rem 0.4rem;
+}
+.pq-componente-quitar:hover { color: var(--danger, #EF4444); }
+
+/* Vista previa del código de barras dentro del formulario */
+.pq-barcode-preview {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.6rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px dashed var(--border-strong, var(--border-color));
+    border-radius: 0.5rem;
+    background: var(--bg-white);
+}
+.pq-barcode-preview svg { flex-shrink: 0; }
+
+/* Etiqueta imprimible (fuera de pantalla salvo al imprimir) */
+.pq-etiqueta-preview {
+    border: 1px dashed var(--border-strong, var(--border-color));
+    border-radius: 0.75rem;
+    padding: 1rem 1.25rem;
+    min-width: 240px;
+    text-align: center;
+    background: var(--bg-white);
+}
+.pq-etiqueta-nombre { font-weight: 700; font-size: 0.95rem; color: var(--text-primary); margin-bottom: 0.3rem; }
+.pq-etiqueta-precio { font-weight: 700; font-size: 1.3rem; color: var(--brand-orange); margin-bottom: 0.6rem; }
+
+#pq-print-area { display: none; }
+@media print {
+    body > *:not(#pq-print-area) { display: none !important; }
+    #pq-print-area {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+    }
+    #pq-print-area .pq-etiqueta-preview { border: none; }
+}

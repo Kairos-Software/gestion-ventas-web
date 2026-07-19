@@ -28,12 +28,16 @@ function _cdtFmtARS(v) {
     });
 }
 
+/** La compra siempre está en pesos, pero se puede pagar desde una
+ *  cuenta en cualquier moneda (transferencia/efectivo/tarjeta en
+ *  dólares, etc. — Argentina acepta cualquier moneda si ambas partes
+ *  acuerdan). Ver cotización más abajo para la conversión. */
 function _cdtCuentasDisponibles() {
-    return (CDT.cuentas || []).filter(c => c.moneda === CDT.compraMoneda);
+    return CDT.cuentas || [];
 }
 
 function _cdtTarjetasDisponibles() {
-    return (CDT.tarjetas || []).filter(t => t.moneda === CDT.compraMoneda);
+    return CDT.tarjetas || [];
 }
 
 function _cdtEsTarjeta(cuentaPk) {
@@ -41,16 +45,53 @@ function _cdtEsTarjeta(cuentaPk) {
 }
 
 function _cdtCuentaEfectivo() {
-    return _cdtCuentasDisponibles().find(c => c.nombre === 'Efectivo');
+    return _cdtCuentasDisponibles().find(c => c.nombre === 'Efectivo' && c.moneda === 'ARS');
+}
+
+/** Cuenta o tarjeta elegida en una línea (ambas listas juntas). */
+function _cdtCuentaInfo(cuentaPk) {
+    return _cdtCuentasDisponibles().concat(_cdtTarjetasDisponibles())
+        .find(c => String(c.pk) === String(cuentaPk));
+}
+
+/** Equivalente en pesos de una línea de pago — igual criterio que
+ *  PagoCompra.monto_ars en el backend. */
+function _cdtMontoArsLinea(l) {
+    const info = _cdtCuentaInfo(l.cuenta);
+    if (info && info.moneda !== 'ARS') {
+        return (l.monto || 0) * (l.cotizacion || 0);
+    }
+    return l.monto || 0;
+}
+
+/** Input de cotización — solo aparece si la cuenta elegida no es en
+ *  pesos. No hay ninguna fuente automática de tipo de cambio: lo
+ *  carga quien confirma la compra con lo que acordó en el pago. */
+function _cdtCotizacionInputHTML(l) {
+    const info = _cdtCuentaInfo(l.cuenta);
+    if (!info || info.moneda === 'ARS') return '';
+    return `
+        <input type="number" class="vdt-pago-cotizacion" min="0.0001" step="0.0001"
+               placeholder="Cotización ($ por 1 ${info.moneda})"
+               value="${l.cotizacion || ''}"
+               data-campo="cotizacion" data-id="${l.id}">`;
+}
+
+/** "≈ $ X" — cuánto vale en pesos esta línea, para ver la conversión
+ *  mientras se escribe. Vacío si no hace falta. */
+function _cdtEquivalenteArsHTML(l) {
+    const info = _cdtCuentaInfo(l.cuenta);
+    if (!info || info.moneda === 'ARS' || !l.cotizacion) return '';
+    return `<span class="vdt-pago-equivalente">≈ ${_cdtFmtARS(_cdtMontoArsLinea(l))}</span>`;
 }
 
 function _cdtPagoCuentaOpts(seleccionada) {
     const cuentasOpts = _cdtCuentasDisponibles().map(c =>
-        `<option value="${c.pk}" ${String(c.pk) === String(seleccionada) ? 'selected' : ''}>${c.nombre}</option>`
+        `<option value="${c.pk}" ${String(c.pk) === String(seleccionada) ? 'selected' : ''}>${c.nombre} (${c.moneda})</option>`
     ).join('');
     const tarjetas = _cdtTarjetasDisponibles();
     const tarjetasOpts = tarjetas.length ? `<optgroup label="Tarjeta de crédito">${tarjetas.map(t =>
-        `<option value="${t.pk}" ${String(t.pk) === String(seleccionada) ? 'selected' : ''}>${t.nombre}${t.terminada_en ? ' ·· ' + t.terminada_en : ''}</option>`
+        `<option value="${t.pk}" ${String(t.pk) === String(seleccionada) ? 'selected' : ''}>${t.nombre}${t.terminada_en ? ' ·· ' + t.terminada_en : ''} (${t.moneda})</option>`
     ).join('')}</optgroup>` : '';
     return '<option value="">— Elegí cuenta o Efectivo —</option>' + cuentasOpts + tarjetasOpts;
 }
@@ -86,6 +127,11 @@ function _cdtPagoRenderLineas() {
                 </svg>
             </button>
         </div>
+        ${(_cdtCotizacionInputHTML(l) || _cdtEquivalenteArsHTML(l)) ? `
+        <div class="vdt-pago-linea-cuenta">
+            ${_cdtCotizacionInputHTML(l)}
+            ${_cdtEquivalenteArsHTML(l)}
+        </div>` : ''}
         ${esTarjeta ? `
         <div class="vdt-pago-credito-extra">
             <div>
@@ -119,10 +165,15 @@ function _cdtPagoRenderLineas() {
                 linea.cuotas = parseInt(el.value, 10) || null;
             } else if (campo === 'interesPct') {
                 linea.interesPct = el.value === '' ? 0 : parseFloat(el.value);
+            } else if (campo === 'cotizacion') {
+                linea.cotizacion = parseFloat(el.value) || 0;
             } else {
                 linea[campo] = el.value;
             }
             if (campo === 'cuenta') {
+                linea.cotizacion = ''; // cambiar de cuenta resetea la cotización cargada
+                _cdtPagoRenderLineas();
+            } else if (campo === 'cotizacion') {
                 _cdtPagoRenderLineas();
             } else {
                 _cdtPagoActualizarResumen();
@@ -133,6 +184,13 @@ function _cdtPagoRenderLineas() {
                 const id    = parseInt(el.dataset.id, 10);
                 const linea = cdtPagoState.lineas.find(l => l.id === id);
                 if (linea) { linea.monto = parseFloat(el.value) || 0; _cdtPagoActualizarResumen(); }
+            });
+        }
+        if (el.dataset.campo === 'cotizacion') {
+            el.addEventListener('input', () => {
+                const id    = parseInt(el.dataset.id, 10);
+                const linea = cdtPagoState.lineas.find(l => l.id === id);
+                if (linea) { linea.cotizacion = parseFloat(el.value) || 0; _cdtPagoActualizarResumen(); }
             });
         }
     });
@@ -149,7 +207,7 @@ function _cdtPagoRenderLineas() {
 }
 
 function _cdtPagoActualizarResumen() {
-    const asignado  = cdtPagoState.lineas.reduce((s, l) => s + (l.monto || 0), 0);
+    const asignado  = cdtPagoState.lineas.reduce((s, l) => s + _cdtMontoArsLinea(l), 0);
     const pendiente = cdtPagoState.total - asignado;
     const exceso    = asignado - cdtPagoState.total;
 
@@ -188,7 +246,7 @@ function _cdtPagoActualizarResumen() {
 }
 
 function _cdtPagoAgregarLinea() {
-    const asignado = cdtPagoState.lineas.reduce((s, l) => s + (l.monto || 0), 0);
+    const asignado = cdtPagoState.lineas.reduce((s, l) => s + _cdtMontoArsLinea(l), 0);
     const restante = Math.max(0, cdtPagoState.total - asignado);
     const efectivo = _cdtCuentaEfectivo();
     cdtPagoState.lineas.push({
@@ -200,12 +258,18 @@ function _cdtPagoAgregarLinea() {
 }
 
 function _cdtPagoEsCubierto() {
-    const asignado = cdtPagoState.lineas.reduce((s, l) => s + (l.monto || 0), 0);
+    const asignado = cdtPagoState.lineas.reduce((s, l) => s + _cdtMontoArsLinea(l), 0);
     return Math.abs(cdtPagoState.total - asignado) < 0.005 && cdtPagoState.lineas.length > 0;
 }
 
+/** Toda línea necesita una cuenta elegida, y si esa cuenta no es en
+ *  pesos, también la cotización usada. */
 function _cdtPagoFaltanCuentas() {
-    return cdtPagoState.lineas.some(l => !l.cuenta);
+    return cdtPagoState.lineas.some(l => {
+        if (!l.cuenta) return true;
+        const info = _cdtCuentaInfo(l.cuenta);
+        return !!info && info.moneda !== 'ARS' && !(l.cotizacion > 0);
+    });
 }
 
 function _cdtPagoFaltanDatosCredito() {
@@ -221,17 +285,19 @@ function _cdtGetPagoPayload() {
                 medio: 'credito',
                 monto: l.monto,
                 cuenta_pk: l.cuenta || null,
+                cotizacion: l.cotizacion || null,
                 cuotas: l.cuotas,
                 interes_pct: l.interesPct != null ? l.interesPct : 0,
                 fecha_inicio_debito: l.fechaInicioDebito || null,
             };
         }
         const cuentaInfo = _cdtCuentasDisponibles().find(c => String(c.pk) === String(l.cuenta));
-        const esEfectivo = cuentaInfo && cuentaInfo.nombre === 'Efectivo';
+        const esEfectivo = cuentaInfo && cuentaInfo.nombre === 'Efectivo' && cuentaInfo.moneda === 'ARS';
         return {
             medio: esEfectivo ? 'efectivo' : 'transferencia',
             monto: l.monto,
             cuenta_pk: l.cuenta || null,
+            cotizacion: l.cotizacion || null,
         };
     });
     return { pagos };
@@ -271,7 +337,7 @@ if (CDT.esBorrador) {
         if (!fecha) { cdtToast('Fecha requerida', 'Ingresá una fecha antes de confirmar.'); return; }
 
         if (!_cdtPagoEsCubierto()) {
-            const asignado  = cdtPagoState.lineas.reduce((s, l) => s + (l.monto || 0), 0);
+            const asignado  = cdtPagoState.lineas.reduce((s, l) => s + _cdtMontoArsLinea(l), 0);
             const pendiente = cdtPagoState.total - asignado;
             if (!cdtPagoState.lineas.length) {
                 cdtToast('Medio de pago requerido', 'Agregá al menos un medio de pago.');
@@ -282,7 +348,7 @@ if (CDT.esBorrador) {
         }
 
         if (_cdtPagoFaltanCuentas()) {
-            cdtToast('Cuenta requerida', 'Elegí a qué cuenta se debita cada línea de pago.');
+            cdtToast('Cuenta requerida', 'Elegí a qué cuenta se debita cada línea de pago, y la cotización si es en otra moneda.');
             return;
         }
 

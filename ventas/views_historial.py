@@ -68,6 +68,26 @@ class ListarVentasAjax(LoginRequiredMixin, View):
         if fecha_hasta:
             qs = qs.filter(fecha__lte=fecha_hasta)
 
+        # — Filtro por turno o día, usado por el botón "Ver ventas" del
+        # historial de caja (turno/día). Se basa en fecha_alta (instante
+        # real de creación), igual que TurnoCaja._ventas_en_turno() y
+        # TurnoCaja.turno_que_contiene() — así una venta cae siempre en
+        # un único turno/día, sin importar si más tarde se editó su
+        # fecha contable.
+        turno_pk = request.GET.get('turno', '').strip()
+        if turno_pk:
+            from caja.models import TurnoCaja
+            turno = TurnoCaja.objects.filter(pk=turno_pk).first()
+            if not turno:
+                return JsonResponse({'error': 'El turno indicado no existe.'}, status=400)
+            qs = qs.filter(fecha_alta__gte=turno.fecha_apertura)
+            if turno.fecha_cierre:
+                qs = qs.filter(fecha_alta__lte=turno.fecha_cierre)
+        else:
+            dia = request.GET.get('dia', '').strip()
+            if dia:
+                qs = qs.filter(fecha_alta__date=dia)
+
         try:
             page = max(1, int(request.GET.get('page', 1)))
         except ValueError:
@@ -120,6 +140,7 @@ class ListarVentasAjax(LoginRequiredMixin, View):
                     'moneda':           item.moneda,
                     'descuento_pct':    str(item.descuento_pct),
                     'lista_descuento_nombre': item.lista_descuento_nombre,
+                    'oferta_aplicada_nombre': item.oferta_aplicada_nombre,
                     'condicion_pago':   item.get_condicion_pago_display(),
                     'referencia':       item.referencia,
                     'notas':            item.notas,
@@ -170,6 +191,8 @@ class ListarVentasAjax(LoginRequiredMixin, View):
                 'estado':                  v.estado,
                 'estado_label':            v.get_estado_display(),
                 'total':                   str(v.total),
+                'descuento_global_pct':    str(v.descuento_global_pct),
+                'oferta_global_nombre':    v.oferta_global_nombre,
                 'notas':                   v.notas,
                 # — Medio de pago —
                 'medio_pago':              v.medio_pago,

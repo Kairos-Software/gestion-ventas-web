@@ -205,6 +205,7 @@ function ticketHtmlTermica80(data) {
 
 function _t80Item(item) {
     const detalle = [
+        item.marca   ? item.marca                  : '',
         item.color   ? `Color: ${item.color}`     : '',
         item.cliente ? `Cli: ${item.cliente}`      : '',
     ].filter(Boolean).join(' · ');

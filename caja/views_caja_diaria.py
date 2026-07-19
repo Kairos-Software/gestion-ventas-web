@@ -222,6 +222,8 @@ class CerrarTurnoAjax(LoginRequiredMixin, View):
                     'mensaje': turno.mensaje_alerta,
                 } if turno.alerta_diferencia else None,
             })
+        except ValueError as e:
+            return JsonResponse({'error': str(e)}, status=400)
         except Exception as e:
             return JsonResponse({'error': f'Error al cerrar turno: {e}'}, status=500)
 

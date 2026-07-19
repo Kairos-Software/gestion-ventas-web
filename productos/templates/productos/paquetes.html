@@ -1,0 +1,162 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Paquetes{% endblock %}
+
+{% block breadcrumb %}Catálogo &rsaquo; <strong>Paquetes</strong>{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'productos/css/productos.css' %}">
+<link rel="stylesheet" href="{% static 'productos/css/ofertas.css' %}">
+<link rel="stylesheet" href="{% static 'productos/css/paquetes.css' %}">
+{% endblock %}
+
+{% block content %}
+
+<div class="prd-page-header">
+    <div class="prd-page-title">
+        <div class="prd-page-icon">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+                <rect x="2" y="2" width="8" height="8" rx="1.2" stroke="currentColor" stroke-width="1.5"/>
+                <rect x="12" y="2" width="8" height="8" rx="1.2" stroke="currentColor" stroke-width="1.5"/>
+                <rect x="7" y="12" width="8" height="8" rx="1.2" stroke="currentColor" stroke-width="1.5"/>
+            </svg>
+        </div>
+        <div>
+            <div class="prd-page-tag">Catálogo</div>
+            <h1>Paquetes</h1>
+            <p>Combos armados a partir de otros productos — se venden como un producto más</p>
+        </div>
+    </div>
+    {% if not sin_permiso %}
+    <div class="prd-page-actions">
+        <button class="prd-btn prd-btn-primary" id="btnNuevoPaquete">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M8 2V14M2 8H14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            Nuevo paquete
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+{% if sin_permiso %}
+<div class="of-sin-permiso">
+    <p>No tenés permiso para gestionar paquetes.</p>
+</div>
+{% else %}
+
+<div class="of-panel">
+    <p class="prd-hint prd-ld-intro">
+        Un paquete es un producto más: se busca y se vende igual que cualquier otro. No
+        tiene stock propio — al venderlo, se descuenta en el momento del stock real de
+        cada componente (mismo FIFO/FEFO de siempre), sin necesidad de armarlo antes.
+    </p>
+
+    <div class="prd-ld-list" id="paqueteLista"></div>
+    <p id="pqEmptyMsg" class="prd-ld-empty" style="display:none;">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+            <path d="M4 7H24M4 14H24M4 21H16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+        No hay paquetes creados todavía.
+    </p>
+</div>
+
+{# ════════════════════════════════════════════════════════════════════ #}
+{#  MODAL — CREAR / EDITAR PAQUETE                                       #}
+{# ════════════════════════════════════════════════════════════════════ #}
+<div class="prd-modal-overlay" id="modalPaquete">
+    <div class="prd-modal prd-modal--lg">
+        <div class="prd-modal-header">
+            <div class="prd-modal-title">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <rect x="2" y="2" width="7" height="7" rx="1.1" stroke="currentColor" stroke-width="1.4"/>
+                    <rect x="11" y="2" width="7" height="7" rx="1.1" stroke="currentColor" stroke-width="1.4"/>
+                    <rect x="6.5" y="11" width="7" height="7" rx="1.1" stroke="currentColor" stroke-width="1.4"/>
+                </svg>
+                <span id="modalPaqueteTitulo">Nuevo paquete</span>
+            </div>
+            <button class="prd-modal-close" onclick="cerrarModal('modalPaquete')">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                    <path d="M4 4L14 14M14 4L4 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
+        <div class="prd-modal-body">
+            <input type="hidden" id="pqPk">
+
+            <div class="prd-form-grid prd-form-grid--2">
+                <div class="prd-field">
+                    <label>Nombre</label>
+                    <input type="text" id="pqNombre" class="prd-input" placeholder="Ej: Pack Verano, Combo Higiene...">
+                </div>
+                <div class="prd-field">
+                    <label>Precio de venta</label>
+                    <div class="prd-input-prefix-wrap">
+                        <span class="prd-input-prefix">$</span>
+                        <input type="number" id="pqPrecioVenta" class="prd-input prd-input--prefixed" min="0" step="0.01" placeholder="0.00">
+                    </div>
+                </div>
+            </div>
+
+            <div class="prd-form-grid prd-form-grid--2">
+                <div class="prd-field">
+                    <label>Código de barras <span class="prd-hint">(el paquete no tiene uno de fábrica — se genera solo, para imprimir y pegar)</span></label>
+                    <input type="text" id="pqCodigoBarras" class="prd-input prd-input--readonly" placeholder="Se genera al guardar" readonly>
+                    <div class="pq-barcode-preview" id="pqBarcodePreviewWrap" style="display:none;">
+                        <svg id="pqBarcodeSvg"></svg>
+                        <button type="button" class="prd-btn prd-btn-ghost" id="btnImprimirCodigoModal">Imprimir código</button>
+                    </div>
+                </div>
+                <div class="prd-field">
+                    <label>Descripción <span class="prd-hint">(opcional)</span></label>
+                    <input type="text" id="pqDescripcion" class="prd-input" placeholder="Notas internas del combo">
+                </div>
+            </div>
+
+            <div class="prd-field">
+                <label>Componentes</label>
+                <input type="text" id="pqComponenteBuscar" class="prd-input" placeholder="Buscar producto por nombre o código..." autocomplete="off">
+                <div class="prd-of-dropdown" id="pqComponenteDropdown"></div>
+                <div class="pq-componentes-lista" id="pqComponentesLista"></div>
+                <p class="prd-hint" id="pqComponentesVacio">Todavía no agregaste ningún componente.</p>
+            </div>
+
+            <div class="prd-checks-row">
+                <label class="prd-check-label">
+                    <input type="checkbox" id="pqActivo" class="prd-check" checked>
+                    <span class="prd-check-box"></span>
+                    <span>Activo</span>
+                </label>
+            </div>
+
+            <div class="prd-form-error" id="pqFormError" style="display:none"></div>
+        </div>
+        <div class="prd-modal-footer">
+            <button class="prd-btn prd-btn-ghost" id="btnCancelarPaquete" onclick="cerrarModal('modalPaquete')">Cancelar</button>
+            <button class="prd-btn prd-btn-primary" id="btnGuardarPaquete" onclick="guardarPaquete()">
+                <span id="btnGuardarPaqueteTxt">Agregar</span>
+            </button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+{% if not sin_permiso %}
+<!-- JsBarcode: genera el Code128 del paquete en el navegador, sin backend -->
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<script>
+const CSRF = '{{ csrf_token }}';
+const URLS = {
+    paqueteLista      : '{% url "productos:paquete_lista" %}',
+    paqueteAcciones   : '{% url "productos:paquete_acciones" %}',
+    paqueteEliminar   : '{% url "productos:paquete_eliminar" %}',
+    productoBuscar    : '{% url "productos:producto_buscar" %}',
+};
+</script>
+<script src="{% static 'productos/js/paquetes.js' %}"></script>
+{% endif %}
+{% endblock %}

@@ -51,7 +51,8 @@
 
 .vdt-pago-select,
 .vdt-pago-monto,
-.vdt-pago-cuenta {
+.vdt-pago-cuenta,
+.vdt-pago-cotizacion {
     padding: .45rem .6rem;
     border: 1px solid var(--border-color);
     border-radius: .5rem;
@@ -65,11 +66,25 @@
 
 .vdt-pago-select:focus,
 .vdt-pago-monto:focus,
-.vdt-pago-cuenta:focus {
+.vdt-pago-cuenta:focus,
+.vdt-pago-cotizacion:focus {
     outline: none;
     border-color: var(--brand-orange);
     box-shadow: 0 0 0 3px rgba(242, 106, 27, .1);
     background: var(--bg-white);
+}
+
+.vdt-pago-linea-cuenta {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    flex-wrap: wrap;
+}
+.vdt-pago-linea-cuenta .vdt-pago-cotizacion { flex: 0 1 200px; }
+.vdt-pago-equivalente {
+    font-size: .75rem;
+    color: var(--text-muted);
+    white-space: nowrap;
 }
 
 .vdt-pago-btn-quitar {
@@ -362,7 +377,6 @@
                             <th>Proveedor</th>
                             <th>Cant.</th>
                             <th>Costo unit.</th>
-                            <th>Moneda</th>
                             <th>Desc. %</th>
                             <th>Cond. pago</th>
                             <th>Referencia</th>
@@ -395,7 +409,6 @@
                             <td>{{ item.nombre_proveedor_display }}</td>
                             <td>{{ item.cantidad|floatformat:"-3" }}</td>
                             <td>{{ item.costo_unitario|floatformat:"2" }}</td>
-                            <td><span class="cdt-moneda-chip">{{ item.moneda }}</span></td>
                             <td>
                                 {% if item.descuento_pct %}{{ item.descuento_pct }}%
                                 {% else %}<span class="cdt-muted">—</span>{% endif %}
@@ -410,12 +423,12 @@
                             </td>
                         </tr>
                         {% empty %}
-                        <tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:2rem">Sin ítems.</td></tr>
+                        <tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:2rem">Sin ítems.</td></tr>
                         {% endfor %}
                     </tbody>
                     <tfoot>
                         <tr class="cdt-tfoot-total">
-                            <td colspan="9" style="text-align:right;font-weight:700;padding:.875rem">Total</td>
+                            <td colspan="8" style="text-align:right;font-weight:700;padding:.875rem">Total</td>
                             <td style="text-align:right;font-family:'Plus Jakarta Sans',sans-serif;font-size:1.05rem;font-weight:800;color:var(--brand-orange);padding:.875rem">
                                 ${{ compra.total|floatformat:"2" }}
                             </td>

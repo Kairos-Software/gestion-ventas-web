@@ -205,6 +205,13 @@
     color: var(--text-primary);
 }
 
+.vta-dropdown-item-marca {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: .78rem;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
 .vta-dropdown-item-codigo {
     font-family: 'Plus Jakarta Sans', monospace;
     font-size: .7rem;

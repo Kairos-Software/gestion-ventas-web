@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views_proveedores, views_productos, views_stock
+from . import views_proveedores, views_productos, views_stock, views_ofertas, views_paquetes
 
 app_name = 'productos'
 
@@ -53,6 +53,22 @@ urlpatterns = [
     path('listas-descuento/',           views_productos.ListaDescuentoListaAjax.as_view(),     name='lista_descuento_lista'),
     path('listas-descuento/acciones/',  views_productos.ListaDescuentoAccionesAjax.as_view(),  name='lista_descuento_acciones'),
     path('listas-descuento/eliminar/',  views_productos.ListaDescuentoEliminarAjax.as_view(),  name='lista_descuento_eliminar'),
+
+    # ══════════════════════════════════════════════════════════════════
+    #  OFERTAS — sección propia (no vive dentro de Productos)
+    # ══════════════════════════════════════════════════════════════════
+    path('ofertas/',           views_ofertas.GestionOfertasView.as_view(),  name='gestion_ofertas'),
+    path('ofertas/lista/',     views_ofertas.OfertaListaAjax.as_view(),     name='oferta_lista'),
+    path('ofertas/acciones/',  views_ofertas.OfertaAccionesAjax.as_view(),  name='oferta_acciones'),
+    path('ofertas/eliminar/',  views_ofertas.OfertaEliminarAjax.as_view(),  name='oferta_eliminar'),
+
+    # ══════════════════════════════════════════════════════════════════
+    #  PAQUETES — combos de productos distintos (dentro de Catálogo)
+    # ══════════════════════════════════════════════════════════════════
+    path('paquetes/',           views_paquetes.GestionPaquetesView.as_view(), name='gestion_paquetes'),
+    path('paquetes/lista/',     views_paquetes.PaqueteListaAjax.as_view(),    name='paquete_lista'),
+    path('paquetes/acciones/',  views_paquetes.PaqueteAccionesAjax.as_view(), name='paquete_acciones'),
+    path('paquetes/eliminar/',  views_paquetes.PaqueteEliminarAjax.as_view(), name='paquete_eliminar'),
 
     # ══════════════════════════════════════════════════════════════════
     #  TIPOS

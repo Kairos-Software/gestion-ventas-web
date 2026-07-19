@@ -23,6 +23,9 @@ PERMISOS_CHOICES = [
     # ── Módulo: Empresa ──────────────────────────────────────────
     ('editar_empresa',     'Editar datos de la empresa'),
 
+    # ── Módulo: Notificaciones ──────────────────────────────────────
+    ('gestionar_notificaciones', 'Configurar reportes y alertas automáticas (mail/WhatsApp)'),
+
     # ── Módulo: Cuentas de caja ───────────────────────────────────
     ('editar_cuentas',     'Cargar y editar cuentas de caja (tarjetas, billeteras, bancos)'),
 
@@ -49,6 +52,8 @@ PERMISOS_CHOICES = [
     ('eliminar_productos',     'Eliminar productos'),
     ('gestionar_categorias',   'Gestionar categorías y tipos de producto'),
     ('gestionar_listas_descuento', 'Gestionar listas de descuento'),
+    ('gestionar_ofertas',      'Gestionar ofertas'),
+    ('gestionar_paquetes',     'Gestionar paquetes (combos de productos)'),
 
     # ── Módulo: Compras ───────────────────────────────────────────────
     ('ver_compras',       'Ver historial de compras'),
@@ -61,6 +66,11 @@ PERMISOS_CHOICES = [
     ('crear_ventas',      'Crear nuevas ventas'),
     ('editar_ventas',     'Editar ventas existentes'),
     ('eliminar_ventas',   'Eliminar ventas'),
+
+    # ── Módulo: Balanza (etiquetas de peso/medida variable) ─────────
+    ('ver_balanza',     'Ver etiquetas de balanza generadas'),
+    ('crear_balanza',   'Generar etiquetas de balanza'),
+    ('anular_balanza',  'Anular una etiqueta de balanza antes de venderse'),
 
     # ── Módulo: Caja ───────────────────────────────────────────────
     ('ver_caja',              'Ver balance y movimientos de caja'),
@@ -93,6 +103,13 @@ PERMISOS_CHOICES = [
     ('editar_cheques',     'Editar cheques existentes'),
     ('eliminar_cheques',   'Eliminar cheques'),
     ('confirmar_cheques',  'Confirmar o rechazar el cobro/pago de un cheque'),
+
+    # ── Módulo: Notas (Anotador) ────────────────────────────────────
+    ('ver_notas',            'Ver el anotador'),
+    ('crear_notas',          'Crear notas'),
+    ('editar_notas',         'Editar notas'),
+    ('eliminar_notas',       'Eliminar notas'),
+    ('crear_notas_privadas', 'Marcar notas propias como privadas'),
 ]
 
 CODIGOS_PERMISOS = {codigo for codigo, _ in PERMISOS_CHOICES}
@@ -101,6 +118,7 @@ CODIGOS_PERMISOS = {codigo for codigo, _ in PERMISOS_CHOICES}
 PERMISOS_RESTRINGIDOS = {
     'editar_empresa',
     'editar_cuentas',
+    'gestionar_notificaciones',
 }
 
 
@@ -1028,3 +1046,31 @@ class DatosEmpresa(models.Model):
             }
         )
         return obj
+
+
+class Nota(models.Model):
+    """
+    Anotador global (Herramientas). Pública por defecto — cualquiera con
+    "ver_notas" la ve. Si es_privada, solo la ve quien la creó, aunque
+    otro usuario tenga permiso para editar/eliminar notas en general.
+    """
+    titulo = models.CharField(max_length=150)
+    contenido = models.TextField()
+    es_privada = models.BooleanField(default=False)
+
+    creado_por = models.ForeignKey(
+        'Usuario', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='notas_creadas'
+    )
+    modificado_por = models.ForeignKey(
+        'Usuario', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='notas_modificadas'
+    )
+    fecha_alta         = models.DateTimeField(auto_now_add=True)
+    fecha_modificacion = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-fecha_modificacion']
+
+    def __str__(self):
+        return self.titulo

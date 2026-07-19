@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from django.db import models
 from django.utils.text import slugify
+from django.utils import timezone
 from django.conf import settings
 
 
@@ -107,6 +108,27 @@ class UnidadMedida(models.TextChoices):
     OTRO   = 'otro',   'Otro'
 
 
+# Unidades "continuas" (se miden, admiten fracciones: 0.3 kg, 2.75 lt).
+# Todo lo que no está acá es "discreto" (se cuenta de a uno: no existe
+# "0.5 unidad" ni "media docena y cuarto") y exige cantidades enteras.
+UNIDADES_FRACCIONABLES = {
+    UnidadMedida.KG, UnidadMedida.GR, UnidadMedida.LT, UnidadMedida.ML,
+    UnidadMedida.MT, UnidadMedida.CM, UnidadMedida.MT2, UnidadMedida.MT3,
+}
+
+
+def cantidad_valida_para_unidad(unidad_medida, cantidad):
+    """
+    True si `cantidad` (Decimal) es coherente con `unidad_medida`:
+    entera para unidades discretas, cualquiera (incluso fraccionaria)
+    para las continuas. Usar en todo punto donde se cargue una
+    cantidad de compra/venta/ajuste — ver UNIDADES_FRACCIONABLES.
+    """
+    if unidad_medida in UNIDADES_FRACCIONABLES:
+        return True
+    return cantidad == cantidad.to_integral_value()
+
+
 class AlicuotaIVA(models.TextChoices):
     """
     Alícuotas de IVA vigentes en Argentina.
@@ -199,6 +221,208 @@ class ListaDescuento(models.Model):
 
 
 # ══════════════════════════════════════════════════════════════════
+#  OFERTA
+#  Descuento % con vigencia temporal (fechas + opcionalmente días de
+#  semana puntuales), para promociones tipo "50% de descuento en tal
+#  producto este fin de semana". No reemplaza a ListaDescuento (que no
+#  tiene vigencia y siempre se elige a mano al vender) — conviven las
+#  dos: ListaDescuento es un atajo de criterio del vendedor, Oferta es
+#  una promoción con fecha de inicio/fin real.
+# ══════════════════════════════════════════════════════════════════
+
+class AplicacionOferta(models.TextChoices):
+    """
+    AUTOMATICA: al agregar al carrito un producto alcanzado por esta
+    oferta, el % se aplica solo — el vendedor no tiene que elegir nada
+    (pero sigue pudiendo editarlo o quitarlo a mano en esa línea).
+    MANUAL: la oferta aparece como opción en el desplegable de
+    descuento de la línea, igual que una ListaDescuento, y el vendedor
+    decide si la aplica.
+    """
+    AUTOMATICA = 'automatica', 'Automática (se aplica sola en el carrito)'
+    MANUAL     = 'manual',     'Manual (el vendedor la elige)'
+
+
+class TipoOferta(models.TextChoices):
+    """
+    PORCENTAJE: % fijo de descuento, sin importar la cantidad (ej: 50%).
+    NXM: "llevá X, pagá Y" (2x1, 3x2, etc.) — el % efectivo depende de
+    la cantidad de ESE producto en el carrito, se recalcula solo cada
+    vez que cambia la cantidad de la línea (ver ventas/nueva_venta.js).
+    UMBRAL: "gastá $X o más y llevate Y% de descuento" — no se aplica
+    a un producto puntual sino al TOTAL de la venta (ver Venta en
+    ventas/models.py). No usa alcance de productos/categorías.
+    """
+    PORCENTAJE = 'porcentaje', 'Descuento %'
+    NXM        = 'nxm',        'Llevá X, pagá Y (2x1, 3x2...)'
+    UMBRAL     = 'umbral',     'Descuento por monto mínimo de compra'
+
+
+class BaseCalculoUmbral(models.TextChoices):
+    """
+    Sobre qué monto se mide el "gastá $X o más" de una oferta UMBRAL:
+    BRUTO: precio de lista de todo lo que hay en el carrito, sin
+    importar otros descuentos ya aplicados en cada línea.
+    NETO: lo que el cliente efectivamente va a pagar antes de este
+    descuento (ya con listas/ofertas de línea aplicadas).
+    """
+    BRUTO = 'bruto', 'Precio de lista (antes de otros descuentos)'
+    NETO  = 'neto',  'Total ya con descuentos de línea aplicados'
+
+
+class Oferta(models.Model):
+    nombre = models.CharField(max_length=100, unique=True)
+    tipo   = models.CharField(
+        'Tipo', max_length=12, choices=TipoOferta.choices,
+        default=TipoOferta.PORCENTAJE,
+    )
+
+    # — Para tipo=PORCENTAJE y tipo=UMBRAL (en UMBRAL es el % que se
+    #   descuenta del total una vez alcanzado monto_minimo) —
+    porcentaje = models.DecimalField(
+        'Porcentaje', max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text='Ej: 50 = 50% de descuento. Obligatorio salvo en tipo NXM.',
+    )
+
+    # — Solo para tipo=NXM — "llevá cantidad_lleva, pagá cantidad_paga"
+    # Ej: 2x1 → cantidad_lleva=2, cantidad_paga=1. 3x2 → lleva=3, paga=2.
+    cantidad_lleva = models.PositiveSmallIntegerField(
+        'Llevá', null=True, blank=True,
+        help_text='Cuántas unidades hacen falta para que aplique el grupo (ej: 3 en un 3x2).',
+    )
+    cantidad_paga = models.PositiveSmallIntegerField(
+        'Pagá', null=True, blank=True,
+        help_text='Cuántas de esas unidades se pagan (ej: 2 en un 3x2). Debe ser menor a "Llevá".',
+    )
+
+    # — Solo para tipo=UMBRAL —
+    monto_minimo = models.DecimalField(
+        'Monto mínimo', max_digits=14, decimal_places=2, null=True, blank=True,
+        help_text='Monto de compra a partir del cual aplica el descuento.',
+    )
+    base_calculo = models.CharField(
+        'Base de cálculo', max_length=10, choices=BaseCalculoUmbral.choices,
+        default=BaseCalculoUmbral.NETO, blank=True,
+        help_text='Sobre qué monto se mide el mínimo — a elección de cada oferta.',
+    )
+
+    # — Alcance — (no aplica a tipo=UMBRAL, que siempre es sobre el
+    # total de la venta, no sobre productos puntuales)
+    # Si no se elige ningún producto NI ninguna categoría, la oferta
+    # aplica a todo el catálogo (ej: "20% en todo el local"). Si se
+    # elige alguno de los dos, aplica solo a esos productos puntuales
+    # más los productos de esas categorías.
+    productos = models.ManyToManyField(
+        'Producto', blank=True, related_name='ofertas',
+        verbose_name='Productos alcanzados',
+    )
+    categorias = models.ManyToManyField(
+        CategoriaProducto, blank=True, related_name='ofertas',
+        verbose_name='Categorías alcanzadas',
+    )
+
+    # — Vigencia —
+    fecha_inicio = models.DateField('Vigencia desde')
+    fecha_fin    = models.DateField('Vigencia hasta')
+    dias_semana  = models.CharField(
+        max_length=20, blank=True,
+        help_text='Días permitidos separados por coma (0=lunes ... 6=domingo). '
+                   'Vacío = todos los días de la semana (ej: "5,6" = solo fin de semana).',
+    )
+
+    aplicacion = models.CharField(
+        'Aplicación', max_length=12, choices=AplicacionOferta.choices,
+        default=AplicacionOferta.AUTOMATICA,
+    )
+    activa = models.BooleanField(default=True)
+    orden  = models.PositiveSmallIntegerField(default=0)
+
+    fecha_alta = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name        = 'Oferta'
+        verbose_name_plural = 'Ofertas'
+        ordering            = ['-fecha_inicio', 'orden', 'nombre']
+
+    def __str__(self):
+        if self.tipo == TipoOferta.NXM:
+            return f'{self.nombre} ({self.cantidad_lleva}x{self.cantidad_paga})'
+        if self.tipo == TipoOferta.UMBRAL:
+            return f'{self.nombre} ({self.porcentaje}% desde ${self.monto_minimo})'
+        return f'{self.nombre} ({self.porcentaje}%)'
+
+    def descuento_equivalente(self, cantidad):
+        """
+        % de descuento efectivo para `cantidad` unidades de un producto
+        alcanzado por esta oferta.
+
+        PORCENTAJE: siempre el mismo %, sin importar la cantidad.
+        NXM: se pagan cantidad_paga de cada grupo de cantidad_lleva
+        unidades; el resto que no completa un grupo se paga entero.
+        Ej: 3x2 con cantidad=4 → 1 grupo completo (paga 2) + 1 suelta
+        (paga 1) = paga 3 de 4 → ~25% de descuento sobre esa línea.
+        """
+        cantidad = Decimal(str(cantidad))
+        if self.tipo == TipoOferta.NXM:
+            n, m = self.cantidad_lleva, self.cantidad_paga
+            if not n or not m or cantidad < n:
+                return Decimal('0')
+            unidades = int(cantidad)
+            grupos, resto = divmod(unidades, n)
+            unidades_a_pagar = grupos * m + resto
+            return ((1 - Decimal(unidades_a_pagar) / Decimal(unidades)) * 100).quantize(Decimal('0.01'))
+        return self.porcentaje or Decimal('0')
+
+    def descuento_para_total(self, monto):
+        """% de descuento sobre el total de la venta si `monto` alcanza
+        monto_minimo — solo tiene sentido para tipo=UMBRAL."""
+        if self.tipo != TipoOferta.UMBRAL or not self.monto_minimo:
+            return Decimal('0')
+        if Decimal(str(monto)) < self.monto_minimo:
+            return Decimal('0')
+        return self.porcentaje or Decimal('0')
+
+    def dias_semana_lista(self):
+        """Lista de enteros 0-6 (lunes=0, igual que date.weekday()). Vacía = todos los días."""
+        if not self.dias_semana:
+            return []
+        return [int(d) for d in self.dias_semana.split(',') if d.strip() != '']
+
+    def vigente_en(self, fecha):
+        """True si la oferta está activa y `fecha` cae dentro de su ventana de vigencia."""
+        if not self.activa:
+            return False
+        if not (self.fecha_inicio <= fecha <= self.fecha_fin):
+            return False
+        dias = self.dias_semana_lista()
+        if dias and fecha.weekday() not in dias:
+            return False
+        return True
+
+    def aplica_a_producto(self, producto):
+        """True si `producto` está dentro del alcance de esta oferta (ver comentario de `productos`/`categorias`)."""
+        if not self.productos.exists() and not self.categorias.exists():
+            return True
+        if self.productos.filter(pk=producto.pk).exists():
+            return True
+        if producto.categoria_id and self.categorias.filter(pk=producto.categoria_id).exists():
+            return True
+        return False
+
+
+def ofertas_vigentes_hoy():
+    """Ofertas activas ahora mismo (fecha + día de semana) — para exponer al carrito de venta."""
+    hoy = timezone.now().date()
+    candidatas = (
+        Oferta.objects
+        .filter(activa=True, fecha_inicio__lte=hoy, fecha_fin__gte=hoy)
+        .prefetch_related('productos', 'categorias')
+        .order_by('orden', 'nombre')
+    )
+    return [o for o in candidatas if o.vigente_en(hoy)]
+
+
+# ══════════════════════════════════════════════════════════════════
 #  TIPO DE PRODUCTO
 # ══════════════════════════════════════════════════════════════════
 
@@ -241,15 +465,55 @@ def _producto_imagen_path(instance, filename):
 
 
 def _generar_codigo_producto():
-    ultimo = Producto.objects.order_by('-id').first()
+    ultimo = Producto.objects.filter(es_paquete=False).order_by('-id').first()
     if not ultimo or not ultimo.codigo:
         numero = 1
     else:
         try:
             numero = int(ultimo.codigo.split('-')[-1]) + 1
         except (ValueError, IndexError):
-            numero = Producto.objects.count() + 1
+            numero = Producto.objects.filter(es_paquete=False).count() + 1
     return f'PRD-{numero:05d}'
+
+
+def _generar_codigo_paquete():
+    """Mismo esquema que _generar_codigo_producto() pero con prefijo
+    propio (PCK-) para que un paquete se distinga a simple vista de un
+    producto normal (PRD-) en listados, buscadores y reportes."""
+    ultimo = Producto.objects.filter(es_paquete=True).order_by('-id').first()
+    if not ultimo or not ultimo.codigo:
+        numero = 1
+    else:
+        try:
+            numero = int(ultimo.codigo.split('-')[-1]) + 1
+        except (ValueError, IndexError):
+            numero = Producto.objects.filter(es_paquete=True).count() + 1
+    return f'PCK-{numero:05d}'
+
+
+def generar_codigo_barras_paquete():
+    """
+    Un paquete no tiene un código de barras real de fábrica (no existe
+    como producto físico hasta que se arma) — se genera uno propio
+    para poder imprimirlo y pegarlo, y así escanearlo en caja como
+    cualquier otro producto. Mismo criterio de numeración por año que
+    LoteCompra (LT-AAAA-XXXXX) y EtiquetaBalanza (BAL-AAAA-XXXXX).
+    """
+    from django.utils import timezone
+    anio = timezone.now().year
+    ultimo = (
+        Producto.objects
+        .filter(es_paquete=True, codigo_barras__startswith=f'PAQ-{anio}')
+        .order_by('-id').first()
+    )
+    if not ultimo:
+        numero = 1
+    else:
+        try:
+            numero = int(ultimo.codigo_barras.split('-')[-1]) + 1
+        except (ValueError, IndexError):
+            numero = Producto.objects.filter(es_paquete=True).count() + 1
+    return f'PAQ-{anio}-{numero:05d}'
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -292,15 +556,32 @@ class Producto(models.Model):
 
     # — Unidad y presentación —
     # unidad_medida: define cómo se cuenta/mide el producto (unidad, kg, lt, etc.)
-    # contenido_neto: el contenido de cada unidad (ej: 500 ml, 1.5 lt, 6 unidades en un pack).
-    #   Es DecimalField porque puede ser 1.5 lt, 2.5 kg, etc.
-    #   La cantidad comprada/vendida (stock) siempre es un entero — se compran/venden
-    #   N unidades enteras de ese producto, sin importar qué contenga cada una.
+    #
+    # Dos campos, dos preguntas distintas, para no confundir al cargar el producto:
+    #
+    # unidades_por_presentacion: "¿esta presentación trae varias piezas sueltas adentro?"
+    #   Ej: una Caja de vasos trae 10 vasos → unidades_por_presentacion = 10.
+    #   Es el dato que usa Fraccionamiento para sugerir automáticamente cuántas unidades
+    #   sueltas salen de romper una presentación (sin necesitar nada cargado en el
+    #   producto de destino). Se deja vacío si la presentación no se abre en piezas
+    #   (ej: una botella de 500 ml no "trae varias botellas adentro").
+    #
+    # contenido_neto: "¿cuánto pesa/mide/contiene CADA pieza (o la presentación entera,
+    #   si no se divide en piezas)?" Es puramente informativo, para mostrar en pantalla
+    #   (ej: "500" en una botella de 500 ml, o "1" en cada bolsa de harina de 1 kg dentro
+    #   de un pack) — nunca se usa en ningún cálculo de stock, costo ni precio.
     unidad_medida  = models.CharField(max_length=20, choices=UnidadMedida.choices,
                          default=UnidadMedida.UNIDAD)
+    unidades_por_presentacion = models.PositiveIntegerField(
+                         null=True, blank=True,
+                         help_text='Cuántas piezas individuales trae cada '
+                                    '"unidad de medida" (ej: una Caja de vasos '
+                                    'trae 10 vasos → 10). Dejar vacío si no aplica.')
     contenido_neto = models.DecimalField(max_digits=10, decimal_places=3,
                          null=True, blank=True,
-                         help_text='Contenido por unidad (ej: 500 para una botella de 500 ml).')
+                         help_text='Cuánto pesa/mide cada pieza individual (o la '
+                                    'presentación entera si no trae piezas sueltas). '
+                                    'Solo informativo, ej: 500 para una botella de 500 ml.')
 
     # — Dimensiones físicas —
     # Útiles para logística, embalaje y cálculo de flete.
@@ -312,11 +593,15 @@ class Producto(models.Model):
     # — Precio —
     # Solo se almacena el precio de venta final (con IVA incluido).
     # El neto y el monto de IVA se calculan en runtime a partir de alicuota_iva.
-    # Precios alternativos (mayorista, oferta, listas de precio) vivirán en
-    # tablas separadas cuando se implemente el módulo de ventas:
-    #   - ListaPrecio + ListaPrecioItem  → precios por segmento (minorista, mayorista, etc.)
-    #   - Oferta + OfertaItem            → promociones con vigencia temporal
-    #   - ItemVenta.descuento            → descuento manual al momento de la venta
+    # Precios alternativos viven en tablas separadas:
+    #   - Oferta (más arriba en este archivo) → promociones con vigencia
+    #     temporal, aplicación automática o manual en el carrito.
+    #   - ListaDescuento                      → % predefinidos de elección
+    #     manual, sin vigencia.
+    #   - ItemVenta.descuento_pct             → descuento manual puntual
+    #     al momento de la venta.
+    # Pendiente: precios por segmento (mayorista/minorista) y packs/combos
+    # (ver análisis de "ofertas" — packs se resolvió aparte, no acá).
     precio_venta = models.DecimalField('Precio de venta', max_digits=12, decimal_places=2,
                        null=True, blank=True,
                        help_text='Precio final de venta al público (IVA incluido).')
@@ -353,11 +638,13 @@ class Producto(models.Model):
     # stock_maximo: límite superior opcional. Útil para no sobrecomprar productos
     #   de baja rotación o con restricciones de almacenamiento.
     #   No se valida automáticamente — es orientativo para el equipo de compras.
-    # PositiveIntegerField porque siempre se compran/venden unidades enteras.
-    stock_actual  = models.PositiveIntegerField(default=0)
-    stock_minimo  = models.PositiveIntegerField('Stock mínimo', default=0,
+    # DecimalField (no entero): productos con unidad_medida fraccionable
+    # (kg, gr, lt, ml, mt, cm, etc.) necesitan poder tener 2.750 kg en
+    # stock, no solo enteros. 3 decimales = precisión de gramos/mililitros.
+    stock_actual  = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    stock_minimo  = models.DecimalField(max_digits=12, decimal_places=3, default=0,
                         help_text='Alerta de stock bajo cuando el total cae por debajo de este valor.')
-    stock_maximo  = models.PositiveIntegerField('Stock máximo', null=True, blank=True,
+    stock_maximo  = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True,
                         help_text='Límite sugerido de stock. Orientativo para compras.')
 
     permite_stock_negativo = models.BooleanField(default=False,
@@ -373,6 +660,20 @@ class Producto(models.Model):
         'Gestiona variantes',
         default=False,
         help_text='Activar si el producto tiene variantes (color, sabor, talle, aroma, etc.) con stock independiente.',
+    )
+
+    # — Paquete (combo de otros productos) —
+    # No confundir con unidad_medida=PACK (eso es "esta presentación se
+    # llama pack", ej: un pack de 6 gaseosas IGUALES — sigue siendo un
+    # solo producto). es_paquete=True es un combo de productos DISTINTOS
+    # (ej: desodorante + shampoo + acondicionador vendidos juntos a un
+    # precio fijo). No tiene stock propio (gestiona_stock queda en
+    # False): al venderlo se descuenta en el momento de los lotes
+    # reales de cada componente — ver PaqueteComponente más abajo y
+    # _descontar_stock_paquete en ventas/models.py.
+    es_paquete = models.BooleanField(
+        'Es un paquete', default=False,
+        help_text='Combo armado a partir de otros productos. No tiene stock propio: se calcula de sus componentes.',
     )
 
     # — Estado y visibilidad —
@@ -411,7 +712,7 @@ class Producto(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.codigo:
-            self.codigo = _generar_codigo_producto()
+            self.codigo = _generar_codigo_paquete() if self.es_paquete else _generar_codigo_producto()
         if self.pk and self.gestiona_variantes:
             total = (
                 self.combinaciones.filter(activo=True)
@@ -488,6 +789,32 @@ class Producto(models.Model):
         return self.gestiona_stock and self.stock_minimo > 0 and self.stock_actual <= self.stock_minimo
 
     @property
+    def stock_disponible_paquete(self):
+        """
+        Cuántas unidades de este paquete se pueden armar AHORA MISMO,
+        según el stock actual de sus componentes (no es un valor
+        guardado — se recalcula cada vez que se pide, igual que
+        cualquier otro cálculo derivado de stock en tiempo real).
+        None si el producto no es un paquete.
+        """
+        if not self.es_paquete:
+            return None
+        disponibles = []
+        for comp in self.componentes.select_related('producto', 'combinacion').all():
+            if not comp.cantidad:
+                continue
+            stock_comp = comp.combinacion.stock_actual if comp.combinacion_id else comp.producto.stock_actual
+            disponibles.append(int(stock_comp // comp.cantidad))
+        return min(disponibles) if disponibles else 0
+
+    @property
+    def permite_fraccion(self):
+        """True si este producto se puede vender/comprar en cantidades
+        fraccionarias (kg, lt, mt, etc.) — False si se cuenta de a uno
+        (unidad, docena, caja, etc.), donde solo valen enteros."""
+        return self.unidad_medida in UNIDADES_FRACCIONABLES
+
+    @property
     def imagen_principal(self):
         return self.imagenes.filter(es_portada=True).first() or self.imagenes.first()
 
@@ -513,6 +840,45 @@ class Producto(models.Model):
         if not self.tags:
             return []
         return [t.strip() for t in self.tags.split(',') if t.strip()]
+
+
+# ══════════════════════════════════════════════════════════════════
+#  PAQUETES (combo de productos distintos)
+#  Un paquete es un Producto más (es_paquete=True) — se busca y se
+#  vende exactamente igual que cualquier otro producto, sin tocar
+#  nada del carrito. Lo único distinto es que no tiene lotes propios:
+#  sus "ingredientes" son estas filas, y al venderlo el stock se
+#  descuenta de los componentes reales (ver ventas/models.py).
+# ══════════════════════════════════════════════════════════════════
+
+class PaqueteComponente(models.Model):
+    paquete = models.ForeignKey(
+        Producto, on_delete=models.CASCADE, related_name='componentes',
+        limit_choices_to={'es_paquete': True},
+    )
+    producto = models.ForeignKey(
+        Producto, on_delete=models.PROTECT, related_name='usado_en_paquetes',
+        verbose_name='Producto componente',
+    )
+    combinacion = models.ForeignKey(
+        'CombinacionVariante', on_delete=models.PROTECT,
+        null=True, blank=True, related_name='usada_en_paquetes',
+        verbose_name='Combinación (si el componente tiene variantes)',
+    )
+    cantidad = models.DecimalField(
+        max_digits=12, decimal_places=3, default=1,
+        help_text='Cuántas unidades de este componente lleva cada unidad del paquete.',
+    )
+
+    class Meta:
+        verbose_name        = 'Componente de paquete'
+        verbose_name_plural = 'Componentes de paquete'
+        unique_together     = [('paquete', 'producto', 'combinacion')]
+        ordering            = ['id']
+
+    def __str__(self):
+        nombre = self.combinacion.descripcion_legible() if self.combinacion_id else self.producto.nombre
+        return f'{self.paquete.nombre}: {self.cantidad} × {nombre}'
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -599,7 +965,7 @@ class CombinacionVariante(models.Model):
     )
 
     # — Stock —
-    stock_actual = models.PositiveIntegerField('Stock actual', default=0)
+    stock_actual = models.DecimalField('Stock actual', max_digits=12, decimal_places=3, default=0)
 
     # — Control —
     activo = models.BooleanField(
@@ -720,6 +1086,7 @@ class TipoMovimiento(models.TextChoices):
     DEVOLUCION_V    = 'devolucion_v', 'Devolución de venta'
     TRANSFERENCIA_E = 'transf_e',     'Transferencia (entrada)'
     INVENTARIO_E    = 'inventario_e', 'Inventario inicial'
+    FRACCIONAMIENTO_E = 'fracc_e',    'Fraccionamiento (paquete armado)'
     # Salidas
     VENTA           = 'venta',        'Venta'
     AJUSTE_NEG      = 'ajuste_neg',   'Ajuste negativo (corrección)'
@@ -727,6 +1094,7 @@ class TipoMovimiento(models.TextChoices):
     TRANSFERENCIA_S = 'transf_s',     'Transferencia (salida)'
     MERMA           = 'merma',        'Merma / Pérdida'
     USO_INTERNO     = 'uso_interno',  'Uso interno'
+    FRACCIONAMIENTO_S = 'fracc_s',    'Fraccionamiento (consumido a granel)'
 
 
 MOVIMIENTOS_ENTRADA = {
@@ -735,6 +1103,7 @@ MOVIMIENTOS_ENTRADA = {
     TipoMovimiento.DEVOLUCION_V,
     TipoMovimiento.TRANSFERENCIA_E,
     TipoMovimiento.INVENTARIO_E,
+    TipoMovimiento.FRACCIONAMIENTO_E,
 }
 
 
@@ -771,11 +1140,11 @@ class MovimientoStock(models.Model):
         help_text='Combinación afectada. Null si el producto no tiene variantes.',
     )
     tipo            = models.CharField(max_length=20, choices=TipoMovimiento.choices)
-    cantidad        = models.PositiveIntegerField(
+    cantidad        = models.DecimalField(max_digits=12, decimal_places=3,
                           help_text='Siempre positivo. El tipo determina si es entrada o salida.')
-    stock_anterior  = models.PositiveIntegerField(
+    stock_anterior  = models.DecimalField(max_digits=12, decimal_places=3,
                           help_text='Stock total del producto antes del movimiento (calculado automáticamente).')
-    stock_posterior = models.PositiveIntegerField(
+    stock_posterior = models.DecimalField(max_digits=12, decimal_places=3,
                           help_text='Stock total del producto después del movimiento (calculado automáticamente).')
     motivo          = models.CharField(max_length=300, blank=True,
                           help_text='Descripción libre del motivo.')

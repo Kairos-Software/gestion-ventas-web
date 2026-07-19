@@ -1,0 +1,75 @@
+{% extends "asistencia/emails/base_email.html" %}
+
+{% block contenido %}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
+  <tr>
+    <td width="50%" style="padding:12px; background-color:#F4F6F9; border-radius:6px;">
+      <p style="margin:0; font-size:11px; color:#4A5568; text-transform:uppercase;">Ingresos</p>
+      <p style="margin:2px 0 0 0; font-size:20px; font-weight:bold; color:#0D1B2A;">${{ resumen.ingresos }}</p>
+    </td>
+    <td width="4"></td>
+    <td width="50%" style="padding:12px; background-color:#F4F6F9; border-radius:6px;">
+      <p style="margin:0; font-size:11px; color:#4A5568; text-transform:uppercase;">Ganancia neta</p>
+      <p style="margin:2px 0 0 0; font-size:20px; font-weight:bold; color:#0D1B2A;">${{ resumen.ganancia_neta }}</p>
+    </td>
+  </tr>
+  <tr><td colspan="3" height="8"></td></tr>
+  <tr>
+    <td width="50%" style="padding:12px; background-color:#F4F6F9; border-radius:6px;">
+      <p style="margin:0; font-size:11px; color:#4A5568; text-transform:uppercase;">Ventas confirmadas</p>
+      <p style="margin:2px 0 0 0; font-size:20px; font-weight:bold; color:#0D1B2A;">{{ resumen.cantidad_ventas }}</p>
+    </td>
+    <td width="4"></td>
+    <td width="50%" style="padding:12px; background-color:#F4F6F9; border-radius:6px;">
+      <p style="margin:0; font-size:11px; color:#4A5568; text-transform:uppercase;">Margen</p>
+      <p style="margin:2px 0 0 0; font-size:20px; font-weight:bold; color:#0D1B2A;">{{ resumen.margen_pct }}%</p>
+    </td>
+  </tr>
+</table>
+
+{% if variacion_ingresos is not None %}
+<p style="font-size:13px; color:#4A5568; margin:0 0 20px 0;">
+  {% if variacion_ingresos >= 0 %}
+    Ingresos <strong style="color:#10B981;">+{{ variacion_ingresos }}%</strong> vs. el período anterior.
+  {% else %}
+    Ingresos <strong style="color:#EF4444;">{{ variacion_ingresos }}%</strong> vs. el período anterior.
+  {% endif %}
+</p>
+{% endif %}
+
+<h2 style="font-size:14px; color:#0D1B2A; margin:0 0 12px 0; border-top:1px solid #E4EAF0; padding-top:16px;">Productos más rentables</h2>
+{% for fila in ranking_productos %}
+  {% include "asistencia/emails/_barra.html" with nombre=fila.nombre valor=fila.ganancia_fmt porcentaje=fila.porcentaje color='#F26A1B' %}
+{% empty %}
+<p style="font-size:13px; color:#8A9BB0;">Sin ventas confirmadas en este período.</p>
+{% endfor %}
+
+<h2 style="font-size:14px; color:#0D1B2A; margin:24px 0 12px 0; border-top:1px solid #E4EAF0; padding-top:16px;">Ventas por medio de pago</h2>
+{% for fila in por_medio_pago %}
+  {% include "asistencia/emails/_barra.html" with nombre=fila.medio_label valor=fila.total_fmt porcentaje=fila.porcentaje color='#1E6FA8' %}
+{% empty %}
+<p style="font-size:13px; color:#8A9BB0;">Sin datos de medios de pago en este período.</p>
+{% endfor %}
+
+<h2 style="font-size:14px; color:#0D1B2A; margin:24px 0 12px 0; border-top:1px solid #E4EAF0; padding-top:16px;">Situación financiera actual</h2>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+  {% for fila in saldo_cuentas %}
+  <tr>
+    <td style="font-size:13px; color:#4A5568; padding:4px 0;">Saldo disponible ({{ fila.label }})</td>
+    <td style="font-size:13px; color:#10B981; font-weight:bold; text-align:right;">${{ fila.total }}</td>
+  </tr>
+  {% endfor %}
+  {% for fila in deudas_pendientes %}
+  <tr>
+    <td style="font-size:13px; color:#4A5568; padding:4px 0;">Deudas pendientes ({{ fila.label }})</td>
+    <td style="font-size:13px; color:#EF4444; font-weight:bold; text-align:right;">${{ fila.total }}</td>
+  </tr>
+  {% endfor %}
+</table>
+
+{% if total_en_riesgo %}
+<div style="margin-top:20px; padding:12px 16px; background-color:#FFF0E6; border-left:3px solid #F59E0B; border-radius:4px;">
+  <p style="margin:0; font-size:13px; color:#0D1B2A;">Hay <strong>${{ total_en_riesgo }}</strong> en mercadería por vencer dentro de los próximos días. Revisá la alerta de vencimientos.</p>
+</div>
+{% endif %}
+{% endblock %}

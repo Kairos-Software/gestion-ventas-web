@@ -52,4 +52,11 @@ urlpatterns = [
     path('inventario/buscar-codigo/', views_inventario.BuscarLotePorCodigoAjax.as_view(), name='inventario_buscar_codigo'),
     path('inventario/perdida/registrar/', views_inventario.RegistrarPerdidaAjax.as_view(), name='inventario_perdida_registrar'),
     path('inventario/perdidas/',          views_inventario.ListarPerdidasAjax.as_view(),   name='inventario_perdidas_listar'),
+
+    # ══════════════════════════════════════════════════════════════════
+    #  INVENTARIO — Fraccionamiento
+    # ══════════════════════════════════════════════════════════════════
+    path('inventario/fraccionar/buscar-productos/', views_inventario.BuscarProductosFraccionarAjax.as_view(), name='inventario_fraccionar_buscar'),
+    path('inventario/fraccionar/',                   views_inventario.FraccionarAjax.as_view(),                name='inventario_fraccionar'),
+    path('inventario/fraccionamientos/',              views_inventario.ListarFraccionamientosAjax.as_view(),   name='inventario_fraccionamientos_listar'),
 ]

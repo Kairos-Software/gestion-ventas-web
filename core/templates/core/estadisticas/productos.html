@@ -1,0 +1,270 @@
+{% extends "core/base.html" %}
+{% load static humanize %}
+
+{% block title %}Estadísticas — Productos y Stock{% endblock %}
+{% block breadcrumb %}<strong>Estadísticas</strong> · Productos y Stock{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/estadisticas.css' %}">
+{% endblock %}
+
+{% block content %}
+
+{% if sin_permiso %}
+<div class="est-sin-permiso">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M12 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="12" cy="16.2" r="0.9" fill="currentColor"/>
+    </svg>
+    <p>No tenés permiso para ver estadísticas de productos y stock.</p>
+</div>
+{% else %}
+
+{% include "core/estadisticas/_filtros.html" %}
+
+<!-- ══════════ VALORIZACIÓN DEL STOCK (tiempo real) ══════════ -->
+<div class="card mb-4">
+    <div class="card-header">
+        <div>
+            <p class="card-title">¿Cuánta plata tenés inmovilizada en stock?</p>
+            <p class="text-muted" style="font-size:.8125rem;">A costo, tiempo real — no depende del filtro de fechas de arriba</p>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="est-mini-stat-grid">
+            <div class="est-mini-stat">
+                <div class="est-mini-stat-valor">${{ valorizacion_stock.total_valorizado|floatformat:0|intcomma }}</div>
+                <div class="est-mini-stat-label">Valorización total</div>
+            </div>
+            <div class="est-mini-stat">
+                <div class="est-mini-stat-valor">{{ valorizacion_stock.cantidad_productos }}</div>
+                <div class="est-mini-stat-label">Productos con stock</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════ RENDIMIENTO DE PAQUETES ══════════ -->
+<div class="card mb-4">
+    <div class="card-header">
+        <div>
+            <p class="card-title">¿Cómo rinden tus combos?</p>
+            <p class="text-muted" style="font-size:.8125rem;">Paquetes vendidos en este período, por ganancia real</p>
+        </div>
+    </div>
+    <div class="card-body">
+        {% if rendimiento_paquetes %}
+            {% for pq in rendimiento_paquetes %}
+            <div class="est-ranking-row">
+                <div class="est-ranking-left">
+                    <span class="est-ranking-pos">{{ forloop.counter }}</span>
+                    <div>
+                        <div class="est-ranking-nombre">{{ pq.nombre }}</div>
+                        <div class="est-ranking-detalle">{{ pq.codigo }} · {{ pq.unidades }} unid. vendidas</div>
+                    </div>
+                </div>
+                <div class="est-ranking-right">
+                    <div class="est-ranking-ganancia">${{ pq.ganancia|floatformat:0|intcomma }}</div>
+                    <div class="est-ranking-vendido">${{ pq.ingresos|floatformat:0|intcomma }} vendido</div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state">
+                <p>Todavía no vendiste paquetes en este período.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ══════════ STOCK BAJO + SIN MOVIMIENTO (tiempo real) ══════════ -->
+<div class="est-row mb-4">
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <p class="card-title">Stock bajo o crítico</p>
+                <p class="text-muted" style="font-size:.8125rem;">Con menos unidades que el mínimo que cargaste — tiempo real</p>
+            </div>
+        </div>
+        <div class="card-body">
+            {% if stock_bajo %}
+            <div class="table-responsive">
+                <table class="table">
+                    <thead><tr><th>Producto</th><th>Stock</th><th>Mínimo</th></tr></thead>
+                    <tbody>
+                        {% for p in stock_bajo %}
+                        <tr>
+                            <td>{{ p.nombre }} <span class="badge badge-secondary">{{ p.codigo }}</span></td>
+                            <td class="font-semibold text-danger">{{ p.stock_actual }}</td>
+                            <td>{{ p.stock_minimo }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+                <div class="empty-state">
+                    <p>Ningún producto está por debajo de su stock mínimo.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <p class="card-title">Stock sin movimiento</p>
+                <p class="text-muted" style="font-size:.8125rem;">No se vendió en los últimos 60 días — tiempo real</p>
+            </div>
+        </div>
+        <div class="card-body">
+            {% if sin_movimiento %}
+            <div class="table-responsive">
+                <table class="table">
+                    <thead><tr><th>Producto</th><th>Stock</th><th>Valor inmovilizado</th></tr></thead>
+                    <tbody>
+                        {% for p in sin_movimiento %}
+                        <tr>
+                            <td>{{ p.nombre }} <span class="badge badge-secondary">{{ p.codigo }}</span></td>
+                            <td>{{ p.stock_actual }}</td>
+                            <td class="font-semibold">${{ p.valor|floatformat:0|intcomma }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+                <div class="empty-state">
+                    <p>Todo tu stock tuvo movimiento en los últimos 60 días.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- ══════════ PÉRDIDAS — EN ESTE PERÍODO ══════════ -->
+<div class="card mb-4">
+    <div class="card-header">
+        <div>
+            <p class="card-title">Pérdidas en este período</p>
+            <p class="text-muted" style="font-size:.8125rem;">Lo que se venció o se rompió/perdió entre el {{ desde|date:'d/m/Y' }} y el {{ hasta|date:'d/m/Y' }}</p>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="est-perdida-grid" style="grid-template-columns: 1fr 1fr;">
+            <div class="est-perdida-box vencido">
+                <div class="est-perdida-titulo">Se venció sin vender</div>
+                <div class="est-perdida-valor">${{ perdidas_periodo.total_vencido_periodo|floatformat:0|intcomma }}</div>
+                <div class="est-perdida-nota">{{ perdidas_periodo.cantidad_lotes_vencidos_periodo }} lote{{ perdidas_periodo.cantidad_lotes_vencidos_periodo|pluralize }}</div>
+            </div>
+            <div class="est-perdida-box merma">
+                <div class="est-perdida-titulo">Se rompió o se perdió</div>
+                <div class="est-perdida-valor">${{ perdidas_periodo.total_mermas_periodo|floatformat:0|intcomma }}</div>
+                <div class="est-perdida-nota">{{ perdidas_periodo.unidades_mermas_periodo }} unidad{{ perdidas_periodo.unidades_mermas_periodo|pluralize }} perdida{{ perdidas_periodo.unidades_mermas_periodo|pluralize }}</div>
+            </div>
+        </div>
+
+        {% if perdidas_periodo.lotes_vencidos_periodo %}
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr><th>Lote</th><th>Producto</th><th>Venció el</th><th>Cuántos quedaron sin vender</th><th>Cuánto perdiste</th></tr>
+                </thead>
+                <tbody>
+                    {% for lote in perdidas_periodo.lotes_vencidos_periodo %}
+                    <tr>
+                        <td><span class="badge badge-danger">{{ lote.codigo }}</span></td>
+                        <td>{{ lote.producto }}</td>
+                        <td>{{ lote.fecha_vencimiento|date:'d/m/Y' }}</td>
+                        <td>{{ lote.cantidad_actual }}</td>
+                        <td class="font-semibold text-danger">${{ lote.valor_perdido|floatformat:0|intcomma }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% elif perdidas_periodo.total_mermas_periodo == 0 %}
+            <div class="empty-state">
+                <p>No perdiste nada por vencimiento ni por rotura en este período.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ══════════ ESTADO ACTUAL DEL DEPÓSITO (HOY — no depende del filtro de fecha) ══════════ -->
+<div class="card">
+    <div class="card-header">
+        <div>
+            <p class="card-title">Alerta: estado del depósito hoy</p>
+            <p class="text-muted" style="font-size:.8125rem;">Esto es en tiempo real — no cambia con el filtro de fechas de arriba</p>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="est-perdida-grid" style="grid-template-columns: 1fr 1fr;">
+            <div class="est-perdida-box vencido">
+                <div class="est-perdida-titulo">Ya vencido, todavía en el depósito</div>
+                <div class="est-perdida-valor">${{ perdidas_actuales.total_vencido|floatformat:0|intcomma }}</div>
+                <div class="est-perdida-nota">{{ perdidas_actuales.lotes_vencidos|length }} lote{{ perdidas_actuales.lotes_vencidos|length|pluralize }} — ya no se puede vender</div>
+            </div>
+            <div class="est-perdida-box por-vencer">
+                <div class="est-perdida-titulo">Vence en menos de 30 días</div>
+                <div class="est-perdida-valor">${{ perdidas_actuales.total_en_riesgo|floatformat:0|intcomma }}</div>
+                <div class="est-perdida-nota">{{ perdidas_actuales.lotes_por_vencer|length }} lote{{ perdidas_actuales.lotes_por_vencer|length|pluralize }} — ¡vendelos ya!</div>
+            </div>
+        </div>
+
+        {% if perdidas_actuales.lotes_vencidos %}
+        <p class="font-semibold" style="font-size:.875rem; margin-bottom:.5rem;">Ya vencidos</p>
+        <div class="table-responsive mb-3">
+            <table class="table">
+                <thead>
+                    <tr><th>Lote</th><th>Producto</th><th>Venció el</th><th>Stock</th><th>Valor</th></tr>
+                </thead>
+                <tbody>
+                    {% for lote in perdidas_actuales.lotes_vencidos %}
+                    <tr>
+                        <td><span class="badge badge-danger">{{ lote.codigo }}</span></td>
+                        <td>{{ lote.producto }}</td>
+                        <td>{{ lote.fecha_vencimiento|date:'d/m/Y' }}</td>
+                        <td>{{ lote.cantidad_actual }}</td>
+                        <td class="font-semibold text-danger">${{ lote.valor_perdido|floatformat:0|intcomma }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        {% if perdidas_actuales.lotes_por_vencer %}
+        <p class="font-semibold" style="font-size:.875rem; margin-bottom:.5rem;">Por vencer pronto</p>
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr><th>Lote</th><th>Producto</th><th>Vence el</th><th>Stock</th><th>En riesgo</th></tr>
+                </thead>
+                <tbody>
+                    {% for lote in perdidas_actuales.lotes_por_vencer %}
+                    <tr>
+                        <td><span class="badge badge-warning">{{ lote.codigo }}</span></td>
+                        <td>{{ lote.producto }}</td>
+                        <td>{{ lote.fecha_vencimiento|date:'d/m/Y' }}</td>
+                        <td>{{ lote.cantidad_actual }}</td>
+                        <td class="font-semibold text-warning">${{ lote.valor_en_riesgo|floatformat:0|intcomma }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        {% if not perdidas_actuales.lotes_vencidos and not perdidas_actuales.lotes_por_vencer %}
+            <div class="empty-state">
+                <p>No tenés productos vencidos ni por vencer en los próximos 30 días.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endif %}
+{% endblock %}

@@ -1,0 +1,173 @@
+{% extends "core/base.html" %}
+{% load static humanize %}
+
+{% block title %}Estadísticas — Caja y Finanzas{% endblock %}
+{% block breadcrumb %}<strong>Estadísticas</strong> · Caja y Finanzas{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/estadisticas.css' %}">
+{% endblock %}
+
+{% block content %}
+
+{% if sin_permiso %}
+<div class="est-sin-permiso">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M12 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="12" cy="16.2" r="0.9" fill="currentColor"/>
+    </svg>
+    <p>No tenés permiso para ver estadísticas de caja y finanzas.</p>
+</div>
+{% else %}
+
+{% include "core/estadisticas/_filtros.html" %}
+
+<!-- ══════════ SITUACIÓN FINANCIERA ACTUAL (tiempo real) ══════════ -->
+<div class="est-finanzas-card">
+    <div class="est-finanzas-header">
+        <div>
+            <p class="card-title">Situación financiera actual</p>
+            <p class="text-muted" style="font-size:.8125rem;">Tiempo real — no depende del filtro de fechas de arriba</p>
+        </div>
+    </div>
+    <div class="est-finanzas-body">
+
+        <div class="est-finanzas-grupo">
+            <span class="est-finanzas-grupo-titulo">Disponible en cuentas</span>
+            {% if situacion_financiera.saldo_cuentas %}
+                {% for s in situacion_financiera.saldo_cuentas %}
+                <div class="est-finanzas-monto {% if s.total < 0 %}negativo{% else %}positivo{% endif %}">
+                    ${{ s.total|floatformat:0|intcomma }} <span>{{ s.moneda }}</span>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="est-finanzas-monto neutro">$0</div>
+            {% endif %}
+        </div>
+
+        <div class="est-finanzas-grupo">
+            <span class="est-finanzas-grupo-titulo">Debés (créditos y préstamos)</span>
+            {% if situacion_financiera.deudas_pendientes %}
+                {% for d in situacion_financiera.deudas_pendientes %}
+                <div class="est-finanzas-monto negativo">${{ d.total|floatformat:0|intcomma }} <span>{{ d.moneda }}</span></div>
+                {% endfor %}
+            {% else %}
+                <div class="est-finanzas-monto neutro">$0</div>
+            {% endif %}
+        </div>
+
+        <div class="est-finanzas-grupo">
+            <span class="est-finanzas-grupo-titulo">Cheques a cobrar</span>
+            {% if situacion_financiera.cheques_a_cobrar %}
+                {% for c in situacion_financiera.cheques_a_cobrar %}
+                <div class="est-finanzas-monto positivo">${{ c.total|floatformat:0|intcomma }} <span>{{ c.moneda }}</span></div>
+                {% endfor %}
+            {% else %}
+                <div class="est-finanzas-monto neutro">$0</div>
+            {% endif %}
+        </div>
+
+        <div class="est-finanzas-grupo">
+            <span class="est-finanzas-grupo-titulo">Cheques a pagar</span>
+            {% if situacion_financiera.cheques_a_pagar %}
+                {% for c in situacion_financiera.cheques_a_pagar %}
+                <div class="est-finanzas-monto negativo">${{ c.total|floatformat:0|intcomma }} <span>{{ c.moneda }}</span></div>
+                {% endfor %}
+            {% else %}
+                <div class="est-finanzas-monto neutro">$0</div>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+
+<!-- ══════════ GASTOS POR CATEGORÍA ══════════ -->
+<div class="card">
+    <div class="card-header">
+        <div>
+            <p class="card-title">¿En qué se te va la plata?</p>
+            <p class="text-muted" style="font-size:.8125rem;">Gastos del período que elegiste arriba</p>
+        </div>
+    </div>
+    <div class="card-body">
+        {% if gastos_categoria %}
+            <div class="est-chart-wrap">
+                <canvas id="chartGastos"></canvas>
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <p>Todavía no cargaste gastos en este período.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ══════════ HISTORIAL DE ARQUEOS ══════════ -->
+<div class="card mt-4">
+    <div class="card-header">
+        <div>
+            <p class="card-title">Historial de arqueos</p>
+            <p class="text-muted" style="font-size:.8125rem;">Diferencia entre lo esperado y lo contado al cerrar cada turno, en este período</p>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="est-mini-stat-grid mb-3">
+            <div class="est-mini-stat">
+                <div class="est-mini-stat-valor">{{ historial_arqueos.cantidad_turnos }}</div>
+                <div class="est-mini-stat-label">Turnos cerrados</div>
+            </div>
+            <div class="est-mini-stat">
+                <div class="est-mini-stat-valor">{{ historial_arqueos.cantidad_con_diferencia }}</div>
+                <div class="est-mini-stat-label">Con diferencia</div>
+            </div>
+            <div class="est-mini-stat">
+                <div class="est-mini-stat-valor" style="color:var(--success);">${{ historial_arqueos.total_sobrante|floatformat:0|intcomma }}</div>
+                <div class="est-mini-stat-label">Total sobrante</div>
+            </div>
+            <div class="est-mini-stat">
+                <div class="est-mini-stat-valor" style="color:var(--danger);">${{ historial_arqueos.total_faltante|floatformat:0|intcomma }}</div>
+                <div class="est-mini-stat-label">Total faltante</div>
+            </div>
+        </div>
+
+        {% if historial_arqueos.detalle %}
+        <div class="table-responsive">
+            <table class="table">
+                <thead><tr><th>Turno</th><th>Cierre</th><th>Cerrado por</th><th>Diferencia</th></tr></thead>
+                <tbody>
+                    {% for t in historial_arqueos.detalle %}
+                    <tr>
+                        <td>#{{ t.numero }}</td>
+                        <td>{{ t.fecha_cierre|date:'d/m/Y H:i' }}</td>
+                        <td>{{ t.cerrado_por|default:'—' }}</td>
+                        <td class="font-semibold {% if t.diferencia_efectivo > 0 %}text-success{% elif t.diferencia_efectivo < 0 %}text-danger{% endif %}">
+                            {% if t.diferencia_efectivo > 0 %}Sobró ${{ t.diferencia_efectivo|floatformat:0|intcomma }}
+                            {% elif t.diferencia_efectivo < 0 %}Faltó ${{ t.diferencia_efectivo|floatformat:0|intcomma|cut:"-" }}
+                            {% else %}Cuadró{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+            <div class="empty-state">
+                <p>No hay turnos cerrados en este período.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="{% static 'core/js/estadisticas.js' %}"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        initChartGastos({{ gastos_categoria_json|safe }});
+    });
+</script>
+{% endblock %}

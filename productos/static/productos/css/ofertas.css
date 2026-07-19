@@ -1,0 +1,17 @@
+.of-panel {
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: 0.875rem;
+    box-shadow: var(--shadow-sm);
+    padding: 1.25rem 1.5rem 1.5rem;
+}
+
+.of-sin-permiso {
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: 0.875rem;
+    box-shadow: var(--shadow-sm);
+    padding: 3rem 1.5rem;
+    text-align: center;
+    color: var(--text-muted);
+}

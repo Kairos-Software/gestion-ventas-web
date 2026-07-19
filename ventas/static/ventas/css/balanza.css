@@ -1,0 +1,152 @@
+/* balanza.css — Etiquetas de peso/medida variable
+   Hereda el sistema de diseño de ventas.css (vta-*) sin sobreescribirlo. */
+
+.bal-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.bal-field { display: flex; flex-direction: column; gap: .375rem; }
+
+.bal-label {
+    font-size: .78rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.bal-hint {
+    font-size: .72rem;
+    color: var(--text-muted);
+}
+
+.bal-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: .25rem;
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: .625rem;
+    box-shadow: var(--shadow-lg, 0 8px 24px rgba(0,0,0,.12));
+    max-height: 280px;
+    overflow-y: auto;
+    z-index: 20;
+}
+.bal-dropdown.visible { display: block; }
+
+.bal-dropdown-item {
+    padding: .625rem .875rem;
+    cursor: pointer;
+    font-size: .85rem;
+    border-bottom: 1px solid var(--border-color);
+}
+.bal-dropdown-item:last-child { border-bottom: none; }
+.bal-dropdown-item:hover { background: var(--bg-secondary); }
+.bal-dropdown-item small {
+    display: block;
+    color: var(--text-muted);
+    font-size: .72rem;
+    margin-top: .1rem;
+}
+.bal-dropdown-marca { color: var(--text-muted); font-weight: 400; }
+.bal-dropdown-empty {
+    padding: .75rem .875rem;
+    font-size: .8rem;
+    color: var(--text-muted);
+}
+
+.bal-preview {
+    margin-top: .85rem;
+    padding: .75rem 1rem;
+    border-radius: .625rem;
+    background: var(--brand-orange-light);
+    color: var(--brand-orange-dark);
+    font-size: .9rem;
+    font-weight: 600;
+}
+.bal-preview small {
+    display: block;
+    font-weight: 400;
+    font-size: .75rem;
+    margin-top: .2rem;
+    color: var(--text-muted);
+}
+
+/* ── Resultado / etiqueta generada ── */
+.bal-resultado-body {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    flex-wrap: wrap;
+}
+
+.bal-etiqueta-preview {
+    border: 1px dashed var(--border-strong, var(--border-color));
+    border-radius: .75rem;
+    padding: 1rem 1.25rem;
+    min-width: 240px;
+    text-align: center;
+    background: var(--bg-white);
+}
+.bal-etiqueta-producto { font-weight: 700; font-size: .95rem; color: var(--text-primary); margin-bottom: .3rem; }
+.bal-etiqueta-cantidad { font-size: .82rem; color: var(--text-secondary); margin-bottom: .1rem; }
+.bal-etiqueta-precio   { font-weight: 700; font-size: 1.3rem; color: var(--brand-orange); margin-bottom: .6rem; }
+
+.bal-resultado-acciones {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+}
+
+/* ── Historial ── */
+.bal-filtros {
+    display: flex;
+    gap: .75rem;
+    padding: 1rem 1.25rem 0;
+    flex-wrap: wrap;
+}
+.bal-filtros .vta-search-input { flex: 1; min-width: 220px; }
+.bal-filtro-estado { max-width: 200px; }
+
+.bal-badge-estado {
+    display: inline-block;
+    padding: .15rem .55rem;
+    border-radius: 1rem;
+    font-size: .7rem;
+    font-weight: 700;
+}
+.bal-badge-estado--disponible { background: var(--brand-orange-light); color: var(--brand-orange-dark); }
+.bal-badge-estado--vendida    { background: rgba(30,111,168,.1); color: var(--brand-blue, #1E6FA8); }
+.bal-badge-estado--anulada    { background: var(--bg-secondary); color: var(--text-muted); }
+
+.bal-btn-anular {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+    font-size: .75rem;
+    padding: .3rem .7rem;
+    border-radius: .5rem;
+    cursor: pointer;
+}
+.bal-btn-anular:hover { background: rgba(239,68,68,.08); border-color: rgba(239,68,68,.35); color: var(--danger, #EF4444); }
+
+@media (max-width: 700px) {
+    .bal-form-grid { grid-template-columns: 1fr; }
+    .bal-resultado-body { flex-direction: column; align-items: stretch; }
+}
+
+/* ── Impresión de una sola etiqueta ── */
+#bal-print-area { display: none; }
+@media print {
+    body > *:not(#bal-print-area) { display: none !important; }
+    #bal-print-area {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+    }
+    #bal-print-area .bal-etiqueta-preview { border: none; }
+}

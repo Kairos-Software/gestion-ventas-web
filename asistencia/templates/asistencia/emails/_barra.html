@@ -1,0 +1,13 @@
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:10px;">
+  <tr>
+    <td style="font-size:13px; color:#374151; padding-bottom:3px;">{{ nombre }}</td>
+    <td style="font-size:13px; color:#111827; font-weight:bold; text-align:right; padding-bottom:3px; white-space:nowrap;">{{ valor }}</td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <div style="background-color:#e5e7eb; border-radius:4px; height:8px; width:100%; overflow:hidden;">
+        <div style="background-color:{{ color|default:'#F26A1B' }}; height:8px; width:{{ porcentaje }}%;"></div>
+      </div>
+    </td>
+  </tr>
+</table>

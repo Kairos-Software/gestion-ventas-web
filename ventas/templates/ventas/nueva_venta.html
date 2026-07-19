@@ -16,8 +16,9 @@
         white-space: nowrap;
         display: inline-block;
     }
-    .vta-origen-chip--normal { color: var(--text-muted); background: var(--bg-secondary); }
-    .vta-origen-chip--lote   { color: var(--brand-blue, #1E6FA8); background: rgba(30,111,168,.08); }
+    .vta-origen-chip--normal  { color: var(--text-muted); background: var(--bg-secondary); }
+    .vta-origen-chip--lote    { color: var(--brand-blue, #1E6FA8); background: rgba(30,111,168,.08); }
+    .vta-origen-chip--balanza { color: var(--brand-orange-dark); background: var(--brand-orange-light); }
 
     /* Avisos de estado (sin turno / sin permiso) — tampoco están en
        ventas.css, les doy un estilo consistente con el resto. */
@@ -93,6 +94,29 @@
     .vta-btn-remove:hover {
         background: rgba(239, 68, 68, .18) !important;
         border-color: rgba(239, 68, 68, .4);
+    }
+
+    /* Oferta por monto mínimo de compra — vive sobre el pie del
+       carrito porque es sobre el TOTAL de la venta, no una línea. */
+    .vta-oferta-global {
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        flex-wrap: wrap;
+        padding: .6rem 1.25rem;
+        border-top: 1px solid var(--border-color);
+        font-size: .8125rem;
+    }
+    .vta-oferta-global-badge {
+        color: var(--brand-orange-dark, #D45A0F);
+        background: var(--brand-orange-light, #FFF0E6);
+        border: 1px solid rgba(242, 106, 27, .25);
+        padding: .35rem .7rem;
+        border-radius: .5rem;
+        font-weight: 600;
+    }
+    .vta-oferta-global-label {
+        color: var(--text-muted);
     }
 </style>
 {% endblock %}
@@ -184,9 +208,9 @@
                     <th>Origen</th>
                     <th>Cant.</th>
                     <th>Precio unit.</th>
-                    <th>Moneda</th>
                     <th>Desc. %</th>
                     <th>Lista</th>
+                    <th>Oferta</th>
                     <th>Cond. pago</th>
                     <th>Cliente</th>
                     <th>Referencia</th>
@@ -209,6 +233,8 @@
             <p>Escaneá o buscá un producto arriba para comenzar</p>
         </div>
     </div>
+
+    <div id="vtaOfertaGlobal" class="vta-oferta-global" style="display:none;"></div>
 
     <div id="vtaCartFooter" class="vta-cart-footer" style="display:none;">
         <div class="vta-cart-footer-total">
@@ -240,18 +266,22 @@
 {% if not sin_permiso %}
 {{ items_iniciales|json_script:"vtaItemsIniciales" }}
 {{ listas_descuento|json_script:"vtaListasDescuento" }}
+{{ ofertas_vigentes|json_script:"vtaOfertasVigentes" }}
 <script>
 window.VTA_CONFIG = {
     urlBuscarProducto:  "{% url 'ventas:buscar_producto' %}",
     urlBuscarCliente:   "{% url 'ventas:buscar_cliente' %}",
     urlBuscarLote:      "{% url 'ventas:buscar_lote' %}",
+    urlBuscarBalanza:   "{% url 'ventas:balanza_buscar_codigo' %}",
     urlGuardarBorrador: "{% url 'ventas:guardar_borrador' %}",
     urlEliminarBorrador:"{% url 'ventas:eliminar_borrador' %}",
     urlDetalle:         "{% url 'ventas:detalle_venta' pk=0 %}".replace("/0/", "/"),
     csrfToken:          "{{ csrf_token }}",
     ventaEditarPk:      {{ venta_editar_pk|default:"null" }},
+    ventaEditarOfertaGlobalNombre: "{{ venta_editar_oferta_global_nombre|default:''|escapejs }}",
     itemsIniciales:     JSON.parse(document.getElementById('vtaItemsIniciales').textContent),
     listasDescuento:    JSON.parse(document.getElementById('vtaListasDescuento').textContent),
+    ofertasVigentes:    JSON.parse(document.getElementById('vtaOfertasVigentes').textContent),
 };
 </script>
 <script src="{% static 'ventas/js/nueva_venta.js' %}"></script>

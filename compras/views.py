@@ -7,10 +7,11 @@ from django.views import View
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.db import transaction
 
 from django.db.models import Q
 
-from productos.models import Producto, Proveedor, CombinacionVariante, ListaDescuento
+from productos.models import Producto, Proveedor, CombinacionVariante, ListaDescuento, cantidad_valida_para_unidad
 from .models import Compra, ItemCompra, EstadoCompra, MedioPagoCompra
 from core.permisos import chequear_permiso
 from caja.models import CuentaCaja, TipoCaja
@@ -352,6 +353,12 @@ class GuardarBorradorAjax(LoginRequiredMixin, View):
             if cantidad <= 0:
                 errores.append(f'Ítem {idx}: la cantidad debe ser mayor a 0.')
                 continue
+            if not cantidad_valida_para_unidad(producto.unidad_medida, cantidad):
+                errores.append(
+                    f'Ítem {idx}: "{producto.nombre}" se compra por {producto.get_unidad_medida_display()} '
+                    f'— la cantidad tiene que ser un número entero.'
+                )
+                continue
             if costo_unitario < 0:
                 errores.append(f'Ítem {idx}: el costo no puede ser negativo.')
                 continue
@@ -488,6 +495,12 @@ class ActualizarBorradorAjax(LoginRequiredMixin, View):
             if cantidad <= 0:
                 errores.append(f'Ítem {idx}: la cantidad debe ser mayor a 0.')
                 continue
+            if not cantidad_valida_para_unidad(producto.unidad_medida, cantidad):
+                errores.append(
+                    f'Ítem {idx}: "{producto.nombre}" se compra por {producto.get_unidad_medida_display()} '
+                    f'— la cantidad tiene que ser un número entero.'
+                )
+                continue
             if costo_unitario < 0:
                 errores.append(f'Ítem {idx}: el costo no puede ser negativo.')
                 continue
@@ -576,6 +589,7 @@ class ConfirmarCompraAjax(LoginRequiredMixin, View):
     5. Devuelve { ok, pk, numero, total }.
     """
 
+    @transaction.atomic
     def post(self, request):
         if not chequear_permiso(request.user, 'crear_compras'):
             return JsonResponse({'error': 'Sin permiso.'}, status=403)
@@ -594,7 +608,10 @@ class ConfirmarCompraAjax(LoginRequiredMixin, View):
         if not fecha:
             return JsonResponse({'error': 'La fecha es requerida.'}, status=400)
 
-        compra = get_object_or_404(Compra, pk=compra_pk)
+        # select_for_update(): un doble clic en "Confirmar" no debe sumar
+        # stock dos veces — el segundo request espera acá y encuentra la
+        # compra ya CONFIRMADA.
+        compra = get_object_or_404(Compra.objects.select_for_update(), pk=compra_pk)
 
         if compra.estado != EstadoCompra.BORRADOR:
             return JsonResponse(
@@ -608,8 +625,13 @@ class ConfirmarCompraAjax(LoginRequiredMixin, View):
         if not pagos_raw:
             return JsonResponse({'error': 'Agregá al menos un medio de pago con monto.'}, status=400)
 
+        # La compra siempre está en pesos: si una línea se paga desde
+        # una cuenta que no es en pesos, se convierte con la cotización
+        # que mandó el usuario para poder validar que la suma cubre
+        # compra.total (a diferencia de Ventas, acá SÍ vale para
+        # cualquier medio, incluido efectivo — ver PagoCompra).
         pagos_normalizados = []
-        suma = Decimal('0')
+        suma_ars = Decimal('0')
         for p in pagos_raw:
             medio_p = p.get('medio', '').strip()
             if medio_p not in valores_validos:
@@ -620,13 +642,32 @@ class ConfirmarCompraAjax(LoginRequiredMixin, View):
                 return JsonResponse({'error': 'Monto de pago inválido.'}, status=400)
             if monto_p <= 0:
                 continue
-            suma += monto_p
+
+            cotizacion_p = None
+            monto_ars = monto_p
+            es_credito = medio_p == MedioPagoCompra.CREDITO
+            cuenta = CuentaCaja.objects.filter(
+                pk=p.get('cuenta_pk'), caja=TipoCaja.GRANDE, activa=True, es_credito=es_credito,
+            ).first()
+            if cuenta and cuenta.moneda != 'ARS':
+                try:
+                    cotizacion_p = Decimal(str(p.get('cotizacion', 0)))
+                except Exception:
+                    cotizacion_p = None
+                if not cotizacion_p or cotizacion_p <= 0:
+                    return JsonResponse({
+                        'error': f'Ingresá la cotización usada para el pago en {cuenta.get_moneda_display()}.'
+                    }, status=400)
+                monto_ars = (monto_p * cotizacion_p).quantize(Decimal('0.01'))
+
+            suma_ars += monto_ars
             linea = {
                 'medio': medio_p,
                 'monto': monto_p,
                 'cuenta_pk': p.get('cuenta_pk'),
+                'cotizacion': cotizacion_p,
             }
-            if medio_p == MedioPagoCompra.CREDITO:
+            if es_credito:
                 linea['cuotas'] = p.get('cuotas')
                 linea['interes_pct'] = p.get('interes_pct')
                 linea['fecha_inicio_debito'] = p.get('fecha_inicio_debito')
@@ -645,10 +686,10 @@ class ConfirmarCompraAjax(LoginRequiredMixin, View):
 
         # El total recién se recalcula en confirmar(); usamos el total actual del borrador
         compra.calcular_total()
-        diferencia = abs(suma - compra.total)
+        diferencia = abs(suma_ars - compra.total)
         if diferencia > Decimal('0.01'):
             return JsonResponse({
-                'error': f'La suma de los pagos (${suma}) no coincide con el total (${compra.total}).'
+                'error': f'La suma de los pagos (${suma_ars}) no coincide con el total (${compra.total}).'
             }, status=400)
 
         # Confirmar: suma stock + calcula total + resuelve pagos + pasa a CONFIRMADA

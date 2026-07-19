@@ -220,7 +220,7 @@
                     <td>
                         {% if p.gestiona_stock %}
                             <span class="prd-stock {% if p.stock_bajo %}prd-stock--bajo{% endif %}">
-                                {{ p.stock_actual|floatformat:0 }}
+                                {{ p.stock_actual|floatformat:"-3" }}
                                 <span class="prd-stock-um">{{ p.get_unidad_medida_display }}</span>
                             </span>
                             {% if p.stock_bajo %}<span class="prd-stock-alerta" title="Stock mínimo: {{ p.stock_minimo }}">⚠</span>{% endif %}
@@ -374,9 +374,12 @@
                         <input type="text" id="f_pais_origen" class="prd-input" placeholder="País">
                     </div>
                 </div>
-                <div class="prd-form-grid prd-form-grid--2">
+                <div class="prd-form-grid prd-form-grid--3" id="wrap_grid_unidad">
                     <div class="prd-field">
-                        <label>Unidad de medida</label>
+                        <label class="kai-label-help">
+                            Unidad de medida
+                            <button type="button" class="kai-help-btn" data-help-target="ayuda_unidad_medida" aria-label="Ayuda">?</button>
+                        </label>
                         <select id="f_unidad_medida" class="prd-input prd-select">
                             <option value="unidad">Unidad</option>
                             <option value="kg">Kilogramo</option>
@@ -395,10 +398,23 @@
                             <option value="bolsa">Bolsa</option>
                             <option value="otro">Otro</option>
                         </select>
+                        <div class="kai-help-popover" id="ayuda_unidad_medida">Así se cuenta el stock de este producto en todo el sistema.</div>
+                    </div>
+                    <div class="prd-field" id="wrap_unidades_por_presentacion" style="display:none;">
+                        <label class="kai-label-help">
+                            ¿Trae piezas sueltas adentro? <span class="prd-hint">(opcional)</span>
+                            <button type="button" class="kai-help-btn" data-help-target="ayuda_unidades_por_presentacion" aria-label="Ayuda">?</button>
+                        </label>
+                        <input type="number" id="f_unidades_por_presentacion" class="prd-input" placeholder="Ej: 10" step="1" min="1">
+                        <div class="kai-help-popover" id="ayuda_unidades_por_presentacion">Cuántas piezas sueltas trae cada uno. Ej: la caja de vasos trae 10.</div>
                     </div>
                     <div class="prd-field">
-                        <label>Contenido neto</label>
-                        <input type="number" id="f_contenido_neto" class="prd-input" placeholder="Ej: 500" step="0.001" min="0">
+                        <label class="kai-label-help">
+                            Contenido de cada pieza <span class="prd-hint">(solo informativo)</span>
+                            <button type="button" class="kai-help-btn" data-help-target="ayuda_contenido_neto" aria-label="Ayuda">?</button>
+                        </label>
+                        <input type="number" id="f_contenido_neto" class="prd-input" placeholder="Ej: 1000" step="0.001" min="0">
+                        <div class="kai-help-popover" id="ayuda_contenido_neto">Cuánto pesa o mide cada pieza. Solo para mostrarlo en pantalla, no afecta el stock.</div>
                     </div>
                 </div>
                 <div class="prd-field">
@@ -552,9 +568,12 @@
                 </div>
                 <div class="prd-form-grid prd-form-grid--2" style="margin-top:.5rem">
                     <div class="prd-field">
-                        <label>Stock mínimo <span class="prd-hint">(alerta de stock bajo)</span></label>
-                        <input type="number" id="f_stock_minimo" class="prd-input" placeholder="0" step="1" min="0" value="0">
-                        <small class="prd-field-hint">Cuando el stock total caiga por debajo de este valor, se mostrará una alerta ⚠</small>
+                        <label class="kai-label-help">
+                            Stock mínimo <span class="prd-hint">(alerta de stock bajo)</span>
+                            <button type="button" class="kai-help-btn" data-help-target="ayuda_stock_minimo" aria-label="Ayuda">?</button>
+                        </label>
+                        <input type="number" id="f_stock_minimo" class="prd-input" placeholder="0" step="any" min="0" value="0">
+                        <div class="kai-help-popover" id="ayuda_stock_minimo">Si el stock baja de este número, te avisamos.</div>
                     </div>
                     <div class="prd-field">
                         <label>Posición en depósito</label>
@@ -673,7 +692,10 @@
                             <p class="prd-variantes-catalogo-hint">Definí los tipos (Color, Sabor, Talle…) y sus valores. Cada valor pertenece a un tipo y se reutiliza en todos los productos.</p>
                             <div class="prd-form-grid prd-form-grid--2">
                                 <div class="prd-field">
-                                    <label>Tipo de variante</label>
+                                    <label class="kai-label-help">
+                                        Tipo de variante
+                                        <button type="button" class="kai-help-btn" data-help-target="ayuda_variante_tipo" aria-label="Ayuda">?</button>
+                                    </label>
                                     <div class="prd-select-with-manager">
                                         <select id="f_variante_tipo" class="prd-input prd-select">
                                             <option value="">— Seleccionar tipo —</option>
@@ -691,9 +713,13 @@
                                             <button type="button" class="prd-btn prd-btn-primary prd-btn--sm" onclick="crearVariante()">Agregar</button>
                                         </div>
                                     </div>
+                                    <div class="kai-help-popover" id="ayuda_variante_tipo">La característica que distingue las combinaciones: Color, Talle, Sabor...</div>
                                 </div>
                                 <div class="prd-field">
-                                    <label>Valor de variante</label>
+                                    <label class="kai-label-help">
+                                        Valor de variante
+                                        <button type="button" class="kai-help-btn" data-help-target="ayuda_variante_valor" aria-label="Ayuda">?</button>
+                                    </label>
                                     <div class="prd-select-with-manager">
                                         <select id="f_variante_valor" class="prd-input prd-select" disabled>
                                             <option value="">— Primero elegí un tipo —</option>
@@ -711,6 +737,7 @@
                                             <button type="button" class="prd-btn prd-btn-primary prd-btn--sm" onclick="crearOpcionVariante()">Agregar</button>
                                         </div>
                                     </div>
+                                    <div class="kai-help-popover" id="ayuda_variante_valor">Los valores de ese tipo. Si elegiste Color: Rojo, Azul, Verde...</div>
                                 </div>
                             </div>
                             <div class="prd-v2-resumen" id="catalogoValoresResumen">
@@ -723,7 +750,9 @@
                         <div class="prd-v2-step">
                             <span class="prd-v2-step-num">2</span>
                             <span class="prd-v2-step-title">Combinaciones de este producto</span>
+                            <button type="button" class="kai-help-btn" data-help-target="ayuda_combinaciones" aria-label="Ayuda">?</button>
                         </div>
+                        <div class="kai-help-popover" id="ayuda_combinaciones">Cada combinación tiene su propio stock, como si fuera otro producto.</div>
                         <div class="prd-img-aviso" id="combinacionNuevoAviso" style="display:none">
                             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                                 <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.2"/>

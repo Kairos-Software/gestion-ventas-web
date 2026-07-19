@@ -1,0 +1,233 @@
+{% extends "core/base.html" %}
+{% load static humanize %}
+
+{% block title %}Estadísticas — Resumen{% endblock %}
+{% block breadcrumb %}<strong>Estadísticas</strong> · Resumen{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/estadisticas.css' %}">
+{% endblock %}
+
+{% block content %}
+
+{% include "core/estadisticas/_filtros.html" %}
+
+<!-- ══════════ SITUACIÓN FINANCIERA ACTUAL (tiempo real, no depende del filtro) ══════════ -->
+{% if situacion_financiera %}
+<div class="est-finanzas-card">
+    <div class="est-finanzas-header">
+        <div>
+            <p class="card-title">Situación financiera actual</p>
+            <p class="text-muted" style="font-size:.8125rem;">Esto es en tiempo real — cuánta plata tenés, cuánto debés y cuánto te deben. Más detalle en <a href="{% url 'core:estadisticas_caja' %}">Caja y Finanzas</a>.</p>
+        </div>
+    </div>
+    <div class="est-finanzas-body">
+
+        <div class="est-finanzas-grupo">
+            <span class="est-finanzas-grupo-titulo">Disponible en cuentas</span>
+            {% if situacion_financiera.saldo_cuentas %}
+                {% for s in situacion_financiera.saldo_cuentas %}
+                <div class="est-finanzas-monto {% if s.total < 0 %}negativo{% else %}positivo{% endif %}">
+                    ${{ s.total|floatformat:0|intcomma }} <span>{{ s.moneda }}</span>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="est-finanzas-monto neutro">$0</div>
+            {% endif %}
+        </div>
+
+        <div class="est-finanzas-grupo">
+            <span class="est-finanzas-grupo-titulo">Debés (créditos y préstamos)</span>
+            {% if situacion_financiera.deudas_pendientes %}
+                {% for d in situacion_financiera.deudas_pendientes %}
+                <div class="est-finanzas-monto negativo">${{ d.total|floatformat:0|intcomma }} <span>{{ d.moneda }}</span></div>
+                {% endfor %}
+            {% else %}
+                <div class="est-finanzas-monto neutro">$0</div>
+            {% endif %}
+        </div>
+
+        <div class="est-finanzas-grupo">
+            <span class="est-finanzas-grupo-titulo">Cheques a cobrar</span>
+            {% if situacion_financiera.cheques_a_cobrar %}
+                {% for c in situacion_financiera.cheques_a_cobrar %}
+                <div class="est-finanzas-monto positivo">${{ c.total|floatformat:0|intcomma }} <span>{{ c.moneda }}</span></div>
+                {% endfor %}
+            {% else %}
+                <div class="est-finanzas-monto neutro">$0</div>
+            {% endif %}
+        </div>
+
+        <div class="est-finanzas-grupo">
+            <span class="est-finanzas-grupo-titulo">Cheques a pagar</span>
+            {% if situacion_financiera.cheques_a_pagar %}
+                {% for c in situacion_financiera.cheques_a_pagar %}
+                <div class="est-finanzas-monto negativo">${{ c.total|floatformat:0|intcomma }} <span>{{ c.moneda }}</span></div>
+                {% endfor %}
+            {% else %}
+                <div class="est-finanzas-monto neutro">$0</div>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+{% endif %}
+
+<!-- ══════════ KPIs PRINCIPALES ══════════ -->
+<div class="est-kpi-grid">
+
+    <!-- Vendiste -->
+    <div class="est-kpi-card">
+        <div class="est-kpi-top">
+            <div class="est-kpi-icon naranja">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M2 3h2l1.5 9.5A2 2 0 0 0 7.5 14H15a2 2 0 0 0 2-1.6L18.5 6H5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="17" r="1.2" fill="currentColor"/><circle cx="15" cy="17" r="1.2" fill="currentColor"/></svg>
+            </div>
+            <div class="est-kpi-label">Total vendido</div>
+        </div>
+        <div class="est-kpi-value">${{ resumen.ingresos|floatformat:0|intcomma }}</div>
+        {% if comparacion.variacion_ingresos is not None %}
+            <div class="est-kpi-delta {% if comparacion.variacion_ingresos > 0 %}up{% elif comparacion.variacion_ingresos < 0 %}down{% else %}flat{% endif %}">
+                {% if comparacion.variacion_ingresos > 0 %}▲ {{ comparacion.variacion_ingresos }}% más{% elif comparacion.variacion_ingresos < 0 %}▼ {{ comparacion.variacion_ingresos|cut:"-" }}% menos{% else %}Igual{% endif %}
+                {{ comparacion_label }}
+            </div>
+        {% else %}
+            <div class="est-kpi-sub">Sin datos del período anterior para comparar todavía</div>
+        {% endif %}
+    </div>
+
+    <!-- Ganaste -->
+    <div class="est-kpi-card">
+        <div class="est-kpi-top">
+            <div class="est-kpi-icon verde">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.7"/><path d="M10 6.5v7M8 8.2c0-.9.9-1.5 2-1.5s2 .6 2 1.4c0 1.9-4 1.2-4 3.1 0 .8.9 1.4 2 1.4s2-.6 2-1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </div>
+            <div class="est-kpi-label">Total ganado</div>
+        </div>
+        <div class="est-kpi-value">${{ resumen.ganancia_bruta|floatformat:0|intcomma }}</div>
+        {% if comparacion.variacion_ganancia is not None %}
+            <div class="est-kpi-delta {% if comparacion.variacion_ganancia > 0 %}up{% elif comparacion.variacion_ganancia < 0 %}down{% else %}flat{% endif %}">
+                {% if comparacion.variacion_ganancia > 0 %}▲ {{ comparacion.variacion_ganancia }}% más{% elif comparacion.variacion_ganancia < 0 %}▼ {{ comparacion.variacion_ganancia|cut:"-" }}% menos{% else %}Igual{% endif %}
+                {{ comparacion_label }}
+            </div>
+        {% endif %}
+        <div class="est-kpi-sub">De cada $100 vendidos, ganás ${{ resumen.margen_pct|floatformat:0 }}</div>
+    </div>
+
+    <!-- Ticket promedio -->
+    <div class="est-kpi-card">
+        <div class="est-kpi-top">
+            <div class="est-kpi-icon azul">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="2" y="5" width="16" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M6 5V3.5C6 2.95 6.45 2.5 7 2.5H13C13.55 2.5 14 2.95 14 3.5V5" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="10.5" r="2" stroke="currentColor" stroke-width="1.3"/></svg>
+            </div>
+            <div class="est-kpi-label">Ticket promedio</div>
+        </div>
+        <div class="est-kpi-value">${{ ticket_promedio|floatformat:0|intcomma }}</div>
+        <div class="est-kpi-sub">{{ resumen.cantidad_ventas }} venta{{ resumen.cantidad_ventas|pluralize }} confirmada{{ resumen.cantidad_ventas|pluralize }}</div>
+    </div>
+
+    <!-- Total gastado -->
+    <div class="est-kpi-card">
+        <div class="est-kpi-top">
+            <div class="est-kpi-icon gris">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 10a7 7 0 1 1 14 0 7 7 0 0 1-14 0Z" stroke="currentColor" stroke-width="1.7"/><path d="M10 6v4l3 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="est-kpi-label">Total gastado</div>
+        </div>
+        <div class="est-kpi-value">${{ resumen.gastos|floatformat:0|intcomma }}</div>
+        <div class="est-kpi-sub">Gastos operativos cargados en este período — detalle en <a href="{% url 'core:estadisticas_caja' %}">Caja y Finanzas</a></div>
+    </div>
+
+    <!-- Total perdido -->
+    <div class="est-kpi-card">
+        <div class="est-kpi-top">
+            <div class="est-kpi-icon rojo">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 2 18 16H2L10 2Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M10 8v4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="10" cy="14.3" r="0.9" fill="currentColor"/></svg>
+            </div>
+            <div class="est-kpi-label">Total perdido</div>
+        </div>
+        <div class="est-kpi-value">${{ perdidas_periodo.total_perdidas_periodo|floatformat:0|intcomma }}</div>
+        <div class="est-kpi-sub">Por vencimiento y mermas — detalle en <a href="{% url 'core:estadisticas_productos' %}">Productos y Stock</a></div>
+    </div>
+
+</div>
+
+<!-- ══════════ RESUMEN COMPLETO DEL PERÍODO (la cuenta, clara) ══════════ -->
+<div class="card mb-4">
+    <div class="card-header">
+        <div>
+            <p class="card-title">Resumen completo del período</p>
+            <p class="text-muted" style="font-size:.8125rem;">Todo lo que entró y salió, en un solo lugar</p>
+        </div>
+    </div>
+    <div class="card-body" style="padding-top:.5rem; padding-bottom:.5rem;">
+        <div class="est-resumen-tabla">
+            <div class="est-resumen-fila">
+                <span class="est-resumen-signo">+</span>
+                <span class="est-resumen-concepto">Total vendido</span>
+                <span class="est-resumen-monto">${{ resumen.ingresos|floatformat:0|intcomma }}</span>
+            </div>
+            <div class="est-resumen-fila">
+                <span class="est-resumen-signo menos">−</span>
+                <span class="est-resumen-concepto">Costo de esa mercadería</span>
+                <span class="est-resumen-monto menos">${{ resumen.costo_mercaderia|floatformat:0|intcomma }}</span>
+            </div>
+            <div class="est-resumen-fila subtotal">
+                <span class="est-resumen-signo">=</span>
+                <span class="est-resumen-concepto">Ganancia por las ventas</span>
+                <span class="est-resumen-monto">${{ resumen.ganancia_bruta|floatformat:0|intcomma }}</span>
+            </div>
+            <div class="est-resumen-fila">
+                <span class="est-resumen-signo menos">−</span>
+                <span class="est-resumen-concepto">Gastos del período</span>
+                <span class="est-resumen-monto menos">${{ resumen.gastos|floatformat:0|intcomma }}</span>
+            </div>
+            <div class="est-resumen-fila subtotal">
+                <span class="est-resumen-signo">=</span>
+                <span class="est-resumen-concepto">Te queda en el bolsillo</span>
+                <span class="est-resumen-monto">${{ resumen.ganancia_neta|floatformat:0|intcomma }}</span>
+            </div>
+            <div class="est-resumen-fila">
+                <span class="est-resumen-signo menos">−</span>
+                <span class="est-resumen-concepto">Perdido por vencimiento en este período</span>
+                <span class="est-resumen-monto menos">${{ perdidas_periodo.total_vencido_periodo|floatformat:0|intcomma }}</span>
+            </div>
+            <div class="est-resumen-fila">
+                <span class="est-resumen-signo menos">−</span>
+                <span class="est-resumen-concepto">Perdido por rotura / merma en este período</span>
+                <span class="est-resumen-monto menos">${{ perdidas_periodo.total_mermas_periodo|floatformat:0|intcomma }}</span>
+            </div>
+            <div class="est-resumen-fila total">
+                <span class="est-resumen-signo">=</span>
+                <span class="est-resumen-concepto">Ganancia final real</span>
+                <span class="est-resumen-monto">${{ ganancia_final|floatformat:0|intcomma }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════ TENDENCIA ══════════ -->
+<div class="card">
+    <div class="card-header">
+        <div>
+            <p class="card-title">¿Tu negocio está creciendo?</p>
+            <p class="text-muted" style="font-size:.8125rem;">Ganancia de los últimos 12 meses — si la línea verde sube, vas por buen camino</p>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="est-chart-wrap">
+            <canvas id="chartTendencia"></canvas>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="{% static 'core/js/estadisticas.js' %}"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        initChartTendencia({{ serie_mensual_json|safe }});
+    });
+</script>
+{% endblock %}

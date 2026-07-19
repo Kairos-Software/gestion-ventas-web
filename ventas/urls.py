@@ -42,4 +42,14 @@ urlpatterns = [
     # ══════════════════════════════════════════════════════════════════
     path('documentos/subir/',    views.VentaDocumentoSubirAjax.as_view(),    name='documento_subir'),
     path('documentos/eliminar/', views.VentaDocumentoEliminarAjax.as_view(), name='documento_eliminar'),
+
+    # ══════════════════════════════════════════════════════════════════
+    #  Balanza — etiquetas de peso/medida variable
+    # ══════════════════════════════════════════════════════════════════
+    path('balanza/',                  views.BalanzaView.as_view(),                name='balanza'),
+    path('balanza/buscar-producto/',  views.BalanzaBuscarProductoAjax.as_view(),  name='balanza_buscar_producto'),
+    path('balanza/generar/',          views.BalanzaGenerarAjax.as_view(),         name='balanza_generar'),
+    path('balanza/listar/',           views.BalanzaListarAjax.as_view(),          name='balanza_listar'),
+    path('balanza/anular/',           views.BalanzaAnularAjax.as_view(),          name='balanza_anular'),
+    path('balanza/buscar-codigo/',    views.BalanzaBuscarCodigoAjax.as_view(),    name='balanza_buscar_codigo'),
 ]

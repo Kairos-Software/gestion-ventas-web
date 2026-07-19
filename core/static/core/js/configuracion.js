@@ -74,6 +74,44 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // ── Notificaciones (asistencia: reportes/alertas por mail/whatsapp) ──
+    const formAsistencia = document.getElementById('formAsistencia');
+    if (formAsistencia) {
+        const csrf = () => formAsistencia.querySelector('[name=csrfmiddlewaretoken]').value;
+        const urls = window.CONFIG_ASISTENCIA_URLS || {};
+
+        formAsistencia.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const msg = document.getElementById('asistenciaMsg');
+            fetch(urls.guardar, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+                body: JSON.stringify({
+                    canal:                       document.getElementById('idCanal').value,
+                    email_destino:               document.getElementById('idEmailDestino').value,
+                    whatsapp_destino:             document.getElementById('idWhatsappDestino').value,
+                    recibir_reporte_mensual:      document.getElementById('idRecibirReporteMensual').checked,
+                    dia_mes_reporte:              document.getElementById('idDiaMes').value,
+                    recibir_reporte_semanal:      document.getElementById('idRecibirReporteSemanal').checked,
+                    dia_semana_reporte:           document.getElementById('idDiaSemana').value,
+                    recibir_alerta_vencimiento:   document.getElementById('idRecibirAlertaVencimiento').checked,
+                    dias_aviso_vencimiento:       document.getElementById('idDiasVencimiento').value,
+                    recibir_alerta_deuda:         document.getElementById('idRecibirAlertaDeuda').checked,
+                    dias_aviso_deuda:             document.getElementById('idDiasDeuda').value,
+                    recibir_deuda_pagada:         document.getElementById('idRecibirDeudaPagada').checked,
+                    recibir_stock_estancado:      document.getElementById('idRecibirStockEstancado').checked,
+                    dias_stock_estancado:         document.getElementById('idDiasStock').value,
+                    recibir_alerta_cheques:       document.getElementById('idRecibirAlertaCheques').checked,
+                }),
+            })
+            .then(r => r.json())
+            .then(data => {
+                msg.style.color = data.error ? '#e11d48' : 'var(--success)';
+                msg.textContent = data.error || 'Guardado.';
+            });
+        });
+    }
+
     // ── Cuentas de caja (tarjetas/billeteras/bancos) ────────────────
     const formCuenta = document.getElementById('formCuenta');
     if (formCuenta) {

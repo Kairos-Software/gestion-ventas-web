@@ -30,6 +30,27 @@
     vertical-align: middle;
 }
 
+/* Banner de contexto: "viendo solo las ventas de tal turno/día" */
+.filtro-contexto-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    background: rgba(242,106,27,.08);
+    border: 1px solid rgba(242,106,27,.25);
+    border-radius: 8px;
+    padding: 0.6rem 0.9rem;
+    margin-bottom: 1rem;
+    font-size: 0.86rem;
+}
+.filtro-contexto-bar strong { color: var(--brand-orange); }
+.filtro-contexto-clear {
+    margin-left: auto;
+    color: var(--text-secondary);
+    text-decoration: underline;
+    white-space: nowrap;
+}
+.filtro-contexto-clear:hover { color: var(--brand-orange); }
+
 /* Botón "Ver detalle" — estilo ghost discreto */
 .btn-accion--ghost {
     background: transparent;
@@ -51,6 +72,12 @@
         <h1>Historial de Ventas</h1>
         <p>Registro completo de todas las ventas confirmadas</p>
     </div>
+</div>
+
+<!-- ── Banner de contexto (llegando desde "Ver ventas" de un turno/día) ── -->
+<div class="filtro-contexto-bar" id="filtroContextoBar" style="display:none;">
+    <span id="filtroContextoTexto"></span>
+    <a href="{% url 'ventas:historial_ventas' %}" class="filtro-contexto-clear">Ver todas las ventas</a>
 </div>
 
 <!-- ── Filtros ── -->

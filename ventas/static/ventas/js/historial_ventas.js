@@ -10,6 +10,30 @@ let currentFilters = {};
 let lastData       = null;
 window._currentPage = currentPage;
 
+// ── Filtro por turno/día vía querystring (?turno=<pk> o ?dia=<YYYY-MM-DD>) ──
+// Llega acá desde el botón "Ver ventas de este turno/día" del historial de
+// caja. Se aplica como filtro implícito hasta que el usuario busque a mano
+// o lo saque con "Ver todas las ventas".
+const _paramsIniciales = new URLSearchParams(window.location.search);
+let filtroTurnoActivo  = _paramsIniciales.get('turno') || null;
+let filtroDiaActivo    = filtroTurnoActivo ? null : (_paramsIniciales.get('dia') || null);
+
+const filtroContextoBar   = document.getElementById('filtroContextoBar');
+const filtroContextoTexto = document.getElementById('filtroContextoTexto');
+
+function renderFiltroContexto() {
+    if (filtroTurnoActivo) {
+        filtroContextoTexto.innerHTML = `Mostrando solo las ventas del <strong>turno #${_esc(filtroTurnoActivo)}</strong>.`;
+        filtroContextoBar.style.display = 'flex';
+    } else if (filtroDiaActivo) {
+        const [y, m, d] = filtroDiaActivo.split('-');
+        filtroContextoTexto.innerHTML = `Mostrando solo las ventas del <strong>${d}/${m}/${y}</strong>.`;
+        filtroContextoBar.style.display = 'flex';
+    } else {
+        filtroContextoBar.style.display = 'none';
+    }
+}
+
 const listaContainer = document.getElementById('listaContainer');
 const paginacion     = document.getElementById('paginacion');
 const btnAnterior    = document.getElementById('btnAnterior');
@@ -130,8 +154,12 @@ function buildItemsHTML(items) {
             ? `<a href="${urlCliente}" target="_blank" rel="noopener" class="link-externo">${_esc(item.cliente)} ${iconExterna()}</a>`
             : `<span style="color:var(--text-muted);">${_esc(item.cliente) || '—'}</span>`;
 
+        const fuenteDescuento = item.oferta_aplicada_nombre || item.lista_descuento_nombre || '';
+        const tituloDescuento = item.oferta_aplicada_nombre
+            ? 'Oferta: ' + _esc(item.oferta_aplicada_nombre)
+            : (item.lista_descuento_nombre ? 'Lista: ' + _esc(item.lista_descuento_nombre) : 'Descuento manual');
         const descuento = parseFloat(item.descuento_pct) > 0
-            ? `<span class="descuento-tag" title="${item.lista_descuento_nombre ? 'Lista: ' + _esc(item.lista_descuento_nombre) : 'Descuento manual'}">&nbsp;-${item.descuento_pct}%${item.lista_descuento_nombre ? ` (${_esc(item.lista_descuento_nombre)})` : ''}</span>`
+            ? `<span class="descuento-tag" title="${tituloDescuento}">&nbsp;-${item.descuento_pct}%${fuenteDescuento ? ` (${_esc(fuenteDescuento)})` : ''}</span>`
             : '';
         const origenCell = `<span style="color:var(--text-muted);font-size:0.78rem;" title="De qué lote salió el stock">${_esc(item.origen_label || '—')}</span>`;
 
@@ -270,7 +298,8 @@ function buildVentaHTML(c) {
             <span class="venta-notas">${_esc(c.notas || '')}</span>
             ${porUsuario}
             ${medioBadgeCabecera}
-            <span class="venta-total">${formatMoney(c.total)}</span>
+            <span class="venta-total"${c.oferta_global_nombre ? ` title="Incluye oferta &quot;${_esc(c.oferta_global_nombre)}&quot;: -${c.descuento_global_pct}% sobre el total"` : ''}>${formatMoney(c.total)}</span>
+            ${c.oferta_global_nombre ? `<span class="descuento-tag" title="Oferta: ${_esc(c.oferta_global_nombre)} (-${c.descuento_global_pct}% sobre el total)">Oferta</span>` : ''}
             <span class="badge-estado ${c.estado}">${_esc(c.estado_label)}</span>
             <svg class="venta-toggle" width="16" height="16" viewBox="0 0 16 16" fill="none">
                 <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -285,6 +314,9 @@ function buildVentaHTML(c) {
                     ${mediosBadgeDetalle}
                     ${c.confirmado_por && c.confirmado_por !== '—'
                         ? `<span style="color:var(--text-muted);font-size:0.82rem;">Registrado por <strong>${_esc(c.confirmado_por)}</strong></span><span style="color:var(--text-muted);">·</span>`
+                        : ''}
+                    ${c.oferta_global_nombre
+                        ? `<span class="descuento-tag" title="Oferta: ${_esc(c.oferta_global_nombre)}">Oferta "${_esc(c.oferta_global_nombre)}": -${c.descuento_global_pct}% sobre el total</span>`
                         : ''}
                     <span style="font-size:0.875rem;color:var(--text-muted);">Total:</span>
                     <strong>${formatMoney(c.total)}</strong>
@@ -376,6 +408,8 @@ function fetchVentas(page) {
     if (currentFilters.medio_pago)  params.set('medio_pago',  currentFilters.medio_pago);
     if (currentFilters.fecha_desde) params.set('fecha_desde', currentFilters.fecha_desde);
     if (currentFilters.fecha_hasta) params.set('fecha_hasta', currentFilters.fecha_hasta);
+    if (filtroTurnoActivo)          params.set('turno', filtroTurnoActivo);
+    else if (filtroDiaActivo)       params.set('dia',   filtroDiaActivo);
 
     fetch(`${HISTORIAL_URLS.listar}?${params.toString()}`)
         .then(r => { if (!r.ok) throw new Error(); return r.json(); })
@@ -389,6 +423,11 @@ function fetchVentas(page) {
    FILTROS
 ════════════════════════════════════════════════════════════════ */
 function aplicarFiltros() {
+    // Una búsqueda manual reemplaza el filtro implícito de turno/día.
+    filtroTurnoActivo = null;
+    filtroDiaActivo   = null;
+    renderFiltroContexto();
+
     currentFilters = {
         q:           filtroQ       ? filtroQ.value.trim()     : '',
         estado:      filtroEstado  ? filtroEstado.value        : '',
@@ -407,6 +446,9 @@ btnLimpiar.addEventListener('click', () => {
     if (filtroMedioPago)  filtroMedioPago.value   = '';
     if (filtroDesde)      filtroDesde.value       = '';
     if (filtroHasta)      filtroHasta.value       = '';
+    filtroTurnoActivo = null;
+    filtroDiaActivo   = null;
+    renderFiltroContexto();
     currentFilters = {};
     fetchVentas(1);
 });
@@ -414,4 +456,5 @@ btnLimpiar.addEventListener('click', () => {
 btnAnterior.addEventListener('click',  () => { if (currentPage > 1)              fetchVentas(currentPage - 1); });
 btnSiguiente.addEventListener('click', () => { if (lastData && lastData.has_next) fetchVentas(currentPage + 1); });
 
+renderFiltroContexto();
 fetchVentas(1);

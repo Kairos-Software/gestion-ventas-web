@@ -260,6 +260,7 @@ function ticketHtmlA4(data) {
 
 function _a4FilaItem(item) {
     const detalle = [
+        item.marca   ? _esc(item.marca) : '',
         item.codigo  ? item.codigo : '',
         item.color   ? `Color: ${_esc(item.color)}`   : '',
         item.cliente ? `Cliente: ${_esc(item.cliente)}` : '',

@@ -56,6 +56,25 @@ document.addEventListener('DOMContentLoaded', function () {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
+    // Seleccionar/deseleccionar todo — solo toca los permisos editables
+    // (los bloqueados por candado quedan como están, no se pueden tocar
+    // desde acá igual que uno por uno).
+    function marcarTodos(valor) {
+        document.querySelectorAll('#formPermisos input[type="checkbox"]:not(:disabled)').forEach(function (cb) {
+            if (cb.checked !== valor) {
+                cb.checked = valor;
+                cb.dispatchEvent(new Event('change'));
+            }
+        });
+    }
+
+    document.getElementById('btnSeleccionarTodo').addEventListener('click', function () {
+        marcarTodos(true);
+    });
+    document.getElementById('btnDeseleccionarTodo').addEventListener('click', function () {
+        marcarTodos(false);
+    });
+
     document.getElementById('btnGuardar').addEventListener('click', guardar);
     document.getElementById('btnGuardarBottom').addEventListener('click', guardar);
 

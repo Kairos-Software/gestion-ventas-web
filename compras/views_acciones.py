@@ -5,15 +5,17 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views import View
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
+from django.db import transaction
 
 # ── IMPORTANTE: CombinacionVariante debe importarse para que editar_completa
 #    pueda resolver las variantes y _sumar_stock_item funcione correctamente ──
-from productos.models import Producto, Proveedor, CombinacionVariante
+from productos.models import Producto, Proveedor, CombinacionVariante, cantidad_valida_para_unidad
 from .models import Compra, EstadoCompra
 from core.permisos import chequear_permiso
 
 
 class AnularCompraAjax(LoginRequiredMixin, View):
+    @transaction.atomic
     def post(self, request):
         if not chequear_permiso(request.user, 'editar_compras'):
             return JsonResponse({'error': 'No tenés permiso para anular compras.'}, status=403)
@@ -23,7 +25,9 @@ class AnularCompraAjax(LoginRequiredMixin, View):
         except (json.JSONDecodeError, AttributeError):
             return JsonResponse({'error': 'JSON inválido.'}, status=400)
 
-        compra = get_object_or_404(Compra, pk=pk)
+        # select_for_update(): un doble clic en "Anular" no debe revertir
+        # el stock dos veces.
+        compra = get_object_or_404(Compra.objects.select_for_update(), pk=pk)
         try:
             compra.anular()
         except ValueError as e:
@@ -38,6 +42,7 @@ class AnularCompraAjax(LoginRequiredMixin, View):
 
 
 class ReactivarCompraAjax(LoginRequiredMixin, View):
+    @transaction.atomic
     def post(self, request):
         if not chequear_permiso(request.user, 'editar_compras'):
             return JsonResponse({'error': 'No tenés permiso para reactivar compras.'}, status=403)
@@ -47,7 +52,7 @@ class ReactivarCompraAjax(LoginRequiredMixin, View):
         except (json.JSONDecodeError, AttributeError):
             return JsonResponse({'error': 'JSON inválido.'}, status=400)
 
-        compra = get_object_or_404(Compra, pk=pk)
+        compra = get_object_or_404(Compra.objects.select_for_update(), pk=pk)
         try:
             compra.reactivar()
         except ValueError as e:
@@ -62,6 +67,7 @@ class ReactivarCompraAjax(LoginRequiredMixin, View):
 
 
 class EliminarCompraAjax(LoginRequiredMixin, View):
+    @transaction.atomic
     def post(self, request):
         if not chequear_permiso(request.user, 'eliminar_compras'):
             return JsonResponse({'error': 'No tenés permiso para eliminar compras.'}, status=403)
@@ -71,7 +77,7 @@ class EliminarCompraAjax(LoginRequiredMixin, View):
         except (json.JSONDecodeError, AttributeError):
             return JsonResponse({'error': 'JSON inválido.'}, status=400)
 
-        compra = get_object_or_404(Compra, pk=pk)
+        compra = get_object_or_404(Compra.objects.select_for_update(), pk=pk)
 
         if compra.estado == EstadoCompra.BORRADOR:
             return JsonResponse(
@@ -177,6 +183,12 @@ class EditarCompraAjax(LoginRequiredMixin, View):
 
             if cantidad <= 0:
                 errores.append(f'Ítem {idx}: la cantidad debe ser mayor a 0.')
+                continue
+            if not cantidad_valida_para_unidad(producto.unidad_medida, cantidad):
+                errores.append(
+                    f'Ítem {idx}: "{producto.nombre}" se compra por {producto.get_unidad_medida_display()} '
+                    f'— la cantidad tiene que ser un número entero.'
+                )
                 continue
             if costo_unitario < 0:
                 errores.append(f'Ítem {idx}: el costo no puede ser negativo.')

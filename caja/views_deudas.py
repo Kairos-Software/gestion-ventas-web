@@ -327,6 +327,14 @@ class ConfirmarCuotaAjax(LoginRequiredMixin, View):
 
             cuota.confirmar(cuenta_pk, request.user)
 
+            # Fuera de la transacción de pago: si el mail falla, no
+            # queremos perder el pago ya confirmado.
+            try:
+                from asistencia.services.eventos import notificar_deuda_pagada
+                notificar_deuda_pagada(cuota)
+            except Exception:
+                pass
+
             return JsonResponse({'success': True, 'cuota': _serializar_cuota(cuota)})
 
         except json.JSONDecodeError:

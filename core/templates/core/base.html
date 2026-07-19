@@ -66,12 +66,84 @@
                 <span>Dashboard</span>
             </a>
 
-            <a href="{% url 'core:estadisticas' %}"
-            class="nav-item {% if request.resolver_match.url_name == 'estadisticas' %}active{% endif %}">
+            {# ── ESTADÍSTICAS (secciones por tema, no todo en una sola página) ── #}
+            {% with en_url=request.resolver_match.url_name %}
+            <div class="nav-group {% if 'estadistica' in en_url %}open{% endif %}" id="navGrupoEstadisticas">
+                <button class="nav-group-toggle" onclick="toggleNavGroup('navGrupoEstadisticas')">
+                    <div class="nav-group-toggle-left">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                            <path d="M3 17V10M9 17V5M15 17V12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        </svg>
+                        <span>Estadísticas</span>
+                    </div>
+                    <svg class="nav-group-arrow" width="14" height="14" viewBox="0 0 14 14" fill="none">
+                        <path d="M3 5L7 9L11 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+                <div class="nav-group-items">
+                    <div class="nav-group-items-inner">
+                        <a href="{% url 'core:estadisticas' %}"
+                        class="nav-subitem {% if en_url == 'estadisticas' %}active{% endif %}">
+                            <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                                <rect x="1.5" y="1.5" width="13" height="13" rx="1.2" stroke="currentColor" stroke-width="1.3"/>
+                                <path d="M4.5 9.5L7 6.5L9 8.5L11.5 5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span>Resumen</span>
+                        </a>
+                        <a href="{% url 'core:estadisticas_ventas' %}"
+                        class="nav-subitem {% if en_url == 'estadisticas_ventas' %}active{% endif %}">
+                            <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                                <path d="M2 3.5H14M2 7H14M2 10.5H10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                            </svg>
+                            <span>Ventas</span>
+                        </a>
+                        <a href="{% url 'core:estadisticas_compras' %}"
+                        class="nav-subitem {% if en_url == 'estadisticas_compras' %}active{% endif %}">
+                            <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                                <path d="M4 4H6L7.2 10.6C7.3 11.1 7.75 11.46 8.26 11.46H15C15.5 11.46 15.94 11.1 16.04 10.6L17.5 4H6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+                                <circle cx="9" cy="15.5" r="1.2" stroke="currentColor" stroke-width="1.3"/>
+                                <circle cx="15" cy="15.5" r="1.2" stroke="currentColor" stroke-width="1.3"/>
+                            </svg>
+                            <span>Compras</span>
+                        </a>
+                        <a href="{% url 'core:estadisticas_productos' %}"
+                        class="nav-subitem {% if en_url == 'estadisticas_productos' %}active{% endif %}">
+                            <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                                <rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/>
+                                <rect x="9" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/>
+                                <rect x="1.5" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/>
+                                <rect x="9" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/>
+                            </svg>
+                            <span>Productos y Stock</span>
+                        </a>
+                        <a href="{% url 'core:estadisticas_clientes' %}"
+                        class="nav-subitem {% if en_url == 'estadisticas_clientes' %}active{% endif %}">
+                            <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                                <circle cx="8" cy="5" r="2.5" stroke="currentColor" stroke-width="1.3"/>
+                                <path d="M2 14C2 11.24 4.69 9 8 9C11.31 9 14 11.24 14 14" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                            </svg>
+                            <span>Clientes</span>
+                        </a>
+                        <a href="{% url 'core:estadisticas_caja' %}"
+                        class="nav-subitem {% if en_url == 'estadisticas_caja' %}active{% endif %}">
+                            <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                                <path d="M2 12L5.5 7.5L8.5 9.5L11.5 5L14 8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span>Caja y Finanzas</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endwith %}
+
+            {# ── OFERTAS ── #}
+            <a href="{% url 'productos:gestion_ofertas' %}"
+            class="nav-item {% if request.resolver_match.url_name == 'gestion_ofertas' %}active{% endif %}">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <path d="M3 17V10M9 17V5M15 17V12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                    <path d="M2.5 10.5L9.5 3.5H16.5V10.5L9.5 17.5L2.5 10.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                    <circle cx="12.5" cy="7.5" r="1.1" fill="currentColor"/>
                 </svg>
-                <span>Estadísticas</span>
+                <span>Ofertas</span>
             </a>
 
             {# ── CATÁLOGO (Productos, Proveedores, Stock, Inventario) ── #}
@@ -102,6 +174,15 @@
                                 <rect x="9" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/>
                             </svg>
                             <span>Productos</span>
+                        </a>
+                        <a href="{% url 'productos:gestion_paquetes' %}"
+                        class="nav-subitem {% if 'paquete' in en_url %}active{% endif %}">
+                            <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                                <rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/>
+                                <rect x="9" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/>
+                                <rect x="5.25" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/>
+                            </svg>
+                            <span>Paquetes</span>
                         </a>
                         <a href="{% url 'productos:gestion_proveedores' %}"
                         class="nav-subitem {% if 'proveedor' in en_url %}active{% endif %}">
@@ -165,6 +246,14 @@
                                 <path d="M2 3.5H14M2 7H14M2 10.5H10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
                             </svg>
                             <span>Historial</span>
+                        </a>
+                        <a href="{% url 'ventas:balanza' %}"
+                           class="nav-subitem {% if request.resolver_match.url_name == 'balanza' %}active{% endif %}">
+                            <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                                <path d="M8 2V5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                                <path d="M4.5 5H11.5L12.7 11.5C12.7 12.6 10.6 13.5 8 13.5C5.4 13.5 3.3 12.6 3.3 11.5L4.5 5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+                            </svg>
+                            <span>Balanza</span>
                         </a>
                     </div>
                 </div>
@@ -318,6 +407,15 @@
                             <span>Calculadora de vuelto</span>
                             <span class="nav-shortcut-hint">CTRL+ALT+U</span>
                         </button>
+                        <a href="{% url 'core:notas' %}"
+                           class="nav-subitem {% if request.resolver_match.url_name == 'notas' %}active{% endif %}">
+                            <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                                <path d="M4 2H10.5L13 4.5V14H4V2Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+                                <path d="M10.5 2V4.5H13" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+                                <path d="M6 8H11M6 10.5H11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                            </svg>
+                            <span>Anotador</span>
+                        </a>
                     </div>
                 </div>
             </div>
@@ -576,6 +674,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{% static 'core/js/format.js' %}"></script>
+<script src="{% static 'core/js/help.js' %}"></script>
 <script src="{% static 'core/js/notify.js' %}"></script>
 <script src="{% static 'core/js/base.js' %}"></script>
 {% if user.is_authenticated %}

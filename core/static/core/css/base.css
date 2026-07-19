@@ -1409,3 +1409,56 @@ textarea.form-control {
     body { background: white; color: black; }
     .card { box-shadow: none; border: 1px solid #ccc; }
 }
+
+/* ═══════════════════════════════════════════
+   BOTÓN DE AYUDA + POPOVER (compartido)
+   Un "?" chiquito al lado de una etiqueta que, al hacer clic,
+   despliega un texto explicativo corto. Reemplaza los párrafos de
+   ayuda que quedaban siempre visibles debajo de cada campo.
+   ═══════════════════════════════════════════ */
+.kai-label-help {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+}
+
+.kai-help-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 0;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.kai-help-btn:hover,
+.kai-help-btn.is-active {
+    background: var(--brand-orange);
+    border-color: var(--brand-orange);
+    color: #fff;
+}
+
+.kai-help-popover {
+    display: none;
+    margin-top: 0.375rem;
+    padding: 0.5rem 0.625rem;
+    background: var(--brand-orange-light);
+    border: 1px solid rgba(242, 106, 27, 0.3);
+    border-left: 3px solid var(--brand-orange);
+    border-radius: 0.5rem;
+    font-size: 0.72rem;
+    line-height: 1.45;
+    color: var(--brand-orange-dark);
+}
+
+.kai-help-popover.is-visible { display: block; }
