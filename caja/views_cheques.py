@@ -204,6 +204,9 @@ class CrearChequeAjax(LoginRequiredMixin, View):
                 creado_por=request.user,
             )
 
+            from asistencia.services.eventos import notificar_cheque_si_proximo, enviar_en_background
+            enviar_en_background(notificar_cheque_si_proximo, cheque)
+
             return JsonResponse({'success': True, 'cheque': _serializar_cheque(cheque)})
 
         except json.JSONDecodeError:

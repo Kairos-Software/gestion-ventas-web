@@ -28,6 +28,7 @@ function ticketHtmlTermica58(data) {
     const venta = data.venta   || {};
     const items = data.items   || [];
     const pagos = data.pagos   || [];
+    const cbte  = data.comprobante_arca || null;
 
     return `<!DOCTYPE html>
 <html lang="es">
@@ -106,6 +107,22 @@ function ticketHtmlTermica58(data) {
             line-height: 1.6;
         }
 
+        /* ── Comprobante ARCA ── */
+        .t58-comprobante {
+            text-align: center;
+            border: 1.5px solid #000;
+            border-radius: 2pt;
+            padding: 4pt 3pt;
+            margin: 3pt 0;
+        }
+        .t58-comprobante-label {
+            font-size: 6pt;
+            font-weight: bold;
+            letter-spacing: .05em;
+            text-transform: uppercase;
+            margin-bottom: 2pt;
+        }
+
         /* ── Pie ── */
         .t58-footer {
             text-align: center;
@@ -140,7 +157,7 @@ function ticketHtmlTermica58(data) {
     <hr class="t58-sep-doble">
 
     <!-- Número y fecha -->
-    <div class="t58-venta-num">${_esc(venta.numero)}</div>
+    <div class="t58-venta-num">${cbte ? _esc(cbte.tipo_display) + ' ' + _esc(cbte.numero_display) : _esc(venta.numero)}</div>
     <div class="t58-venta-meta">${_esc(venta.fecha)}</div>
     ${venta.confirmado_por ? `<div class="t58-venta-meta">Op: ${_esc(venta.confirmado_por)}</div>` : ''}
 
@@ -169,6 +186,9 @@ function ticketHtmlTermica58(data) {
     <hr class="t58-sep-simple">
     <div class="t58-peq" style="white-space:pre-line;overflow:hidden;max-height:20mm">${_esc(venta.notas)}</div>
     ` : ''}
+
+    <!-- Comprobante ARCA (CAE + QR) -->
+    ${_t58Comprobante(cbte)}
 
     <!-- Pie -->
     <hr class="t58-sep-simple">
@@ -206,6 +226,16 @@ function _t58Item(item) {
             <span>${_esc(String(item.cantidad))}x ${_fmtNum(item.precio_unitario)}${desc}</span>
             <span><strong>${_fmtNum(item.subtotal)}</strong></span>
         </div>
+    </div>`;
+}
+
+function _t58Comprobante(cbte) {
+    if (!cbte) return '';
+    return `<div class="t58-comprobante">
+        <div class="t58-comprobante-label">Autorizado por ARCA</div>
+        ${cbte.qrDataUrl ? `<img src="${cbte.qrDataUrl}" alt="QR AFIP" style="width:26mm; height:26mm; margin:2pt auto; display:block;">` : ''}
+        <div class="t58-peq">CAE: <strong>${_esc(cbte.cae)}</strong></div>
+        <div class="t58-peq">Vto: <strong>${_esc(cbte.cae_vencimiento)}</strong></div>
     </div>`;
 }
 

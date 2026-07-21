@@ -44,7 +44,7 @@
 .inv-stat-icon--danger   { background: rgba(239, 68, 68, .1);  color: var(--danger, #EF4444); }
 
 .inv-stat-value {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: 1.5rem;
     font-weight: 800;
     color: var(--text-primary);
@@ -106,7 +106,7 @@
     border-radius: .625rem;
     background: var(--bg-white);
     color: var(--text-primary);
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     font-size: .875rem;
     box-shadow: var(--shadow-sm);
     transition: border-color .18s, box-shadow .18s;
@@ -132,7 +132,7 @@
     border: 1px solid var(--border-color);
     background: var(--bg-white);
     color: var(--text-muted);
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     font-size: .8rem;
     font-weight: 600;
     cursor: pointer;
@@ -167,7 +167,7 @@
 .inventario-tabla thead th {
     padding: .75rem .9rem;
     text-align: left;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: .65rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -190,7 +190,7 @@
 
 /* Producto */
 .inv-producto-nombre {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-weight: 700;
     font-size: .82rem;
     color: var(--text-primary);
@@ -240,7 +240,7 @@
     gap: .35rem;
     padding: .2rem .65rem;
     border-radius: 99px;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: .7rem;
     font-weight: 700;
     white-space: nowrap;
@@ -291,7 +291,7 @@
     border: 1px solid var(--border-color);
     background: var(--bg-white);
     color: var(--text-secondary);
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     font-size: .78rem;
     font-weight: 600;
     cursor: pointer;
@@ -323,7 +323,7 @@
 /* Estado vacío / error dentro de la tabla (usa clases bootstrap ya presentes) */
 .inventario-tabla td.text-center.text-muted,
 .inventario-tabla td.text-center.text-danger {
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     font-size: .85rem;
     padding: 2.5rem 1rem;
 }
@@ -346,7 +346,7 @@
 .etiqueta-imprimir svg { max-height: 48px; }
 
 .etiqueta-producto {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-weight: 800;
     font-size: .94rem;
     color: var(--text-primary);
@@ -375,7 +375,7 @@
 }
 
 .inv-print-config-title {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: .625rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -419,7 +419,7 @@
     border: 1px solid var(--border-color);
     background: var(--bg-secondary);
     color: var(--text-secondary);
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     font-size: .7rem;
     font-weight: 600;
     cursor: pointer;

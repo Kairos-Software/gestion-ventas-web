@@ -36,7 +36,7 @@
 }
 
 .vta-page-tag {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: .6rem;
     font-weight: 700;
     letter-spacing: .12em;
@@ -46,7 +46,7 @@
 }
 
 .vta-page-title h1 {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: 1.5rem;
     font-weight: 800;
     color: var(--text-primary);
@@ -117,7 +117,7 @@
 .vta-card-header svg { color: var(--brand-orange); }
 
 .vta-card-title {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: .65rem;
     font-weight: 700;
     color: var(--text-primary);
@@ -139,7 +139,7 @@
     border-radius: .625rem;
     background: var(--bg-white);
     color: var(--text-primary);
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     font-size: .875rem;
     transition: border-color .18s, box-shadow .18s;
     box-shadow: var(--shadow-sm);
@@ -199,14 +199,14 @@
 }
 
 .vta-dropdown-item-nombre {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: .875rem;
     font-weight: 700;
     color: var(--text-primary);
 }
 
 .vta-dropdown-item-marca {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: .78rem;
     font-weight: 500;
     color: var(--text-muted);
@@ -271,7 +271,7 @@
 .vta-table th {
     padding: .7rem .875rem;
     text-align: left;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: .65rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -301,7 +301,7 @@
 
 /* Producto en tabla */
 .vta-prod-cell   { display: flex; flex-direction: column; gap: .15rem; min-width: 140px; }
-.vta-prod-nombre { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: .82rem; color: var(--text-primary); line-height: 1.3; }
+.vta-prod-nombre { font-family: var(--font-heading); font-weight: 700; font-size: .82rem; color: var(--text-primary); line-height: 1.3; }
 .vta-prod-meta   { font-size: .7rem; color: var(--text-muted); }
 
 /* Badge "Por color" en celda de producto */
@@ -311,7 +311,7 @@
     gap: .25rem;
     font-size: .65rem;
     font-weight: 700;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     color: var(--brand-blue, #1E6FA8);
     background: rgba(30, 111, 168, .08);
     border: 1px solid rgba(30, 111, 168, .18);
@@ -338,7 +338,7 @@
     border-radius: .5rem;
     background: var(--bg-secondary);
     color: var(--text-primary);
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     font-size: .8rem;
     transition: border-color .18s, box-shadow .18s, background .18s;
     width: 100%;
@@ -362,7 +362,7 @@
     border-radius: .5rem;
     background: var(--bg-secondary);
     color: var(--text-primary);
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     font-size: .8rem;
     cursor: pointer;
     transition: border-color .18s;
@@ -400,7 +400,7 @@
 
 .vta-cli-option {
     padding: .55rem .875rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     font-size: .8rem;
     cursor: pointer;
     color: var(--text-primary);
@@ -416,7 +416,7 @@
 
 /* Subtotal celda */
 .vta-subtotal-cell {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-weight: 800;
     color: var(--brand-orange-dark);
     white-space: nowrap;
@@ -482,7 +482,7 @@
     align-items: center;
     gap: .45rem;
     margin-bottom: .625rem;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: .65rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -499,7 +499,7 @@
     gap: .25rem;
     font-size: .7rem;
     font-weight: 600;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     text-transform: none;
     letter-spacing: 0;
     margin-left: auto;
@@ -536,7 +536,7 @@
     border: 1px solid var(--border-color);
     border-radius: .5rem;
     padding: .3rem .55rem .3rem .45rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     font-size: .78rem;
 }
 
@@ -583,7 +583,7 @@
 
 .vta-label {
     display: block;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: .65rem;
     font-weight: 700;
     color: var(--text-muted);
@@ -599,7 +599,7 @@
     border-radius: .625rem;
     background: var(--bg-secondary);
     color: var(--text-primary);
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     font-size: .875rem;
     transition: border-color .18s, box-shadow .18s, background .18s;
 }
@@ -642,14 +642,14 @@ textarea.vta-control {
 }
 
 .vta-totals-grand-label {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: .9375rem;
     font-weight: 700;
     color: var(--text-primary);
 }
 
 .vta-totals-grand-value {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: 1.375rem;
     font-weight: 800;
     color: var(--brand-orange);
@@ -667,7 +667,7 @@ textarea.vta-control {
     padding: .625rem 1.125rem;
     border-radius: .625rem;
     border: none;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     font-size: .875rem;
     font-weight: 600;
     cursor: pointer;
@@ -717,7 +717,7 @@ textarea.vta-control {
     align-items: center;
     padding: .2rem .6rem;
     border-radius: 99px;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: .65rem;
     font-weight: 700;
     letter-spacing: .03em;
@@ -740,7 +740,7 @@ textarea.vta-control {
     border-radius: .75rem;
     box-shadow: var(--shadow-lg);
     padding: 1rem 1.25rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     font-size: .875rem;
     color: var(--text-primary);
     z-index: 9999;
@@ -757,7 +757,7 @@ textarea.vta-control {
 }
 
 .vta-toast-title {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-weight: 700;
     margin-bottom: .2rem;
     color: var(--success);

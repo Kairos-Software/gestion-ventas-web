@@ -138,6 +138,64 @@ function initChartComprasTendencia(serieMensual) {
     });
 }
 
+// ── Torta/donut genérico para distribuciones categóricas (parte de un
+//    todo): nivel de riesgo y estado de cartera de clientes, medio de
+//    pago. `items` trae {label, <valueKey>}, `colores` mapea label ->
+//    color hex. `formatValue` da formato al número (cantidad simple
+//    por defecto, o "$1.234" para montos). ──
+function initChartDonut(elementId, items, colores, opciones) {
+    const el = document.getElementById(elementId);
+    if (!el || !items.length) return;
+
+    const valueKey = (opciones && opciones.valueKey) || 'cantidad';
+    const formatValue = (opciones && opciones.formatValue) || (v => v);
+
+    new Chart(el, {
+        type: 'doughnut',
+        data: {
+            labels: items.map(i => i.label),
+            datasets: [{
+                data: items.map(i => i[valueKey]),
+                backgroundColor: items.map(i => colores[i.label] || '#8A9BB0'),
+                borderWidth: 2,
+                borderColor: '#fff',
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '62%',
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: {
+                        boxWidth: 10,
+                        padding: 12,
+                        generateLabels: (chart) => {
+                            const data = chart.data;
+                            const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
+                            return data.labels.map((label, i) => {
+                                const value = data.datasets[0].data[i];
+                                const pct = total ? Math.round((value / total) * 100) : 0;
+                                return {
+                                    text: `${label}: ${formatValue(value)} (${pct}%)`,
+                                    fillStyle: data.datasets[0].backgroundColor[i],
+                                    index: i,
+                                };
+                            });
+                        },
+                    },
+                },
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => `${ctx.label}: ${formatValue(ctx.parsed)}`,
+                    },
+                },
+            },
+        },
+    });
+}
+
 // ── Caja y Finanzas: gastos por categoría (barra horizontal — se lee
 //    la magnitud relativa mejor que en una torta, y escala mejor con
 //    varias categorías). Una sola serie: el color identifica "gasto",

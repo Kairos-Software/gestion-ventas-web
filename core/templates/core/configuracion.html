@@ -18,8 +18,17 @@
         <p>Administrá las preferencias del sistema y tu cuenta.</p>
     </div>
 
+    <nav class="config-nav" id="configNav">
+        <a href="#seccion-empresa">Datos de la empresa</a>
+        <a href="#seccion-arca">Facturación Electrónica</a>
+        <a href="#seccion-cuentas">Cuentas de caja</a>
+        <a href="#seccion-apariencia">Apariencia</a>
+        <a href="#seccion-notificaciones">Notificaciones</a>
+        <a href="#seccion-sistema">Sistema</a>
+    </nav>
+
     <!-- ── Datos de la empresa ── -->
-    <div class="config-section">
+    <div class="config-section" id="seccion-empresa">
         <div class="config-section-header">
             <div class="config-section-icon" style="background:rgba(16,185,129,0.1); color:var(--success);">
                 <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
@@ -72,8 +81,9 @@
                     <select class="form-select" id="idCondicionIva">
                         <option value="">— Sin especificar —</option>
                         <option value="RI" {% if datos_empresa.condicion_iva == 'RI' %}selected{% endif %}>Responsable Inscripto</option>
-                        <option value="monotributo" {% if datos_empresa.condicion_iva == 'monotributo' %}selected{% endif %}>Monotributista</option>
-                        <option value="exento" {% if datos_empresa.condicion_iva == 'exento' %}selected{% endif %}>Exento</option>
+                        <option value="M" {% if datos_empresa.condicion_iva == 'M' %}selected{% endif %}>Monotributista</option>
+                        <option value="E" {% if datos_empresa.condicion_iva == 'E' %}selected{% endif %}>Exento</option>
+                        <option value="CF" {% if datos_empresa.condicion_iva == 'CF' %}selected{% endif %}>Consumidor Final</option>
                     </select>
                 </div>
             </div>
@@ -109,8 +119,136 @@
         {% endif %}
     </div>
 
+    <!-- ── Facturación Electrónica (ARCA) ── -->
+    <div class="config-section" id="seccion-arca">
+        <div class="config-section-header">
+            <div class="config-section-icon" style="background:rgba(30,111,168,0.1); color:var(--brand-blue);">
+                <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                    <path d="M4 2H12L16 6V18H4V2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+                    <path d="M7 10H13M7 13H13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <div>
+                <h2>Facturación Electrónica (ARCA)</h2>
+                <p>Certificado y punto de venta para emitir comprobantes con CAE. Empezá siempre en "Testing" antes de pasar a "Producción".</p>
+            </div>
+        </div>
+
+        {% if puede_editar_empresa %}
+        <form id="formArca">
+            {% csrf_token %}
+            <div class="config-row" style="gap:1rem;">
+                <div style="flex:1;">
+                    <label class="config-row-label" for="idArcaAmbiente">Ambiente</label>
+                    <select class="form-select" id="idArcaAmbiente">
+                        {% for valor, etiqueta in ambientes_arca %}
+                        <option value="{{ valor }}" {% if configuracion_arca.ambiente == valor %}selected{% endif %}>{{ etiqueta }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div style="flex:1;">
+                    <label class="config-row-label" for="idArcaPuntoVenta">Punto de venta</label>
+                    <input type="number" min="1" class="form-control" id="idArcaPuntoVenta" value="{{ configuracion_arca.punto_venta }}">
+                </div>
+            </div>
+
+            <div class="config-row">
+                <div class="config-row-info">
+                    <div class="config-row-label">Estado</div>
+                    <div class="config-row-desc">
+                        <span id="arcaCertEstado" class="config-status-badge {% if configuracion_arca.tiene_certificado %}config-status-badge--ok{% else %}config-status-badge--off{% endif %}">
+                            {% if configuracion_arca.tiene_certificado %}✓ Certificado cargado — {{ configuracion_arca.get_ambiente_display }}{% else %}Sin certificado{% endif %}
+                        </span>
+                    </div>
+                </div>
+                <div style="text-align:right;">
+                    <div class="config-row-label" style="margin-bottom:0.3rem;">Habilitada</div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="idArcaHabilitado" {% if configuracion_arca.habilitado %}checked{% endif %}>
+                        <span class="toggle-track"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="config-callout">
+                <div style="display:flex; justify-content:space-between; align-items:center; width:100%; gap:1rem;">
+                    <div>
+                        <div class="config-row-label" style="color:var(--brand-blue);">① Generar clave y CSR — recomendado, sin terminal</div>
+                        <div class="config-row-desc" id="arcaCsrEstado">
+                            {% if configuracion_arca.csr_pendiente %}
+                            Generado el {{ configuracion_arca.csr_generado_el|date:"d/m/Y H:i" }} — subilo a ARCA (ver guía abajo) y pegá acá el certificado que te devuelvan.
+                            {% else %}
+                            Un clic acá arma la clave y el pedido de certificado — después solo hay que subirlo a ARCA.
+                            {% endif %}
+                        </div>
+                    </div>
+                    <button type="button" id="btnArcaGenerarCsr" class="btn btn-sm btn-outline-secondary" style="white-space:nowrap; background:white;">Generar CSR</button>
+                </div>
+                <div id="arcaCsrBox" style="width:100%; margin-top:0.6rem; {% if not configuracion_arca.csr_pendiente %}display:none;{% endif %}">
+                    <textarea class="form-control" id="idArcaCsrTexto" rows="4" readonly style="font-size:0.75rem;">{{ configuracion_arca.csr_pendiente }}</textarea>
+                    <button type="button" id="btnArcaDescargarCsr" class="btn btn-sm btn-outline-secondary" style="margin-top:0.5rem; background:white;">Descargar archivo .csr</button>
+                </div>
+            </div>
+
+            <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                <label class="config-row-label" for="idArcaCertificado">② Certificado (.crt) — el que te devuelve ARCA al subir el CSR</label>
+                <textarea class="form-control" id="idArcaCertificado" rows="4" placeholder="-----BEGIN CERTIFICATE-----"></textarea>
+            </div>
+
+            <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                <label class="config-row-label" for="idArcaClave">Clave privada (.key) — solo para uso avanzado</label>
+                <textarea class="form-control" id="idArcaClave" rows="4" placeholder="-----BEGIN PRIVATE KEY-----"></textarea>
+                <span class="config-row-desc">Si generaste el CSR con el botón de arriba, dejá esto vacío — la clave ya quedó guardada. Este campo es solo para cargar una clave generada por fuera del sistema.</span>
+            </div>
+
+            <div class="config-row" style="justify-content:flex-end; gap:0.6rem;">
+                <button type="button" id="btnArcaProbar" class="btn btn-sm btn-outline-secondary">Probar conexión</button>
+                <button type="submit" class="btn btn-sm" style="background:var(--brand-orange); color:white;">Guardar cambios</button>
+            </div>
+            <div id="arcaMsg" class="config-empresa-msg"></div>
+        </form>
+
+        <details class="config-guide">
+            <summary>Ver guía paso a paso (Testing y Producción)</summary>
+            <div style="margin-top:0.4rem; font-size:0.8125rem; line-height:1.65; color:var(--text-secondary);">
+                <p class="config-guide-step">1. Probar primero (Testing / Homologación) — sin ningún riesgo, con facturas falsas</p>
+                <ol style="margin:0 0 1rem 1.2rem; padding:0;">
+                    <li>Cargá el CUIT y la condición de IVA acá arriba, en "Datos de la empresa".</li>
+                    <li>Hacé clic en "Generar CSR" (arriba) y descargá el archivo.</li>
+                    <li>Entrá a <strong>arca.gob.ar</strong> con tu Clave Fiscal (nivel 3 — si no la tenés, se saca gratis ahí mismo).</li>
+                    <li>Buscá el servicio <strong>"Administrador de Relaciones de Clave Fiscal"</strong> → "Adherir Servicio" → ARCA → "Servicios Interactivos" → buscá y confirmá <strong>"WSASS"</strong>.</li>
+                    <li>Cerrá sesión y volvé a entrar — ahora "WSASS" va a aparecer en tus servicios.</li>
+                    <li>Entrá a WSASS → <strong>"Nuevo Certificado"</strong> → pegá el contenido del archivo .csr descargado → confirmar.</li>
+                    <li>Te va a devolver un certificado (empieza con "-----BEGIN CERTIFICATE-----"). Copialo entero.</li>
+                    <li>Todavía en WSASS: <strong>"Crear autorización a servicio"</strong> → elegí el alias generado → CUIT representado: el tuyo → Servicio: buscá <strong>"wsfe"</strong> → confirmar.</li>
+                    <li>Volvé acá arriba, pegá ese certificado en "Certificado (.crt)", dejá Ambiente en <strong>"Testing"</strong>, tildá "Habilitada" → Guardar.</li>
+                    <li>Probá el botón "Probar conexión" — tiene que salir OK.</li>
+                    <li>Hacé una venta de prueba y facturala — vas a obtener un CAE de prueba (sin validez real). Si funciona, ya está todo listo para el paso siguiente.</li>
+                </ol>
+                <p class="config-guide-step">2. Cuando ya probaste y anduvo bien — Producción (facturas reales)</p>
+                <ol style="margin:0 0 0 1.2rem; padding:0;">
+                    <li>Usá el mismo archivo .csr de antes (lo podés volver a descargar con el botón de arriba — no hace falta generar uno nuevo).</li>
+                    <li>Entrá a ARCA con tu Clave Fiscal → <strong>"Administrador de Certificados Digitales"</strong> → "Agregar alias" → pegá el .csr → confirmar.</li>
+                    <li>Te va a dar un certificado nuevo (distinto al de testing) — copialo.</li>
+                    <li>Andá a "Administrador de Relaciones de Clave Fiscal" → <strong>"Nueva Relación"</strong> → ARCA → "WebServices" → buscá <strong>"Facturación Electrónica"</strong> → autorizá el certificado que acabás de crear.</li>
+                    <li>Si todavía no lo hiciste, habilitá tu punto de venta como "Web Service" desde el servicio <strong>"Comprobantes en línea"</strong> de ARCA.</li>
+                    <li>Volvé acá, pegá el certificado nuevo, cambiá Ambiente a <strong>"Producción"</strong> → Guardar.</li>
+                    <li>A partir de la próxima venta que factures, el CAE va a ser real — visible en "Comprobantes en línea" del portal de ARCA.</li>
+                </ol>
+            </div>
+        </details>
+        {% else %}
+        <div class="config-row">
+            <div class="config-row-info">
+                <div class="config-row-label">{% if configuracion_arca.habilitado %}Habilitada{% else %}Deshabilitada{% endif %} — ambiente {{ configuracion_arca.get_ambiente_display }}</div>
+                <div class="config-row-desc">Solo el propietario de la cuenta puede modificar estos datos.</div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
     <!-- ── Cuentas de caja ── -->
-    <div class="config-section">
+    <div class="config-section" id="seccion-cuentas">
         <div class="config-section-header">
             <div class="config-section-icon" style="background:rgba(30,111,168,0.1); color:var(--brand-blue);">
                 <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
@@ -166,7 +304,7 @@
     </div>
 
     <!-- ── Apariencia ── -->
-    <div class="config-section">
+    <div class="config-section" id="seccion-apariencia">
         <div class="config-section-header">
             <div class="config-section-icon" style="background:rgba(242,106,27,0.1); color:var(--brand-orange);">
                 <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
@@ -201,7 +339,7 @@
     </div>
 
     <!-- ── Notificaciones ── -->
-    <div class="config-section">
+    <div class="config-section" id="seccion-notificaciones">
         <div class="config-section-header">
             <div class="config-section-icon" style="background:rgba(30,111,168,0.1); color:var(--brand-blue);">
                 <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
@@ -377,7 +515,7 @@
     </div>
 
     <!-- ── Sistema ── -->
-    <div class="config-section">
+    <div class="config-section" id="seccion-sistema">
         <div class="config-section-header">
             <div class="config-section-icon" style="background:rgba(139,92,246,0.1); color:#8b5cf6;">
                 <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
@@ -404,9 +542,7 @@
                 <div class="config-row-label">Entorno</div>
                 <div class="config-row-desc">Modo de operación actual</div>
             </div>
-            <span style="font-size:0.75rem; font-weight:600; padding:0.25rem 0.75rem; background:rgba(16,185,129,0.08); color:var(--success); border:1px solid rgba(16,185,129,0.2); border-radius:2rem;">
-                Producción
-            </span>
+            <span class="config-status-badge config-status-badge--ok">Producción</span>
         </div>
     </div>
 
@@ -485,6 +621,11 @@
     window.CONFIG_EMPRESA_URLS = {
         guardar: "{% url 'core:empresa_guardar' %}",
         logo:    "{% url 'core:empresa_logo' %}",
+    };
+    window.CONFIG_ARCA_URLS = {
+        guardar:     "{% url 'core:empresa_arca_guardar' %}",
+        generarCsr:  "{% url 'core:empresa_arca_generar_csr' %}",
+        probar:      "{% url 'core:empresa_arca_probar' %}",
     };
     window.CONFIG_CUENTAS_URLS = {
         guardar: "{% url 'core:cuenta_guardar' %}",

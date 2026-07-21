@@ -151,3 +151,11 @@ EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
+
+# Facturación electrónica ARCA (ex AFIP)
+# Clave usada para cifrar la clave privada del certificado ARCA guardada en
+# ConfiguracionArca. Generarla una vez con:
+#   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+# y pegarla en .env.local / .env.production. Sin esta clave, ninguna clave
+# privada guardada en la base se puede descifrar (a propósito: no vive en la DB).
+ARCA_ENCRYPTION_KEY = os.environ.get('ARCA_ENCRYPTION_KEY', '')

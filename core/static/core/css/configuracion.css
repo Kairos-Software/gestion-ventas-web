@@ -1,11 +1,52 @@
 .config-page { max-width: 860px; margin: 0 auto; }
 
 .config-page-header {
-    margin-bottom: 1.75rem;
+    margin-bottom: 1.25rem;
 }
 
+html { scroll-behavior: smooth; }
+
+/* ═══════════════════════════════════════════
+   NAVEGACIÓN ENTRE SECCIONES (sticky)
+   ═══════════════════════════════════════════ */
+.config-nav {
+    position: sticky;
+    top: var(--header-height, 56px);
+    z-index: 5;
+    display: flex;
+    gap: 0.3rem;
+    flex-wrap: wrap;
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    padding: 0.4rem;
+    margin-bottom: 1.5rem;
+    box-shadow: var(--shadow-sm);
+}
+
+.config-nav a {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-decoration: none;
+    padding: 0.5rem 0.9rem;
+    border-radius: 0.5rem;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+}
+
+.config-nav a:hover { background: var(--bg-primary); color: var(--text-primary); }
+
+.config-nav a.is-active {
+    background: var(--brand-orange-light, rgba(242,106,27,0.1));
+    color: var(--brand-orange);
+}
+
+/* Compensa la barra sticky (nav + header) al saltar a una sección */
+.config-section { scroll-margin-top: calc(var(--header-height, 56px) + 4rem); }
+
 .config-page-header h1 {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: 1.5rem;
     font-weight: 800;
     color: var(--text-primary);
@@ -44,7 +85,7 @@
 }
 
 .config-section-header h2 {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: 0.9375rem;
     font-weight: 700;
     color: var(--text-primary);
@@ -164,7 +205,7 @@
 }
 
 .config-coming-soon h3 {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: 0.9375rem;
     font-weight: 700;
     color: var(--text-secondary);
@@ -194,6 +235,57 @@
     color: var(--brand-orange);
     border-color: rgba(242,106,27,0.25);
 }
+
+/* Badge de estado (Certificado cargado / Habilitada / etc.) */
+.config-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.2rem 0.6rem;
+    border-radius: 1rem;
+}
+.config-status-badge--ok        { background: rgba(16,185,129,0.1); color: var(--success); }
+.config-status-badge--pendiente { background: rgba(245,158,11,0.1); color: var(--warning); }
+.config-status-badge--off       { background: var(--bg-secondary); color: var(--text-muted); }
+
+/* Recuadro destacado dentro de una sección (ej: "Generar CSR") */
+.config-callout {
+    margin: 0 1.375rem 1.1rem;
+    background: var(--brand-blue-light, rgba(30,111,168,0.06));
+    border: 1px solid rgba(30,111,168,0.2);
+    border-radius: 0.75rem;
+    padding: 0.9rem 1.1rem;
+}
+
+/* Guía paso a paso desplegable */
+.config-guide {
+    margin: 0 1.375rem 1.375rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    padding: 0.9rem 1.1rem;
+}
+.config-guide summary {
+    cursor: pointer;
+    font-weight: 700;
+    color: var(--brand-blue);
+    font-size: 0.875rem;
+    list-style: none;
+}
+.config-guide summary::-webkit-details-marker { display: none; }
+.config-guide summary::before { content: '▸ '; }
+.config-guide[open] summary::before { content: '▾ '; }
+.config-guide-step {
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 1rem 0 0.4rem;
+    font-size: 0.8125rem;
+}
+.config-guide ol:first-of-type .config-guide-step { margin-top: 0; }
 
 /* Empresa */
 .config-empresa-msg { padding: 0 1.375rem 1rem; font-size: 0.8rem; }

@@ -231,7 +231,7 @@ class CrearTransaccionAjax(LoginRequiredMixin, View):
         moneda_origen  = cuenta_origen.moneda
         moneda_destino = cuenta_destino.moneda
 
-        if tipo in (TipoTransaccion.DEPOSITO, TipoTransaccion.EXTRACCION):
+        if tipo in (TipoTransaccion.DEPOSITO, TipoTransaccion.EXTRACCION, TipoTransaccion.TRANSFERENCIA):
             if moneda_origen != moneda_destino:
                 return _json_error(
                     f'Para {TipoTransaccion(tipo).label} el origen y destino '
@@ -249,6 +249,16 @@ class CrearTransaccionAjax(LoginRequiredMixin, View):
                 return _json_error('El origen de una extracción no puede ser Efectivo.')
             if cuenta_destino.nombre != CUENTA_EFECTIVO_DEFAULT_NOMBRE:
                 return _json_error('Una extracción entra a la cuenta Efectivo.')
+
+        if tipo == TipoTransaccion.TRANSFERENCIA:
+            if cuenta_origen.nombre == CUENTA_EFECTIVO_DEFAULT_NOMBRE:
+                return _json_error(
+                    'Una transferencia no puede salir de Efectivo — usá Depósito bancario.'
+                )
+            if cuenta_destino.nombre == CUENTA_EFECTIVO_DEFAULT_NOMBRE:
+                return _json_error(
+                    'Una transferencia no puede entrar a Efectivo — usá Extracción bancaria.'
+                )
 
         if tipo in (TipoTransaccion.COMPRA_DIVISA, TipoTransaccion.VENTA_DIVISA):
             if moneda_origen == moneda_destino:

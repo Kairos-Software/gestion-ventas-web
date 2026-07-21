@@ -14,13 +14,25 @@ from productos.models import (
     Producto, CombinacionVariante, ListaDescuento, cantidad_valida_para_unidad,
     ofertas_vigentes_hoy,
 )
-from core.models import Cliente, DatosEmpresa
+from core.models import Cliente, DatosEmpresa, ConfiguracionArca
 from compras.models import LoteCompra
 from .models import (
     Venta, ItemVenta, EstadoVenta, MedioPago, TipoResolucionLote,
     EtiquetaBalanza, EstadoEtiquetaBalanza,
 )
 from core.permisos import chequear_permiso
+from core.services_arca import facturacion
+from core.services_arca.tipos import CondicionIvaReceptor
+from core.services_arca.wsaa import ArcaError
+
+# Subconjunto de CondicionIvaReceptor.LABELS para el selector de "facturar a
+# nombre de un cliente" — las 4 que realmente aparecen en el día a día.
+CONDICIONES_IVA_RECEPTOR_COMUNES = [
+    (CondicionIvaReceptor.CONSUMIDOR_FINAL, 'Consumidor Final'),
+    (CondicionIvaReceptor.RESPONSABLE_INSCRIPTO, 'Responsable Inscripto'),
+    (CondicionIvaReceptor.MONOTRIBUTO, 'Monotributo'),
+    (CondicionIvaReceptor.EXENTO, 'Exento'),
+]
 from caja.models import TurnoCaja, CuentaCaja, TipoCaja
 
 
@@ -591,9 +603,15 @@ class ConfirmarVentaAjax(LoginRequiredMixin, View):
 
     Confirma el borrador: resta stock, guarda confirmado_por,
     medio_pago principal y las líneas de PagoVenta.
+
+    Si "facturar" viene en true, después de confirmar (fuera de la
+    transacción de arriba — un CAE no se puede deshacer, así que el pedido a
+    ARCA nunca puede quedar adentro de un bloque atómico que podría hacer
+    rollback) se intenta pedir el CAE. Si ARCA falla, la venta queda
+    confirmada igual: se informa el error en "factura_error" y se puede
+    reintentar después desde VentaFacturarAjax.
     """
 
-    @transaction.atomic
     def post(self, request):
         if not chequear_permiso(request.user, 'crear_ventas'):
             return JsonResponse({'error': 'Sin permiso.'}, status=403)
@@ -625,88 +643,161 @@ class ConfirmarVentaAjax(LoginRequiredMixin, View):
         # queda esperando acá y cuando lo destraba ya la va a encontrar
         # en estado CONFIRMADA (no BORRADOR) — evita descontar stock
         # y generar pagos/movimientos de caja duplicados.
-        venta = get_object_or_404(Venta.objects.select_for_update(), pk=venta_pk)
+        #
+        # OJO: este "with" es a propósito más chico que todo el método —
+        # termina (commit) antes de intentar facturar en ARCA más abajo. Un
+        # CAE no se puede deshacer, así que ese pedido nunca puede quedar
+        # adentro de una transacción que todavía podría hacer rollback.
+        with transaction.atomic():
+            venta = get_object_or_404(Venta.objects.select_for_update(), pk=venta_pk)
 
-        if venta.estado != EstadoVenta.BORRADOR:
-            return JsonResponse(
-                {'error': f'La venta ya está en estado "{venta.get_estado_display()}".'},
-                status=400
-            )
+            if venta.estado != EstadoVenta.BORRADOR:
+                return JsonResponse(
+                    {'error': f'La venta ya está en estado "{venta.get_estado_display()}".'},
+                    status=400
+                )
 
-        # ── Validar pagos divididos, si se mandaron ──
-        # La venta siempre está en pesos: si una línea se cobra en una
-        # cuenta que no es en pesos (ej: transferencia en USD), se
-        # convierte con la cotización que mandó el cajero para poder
-        # validar que la suma cubre venta.total. El efectivo físico
-        # siempre es en pesos (ver PagoVenta).
-        pagos_normalizados = None
-        if pagos_raw:
-            pagos_normalizados = []
-            suma_ars = Decimal('0')
-            for p in pagos_raw:
-                medio_p = p.get('medio', '').strip()
-                if medio_p not in valores_validos:
-                    return JsonResponse({'error': f'Medio de pago inválido en pagos: {medio_p}'}, status=400)
-                try:
-                    monto_p = Decimal(str(p.get('monto', 0)))
-                except Exception:
-                    return JsonResponse({'error': 'Monto de pago inválido.'}, status=400)
-                if monto_p <= 0:
-                    continue
+            # ── Validar pagos divididos, si se mandaron ──
+            # La venta siempre está en pesos: si una línea se cobra en una
+            # cuenta que no es en pesos (ej: transferencia en USD), se
+            # convierte con la cotización que mandó el cajero para poder
+            # validar que la suma cubre venta.total. El efectivo físico
+            # siempre es en pesos (ver PagoVenta).
+            pagos_normalizados = None
+            if pagos_raw:
+                pagos_normalizados = []
+                suma_ars = Decimal('0')
+                for p in pagos_raw:
+                    medio_p = p.get('medio', '').strip()
+                    if medio_p not in valores_validos:
+                        return JsonResponse({'error': f'Medio de pago inválido en pagos: {medio_p}'}, status=400)
+                    try:
+                        monto_p = Decimal(str(p.get('monto', 0)))
+                    except Exception:
+                        return JsonResponse({'error': 'Monto de pago inválido.'}, status=400)
+                    if monto_p <= 0:
+                        continue
 
-                cotizacion_p = None
-                monto_ars = monto_p
-                if medio_p != MedioPago.EFECTIVO:
-                    cuenta = CuentaCaja.objects.filter(pk=p.get('cuenta_pk'), caja=TipoCaja.GRANDE, activa=True).first()
-                    if cuenta and cuenta.moneda != 'ARS':
-                        try:
-                            cotizacion_p = Decimal(str(p.get('cotizacion', 0)))
-                        except Exception:
-                            cotizacion_p = None
-                        if not cotizacion_p or cotizacion_p <= 0:
-                            return JsonResponse({
-                                'error': f'Ingresá la cotización usada para el pago en {cuenta.get_moneda_display()}.'
-                            }, status=400)
-                        monto_ars = (monto_p * cotizacion_p).quantize(Decimal('0.01'))
+                    cotizacion_p = None
+                    monto_ars = monto_p
+                    if medio_p != MedioPago.EFECTIVO:
+                        cuenta = CuentaCaja.objects.filter(pk=p.get('cuenta_pk'), caja=TipoCaja.GRANDE, activa=True).first()
+                        if cuenta and cuenta.moneda != 'ARS':
+                            try:
+                                cotizacion_p = Decimal(str(p.get('cotizacion', 0)))
+                            except Exception:
+                                cotizacion_p = None
+                            if not cotizacion_p or cotizacion_p <= 0:
+                                return JsonResponse({
+                                    'error': f'Ingresá la cotización usada para el pago en {cuenta.get_moneda_display()}.'
+                                }, status=400)
+                            monto_ars = (monto_p * cotizacion_p).quantize(Decimal('0.01'))
 
-                suma_ars += monto_ars
-                pagos_normalizados.append({
-                    'medio': medio_p,
-                    'monto': monto_p,
-                    'cuenta_pk': p.get('cuenta_pk'),
-                    'cotizacion': cotizacion_p,
-                })
+                    suma_ars += monto_ars
+                    pagos_normalizados.append({
+                        'medio': medio_p,
+                        'monto': monto_p,
+                        'cuenta_pk': p.get('cuenta_pk'),
+                        'cotizacion': cotizacion_p,
+                    })
 
-            if not pagos_normalizados:
-                return JsonResponse({'error': 'Agregá al menos un medio de pago con monto.'}, status=400)
+                if not pagos_normalizados:
+                    return JsonResponse({'error': 'Agregá al menos un medio de pago con monto.'}, status=400)
 
-            # El total recién se recalcula en confirmar(); usamos el total actual del borrador
-            total_actual = venta.calcular_total() or venta.total
-            venta.refresh_from_db(fields=['total'])
-            diferencia = abs(suma_ars - venta.total)
-            if diferencia > Decimal('0.01'):
-                return JsonResponse({
-                    'error': f'La suma de los pagos (${suma_ars}) no coincide con el total (${venta.total}).'
-                }, status=400)
+                # El total recién se recalcula en confirmar(); usamos el total actual del borrador
+                total_actual = venta.calcular_total() or venta.total
+                venta.refresh_from_db(fields=['total'])
+                diferencia = abs(suma_ars - venta.total)
+                if diferencia > Decimal('0.01'):
+                    return JsonResponse({
+                        'error': f'La suma de los pagos (${suma_ars}) no coincide con el total (${venta.total}).'
+                    }, status=400)
 
-        try:
-            venta.editar_cabecera(fecha=fecha, notas=body.get('notas', ''))
-        except Exception as e:
-            import traceback
-            return JsonResponse({'error': f'editar_cabecera: {e}', 'detalle': traceback.format_exc()}, status=400)
+            try:
+                venta.editar_cabecera(fecha=fecha, notas=body.get('notas', ''))
+            except Exception as e:
+                import traceback
+                return JsonResponse({'error': f'editar_cabecera: {e}', 'detalle': traceback.format_exc()}, status=400)
 
-        try:
-            avisos = venta.confirmar(confirmado_por=request.user, medio_pago=medio_pago, pagos=pagos_normalizados)
-        except Exception as e:
-            import traceback
-            return JsonResponse({'error': f'confirmar: {e}', 'detalle': traceback.format_exc()}, status=400)
+            try:
+                avisos = venta.confirmar(confirmado_por=request.user, medio_pago=medio_pago, pagos=pagos_normalizados)
+            except Exception as e:
+                import traceback
+                return JsonResponse({'error': f'confirmar: {e}', 'detalle': traceback.format_exc()}, status=400)
 
-        return JsonResponse({
+        # ── Facturación electrónica (opcional) ──
+        # Fuera del "with" de arriba a propósito: la venta ya está
+        # confirmada y comprometida pase lo que pase acá abajo.
+        factura_error = None
+        comprobante = None
+        if body.get('facturar'):
+            cliente = None
+            cliente_pk = body.get('cliente_pk')
+            if cliente_pk:
+                cliente = Cliente.objects.filter(pk=cliente_pk).first()
+            try:
+                comprobante = facturacion.facturar_venta(
+                    venta,
+                    cliente=cliente,
+                    condicion_iva_receptor_id=body.get('condicion_iva_receptor_id'),
+                )
+            except ArcaError as exc:
+                factura_error = str(exc)
+
+        respuesta = {
             'ok':     True,
             'pk':     venta.pk,
             'numero': venta.numero,
             'total':  str(venta.total),
             'avisos': avisos or [],
+        }
+        if comprobante:
+            respuesta['cae'] = comprobante.cae
+            respuesta['numero_comprobante'] = comprobante.numero
+        if factura_error:
+            respuesta['factura_error'] = factura_error
+        return JsonResponse(respuesta)
+
+
+# ══════════════════════════════════════════════════════════════════
+#  AJAX — Facturar (reintento manual, para ventas ya confirmadas
+#  que no tienen comprobante ARCA — por ejemplo porque falló al
+#  confirmar)
+# ══════════════════════════════════════════════════════════════════
+
+class VentaFacturarAjax(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        if not chequear_permiso(request.user, 'crear_ventas'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        venta = get_object_or_404(Venta, pk=pk)
+        if venta.estado != EstadoVenta.CONFIRMADA:
+            return JsonResponse({'error': 'Solo se puede facturar una venta confirmada.'}, status=400)
+
+        try:
+            body = json.loads(request.body or '{}')
+        except json.JSONDecodeError:
+            body = {}
+
+        cliente = None
+        cliente_pk = body.get('cliente_pk')
+        if cliente_pk:
+            cliente = Cliente.objects.filter(pk=cliente_pk).first()
+
+        try:
+            comprobante = facturacion.facturar_venta(
+                venta,
+                cliente=cliente,
+                condicion_iva_receptor_id=body.get('condicion_iva_receptor_id'),
+            )
+        except ArcaError as exc:
+            return JsonResponse({'error': str(exc)}, status=400)
+
+        return JsonResponse({
+            'ok': True,
+            'cae': comprobante.cae,
+            'numero_comprobante': comprobante.numero,
+            'cae_vencimiento': comprobante.cae_vencimiento.isoformat(),
         })
 
 
@@ -856,6 +947,15 @@ class DetalleVentaView(LoginRequiredMixin, View):
             for c in cuentas
         ])
 
+        # Si todos los ítems de la venta comparten el mismo cliente, se lo
+        # ofrece como destinatario directo de la factura (sin tener que
+        # buscarlo de nuevo) — si hay más de uno o ninguno, sólo queda la
+        # opción de facturar a Consumidor Final.
+        clientes_venta = {item.cliente_id for item in venta.items.all() if item.cliente_id}
+        cliente_unico = None
+        if len(clientes_venta) == 1:
+            cliente_unico = Cliente.objects.filter(pk=clientes_venta.pop()).first()
+
         from django.urls import reverse
         return _render(request, self.template_name, {
             'venta':      venta,
@@ -865,6 +965,10 @@ class DetalleVentaView(LoginRequiredMixin, View):
             'es_borrador': venta.estado == EstadoVenta.BORRADOR,
             'medios_pago': MedioPago.choices,
             'datos_empresa': DatosEmpresa.get_solo(),
+            'configuracion_arca': ConfiguracionArca.get_solo(),
+            'comprobante_arca': getattr(venta, 'comprobante_arca', None),
+            'cliente_unico_venta': cliente_unico,
+            'condiciones_iva_receptor': CONDICIONES_IVA_RECEPTOR_COMUNES,
             'venta_moneda': moneda_venta,
             'cuentas_json': cuentas_json,
             'url_confirmar':         reverse('ventas:confirmar_venta'),
@@ -873,4 +977,5 @@ class DetalleVentaView(LoginRequiredMixin, View):
             'url_historial':         reverse('ventas:historial_ventas'),
             'url_doc_subir':         reverse('ventas:documento_subir'),
             'url_doc_eliminar':      reverse('ventas:documento_eliminar'),
+            'url_facturar':          reverse('ventas:venta_facturar', args=[venta.pk]),
         })

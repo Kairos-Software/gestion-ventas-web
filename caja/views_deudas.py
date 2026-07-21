@@ -252,6 +252,9 @@ class CrearDeudaAjax(LoginRequiredMixin, View):
                 creado_por=request.user,
             )
 
+            from asistencia.services.eventos import notificar_cuotas_deuda_si_proximas, enviar_en_background
+            enviar_en_background(notificar_cuotas_deuda_si_proximas, deuda)
+
             return JsonResponse({'success': True, 'deuda': _serializar_deuda(deuda, con_cuotas=True)})
 
         except json.JSONDecodeError:
@@ -327,13 +330,12 @@ class ConfirmarCuotaAjax(LoginRequiredMixin, View):
 
             cuota.confirmar(cuenta_pk, request.user)
 
-            # Fuera de la transacción de pago: si el mail falla, no
-            # queremos perder el pago ya confirmado.
-            try:
-                from asistencia.services.eventos import notificar_deuda_pagada
-                notificar_deuda_pagada(cuota)
-            except Exception:
-                pass
+            # En segundo plano: si esperáramos a que el mail salga acá,
+            # el pedido HTTP se queda 1-2s colgado por el ida y vuelta
+            # del SMTP, y del lado del navegador se siente como que el
+            # sistema se trabó.
+            from asistencia.services.eventos import notificar_deuda_pagada, enviar_en_background
+            enviar_en_background(notificar_deuda_pagada, cuota)
 
             return JsonResponse({'success': True, 'cuota': _serializar_cuota(cuota)})
 

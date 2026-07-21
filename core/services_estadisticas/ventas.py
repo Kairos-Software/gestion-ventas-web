@@ -16,7 +16,7 @@ from django.db.models import F, Sum, Count, ExpressionWrapper
 from django.db.models.functions import TruncMonth, ExtractWeekDay
 
 from ventas.models import ItemVenta, Venta, EstadoVenta, ConsumoLoteVenta, PagoVenta, MedioPago
-from caja.models import Gasto
+from caja.models import Gasto, TipoMovimientoCaja
 
 from . import MONEY, _periodo_anterior
 
@@ -67,8 +67,13 @@ def resumen_ganancia(desde, hasta):
     costo_mercaderia = _costo_de_items(items)
     ganancia_bruta = ingresos - costo_mercaderia
 
-    gastos = Gasto.objects.filter(fecha__range=(desde, hasta)).aggregate(
-        total=Sum('monto'))['total'] or Decimal('0')
+    # Gasto también registra ingresos manuales (tipo=INGRESO, ver
+    # caja.models.Gasto) — acá solo interesan los egresos, si no un
+    # ingreso manual (herencia, aporte, etc.) se restaría como si
+    # fuera un gasto y ensuciaría la ganancia neta.
+    gastos = Gasto.objects.filter(
+        fecha__range=(desde, hasta), tipo=TipoMovimientoCaja.EGRESO,
+    ).aggregate(total=Sum('monto'))['total'] or Decimal('0')
     ganancia_neta = ganancia_bruta - gastos
 
     margen_pct = (ganancia_bruta / ingresos * 100) if ingresos else Decimal('0')

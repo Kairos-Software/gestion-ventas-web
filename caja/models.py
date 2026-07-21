@@ -47,6 +47,8 @@ class OrigenMovimiento(models.TextChoices):
     DEUDA       = 'deuda',       'Deuda (acreditación de préstamo)'
     CUOTA_DEUDA = 'cuota_deuda', 'Cuota de deuda'
     CHEQUE      = 'cheque',      'Cheque'
+    DEUDA_TARJETA       = 'deuda_tarjeta',       'Compra con tarjeta (débito en tarjeta)'
+    CUOTA_DEUDA_TARJETA = 'cuota_deuda_tarjeta', 'Pago de cuota (capital acreditado a tarjeta)'
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -202,7 +204,7 @@ class MovimientoCaja(models.Model):
                       help_text='N° de venta, compra, comprobante, etc.')
 
     # ── Trazabilidad: origen automático (opcional) ─────────────────
-    origen    = models.CharField(max_length=15, choices=OrigenMovimiento.choices,
+    origen    = models.CharField(max_length=20, choices=OrigenMovimiento.choices,
                     default=OrigenMovimiento.MANUAL)
     origen_app  = models.CharField(max_length=20, blank=True,
                       help_text="App del objeto origen, ej. 'ventas' o 'compras'.")
@@ -1200,6 +1202,8 @@ class Deuda(models.Model):
 
         if tipo == TipoDeuda.PRESTAMO:
             sincronizar_movimiento_deuda(deuda)
+        else:
+            sincronizar_movimiento_deuda_tarjeta(deuda)
 
         return deuda
 
@@ -1215,15 +1219,17 @@ class Deuda(models.Model):
         self.cuotas.filter(estado=EstadoCuota.PENDIENTE).update(estado=EstadoCuota.ANULADA)
 
         sincronizar_movimiento_deuda(self)
+        sincronizar_movimiento_deuda_tarjeta(self)
 
     def delete(self, *args, **kwargs):
         if self.cuotas.filter(estado=EstadoCuota.CONFIRMADA).exists():
             raise ValueError('No se puede eliminar: ya hay cuotas confirmadas de esta deuda.')
         with transaction.atomic():
-            movimiento = MovimientoCaja.objects.filter(
-                origen=OrigenMovimiento.DEUDA, origen_app='caja', origen_id=self.pk,
-            ).first()
-            if movimiento:
+            movimientos = MovimientoCaja.objects.filter(
+                origen__in=(OrigenMovimiento.DEUDA, OrigenMovimiento.DEUDA_TARJETA),
+                origen_app='caja', origen_id=self.pk,
+            )
+            for movimiento in movimientos:
                 movimiento.delete()
             super().delete(*args, **kwargs)
 
@@ -1242,6 +1248,13 @@ class CuotaDeuda(models.Model):
     deuda   = models.ForeignKey(Deuda, on_delete=models.CASCADE, related_name='cuotas')
     numero  = models.PositiveSmallIntegerField()
     monto   = models.DecimalField(max_digits=14, decimal_places=2)
+    monto_capital = models.DecimalField(
+        max_digits=14, decimal_places=2, default=Decimal('0'),
+        help_text='Porción de `monto` que es capital (sin interés). El resto '
+                   '(monto - monto_capital) es interés. Solo relevante para '
+                   'compra_credito: es lo que se acredita a la tarjeta al '
+                   'confirmar, para que su saldo vuelva a acercarse a 0.',
+    )
     fecha_vencimiento = models.DateField()
 
     estado  = models.CharField(max_length=10, choices=EstadoCuota.choices, default=EstadoCuota.PENDIENTE)
@@ -1264,6 +1277,11 @@ class CuotaDeuda(models.Model):
 
     def __str__(self):
         return f'{self.deuda} — cuota {self.numero}/{self.deuda.cantidad_cuotas}'
+
+    @property
+    def monto_interes(self):
+        """Interés de esta cuota: lo que no es capital. No se guarda aparte."""
+        return self.monto - self.monto_capital
 
     @property
     def habilitada(self):
@@ -1296,6 +1314,7 @@ class CuotaDeuda(models.Model):
         self.save(update_fields=['cuenta_pago', 'estado', 'fecha_confirmacion', 'confirmado_por'])
 
         sincronizar_movimiento_cuota(self)
+        sincronizar_movimiento_cuota_tarjeta(self)
 
 
 def generar_cuotas(deuda):
@@ -1303,21 +1322,31 @@ def generar_cuotas(deuda):
     Genera el plan de CuotaDeuda de una Deuda recién creada: interés
     simple sobre el monto original, repartido en partes iguales entre
     `cantidad_cuotas` (la última absorbe el resto del redondeo).
+
+    Cada cuota también guarda su porción de capital (monto_capital),
+    repartiendo `monto_original` de la misma forma — es lo que se
+    acredita a la tarjeta al confirmar (ver sincronizar_movimiento_
+    cuota_tarjeta), para que su saldo vuelva a 0 aunque haya interés.
     """
     monto_total = (deuda.monto_original * (Decimal('1') + deuda.porcentaje_interes / Decimal('100'))) \
         .quantize(Decimal('0.01'))
     cuota_base = (monto_total / deuda.cantidad_cuotas).quantize(Decimal('0.01'))
+    capital_base = (deuda.monto_original / deuda.cantidad_cuotas).quantize(Decimal('0.01'))
 
     acumulado = Decimal('0')
+    acumulado_capital = Decimal('0')
     for i in range(1, deuda.cantidad_cuotas + 1):
         if i < deuda.cantidad_cuotas:
             monto_cuota = cuota_base
+            monto_capital = capital_base
             acumulado += monto_cuota
+            acumulado_capital += monto_capital
         else:
             monto_cuota = monto_total - acumulado
+            monto_capital = deuda.monto_original - acumulado_capital
 
         CuotaDeuda.objects.create(
-            deuda=deuda, numero=i, monto=monto_cuota,
+            deuda=deuda, numero=i, monto=monto_cuota, monto_capital=monto_capital,
             fecha_vencimiento=_sumar_meses(deuda.fecha_inicio, i - 1),
         )
 
@@ -1391,6 +1420,93 @@ def sincronizar_movimiento_cuota(cuota):
             tipo=TipoMovimientoCaja.EGRESO, monto=cuota.monto, moneda=deuda.moneda,
             fecha=cuota.fecha_confirmacion.date(), descripcion=descripcion,
             referencia=f'Deuda #{deuda.pk}', origen=OrigenMovimiento.CUOTA_DEUDA,
+            origen_app='caja', origen_id=cuota.pk, creado_por=cuota.confirmado_por,
+        )
+
+
+@transaction.atomic
+def sincronizar_movimiento_deuda_tarjeta(deuda):
+    """
+    Sincroniza el débito en la tarjeta (cuenta_tarjeta) de una compra
+    con crédito: al crearse la deuda, la tarjeta pasa a deber
+    `monto_original` (capital, sin interés) — un egreso en ESA cuenta,
+    independiente del egreso real de plata que genera cada cuota al
+    confirmarse (sincronizar_movimiento_cuota, en cuenta_pago).
+
+    Es el complemento de sincronizar_movimiento_deuda (que hace lo
+    mismo pero para el ingreso de un préstamo) — no aplica a préstamo,
+    que no tiene cuenta_tarjeta.
+    """
+    movimiento = MovimientoCaja.objects.filter(
+        origen=OrigenMovimiento.DEUDA_TARJETA, origen_app='caja', origen_id=deuda.pk,
+    ).first()
+
+    if deuda.tipo != TipoDeuda.COMPRA_CREDITO or deuda.estado != EstadoDeuda.ACTIVA:
+        if movimiento:
+            movimiento.delete()
+        return
+
+    concepto = _concepto_default('Compra con tarjeta de crédito', TipoMovimientoCaja.EGRESO)
+    descripcion = f'Tarjeta {deuda.cuenta_tarjeta.nombre} — {deuda.descripcion}'.strip(' —')
+
+    if movimiento:
+        movimiento.cuenta = deuda.cuenta_tarjeta
+        movimiento.concepto = concepto
+        movimiento.tipo = TipoMovimientoCaja.EGRESO
+        movimiento.monto = deuda.monto_original
+        movimiento.moneda = deuda.moneda
+        movimiento.fecha = deuda.fecha_alta.date()
+        movimiento.descripcion = descripcion
+        movimiento.save()
+    else:
+        MovimientoCaja.objects.create(
+            caja=TipoCaja.GRANDE, cuenta=deuda.cuenta_tarjeta, concepto=concepto,
+            tipo=TipoMovimientoCaja.EGRESO, monto=deuda.monto_original, moneda=deuda.moneda,
+            fecha=deuda.fecha_alta.date(), descripcion=descripcion,
+            referencia=f'Deuda #{deuda.pk}', origen=OrigenMovimiento.DEUDA_TARJETA,
+            origen_app='caja', origen_id=deuda.pk, creado_por=deuda.creado_por,
+        )
+
+
+@transaction.atomic
+def sincronizar_movimiento_cuota_tarjeta(cuota):
+    """
+    Sincroniza el crédito en la tarjeta por el CAPITAL de una cuota
+    confirmada (no el total: el interés no reduce deuda de tarjeta,
+    es el costo de financiar — ver monto_interes). Es el complemento
+    en cuenta_tarjeta de sincronizar_movimiento_cuota (que ya registró
+    el egreso real por el total en cuenta_pago); no duplica plata, solo
+    hace que el saldo de la tarjeta vuelva a acercarse a 0 a medida que
+    se paga capital, aunque haya interés de por medio.
+    """
+    movimiento = MovimientoCaja.objects.filter(
+        origen=OrigenMovimiento.CUOTA_DEUDA_TARJETA, origen_app='caja', origen_id=cuota.pk,
+    ).first()
+
+    deuda = cuota.deuda
+    if deuda.tipo != TipoDeuda.COMPRA_CREDITO or cuota.estado != EstadoCuota.CONFIRMADA:
+        if movimiento:
+            movimiento.delete()
+        return
+
+    concepto = _concepto_default('Pago de cuota (capital tarjeta)', TipoMovimientoCaja.INGRESO)
+    descripcion = f'Cuota {cuota.numero}/{deuda.cantidad_cuotas} — {deuda.cuenta_tarjeta.nombre}'
+
+    if movimiento:
+        movimiento.cuenta = deuda.cuenta_tarjeta
+        movimiento.concepto = concepto
+        movimiento.tipo = TipoMovimientoCaja.INGRESO
+        movimiento.monto = cuota.monto_capital
+        movimiento.moneda = deuda.moneda
+        movimiento.fecha = cuota.fecha_confirmacion.date()
+        movimiento.descripcion = descripcion
+        movimiento.save()
+    else:
+        MovimientoCaja.objects.create(
+            caja=TipoCaja.GRANDE, cuenta=deuda.cuenta_tarjeta, concepto=concepto,
+            tipo=TipoMovimientoCaja.INGRESO, monto=cuota.monto_capital, moneda=deuda.moneda,
+            fecha=cuota.fecha_confirmacion.date(), descripcion=descripcion,
+            referencia=f'Deuda #{deuda.pk}', origen=OrigenMovimiento.CUOTA_DEUDA_TARJETA,
             origen_app='caja', origen_id=cuota.pk, creado_por=cuota.confirmado_por,
         )
 
@@ -1598,6 +1714,7 @@ def sincronizar_movimiento_cheque(cheque):
 class TipoTransaccion(models.TextChoices):
     DEPOSITO      = 'deposito',      'Depósito bancario'
     EXTRACCION    = 'extraccion',    'Extracción bancaria'
+    TRANSFERENCIA = 'transferencia', 'Transferencia entre cuentas'
     COMPRA_DIVISA = 'compra_divisa', 'Compra de divisa'
     VENTA_DIVISA  = 'venta_divisa',  'Venta de divisa'
 
@@ -1609,6 +1726,9 @@ class TransaccionCaja(models.Model):
     Tipos soportados:
     - DEPOSITO:      Efectivo → Banco (misma moneda)
     - EXTRACCION:    Banco → Efectivo (misma moneda)
+    - TRANSFERENCIA: Banco → Banco (misma moneda, ninguno de los dos
+                     lados es Efectivo — para eso ya están depósito
+                     y extracción).
     - COMPRA_DIVISA: Cuenta en moneda A → Cuenta en moneda B,
                      con tipo de cambio y costos opcionales.
     - VENTA_DIVISA:  Lo inverso de compra_divisa.

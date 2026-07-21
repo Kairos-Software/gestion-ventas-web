@@ -14,7 +14,7 @@
 }
 
 .page-header h1 {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: 1.625rem;
     font-weight: 700;
     color: var(--text-primary);
@@ -46,7 +46,7 @@
     cursor: pointer;
     transition: all 0.2s;
     border: 1px solid transparent;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     text-decoration: none;
     white-space: nowrap;
 }
@@ -148,7 +148,7 @@
     border: 1px solid var(--border-color);
     border-radius: 0.625rem;
     font-size: 0.875rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     background: var(--bg-secondary);
     color: var(--text-primary);
     transition: all 0.2s;
@@ -186,7 +186,7 @@
     border: 1px solid var(--border-color);
     border-radius: 0.625rem;
     font-size: 0.875rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     background: var(--bg-secondary);
     color: var(--text-primary);
     cursor: pointer;
@@ -290,7 +290,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-weight: 700;
     font-size: 0.875rem;
     flex-shrink: 0;
@@ -465,7 +465,7 @@
     text-decoration: none;
     border: 1px solid var(--border-color);
     background: transparent;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     white-space: nowrap;
 }
 
@@ -518,7 +518,7 @@
     color: var(--text-secondary);
     font-size: 0.8125rem;
     transition: all 0.18s;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
 }
 
 .pag-btn:hover {
@@ -550,7 +550,7 @@
 }
 
 .modal-title {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: 1.0625rem;
     font-weight: 700;
     color: var(--text-primary);
@@ -636,7 +636,7 @@
     cursor: pointer;
     transition: all 0.18s;
     border-radius: 0;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     white-space: nowrap;
 }
 
@@ -656,7 +656,7 @@
    FORM SECTIONS
    ═══════════════════════════════════════════════ */
 .form-section-title {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: 0.875rem;
     font-weight: 700;
     color: var(--text-primary);
@@ -697,7 +697,7 @@
     color: var(--brand-orange);
     cursor: pointer;
     transition: all 0.2s;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
 }
 
 .btn-add-row:hover {

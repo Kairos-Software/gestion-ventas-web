@@ -76,7 +76,6 @@ document.addEventListener('DOMContentLoaded', function () {
             const data = await response.json();
 
             renderizarBalancePorMoneda(data.balance_por_moneda);
-            renderizarMetricasPorMoneda(data.metricas_por_moneda);
         } catch (error) {
             console.error('Error al cargar balance:', error);
         }
@@ -87,11 +86,14 @@ document.addEventListener('DOMContentLoaded', function () {
         const emptyHint = document.getElementById('monedasEmptyHint');
         const cuentasGrid = document.getElementById('cuentasGrid');
         const cuentasSection = document.getElementById('cuentasSection');
+        const movimientosList = document.getElementById('movimientosList');
+        const movimientosSection = document.getElementById('movimientosSection');
 
         if (!balance || !balance[monedaActual]) {
             grid.innerHTML = '';
             emptyHint.hidden = false;
             if (cuentasSection) cuentasSection.hidden = true;
+            if (movimientosSection) movimientosSection.hidden = true;
             return;
         }
 
@@ -126,6 +128,7 @@ document.addEventListener('DOMContentLoaded', function () {
         `;
 
         renderizarCuentas(datos.cuentas, cuentasGrid, cuentasSection);
+        renderizarUltimosMovimientos(datos.ultimos_movimientos, movimientosList, movimientosSection);
     }
 
     // ══════════════════════════════════════════════════════════════════
@@ -174,71 +177,49 @@ document.addEventListener('DOMContentLoaded', function () {
         }).join('');
     }
 
-    function renderizarMetricasPorMoneda(metricas) {
-        const grid = document.getElementById('metricasGrid');
+    // ══════════════════════════════════════════════════════════════════
+    //  ÚLTIMOS MOVIMIENTOS (vistazo rápido — venta, compra, gasto manual,
+    //  transacción interna, deuda/cuota, cheque, ajuste de turno)
+    // ══════════════════════════════════════════════════════════════════
 
-        if (!metricas || !metricas[monedaActual]) {
-            grid.innerHTML = '<p class="cg-empty-hint">No hay métricas disponibles para esta moneda.</p>';
+    const ICONOS_ORIGEN = {
+        venta: '<path d="M2 3H3.5L5.2 10.6C5.3 11.1 5.75 11.46 6.26 11.46H12.5C13 11.46 13.4 11.1 13.5 10.6L14.5 4H4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="14" r="1" stroke="currentColor" stroke-width="1.2"/><circle cx="12" cy="14" r="1" stroke="currentColor" stroke-width="1.2"/>',
+        compra: '<path d="M2 3H3.5L5.2 10.6C5.3 11.1 5.75 11.46 6.26 11.46H12.5C13 11.46 13.4 11.1 13.5 10.6L14.5 4H4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="14" r="1" stroke="currentColor" stroke-width="1.2"/><circle cx="12" cy="14" r="1" stroke="currentColor" stroke-width="1.2"/>',
+        manual: '<path d="M8 2.5V13.5M2.5 8H13.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>',
+        ajuste: '<path d="M2 12L5.5 7.5L8.5 9.5L11.5 5L14 8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>',
+        transaccion: '<path d="M3 6H12L9.5 3.5M13 10H4L6.5 12.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>',
+        deuda: '<rect x="2" y="4" width="12" height="8.5" rx="1.2" stroke="currentColor" stroke-width="1.3"/><path d="M2 7H14" stroke="currentColor" stroke-width="1.3"/>',
+        cuota_deuda: '<rect x="2" y="4" width="12" height="8.5" rx="1.2" stroke="currentColor" stroke-width="1.3"/><path d="M2 7H14" stroke="currentColor" stroke-width="1.3"/>',
+        cheque: '<rect x="1.5" y="3.5" width="13" height="9" rx="1.2" stroke="currentColor" stroke-width="1.3"/><path d="M4 9.5L6.5 7L8.5 8.5L12 5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>',
+    };
+
+    function renderizarUltimosMovimientos(movimientos, lista, seccion) {
+        if (!lista || !seccion) return;
+
+        if (!movimientos || movimientos.length === 0) {
+            seccion.hidden = true;
             return;
         }
 
-        const datos = metricas[monedaActual];
-        const netoPositivo = parseFloat(datos.neto) >= 0;
-
-        const iconRecaudado = '<rect x="2" y="6" width="12" height="8" rx="1.3" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="10" r="1.6" stroke="currentColor" stroke-width="1.4"/><path d="M5 6V4.7C5 3.76 5.76 3 6.7 3H9.3C10.24 3 11 3.76 11 4.7V6" stroke="currentColor" stroke-width="1.4"/>';
-        const iconGastos = '<path d="M8 13L13 8H10V1H6V8H3L8 13Z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>';
-        const iconNetoPos = '<path d="M8 13.5V2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M3 5.5H13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M3 5.5L1.5 9.5H4.5L3 5.5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M13 5.5L11.5 9.5H14.5L13 5.5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>';
-        const iconNetoNeg = iconNetoPos;
-        const iconVentas = '<path d="M3 14L7 8L10.5 11L15 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M11.5 4.5H15V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>';
-        const iconCompras = '<path d="M2 4H3.5L5.2 11.5H12.5L14 6H4.3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="14" r="1" fill="currentColor"/><circle cx="11.5" cy="14" r="1" fill="currentColor"/>';
-        const iconMovimientos = '<path d="M2 5H14M2 5L4 3M2 5L4 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 11H2M14 11L12 9M14 11L12 13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>';
-
-        grid.innerHTML = `
-            <div class="cg-metrica-card">
-                <div class="cg-metrica-icon cg-metrica-icon--positivo">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">${iconRecaudado}</svg>
+        seccion.hidden = false;
+        lista.innerHTML = movimientos.map(mov => {
+            const esIngreso = mov.tipo === 'ingreso';
+            const icono = ICONOS_ORIGEN[mov.origen] || ICONOS_ORIGEN.manual;
+            return `
+                <div class="cg-mov-item">
+                    <div class="cg-mov-icon ${esIngreso ? 'cg-mov-icon--ingreso' : 'cg-mov-icon--egreso'}">
+                        <svg width="15" height="15" viewBox="0 0 16 16" fill="none">${icono}</svg>
+                    </div>
+                    <div class="cg-mov-info">
+                        <span class="cg-mov-titulo">${mov.titulo}</span>
+                        <span class="cg-mov-detalle">${mov.cuenta_nombre} · ${formatDate(mov.fecha)}</span>
+                    </div>
+                    <div class="cg-mov-monto ${esIngreso ? 'cg-mov-monto--ingreso' : 'cg-mov-monto--egreso'}">
+                        ${esIngreso ? '+' : '−'}${formatMonto(mov.monto, monedaActual)}
+                    </div>
                 </div>
-                <div class="cg-metrica-titulo">Recaudado</div>
-                <div class="cg-metrica-valor cg-metrica-valor--positivo">${formatMonto(datos.recaudado, monedaActual)}</div>
-            </div>
-            <div class="cg-metrica-card">
-                <div class="cg-metrica-icon cg-metrica-icon--negativo">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">${iconGastos}</svg>
-                </div>
-                <div class="cg-metrica-titulo">Gastos</div>
-                <div class="cg-metrica-valor cg-metrica-valor--negativo">${formatMonto(datos.gastos, monedaActual)}</div>
-            </div>
-            <div class="cg-metrica-card">
-                <div class="cg-metrica-icon ${netoPositivo ? 'cg-metrica-icon--positivo' : 'cg-metrica-icon--negativo'}">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">${netoPositivo ? iconNetoPos : iconNetoNeg}</svg>
-                </div>
-                <div class="cg-metrica-titulo">Neto</div>
-                <div class="cg-metrica-valor ${netoPositivo ? 'cg-metrica-valor--positivo' : 'cg-metrica-valor--negativo'}">
-                    ${formatMonto(datos.neto, monedaActual)}
-                </div>
-            </div>
-            <div class="cg-metrica-card">
-                <div class="cg-metrica-icon cg-metrica-icon--positivo">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">${iconVentas}</svg>
-                </div>
-                <div class="cg-metrica-titulo">Ventas</div>
-                <div class="cg-metrica-valor cg-metrica-valor--positivo">${formatMonto(datos.ventas, monedaActual)}</div>
-            </div>
-            <div class="cg-metrica-card">
-                <div class="cg-metrica-icon cg-metrica-icon--negativo">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">${iconCompras}</svg>
-                </div>
-                <div class="cg-metrica-titulo">Compras</div>
-                <div class="cg-metrica-valor cg-metrica-valor--negativo">${formatMonto(datos.compras, monedaActual)}</div>
-            </div>
-            <div class="cg-metrica-card">
-                <div class="cg-metrica-icon cg-metrica-icon--neutro">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">${iconMovimientos}</svg>
-                </div>
-                <div class="cg-metrica-titulo">Total movimientos</div>
-                <div class="cg-metrica-valor">${datos.total_movimientos}</div>
-            </div>
-        `;
+            `;
+        }).join('');
     }
 
     // ══════════════════════════════════════════════════════════════════

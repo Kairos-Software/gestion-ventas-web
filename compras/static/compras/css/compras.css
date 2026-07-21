@@ -36,7 +36,7 @@
 }
 
 .cmp-page-tag {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: .6rem;
     font-weight: 700;
     letter-spacing: .12em;
@@ -46,7 +46,7 @@
 }
 
 .cmp-page-title h1 {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: 1.5rem;
     font-weight: 800;
     color: var(--text-primary);
@@ -117,7 +117,7 @@
 .cmp-card-header svg { color: var(--brand-orange); }
 
 .cmp-card-title {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: .65rem;
     font-weight: 700;
     color: var(--text-primary);
@@ -139,7 +139,7 @@
     border-radius: .625rem;
     background: var(--bg-white);
     color: var(--text-primary);
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     font-size: .875rem;
     transition: border-color .18s, box-shadow .18s;
     box-shadow: var(--shadow-sm);
@@ -199,7 +199,7 @@
 }
 
 .cmp-dropdown-item-nombre {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: .875rem;
     font-weight: 700;
     color: var(--text-primary);
@@ -264,7 +264,7 @@
 .cmp-table th {
     padding: .7rem .875rem;
     text-align: left;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: .65rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -294,7 +294,7 @@
 
 /* Producto en tabla */
 .cmp-prod-cell   { display: flex; flex-direction: column; gap: .15rem; min-width: 140px; }
-.cmp-prod-nombre { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: .82rem; color: var(--text-primary); line-height: 1.3; }
+.cmp-prod-nombre { font-family: var(--font-heading); font-weight: 700; font-size: .82rem; color: var(--text-primary); line-height: 1.3; }
 .cmp-prod-meta   { font-size: .7rem; color: var(--text-muted); }
 
 /* Badge "Por color" en celda de producto */
@@ -304,7 +304,7 @@
     gap: .25rem;
     font-size: .65rem;
     font-weight: 700;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     color: var(--brand-blue, #1E6FA8);
     background: rgba(30, 111, 168, .08);
     border: 1px solid rgba(30, 111, 168, .18);
@@ -331,7 +331,7 @@
     border-radius: .5rem;
     background: var(--bg-secondary);
     color: var(--text-primary);
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     font-size: .8rem;
     transition: border-color .18s, box-shadow .18s, background .18s;
     width: 100%;
@@ -355,7 +355,7 @@
     border-radius: .5rem;
     background: var(--bg-secondary);
     color: var(--text-primary);
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     font-size: .8rem;
     cursor: pointer;
     transition: border-color .18s;
@@ -393,7 +393,7 @@
 
 .cmp-prov-option {
     padding: .55rem .875rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     font-size: .8rem;
     cursor: pointer;
     color: var(--text-primary);
@@ -409,7 +409,7 @@
 
 /* Subtotal celda */
 .cmp-subtotal-cell {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-weight: 800;
     color: var(--brand-orange-dark);
     white-space: nowrap;
@@ -475,7 +475,7 @@
     align-items: center;
     gap: .45rem;
     margin-bottom: .625rem;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: .65rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -492,7 +492,7 @@
     gap: .25rem;
     font-size: .7rem;
     font-weight: 600;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     text-transform: none;
     letter-spacing: 0;
     margin-left: auto;
@@ -529,7 +529,7 @@
     border: 1px solid var(--border-color);
     border-radius: .5rem;
     padding: .3rem .55rem .3rem .45rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     font-size: .78rem;
 }
 
@@ -576,7 +576,7 @@
 
 .cmp-label {
     display: block;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: .65rem;
     font-weight: 700;
     color: var(--text-muted);
@@ -592,7 +592,7 @@
     border-radius: .625rem;
     background: var(--bg-secondary);
     color: var(--text-primary);
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     font-size: .875rem;
     transition: border-color .18s, box-shadow .18s, background .18s;
 }
@@ -635,14 +635,14 @@ textarea.cmp-control {
 }
 
 .cmp-totals-grand-label {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: .9375rem;
     font-weight: 700;
     color: var(--text-primary);
 }
 
 .cmp-totals-grand-value {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: 1.375rem;
     font-weight: 800;
     color: var(--brand-orange);
@@ -660,7 +660,7 @@ textarea.cmp-control {
     padding: .625rem 1.125rem;
     border-radius: .625rem;
     border: none;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     font-size: .875rem;
     font-weight: 600;
     cursor: pointer;
@@ -710,7 +710,7 @@ textarea.cmp-control {
     align-items: center;
     padding: .2rem .6rem;
     border-radius: 99px;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: .65rem;
     font-weight: 700;
     letter-spacing: .03em;
@@ -733,7 +733,7 @@ textarea.cmp-control {
     border-radius: .75rem;
     box-shadow: var(--shadow-lg);
     padding: 1rem 1.25rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     font-size: .875rem;
     color: var(--text-primary);
     z-index: 9999;
@@ -750,7 +750,7 @@ textarea.cmp-control {
 }
 
 .cmp-toast-title {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-weight: 700;
     margin-bottom: .2rem;
     color: var(--success);
@@ -791,7 +791,7 @@ textarea.cmp-control {
     background: var(--bg-secondary);
     color: var(--text-muted);
     font-size: .8rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
 }
 
 .cmp-doc-upload-zone:hover,
@@ -837,7 +837,7 @@ textarea.cmp-control {
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     border-radius: .5rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     font-size: .8rem;
     transition: background .12s;
 }
@@ -887,7 +887,7 @@ a.cmp-doc-item-nombre:hover { color: var(--brand-orange); text-decoration: under
     border-radius: .25rem;
     font-size: .62rem;
     font-weight: 700;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     text-transform: uppercase;
     letter-spacing: .06em;
     background: rgba(245, 158, 11, .12);
@@ -947,7 +947,7 @@ a.cmp-doc-item-nombre:hover { color: var(--brand-orange); text-decoration: under
     align-items: center;
     padding: .2rem .7rem;
     border-radius: 99px;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: .65rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -1005,7 +1005,7 @@ a.cmp-doc-item-nombre:hover { color: var(--brand-orange); text-decoration: under
     border-radius: .3rem;
     font-size: .7rem;
     font-weight: 700;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     background: var(--brand-orange-light);
     color: var(--brand-orange-dark);
     border: 1px solid var(--brand-orange-mid);
@@ -1047,7 +1047,7 @@ a.cmp-doc-item-nombre:hover { color: var(--brand-orange); text-decoration: under
 }
 
 .cdt-total-val {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: 1.2rem;
     font-weight: 800;
     color: var(--brand-orange);

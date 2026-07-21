@@ -28,3 +28,10 @@ Thumbs.db
 
 # Otros
 *.pid
+
+# Certificados / claves ARCA (nunca al repo)
+secrets/
+*.key
+*.crt
+*.csr
+*.pem

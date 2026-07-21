@@ -2,10 +2,10 @@ from django.contrib.auth.views import LoginView, LogoutView
 from django.contrib.auth.decorators import login_required
 from django.db.models import F
 from django.shortcuts import render
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 
-from .models import DatosEmpresa, Cliente, Usuario
+from .models import DatosEmpresa, ConfiguracionArca, AmbienteArca
 from .permisos import chequear_permiso
 from .services_estadisticas.ventas import resumen_ganancia
 
@@ -13,6 +13,7 @@ from caja.models import CuentaCaja, TipoCaja, CUENTA_EFECTIVO_DEFAULT_NOMBRE, Tu
 from compras.models import LoteCompra
 from productos.models import Moneda, Producto
 from asistencia.models import CanalNotificacion, PreferenciaAsistencia
+from asistencia.services.alertas import productos_por_vencer
 
 
 class CustomLoginView(LoginView):
@@ -69,13 +70,39 @@ def home(request):
             fecha_vencimiento__lte=hoy + timezone.timedelta(days=30),
         ).count()
 
-    # ── Actividad reciente ────────────────────────────────────────────
-    if permisos['clientes']:
-        ctx['ultimos_clientes'] = Cliente.objects.order_by('-fecha_alta')[:5]
-    if permisos['usuarios']:
-        ctx['ultimos_usuarios'] = (
-            Usuario.objects.filter(is_superuser=False).order_by('-date_joined')[:5]
-        )
+    # ── Pendientes operativos: vencimientos y stock bajo, SIN montos y
+    # SIN deudas/cheques — eso es información financiera del negocio,
+    # no algo que le corresponda a cualquier usuario con acceso a
+    # productos/stock (a diferencia de la plata que se debe, esto es
+    # mercadería: cualquiera que reponga o venda necesita saberlo).
+    pendientes = []
+
+    if permisos['productos'] or permisos['stock']:
+        for lote in productos_por_vencer(30, hoy=hoy)['lotes'][:5]:
+            pendientes.append({
+                'icono': 'vencimiento',
+                'titulo': lote['producto_nombre'],
+                'detalle': f"Lote {lote['codigo']}",
+                'dias_restantes': lote['dias_restantes'],
+                'url': reverse('core:estadisticas_productos'),
+            })
+
+        productos_stock_bajo = Producto.objects.filter(
+            gestiona_stock=True, stock_actual__gt=0,
+            stock_actual__lte=F('stock_minimo'),
+        ).order_by('stock_actual')[:5]
+        for p in productos_stock_bajo:
+            pendientes.append({
+                'icono': 'stock',
+                'titulo': p.nombre,
+                'detalle': f"Quedan {p.stock_actual} (mínimo {p.stock_minimo})",
+                'dias_restantes': None,
+                'url': reverse('productos:stock'),
+            })
+
+    pendientes.sort(key=lambda p: -1 if p['dias_restantes'] is None else p['dias_restantes'])
+    ctx['pendientes'] = pendientes[:6]
+    ctx['pendientes_restantes'] = max(0, len(pendientes) - 6)
 
     return render(request, 'core/home.html', ctx)
 
@@ -104,4 +131,6 @@ def configuracion(request):
         'puede_editar_asistencia': chequear_permiso(request.user, 'gestionar_notificaciones'),
         'preferencia_asistencia': PreferenciaAsistencia.get_solo(),
         'canales_notificacion':   CanalNotificacion.choices,
+        'configuracion_arca':     ConfiguracionArca.get_solo(),
+        'ambientes_arca':         AmbienteArca.choices,
     })

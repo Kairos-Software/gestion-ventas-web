@@ -28,6 +28,7 @@ function ticketHtmlTermica80(data) {
     const venta = data.venta   || {};
     const items = data.items   || [];
     const pagos = data.pagos   || [];
+    const cbte  = data.comprobante_arca || null;
 
     // En 80mm con fuente monoespaciada ~9pt entran ~42 caracteres por línea
     const COLS = 42;
@@ -108,6 +109,22 @@ function ticketHtmlTermica80(data) {
             line-height: 1.6;
         }
 
+        /* ── Comprobante ARCA ── */
+        .t80-comprobante {
+            text-align: center;
+            border: 1.5px solid #000;
+            border-radius: 2pt;
+            padding: 5pt 4pt;
+            margin: 4pt 0;
+        }
+        .t80-comprobante-label {
+            font-size: 7pt;
+            font-weight: bold;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            margin-bottom: 3pt;
+        }
+
         /* ── Pie ── */
         .t80-footer {
             text-align: center;
@@ -144,7 +161,7 @@ function ticketHtmlTermica80(data) {
     <hr class="t80-sep-doble">
 
     <!-- Número y fecha -->
-    <div class="t80-venta-num">TICKET ${_esc(venta.numero)}</div>
+    <div class="t80-venta-num">${cbte ? _esc(cbte.tipo_display) + ' ' + _esc(cbte.numero_display) : 'TICKET ' + _esc(venta.numero)}</div>
     <div class="t80-venta-meta">Fecha: ${_esc(venta.fecha)}</div>
     ${venta.confirmado_por ? `<div class="t80-venta-meta">Op: ${_esc(venta.confirmado_por)}</div>` : ''}
 
@@ -178,6 +195,9 @@ function ticketHtmlTermica80(data) {
     <hr class="t80-sep-simple">
     <div class="t80-peq" style="white-space:pre-line">${_esc(venta.notas)}</div>
     ` : ''}
+
+    <!-- Comprobante ARCA (CAE + QR) -->
+    ${_t80Comprobante(cbte)}
 
     <!-- Pie -->
     <hr class="t80-sep-simple">
@@ -221,6 +241,16 @@ function _t80Item(item) {
             <span class="t80-item-cant">${_esc(String(item.cantidad))} x ${_esc(item.moneda)} ${_fmtNum(item.precio_unitario)}${desc}</span>
             <span class="t80-item-sub">${_esc(item.moneda)} ${_fmtNum(item.subtotal)}</span>
         </div>
+    </div>`;
+}
+
+function _t80Comprobante(cbte) {
+    if (!cbte) return '';
+    return `<div class="t80-comprobante">
+        <div class="t80-comprobante-label">Comprobante autorizado por ARCA</div>
+        ${cbte.qrDataUrl ? `<img src="${cbte.qrDataUrl}" alt="QR AFIP" style="width:32mm; height:32mm; margin:2pt auto; display:block;">` : ''}
+        <div class="t80-peq">CAE: <strong>${_esc(cbte.cae)}</strong></div>
+        <div class="t80-peq">Vto. CAE: <strong>${_esc(cbte.cae_vencimiento)}</strong></div>
     </div>`;
 }
 

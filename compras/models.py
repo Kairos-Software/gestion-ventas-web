@@ -437,6 +437,15 @@ class Compra(models.Model):
         # Recalcular costo_actual/precio_venta automático de los productos
         _actualizar_precios_automaticos(self)
 
+        # Si algún lote recién creado ya vence dentro de la ventana de
+        # aviso configurada, avisar al toque en vez de esperar a la
+        # corrida diaria de correr_asistencia. En segundo plano (recién
+        # después de que este método —@transaction.atomic— confirme) para
+        # no colgar la confirmación de la compra esperando el SMTP, y
+        # para que el hilo vea los lotes ya guardados en la base.
+        from asistencia.services.eventos import notificar_lotes_si_proximos, enviar_en_background
+        enviar_en_background(notificar_lotes_si_proximos, self)
+
     @transaction.atomic
     def anular(self):
         """

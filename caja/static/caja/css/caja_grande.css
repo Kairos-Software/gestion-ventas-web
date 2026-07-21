@@ -150,8 +150,8 @@
 }
 
 .cg-balance-hero--negativo {
-    background: linear-gradient(135deg, #e4630e 0%, #9c3403 100%);
-    box-shadow: 0 10px 28px rgba(220, 69, 69, 0.25);
+    background: linear-gradient(135deg, var(--danger) 0%, #DC2626 100%);
+    box-shadow: 0 10px 28px rgba(239, 68, 68, 0.25);
 }
 
 .cg-balance-hero-info {
@@ -300,73 +300,83 @@
     color: var(--danger);
 }
 
-/* ── Métricas detalladas ─────────────────────────────────────── */
-.cg-metricas-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-    gap: 1rem;
-}
-
-.cg-metrica-card {
+/* ── Últimos movimientos ──────────────────────────────────────── */
+.cg-movimientos-list {
+    display: flex;
+    flex-direction: column;
     background: var(--bg-white);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
-    padding: 1.1rem 1.25rem;
-    transition: all var(--transition-normal);
+    overflow: hidden;
 }
 
-.cg-metrica-card:hover {
-    border-color: var(--border-strong);
-    box-shadow: var(--shadow-sm);
+.cg-mov-item {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    padding: 0.8rem 1.15rem;
+    border-bottom: 1px solid var(--border-color);
 }
 
-.cg-metrica-icon {
+.cg-mov-item:last-child {
+    border-bottom: none;
+}
+
+.cg-mov-icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 34px;
-    height: 34px;
+    width: 32px;
+    height: 32px;
     border-radius: var(--radius-sm);
-    margin-bottom: 0.75rem;
+    flex-shrink: 0;
 }
 
-.cg-metrica-icon--positivo {
+.cg-mov-icon--ingreso {
     background: rgba(16, 185, 129, 0.1);
     color: var(--success);
 }
 
-.cg-metrica-icon--negativo {
+.cg-mov-icon--egreso {
     background: rgba(239, 68, 68, 0.1);
     color: var(--danger);
 }
 
-.cg-metrica-icon--neutro {
-    background: var(--bg-secondary);
-    color: var(--text-muted);
+.cg-mov-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+    flex: 1;
 }
 
-.cg-metrica-titulo {
-    font-size: 0.7rem;
-    font-weight: 800;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    margin-bottom: 0.45rem;
-}
-
-.cg-metrica-valor {
-    font-family: var(--font-heading);
-    font-weight: 800;
-    font-size: 1.4rem;
+.cg-mov-titulo {
+    font-size: 0.85rem;
+    font-weight: 600;
     color: var(--text-primary);
-    letter-spacing: -0.3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.cg-metrica-valor--positivo {
+.cg-mov-detalle {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
+.cg-mov-monto {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.cg-mov-monto--ingreso {
     color: var(--success);
 }
 
-.cg-metrica-valor--negativo {
+.cg-mov-monto--egreso {
     color: var(--danger);
 }
 

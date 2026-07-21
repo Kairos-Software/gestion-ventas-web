@@ -95,14 +95,15 @@
             </div>
         </div>
         <div class="card-body">
-            <div class="est-mini-stat-grid">
-                {% for r in distribucion_riesgo %}
-                <div class="est-mini-stat">
-                    <div class="est-mini-stat-valor">{{ r.cantidad }}</div>
-                    <div class="est-mini-stat-label">{{ r.label }}</div>
-                </div>
-                {% endfor %}
+            {% if distribucion_riesgo %}
+            <div class="est-chart-wrap chico">
+                <canvas id="chartRiesgo"></canvas>
             </div>
+            {% else %}
+                <div class="empty-state">
+                    <p>Todavía no hay clientes cargados.</p>
+                </div>
+            {% endif %}
         </div>
     </div>
 
@@ -114,14 +115,15 @@
             </div>
         </div>
         <div class="card-body">
-            <div class="est-mini-stat-grid">
-                {% for e in distribucion_estado %}
-                <div class="est-mini-stat">
-                    <div class="est-mini-stat-valor">{{ e.cantidad }}</div>
-                    <div class="est-mini-stat-label">{{ e.label }}</div>
-                </div>
-                {% endfor %}
+            {% if distribucion_estado %}
+            <div class="est-chart-wrap chico">
+                <canvas id="chartEstadoCartera"></canvas>
             </div>
+            {% else %}
+                <div class="empty-state">
+                    <p>Todavía no hay clientes cargados.</p>
+                </div>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -161,4 +163,20 @@
 </div>
 
 {% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="{% static 'core/js/estadisticas.js' %}"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        initChartDonut('chartRiesgo', {{ distribucion_riesgo_json|safe }}, {
+            'Bajo': '#10B981', 'Medio': '#F59E0B', 'Alto': '#EF4444',
+        });
+        initChartDonut('chartEstadoCartera', {{ distribucion_estado_json|safe }}, {
+            'Activo': '#10B981', 'Potencial': '#F59E0B',
+            'Inactivo': '#8A9BB0', 'Suspendido': '#EF4444',
+        });
+    });
+</script>
 {% endblock %}

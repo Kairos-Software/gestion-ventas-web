@@ -10,8 +10,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="caja-grande" id="cajaGrande" data-url-balance="{{ url_balance }}"
-    data-puede-cargar="{{ puede_cargar|yesno:'1,0' }}">
+<div class="caja-grande" id="cajaGrande" data-url-balance="{{ url_balance }}">
 
     {% if sin_permiso %}
     <div class="cg-sin-permiso">
@@ -74,15 +73,13 @@
     </section>
 
     <!-- ══════════════════════════════════
-         MÉTRICAS DETALLADAS
+         ÚLTIMOS MOVIMIENTOS (vistazo rápido, no reemplaza a Estadísticas)
     ══════════════════════════════════ -->
-    <section class="cg-section">
+    <section class="cg-section" id="movimientosSection" hidden>
         <div class="cg-section-header">
-            <h2 class="cg-section-title">Métricas detalladas</h2>
+            <h2 class="cg-section-title">Últimos movimientos</h2>
         </div>
-        <div class="cg-metricas-grid" id="metricasGrid">
-            <p class="cg-empty-hint">Seleccioná una moneda para ver las métricas detalladas.</p>
-        </div>
+        <div class="cg-movimientos-list" id="movimientosList"></div>
     </section>
 
     {% endif %}

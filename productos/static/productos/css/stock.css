@@ -34,7 +34,7 @@
 .kpi-value {
     font-size: 1.75rem;
     font-weight: 700;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     line-height: 1;
     color: var(--text-primary);
 }
@@ -93,7 +93,7 @@
     border: 1px solid var(--border-color);
     border-radius: 0.5rem;
     font-size: 0.8125rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     background: var(--bg-secondary);
     color: var(--text-primary);
     transition: all 0.18s;
@@ -115,7 +115,7 @@
     border: 1px solid var(--border-color);
     border-radius: 0.5rem;
     font-size: 0.8rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     background: var(--bg-secondary);
     color: var(--text-secondary);
     cursor: pointer;
@@ -207,7 +207,7 @@
 .stock-minimo-pct {
     font-size: 0.68rem;
     font-weight: 600;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
 }
 
 .stock-minimo-pct.ok      { color: var(--success); }
@@ -242,7 +242,7 @@
 .stock-qty {
     font-size: 0.8rem;
     font-weight: 600;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     white-space: nowrap;
     min-width: 48px;
     text-align: right;
@@ -281,7 +281,7 @@
     color: var(--text-secondary);
     cursor: pointer;
     transition: all 0.15s;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
 }
 
 .btn-row:hover {
@@ -309,7 +309,7 @@
     border: 1px solid var(--border-color);
     border-radius: 0.5rem;
     font-size: 0.8125rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     color: var(--text-primary);
     background: var(--bg-secondary);
     transition: all 0.18s;
@@ -342,7 +342,7 @@
     transition: all 0.15s;
     text-align: center;
     line-height: 1.3;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
 }
 
 .tipo-btn:hover {
@@ -381,7 +381,7 @@
     border: 1px solid var(--border-color);
     border-radius: 0.5rem;
     font-size: 0.8125rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     color: var(--text-primary);
     background: var(--bg-secondary);
     transition: all 0.18s;
@@ -457,7 +457,7 @@
     border-radius: 0.5rem;
     font-size: 0.875rem;
     font-weight: 600;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     cursor: pointer;
     transition: all 0.2s;
     display: flex;
@@ -523,7 +523,7 @@
 .mov-prod { font-size: 0.7rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .mov-right { text-align: right; flex-shrink: 0; }
-.mov-qty   { font-size: 0.85rem; font-weight: 700; font-family: 'Plus Jakarta Sans', sans-serif; }
+.mov-qty   { font-size: 0.85rem; font-weight: 700; font-family: var(--font-heading); }
 .mov-qty.entrada { color: var(--success); }
 .mov-qty.salida  { color: var(--danger); }
 .mov-fecha { font-size: 0.67rem; color: var(--text-muted); }
@@ -595,7 +595,7 @@
     background: var(--bg-white);
     font-size: 0.78rem;
     cursor: pointer;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     color: var(--text-secondary);
     transition: all 0.15s;
     display: inline-flex; align-items: center; justify-content: center;

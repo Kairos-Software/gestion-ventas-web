@@ -25,8 +25,13 @@ from caja.models import (
 # ══════════════════════════════════════════════════════════════════
 
 def gastos_por_categoria(desde, hasta, top=8):
+    # Gasto también registra ingresos manuales (tipo=INGRESO) — acá
+    # solo interesan los egresos, si no un ingreso manual se mostraría
+    # mezclado en este ranking como si fuera un gasto más.
     return list(
-        Gasto.objects.filter(fecha__range=(desde, hasta))
+        Gasto.objects.filter(
+            fecha__range=(desde, hasta), tipo=TipoMovimientoCaja.EGRESO,
+        )
         .values('descripcion')
         .annotate(total=Sum('monto'))
         .order_by('-total')[:top]

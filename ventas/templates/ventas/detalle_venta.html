@@ -676,6 +676,42 @@
                     </div>
                 </div>
 
+                {# — Facturar electrónicamente (ARCA) — #}
+                {% if configuracion_arca.habilitado and configuracion_arca.tiene_certificado %}
+                <div class="vta-field" id="vdtFacturarBox" style="border:1px solid var(--border-color); border-radius:.5rem; padding:.6rem .7rem; margin-bottom:.75rem;">
+                    <label style="display:flex; align-items:center; gap:.5rem; font-weight:600; cursor:pointer;">
+                        <input type="checkbox" id="vdtFacturarCheck">
+                        Facturar electrónicamente (Factura C)
+                    </label>
+
+                    <div id="vdtFacturarOpciones" style="display:none; margin-top:.6rem; flex-direction:column; gap:.5rem;">
+                        <label style="display:flex; align-items:center; gap:.4rem; font-weight:400;">
+                            <input type="radio" name="vdtFacturarA" value="cf" id="vdtFacturarCF" checked>
+                            Consumidor Final
+                        </label>
+                        {% if cliente_unico_venta %}
+                        <label style="display:flex; align-items:center; gap:.4rem; font-weight:400;">
+                            <input type="radio" name="vdtFacturarA" value="cliente" id="vdtFacturarCliente"
+                                data-cliente-pk="{{ cliente_unico_venta.pk }}">
+                            A nombre de {{ cliente_unico_venta.nombre|default:cliente_unico_venta.razon_social|default:cliente_unico_venta.nombre_comercial }}
+                        </label>
+                        <div id="vdtFacturarCondIva" style="display:none; margin-left:1.6rem;">
+                            <label class="vta-label" for="idFacturarCondIva" style="font-size:.75rem;">Condición frente al IVA de {{ cliente_unico_venta.nombre|default:cliente_unico_venta.razon_social }}</label>
+                            <select class="form-select form-select-sm" id="idFacturarCondIva">
+                                {% for valor, etiqueta in condiciones_iva_receptor %}
+                                <option value="{{ valor }}">{{ etiqueta }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% elif datos_empresa.condicion_iva == 'RI' %}
+                <div class="vta-field" style="font-size:.78rem; color:var(--text-muted); margin-bottom:.75rem;">
+                    Facturación electrónica: todavía no está disponible para Responsable Inscripto (requiere desglose de IVA por producto).
+                </div>
+                {% endif %}
+
                 {# Previsualizar ticket antes de confirmar #}
                 <button id="vdtBtnPreviewTicket" class="vta-btn vta-btn-ghost" style="margin-bottom:.25rem">
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
@@ -767,6 +803,31 @@
                     <span>Total</span>
                     <strong class="cdt-total-val">${{ venta.total|floatformat:"2" }}</strong>
                 </div>
+
+                {# — Facturación electrónica (ARCA) — #}
+                {% if venta.estado == 'confirmada' %}
+                <div style="margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--border-color)">
+                    {% if comprobante_arca %}
+                    <div class="cdt-resumen-row">
+                        <span>Comprobante</span>
+                        <strong>Factura C {{ comprobante_arca.punto_venta|stringformat:"04d" }}-{{ comprobante_arca.numero|stringformat:"08d" }}</strong>
+                    </div>
+                    <div class="cdt-resumen-row">
+                        <span>CAE</span>
+                        <strong>{{ comprobante_arca.cae }}</strong>
+                    </div>
+                    <div class="cdt-resumen-row">
+                        <span>Vto. CAE</span>
+                        <strong>{{ comprobante_arca.cae_vencimiento|date:"d/m/Y" }}</strong>
+                    </div>
+                    {% elif configuracion_arca.habilitado %}
+                    <button id="vdtBtnFacturarAhora" class="vta-btn vta-btn-ghost" style="width:100%;justify-content:center">
+                        Facturar ahora
+                    </button>
+                    <div id="vdtFacturarMsg" style="font-size:.78rem;margin-top:.35rem"></div>
+                    {% endif %}
+                </div>
+                {% endif %}
 
                 {# — Auditoría — #}
                 <div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--border-color)">
@@ -1017,6 +1078,30 @@
             confirmado_por: "{% if venta.confirmado_por %}{{ venta.confirmado_por.get_full_name|default:venta.confirmado_por.username|escapejs }}{% else %}{% endif %}",
             medio_pago_display: "{{ venta.get_medio_pago_display|escapejs }}",
         },
+        comprobante_arca: {% if comprobante_arca %}{
+            tipo_display: "Factura C",
+            punto_venta: {{ comprobante_arca.punto_venta }},
+            numero: {{ comprobante_arca.numero }},
+            numero_display: "{{ comprobante_arca.punto_venta|stringformat:'04d' }}-{{ comprobante_arca.numero|stringformat:'08d' }}",
+            cae: "{{ comprobante_arca.cae }}",
+            cae_vencimiento: "{{ comprobante_arca.cae_vencimiento|date:'d/m/Y' }}",
+            qrDataUrl: "",
+            qrPayload: {
+                ver: 1,
+                fecha: "{{ venta.fecha|date:'Y-m-d' }}",
+                cuit: {{ datos_empresa.cuit|default:'0'|cut:'-' }},
+                ptoVta: {{ comprobante_arca.punto_venta }},
+                tipoCmp: {{ comprobante_arca.tipo_comprobante }},
+                nroCmp: {{ comprobante_arca.numero }},
+                importe: {{ comprobante_arca.importe_total|stringformat:'.2f' }},
+                moneda: "PES",
+                ctz: 1,
+                tipoDocRec: {{ comprobante_arca.doc_tipo }},
+                nroDocRec: {{ comprobante_arca.doc_nro|default:'0' }},
+                tipoCodAut: "E",
+                codAut: {{ comprobante_arca.cae }}
+            }
+        }{% else %}null{% endif %},
         pagos: [
             {% for pago in pagos %}
     { medio_display: "{{ pago.get_medio_display|escapejs }}", monto: "{{ pago.monto|stringformat:'.2f' }}" } {% if not forloop.last %}, {% endif %}
@@ -1045,6 +1130,24 @@
 {% endblock %}
 
 {% block extra_js %}
+{% if comprobante_arca %}
+
+<script src="{% static 'ventas/js/vendor/qrcode.min.js' %}"></script>
+<script>
+    (function () {
+        var payload = window.TICKET_DATA.comprobante_arca.qrPayload;
+        var texto = 'https://www.arca.gob.ar/fe/qr/?p=' + btoa(JSON.stringify(payload));
+        try {
+            var qr = qrcode(0, 'M');  // 0 = detecta automáticamente el tamaño necesario
+            qr.addData(texto);
+            qr.make();
+            window.TICKET_DATA.comprobante_arca.qrDataUrl = qr.createDataURL(6, 2);
+        } catch (err) {
+            console.error('No se pudo generar el QR del comprobante:', err);
+        }
+    })();
+</script>
+{% endif %}
 <script id="cuentas-data" type="application/json">{{ cuentas_json|safe }}</script>
 <script>
     window.VDT_CONFIG = {
@@ -1059,6 +1162,7 @@
         urlDetalle: "{% url 'ventas:detalle_venta' pk=0 %}".replace('/0/', '/'),
         urlDocSubir: "{{ url_doc_subir }}",
         urlDocEliminar: "{{ url_doc_eliminar }}",
+        urlFacturar: "{{ url_facturar }}",
         csrfToken: "{{ csrf_token }}",
         mediosPago: [
             {% for val, label in medios_pago %}

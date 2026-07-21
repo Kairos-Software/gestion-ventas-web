@@ -150,19 +150,28 @@
         </div>
         <div class="card-body">
             {% if por_medio_pago %}
-                {% for m in por_medio_pago %}
-                <div class="est-ranking-row">
-                    <div class="est-ranking-left">
-                        <div>
-                            <div class="est-ranking-nombre">{{ m.medio_label }}</div>
-                            <div class="est-ranking-detalle">{{ m.moneda }}</div>
+                <div class="est-row-2" style="align-items:center;">
+                    <div>
+                        {% for m in por_medio_pago %}
+                        <div class="est-ranking-row">
+                            <div class="est-ranking-left">
+                                <div>
+                                    <div class="est-ranking-nombre">{{ m.medio_label }}</div>
+                                    <div class="est-ranking-detalle">{{ m.moneda }}</div>
+                                </div>
+                            </div>
+                            <div class="est-ranking-right">
+                                <div class="est-ranking-ganancia">${{ m.total|floatformat:0|intcomma }}</div>
+                            </div>
                         </div>
+                        {% endfor %}
                     </div>
-                    <div class="est-ranking-right">
-                        <div class="est-ranking-ganancia">${{ m.total|floatformat:0|intcomma }}</div>
+                    {% if por_medio_pago_ars_json != '[]' %}
+                    <div class="est-chart-wrap chico">
+                        <canvas id="chartMedioPago"></canvas>
                     </div>
+                    {% endif %}
                 </div>
-                {% endfor %}
             {% else %}
                 <div class="empty-state">
                     <p>Todavía no hay pagos registrados en este período.</p>
@@ -224,6 +233,10 @@
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         initChartDiaSemana({{ por_dia_semana_json|safe }});
+        initChartDonut('chartMedioPago', {{ por_medio_pago_ars_json|safe }}, {
+            'Efectivo': '#10B981', 'Transferencia': '#1E6FA8',
+            'Débito': '#F26A1B', 'Crédito': '#8B5CF6', 'QR': '#F59E0B',
+        }, { valueKey: 'total', formatValue: (v) => '$' + v.toLocaleString('es-AR') });
     });
 </script>
 {% endblock %}

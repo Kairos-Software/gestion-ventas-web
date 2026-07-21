@@ -1048,6 +1048,104 @@ class DatosEmpresa(models.Model):
         return obj
 
 
+class AmbienteArca(models.TextChoices):
+    TESTING    = 'testing', 'Testing / Homologación'
+    PRODUCCION = 'produccion', 'Producción'
+
+
+class ConfiguracionArca(models.Model):
+    """
+    Modelo singleton (mismo patrón que DatosEmpresa) con la configuración de
+    facturación electrónica ARCA (ex AFIP) de esta instalación: certificado,
+    ambiente y punto de venta. Cada cliente de Kairos carga los suyos acá,
+    desde Configuración → Facturación Electrónica.
+    """
+    habilitado = models.BooleanField(
+        'Facturación electrónica habilitada', default=False,
+        help_text='Si está apagado, las ventas no intentan pedir CAE aunque haya certificado cargado.',
+    )
+    ambiente = models.CharField(
+        max_length=12, choices=AmbienteArca.choices, default=AmbienteArca.TESTING,
+    )
+    punto_venta = models.PositiveIntegerField(
+        'Punto de venta', default=1,
+        help_text='Punto de venta habilitado en ARCA como "Web Service / Factura Electrónica".',
+    )
+
+    # — Certificado digital —
+    # El certificado no es secreto (viaja firmado, es la mitad pública del
+    # par). La clave privada sí lo es: se guarda cifrada, nunca en texto
+    # plano — ver las propiedades clave_privada / clave_privada más abajo.
+    certificado_pem = models.TextField('Certificado (.crt)', blank=True)
+    clave_privada_enc = models.TextField('Clave privada (cifrada)', blank=True)
+
+    # — CSR autogenerado (autoservicio, sin terminal) —
+    # Se guarda para poder volver a descargarlo más adelante — el mismo
+    # CSR sirve tanto para pedir el certificado de testing (WSASS) como
+    # el de producción (Administrador de Certificados Digitales), no hay
+    # que generar uno para cada ambiente.
+    csr_pendiente = models.TextField(blank=True)
+    csr_generado_el = models.DateTimeField(null=True, blank=True)
+
+    # — Cache del token WSAA (dura ~12hs, no pedir uno nuevo en cada venta) —
+    wsaa_token = models.TextField(blank=True)
+    wsaa_sign = models.TextField(blank=True)
+    wsaa_expira = models.DateTimeField(null=True, blank=True)
+
+    actualizado_el = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Configuración ARCA'
+        verbose_name_plural = 'Configuración ARCA'
+
+    def __str__(self):
+        return f'ARCA ({self.get_ambiente_display()})'
+
+    @classmethod
+    def get_solo(cls):
+        obj, created = cls.objects.get_or_create(pk=1)
+        return obj
+
+    @property
+    def clave_privada(self):
+        """Clave privada descifrada (texto PEM) o '' si no hay ninguna cargada."""
+        if not self.clave_privada_enc:
+            return ''
+        from django.conf import settings
+        from cryptography.fernet import Fernet, InvalidToken
+        if not settings.ARCA_ENCRYPTION_KEY:
+            raise RuntimeError(
+                'ARCA_ENCRYPTION_KEY no está configurada — no se puede leer '
+                'la clave privada guardada. Revisá el .env del servidor.'
+            )
+        fernet = Fernet(settings.ARCA_ENCRYPTION_KEY.encode())
+        try:
+            return fernet.decrypt(self.clave_privada_enc.encode()).decode()
+        except InvalidToken:
+            raise RuntimeError(
+                'No se pudo descifrar la clave privada guardada (¿cambió '
+                'ARCA_ENCRYPTION_KEY?). Hay que volver a cargar el certificado.'
+            )
+
+    @clave_privada.setter
+    def clave_privada(self, valor_pem):
+        from django.conf import settings
+        from cryptography.fernet import Fernet
+        if not valor_pem:
+            self.clave_privada_enc = ''
+            return
+        if not settings.ARCA_ENCRYPTION_KEY:
+            raise RuntimeError(
+                'ARCA_ENCRYPTION_KEY no está configurada — no se puede guardar '
+                'la clave privada de forma segura. Revisá el .env del servidor.'
+            )
+        fernet = Fernet(settings.ARCA_ENCRYPTION_KEY.encode())
+        self.clave_privada_enc = fernet.encrypt(valor_pem.encode()).decode()
+
+    def tiene_certificado(self):
+        return bool(self.certificado_pem and self.clave_privada_enc)
+
+
 class Nota(models.Model):
     """
     Anotador global (Herramientas). Pública por defecto — cualquiera con

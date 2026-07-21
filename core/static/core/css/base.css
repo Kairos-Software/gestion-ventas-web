@@ -19,6 +19,7 @@
     --brand-orange:       #F26A1B;
     --brand-orange-dark:  #D45A0F;
     --brand-orange-light: #FFF0E6;
+    --brand-orange-mid:   rgba(242,106,27,0.25);
     --brand-blue:         #1E6FA8;
     --brand-blue-light:   #E8F4FD;
 
@@ -58,6 +59,7 @@
     --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
     --shadow-md: 0 4px 16px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04);
     --shadow-lg: 0 10px 40px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.06);
+    --shadow-orange: 0 4px 14px rgba(242,106,27,0.25);
 
     /* Radios */
     --radius-sm:  0.5rem;

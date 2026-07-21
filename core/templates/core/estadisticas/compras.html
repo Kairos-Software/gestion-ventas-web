@@ -113,19 +113,28 @@
     </div>
     <div class="card-body">
         {% if por_medio_pago %}
-            {% for m in por_medio_pago %}
-            <div class="est-ranking-row">
-                <div class="est-ranking-left">
-                    <div>
-                        <div class="est-ranking-nombre">{{ m.medio_label }}</div>
-                        <div class="est-ranking-detalle">{{ m.moneda }}</div>
+            <div class="est-row-2" style="align-items:center;">
+                <div>
+                    {% for m in por_medio_pago %}
+                    <div class="est-ranking-row">
+                        <div class="est-ranking-left">
+                            <div>
+                                <div class="est-ranking-nombre">{{ m.medio_label }}</div>
+                                <div class="est-ranking-detalle">{{ m.moneda }}</div>
+                            </div>
+                        </div>
+                        <div class="est-ranking-right">
+                            <div class="est-ranking-ganancia">${{ m.total|floatformat:0|intcomma }}</div>
+                        </div>
                     </div>
+                    {% endfor %}
                 </div>
-                <div class="est-ranking-right">
-                    <div class="est-ranking-ganancia">${{ m.total|floatformat:0|intcomma }}</div>
+                {% if por_medio_pago_ars_json != '[]' %}
+                <div class="est-chart-wrap chico">
+                    <canvas id="chartMedioPagoCompras"></canvas>
                 </div>
+                {% endif %}
             </div>
-            {% endfor %}
         {% else %}
             <div class="empty-state">
                 <p>Todavía no hay pagos a proveedores registrados en este período.</p>
@@ -143,6 +152,10 @@
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         initChartComprasTendencia({{ serie_mensual_json|safe }});
+        initChartDonut('chartMedioPagoCompras', {{ por_medio_pago_ars_json|safe }}, {
+            'Efectivo': '#10B981', 'Transferencia': '#1E6FA8',
+            'Débito': '#F26A1B', 'QR': '#F59E0B', 'Crédito (tarjeta)': '#8B5CF6',
+        }, { valueKey: 'total', formatValue: (v) => '$' + v.toLocaleString('es-AR') });
     });
 </script>
 {% endblock %}

@@ -14,7 +14,7 @@
 }
 
 .page-header h1 {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: 1.625rem;
     font-weight: 700;
     color: var(--text-primary);
@@ -46,7 +46,7 @@
     cursor: pointer;
     transition: all 0.2s;
     border: 1px solid transparent;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     text-decoration: none;
     white-space: nowrap;
 }
@@ -187,7 +187,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: 0.875rem;
     font-weight: 700;
     flex-shrink: 0;
@@ -289,7 +289,7 @@
     text-decoration: none;
     border: 1px solid var(--border-color);
     background: transparent;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     white-space: nowrap;
 }
 
@@ -360,7 +360,7 @@
 }
 
 .modal-title {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: 1.0625rem;
     font-weight: 700;
     color: var(--text-primary);
@@ -471,7 +471,7 @@
     cursor: pointer;
     transition: all 0.18s;
     white-space: nowrap;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     border-radius: 0;
 }
 
@@ -497,7 +497,7 @@
    FORM SECTIONS
    ═══════════════════════════════════════════════ */
 .form-section-title {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: 0.875rem;
     font-weight: 700;
     color: var(--text-primary);
@@ -539,7 +539,7 @@
     color: var(--brand-orange);
     cursor: pointer;
     transition: all 0.2s;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
 }
 
 .btn-add-row:hover {
@@ -654,7 +654,7 @@
     border-color: var(--border-color);
     border-radius: 0.5rem;
     font-size: 0.875rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     color: var(--text-primary);
     background: var(--bg-white);
     transition: border-color 0.2s, box-shadow 0.2s;
@@ -685,6 +685,10 @@
    EMPTY STATE
    ═══════════════════════════════════════════════ */
 .empty-state {
+    /* Se usa sobre un <td> (fila "no hay resultados" de la tabla) — la
+       versión genérica de base.css es un <div> con display:flex, que
+       rompe el layout de una celda de tabla si no se pisa acá. */
+    display: table-cell !important;
     text-align: center;
     padding: 3.5rem 2rem !important;
     color: var(--text-muted);

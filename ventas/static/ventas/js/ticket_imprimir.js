@@ -58,13 +58,21 @@ function _ticketCerrarSelector() {
  *
  * @param {string} formato  'a4' | 'termica80' | 'termica58'
  */
-function ticketImprimir(formato) {
+async function ticketImprimir(formato) {
     _ticketCerrarSelector();
 
     const data = window.TICKET_DATA;
     if (!data) {
         console.error('ticket_imprimir.js: window.TICKET_DATA no está definido.');
         return;
+    }
+
+    // Si hay comprobante ARCA, el QR se genera en la página (ver
+    // detalle_venta.html) de forma asíncrona — hay que esperar a que
+    // esté listo antes de armar el HTML del ticket, si no puede abrirse
+    // sin QR por una carrera de tiempos (CDN todavía cargando).
+    if (data.comprobante_arca && data.comprobante_arca.qrReadyPromise) {
+        await data.comprobante_arca.qrReadyPromise;
     }
 
     // Seleccionar el generador según el formato

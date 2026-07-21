@@ -7,7 +7,7 @@ from django.db.models import F
 from django.utils import timezone
 
 from productos.models import Producto, Moneda, CondicionPago, CombinacionVariante
-from core.models import Cliente
+from core.models import Cliente, AmbienteArca
 from compras.models import LoteCompra
 
 
@@ -1057,6 +1057,62 @@ class VentaDocumento(models.Model):
     def es_pdf(self):
         ext = _os.path.splitext(self.archivo.name)[1].lower() if self.archivo else ''
         return ext == '.pdf'
+
+
+# ══════════════════════════════════════════════════════════════════
+#  FACTURACIÓN ELECTRÓNICA (ARCA)
+# ══════════════════════════════════════════════════════════════════
+
+class TipoComprobante(models.IntegerChoices):
+    """Códigos de comprobante de ARCA (los que exige WSFEv1, no inventados)."""
+    FACTURA_A = 1, 'Factura A'
+    FACTURA_B = 6, 'Factura B'
+    FACTURA_C = 11, 'Factura C'
+
+
+class ComprobanteArca(models.Model):
+    """
+    Comprobante fiscal (CAE) obtenido de ARCA para una Venta. 1-a-1: cada
+    venta facturada electrónicamente tiene, a lo sumo, un comprobante.
+    Se crea únicamente después de que Venta.confirmar() ya hizo commit (ver
+    core/services_arca/wsfe.py) — nunca dentro de la misma transacción que
+    descuenta stock, porque un CAE no se puede "deshacer" si algo más falla.
+    """
+    venta = models.OneToOneField(
+        Venta, on_delete=models.PROTECT, related_name='comprobante_arca',
+    )
+    tipo_comprobante = models.PositiveSmallIntegerField(choices=TipoComprobante.choices)
+    punto_venta = models.PositiveIntegerField()
+    numero = models.PositiveIntegerField()
+
+    cae = models.CharField(max_length=20)
+    cae_vencimiento = models.DateField()
+    ambiente = models.CharField(max_length=12, choices=AmbienteArca.choices)
+
+    # — Receptor (comprador), snapshot al momento de facturar —
+    doc_tipo = models.PositiveSmallIntegerField(help_text='Código AFIP: 80=CUIT, 96=DNI, 99=Consumidor Final, etc.')
+    doc_nro = models.CharField(max_length=20, blank=True)
+    condicion_iva_receptor_id = models.PositiveSmallIntegerField(
+        help_text='Código de FEParamGetCondicionIvaReceptor (5=Consumidor Final, etc.)',
+    )
+
+    # — Importes (snapshot, no recalcular desde la Venta más adelante) —
+    importe_total = models.DecimalField(max_digits=14, decimal_places=2)
+    importe_neto = models.DecimalField(max_digits=14, decimal_places=2)
+    importe_iva = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+
+    creado_el = models.DateTimeField(auto_now_add=True)
+    respuesta_json = models.JSONField(
+        blank=True, null=True,
+        help_text='Respuesta cruda de ARCA (FECAESolicitar), para auditoría/debug.',
+    )
+
+    class Meta:
+        verbose_name = 'Comprobante ARCA'
+        verbose_name_plural = 'Comprobantes ARCA'
+
+    def __str__(self):
+        return f'{self.get_tipo_comprobante_display()} {self.punto_venta:04d}-{self.numero:08d} (CAE {self.cae})'
 
 
 # ══════════════════════════════════════════════════════════════════

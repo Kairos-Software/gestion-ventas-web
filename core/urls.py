@@ -66,6 +66,11 @@ urlpatterns = [
     path('configuracion/empresa/guardar/', views_empresa.EmpresaGuardarAjax.as_view(), name='empresa_guardar'),
     path('configuracion/empresa/logo/', views_empresa.EmpresaLogoAjax.as_view(), name='empresa_logo'),
 
+    # ── Facturación electrónica ARCA (Configuración) ────────────────
+    path('configuracion/arca/guardar/', views_empresa.EmpresaArcaGuardarAjax.as_view(), name='empresa_arca_guardar'),
+    path('configuracion/arca/generar-csr/', views_empresa.EmpresaArcaGenerarCsrAjax.as_view(), name='empresa_arca_generar_csr'),
+    path('configuracion/arca/probar/', views_empresa.EmpresaArcaProbarAjax.as_view(), name='empresa_arca_probar'),
+
     # ── Cuentas de caja (tarjetas/billeteras/bancos — Configuración) ──
     path('configuracion/cuentas/guardar/', views_cuentas.CuentaCrearEditarAjax.as_view(), name='cuenta_guardar'),
     path('configuracion/cuentas/baja/', views_cuentas.CuentaEliminarAjax.as_view(), name='cuenta_baja'),

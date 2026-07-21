@@ -38,6 +38,20 @@ ETIQUETAS_COMPARACION = {
 }
 
 
+def _medio_pago_ars_json(por_medio_pago):
+    """
+    Serializa por_medio_pago para el gráfico de torta. Se limita a ARS
+    a propósito: un solo gráfico no puede mezclar pesos y dólares sin
+    mentir sobre la proporción real (ver el mismo criterio en
+    services_estadisticas.ventas.por_medio_pago). El detalle con todas
+    las monedas se sigue mostrando en la lista de abajo.
+    """
+    return json.dumps([
+        {'label': f['medio_label'], 'total': float(f['total'])}
+        for f in por_medio_pago if f['moneda'] == 'ARS'
+    ], cls=DjangoJSONEncoder)
+
+
 def _resolver_rango(request, hoy):
     """
     Parsea `preset`/`desde`/`hasta` de la querystring, compartido por
@@ -127,6 +141,8 @@ def ventas(request):
         for f in por_dia_semana
     ], cls=DjangoJSONEncoder)
 
+    por_medio_pago = stats_ventas.por_medio_pago(desde, hasta)
+
     contexto = {
         'desde': desde,
         'hasta': hasta,
@@ -134,9 +150,10 @@ def ventas(request):
         'ranking_empleados': stats_ventas.ranking_empleados(desde, hasta),
         'ranking_productos': stats_ventas.ranking_productos(desde, hasta),
         'ranking_categorias': stats_ventas.ranking_categorias(desde, hasta),
-        'por_medio_pago': stats_ventas.por_medio_pago(desde, hasta),
+        'por_medio_pago': por_medio_pago,
         'por_dia_semana_json': por_dia_semana_json,
         'impacto_descuentos': stats_ventas.impacto_descuentos(desde, hasta),
+        'por_medio_pago_ars_json': _medio_pago_ars_json(por_medio_pago),
     }
     return render(request, 'core/estadisticas/ventas.html', contexto)
 
@@ -155,6 +172,8 @@ def compras(request):
         for f in serie
     ], cls=DjangoJSONEncoder)
 
+    por_medio_pago = stats_compras.por_medio_pago(desde, hasta)
+
     contexto = {
         'desde': desde,
         'hasta': hasta,
@@ -163,8 +182,9 @@ def compras(request):
         'comparacion': stats_compras.comparacion_periodo(desde, hasta),
         'comparacion_label': ETIQUETAS_COMPARACION.get(preset, 'que el período anterior'),
         'ranking_proveedores': stats_compras.ranking_proveedores(desde, hasta),
-        'por_medio_pago': stats_compras.por_medio_pago(desde, hasta),
+        'por_medio_pago': por_medio_pago,
         'serie_mensual_json': serie_json,
+        'por_medio_pago_ars_json': _medio_pago_ars_json(por_medio_pago),
     }
     return render(request, 'core/estadisticas/compras.html', contexto)
 
@@ -199,6 +219,9 @@ def clientes(request):
     hoy = timezone.now().date()
     preset, desde, hasta = _resolver_rango(request, hoy)
 
+    distribucion_riesgo = stats_clientes.distribucion_riesgo()
+    distribucion_estado = stats_clientes.distribucion_estado()
+
     contexto = {
         'desde': desde,
         'hasta': hasta,
@@ -206,8 +229,14 @@ def clientes(request):
         'mejores_clientes': stats_clientes.mejores_clientes(desde, hasta),
         'nuevos_vs_recurrentes': stats_clientes.nuevos_vs_recurrentes(desde, hasta),
         'clientes_inactivos': stats_clientes.clientes_inactivos(),
-        'distribucion_riesgo': stats_clientes.distribucion_riesgo(),
-        'distribucion_estado': stats_clientes.distribucion_estado(),
+        'distribucion_riesgo': distribucion_riesgo,
+        'distribucion_estado': distribucion_estado,
+        'distribucion_riesgo_json': json.dumps([
+            {'label': f['label'], 'cantidad': f['cantidad']} for f in distribucion_riesgo
+        ], cls=DjangoJSONEncoder),
+        'distribucion_estado_json': json.dumps([
+            {'label': f['label'], 'cantidad': f['cantidad']} for f in distribucion_estado
+        ], cls=DjangoJSONEncoder),
     }
     return render(request, 'core/estadisticas/clientes.html', contexto)
 

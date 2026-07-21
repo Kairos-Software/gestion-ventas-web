@@ -134,10 +134,11 @@ const Transacciones = (() => {
         }
 
         const badgeCfg = {
-            deposito:      { cls: 'badge-success', label: 'Depósito' },
-            extraccion:    { cls: 'badge-warning', label: 'Extracción' },
-            compra_divisa: { cls: 'badge-info',    label: 'Compra divisa' },
-            venta_divisa:  { cls: 'badge-primary', label: 'Venta divisa' },
+            deposito:      { cls: 'badge-success',   label: 'Depósito' },
+            extraccion:    { cls: 'badge-warning',   label: 'Extracción' },
+            transferencia: { cls: 'badge-secondary', label: 'Transferencia' },
+            compra_divisa: { cls: 'badge-info',      label: 'Compra divisa' },
+            venta_divisa:  { cls: 'badge-primary',   label: 'Venta divisa' },
         };
 
         tbody.innerHTML = _transacciones.map(t => {
@@ -276,6 +277,14 @@ const Transacciones = (() => {
 
             selOrigen.innerHTML  = '<option value="">— Seleccionar cuenta —</option>' + _opcionesCuentas(CUENTAS.filter(filtroOrigen));
             selDestino.innerHTML = '<option value="">— Seleccionar cuenta —</option>' + _opcionesCuentas(CUENTAS.filter(filtroDestino));
+        } else if (tipo === 'transferencia') {
+            // Banco → Banco: ningún lado puede ser Efectivo (para eso
+            // ya están Depósito y Extracción). El backend valida que
+            // además compartan la misma moneda.
+            const noEfectivo = c => !c.es_efectivo;
+
+            selOrigen.innerHTML  = '<option value="">— Seleccionar cuenta —</option>' + _opcionesCuentas(CUENTAS.filter(noEfectivo));
+            selDestino.innerHTML = '<option value="">— Seleccionar cuenta —</option>' + _opcionesCuentas(CUENTAS.filter(noEfectivo));
         } else {
             _poblarSelectsCuentas();
         }

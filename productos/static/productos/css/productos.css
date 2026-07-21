@@ -35,7 +35,7 @@
 }
 
 .prd-page-tag {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: 0.6rem;
     font-weight: 700;
     letter-spacing: 0.12em;
@@ -45,7 +45,7 @@
 }
 
 .prd-page-title h1 {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: 1.5rem;
     font-weight: 800;
     color: var(--text-primary);
@@ -76,7 +76,7 @@
     gap: 0.4rem;
     padding: 0.5625rem 1.0625rem;
     border-radius: 0.625rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     font-size: 0.8125rem;
     font-weight: 600;
     border: 1px solid transparent;
@@ -183,7 +183,7 @@
 .prd-stat-icon--categ    { background: var(--brand-orange-light); color: var(--brand-orange); }
 
 .prd-stat-value {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: 1.75rem;
     font-weight: 800;
     color: var(--text-primary);
@@ -240,7 +240,7 @@
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     border-radius: 0.5rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     font-size: 0.8125rem;
     color: var(--text-primary);
     outline: none;
@@ -258,7 +258,7 @@
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     border-radius: 0.5rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     font-size: 0.8rem;
     color: var(--text-secondary);
     outline: none;
@@ -315,7 +315,7 @@
 .prd-table thead th {
     padding: 0.75rem 1rem;
     text-align: left;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: 0.65rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -361,7 +361,7 @@
 }
 
 /* Celdas */
-.prd-codigo { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; color: var(--text-primary); display: block; font-size: 0.8rem; }
+.prd-codigo { font-family: var(--font-heading); font-weight: 700; color: var(--text-primary); display: block; font-size: 0.8rem; }
 .prd-sku    { font-size: 0.7rem; color: var(--text-muted); display: block; margin-top: 1px; }
 .prd-nombre { font-weight: 600; color: var(--text-primary); display: block; }
 .prd-marca  { font-size: 0.7rem; color: var(--text-muted); display: block; margin-top: 1px; }
@@ -378,10 +378,10 @@
 .prd-badge--categ { background: var(--brand-orange-light); color: var(--brand-orange-dark); border: 1px solid var(--brand-orange-mid); }
 .prd-badge--tipo  { background: rgba(16,185,129,0.08); color: #059669; border: 1px solid rgba(16,185,129,0.18); }
 
-.prd-precio         { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; color: var(--text-primary); }
+.prd-precio         { font-family: var(--font-heading); font-weight: 700; color: var(--text-primary); }
 .prd-precio-tachado { font-size: 0.7rem; color: var(--text-muted); text-decoration: line-through; margin-left: 0.25rem; }
 
-.prd-stock          { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; color: var(--text-primary); }
+.prd-stock          { font-family: var(--font-heading); font-weight: 700; color: var(--text-primary); }
 .prd-stock--bajo    { color: var(--warning); }
 .prd-stock-um       { font-size: 0.7rem; font-weight: 400; color: var(--text-muted); margin-left: 0.2rem; }
 .prd-stock-alerta   { color: var(--warning); font-size: 0.85rem; margin-left: 0.3rem; cursor: help; }
@@ -521,7 +521,7 @@
     display: flex;
     align-items: center;
     gap: 0.625rem;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: 0.9375rem;
     font-weight: 700;
     color: var(--text-primary);
@@ -582,7 +582,7 @@
     background: transparent;
     border: none;
     border-bottom: 2px solid transparent;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     font-size: 0.8rem;
     font-weight: 600;
     color: var(--text-muted);
@@ -643,7 +643,7 @@
 
 /* Etiqueta de sección (similar a nx-form-section-label) */
 .prd-section-label {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: 0.625rem;
     font-weight: 700;
     letter-spacing: 0.12em;
@@ -660,7 +660,7 @@
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     border-radius: 0.5625rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     font-size: 0.8125rem;
     color: var(--text-primary);
     outline: none;
@@ -1045,7 +1045,7 @@
     color: #fff;
     padding: 0.75rem 1.125rem;
     border-radius: 0.75rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     font-size: 0.8125rem;
     font-weight: 500;
     box-shadow: var(--shadow-lg);
@@ -1182,7 +1182,7 @@
 .prd-color-lista-title {
     font-size: 0.75rem;
     font-weight: 700;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--text-muted);
@@ -1194,7 +1194,7 @@
 }
 
 .prd-color-stock-total strong {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-weight: 700;
     color: var(--text-primary);
 }
@@ -1297,7 +1297,7 @@
 }
 
 .prd-color-stock-num {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-weight: 700;
     font-size: 0.875rem;
     color: var(--text-primary);
@@ -1335,7 +1335,7 @@
 }
 
 .prd-color-form-title {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: 0.75rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -1394,7 +1394,7 @@
 }
 
 .prd-variantes-catalogo-title {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: 0.75rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -1518,7 +1518,7 @@
 }
 
 .prd-combinacion-stock-num {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-weight: 700;
     font-size: 0.875rem;
     color: var(--text-primary);
@@ -1541,7 +1541,7 @@
 }
 
 .prd-combinacion-form-title {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: 0.75rem;
     font-weight: 700;
     text-transform: uppercase;

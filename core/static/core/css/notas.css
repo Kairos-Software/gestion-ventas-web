@@ -14,7 +14,7 @@
 }
 
 .page-header h1 {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: 1.625rem;
     font-weight: 700;
     color: var(--text-primary);
@@ -40,7 +40,7 @@
     cursor: pointer;
     transition: all 0.2s;
     border: 1px solid transparent;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     text-decoration: none;
     white-space: nowrap;
 }
@@ -206,7 +206,7 @@
     flex-shrink: 0;
 }
 .nota-modal-header .modal-title {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: 1.0625rem;
     font-weight: 700;
     color: var(--text-primary);
@@ -222,7 +222,7 @@
     border: none;
     border-bottom: 2px solid transparent;
     background: transparent;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: 1.125rem;
     font-weight: 700;
     color: var(--text-primary);
@@ -249,7 +249,7 @@
     border: 1px solid var(--border-color);
     border-radius: 0.75rem;
     background: var(--bg-secondary);
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     font-size: 0.875rem;
     line-height: 1.55;
     color: var(--text-primary);

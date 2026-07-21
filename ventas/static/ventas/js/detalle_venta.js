@@ -284,6 +284,40 @@ if (VDT.esBorrador) {
     const inputFecha   = document.getElementById('vdtFecha');
     const inputNotas   = document.getElementById('vdtNotas');
 
+    // ── Facturar electrónicamente (opcional) ──
+    const facturarCheck = document.getElementById('vdtFacturarCheck');
+    const facturarOpciones = document.getElementById('vdtFacturarOpciones');
+    const facturarClienteRadio = document.getElementById('vdtFacturarCliente');
+    const facturarCondIvaBox = document.getElementById('vdtFacturarCondIva');
+
+    if (facturarCheck) {
+        facturarCheck.addEventListener('change', () => {
+            facturarOpciones.style.display = facturarCheck.checked ? 'flex' : 'none';
+        });
+    }
+    if (facturarClienteRadio) {
+        document.querySelectorAll('input[name="vdtFacturarA"]').forEach(radio => {
+            radio.addEventListener('change', () => {
+                facturarCondIvaBox.style.display =
+                    (facturarClienteRadio.checked) ? 'block' : 'none';
+            });
+        });
+    }
+
+    function _getFacturarPayload() {
+        if (!facturarCheck || !facturarCheck.checked) {
+            return { facturar: false };
+        }
+        if (facturarClienteRadio && facturarClienteRadio.checked) {
+            return {
+                facturar: true,
+                cliente_pk: facturarClienteRadio.dataset.clientePk,
+                condicion_iva_receptor_id: document.getElementById('idFacturarCondIva').value,
+            };
+        }
+        return { facturar: true };
+    }
+
     if (btnConfirmar) {
         btnConfirmar.addEventListener('click', async () => {
             const fecha = inputFecha ? inputFecha.value : '';
@@ -314,6 +348,7 @@ if (VDT.esBorrador) {
             </svg> Confirmando…`;
 
             const pagoPayload = _getPagoPayload();
+            const facturarPayload = _getFacturarPayload();
 
             try {
                 const res  = await fetch(VDT.urlConfirmar, {
@@ -325,11 +360,18 @@ if (VDT.esBorrador) {
                         notas:      inputNotas ? inputNotas.value.trim() : '',
                         medio_pago: pagoPayload.medio_pago,
                         pagos:      pagoPayload.pagos,
+                        ...facturarPayload,
                     }),
                 });
                 const data = await res.json();
 
                 if (data.ok) {
+                    // La venta ya quedó confirmada pase lo que pase con la
+                    // factura — si ARCA falló, avisamos en la página de
+                    // destino (acá un toast no se alcanza a ver, redirige enseguida).
+                    if (data.factura_error) {
+                        sessionStorage.setItem('vdtFacturaError', data.factura_error);
+                    }
                     window.location.href = VDT.urlDetalle + data.pk + '/';
                 } else {
                     vdtToast('Error al confirmar', data.error || 'No se pudo confirmar la venta.');
@@ -409,6 +451,49 @@ function vdtToast(titulo, cuerpo) {
     document.getElementById('vdtToastBody').textContent  = cuerpo || '';
     toast.classList.add('show');
     setTimeout(() => toast.classList.remove('show'), 4500);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   FACTURACIÓN ELECTRÓNICA — reintento manual + aviso de error
+   diferido (ver "vdtFacturaError" en sessionStorage, seteado antes
+   del redirect en la confirmación cuando ARCA falla)
+════════════════════════════════════════════════════════════════ */
+(function () {
+    const errorPendiente = sessionStorage.getItem('vdtFacturaError');
+    if (errorPendiente) {
+        sessionStorage.removeItem('vdtFacturaError');
+        vdtToast('Venta confirmada — no se pudo facturar', errorPendiente);
+    }
+})();
+
+const btnFacturarAhora = document.getElementById('vdtBtnFacturarAhora');
+if (btnFacturarAhora) {
+    btnFacturarAhora.addEventListener('click', async () => {
+        btnFacturarAhora.disabled = true;
+        btnFacturarAhora.textContent = 'Facturando…';
+        const msg = document.getElementById('vdtFacturarMsg');
+
+        try {
+            const res  = await fetch(VDT.urlFacturar, {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': VDT.csrfToken },
+                body:    JSON.stringify({}),
+            });
+            const data = await res.json();
+
+            if (data.ok) {
+                window.location.reload();
+            } else {
+                if (msg) { msg.style.color = '#e11d48'; msg.textContent = data.error; }
+                btnFacturarAhora.disabled = false;
+                btnFacturarAhora.textContent = 'Facturar ahora';
+            }
+        } catch {
+            if (msg) { msg.style.color = '#e11d48'; msg.textContent = 'Error de conexión. Intentá de nuevo.'; }
+            btnFacturarAhora.disabled = false;
+            btnFacturarAhora.textContent = 'Facturar ahora';
+        }
+    });
 }
 
 function vdtEsc(str) {

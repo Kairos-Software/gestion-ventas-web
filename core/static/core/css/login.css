@@ -18,7 +18,7 @@
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     min-height: 100vh;
     display: flex;
     align-items: center;
@@ -124,7 +124,7 @@ body::after {
 .login-header { margin-bottom: 1.5rem; }
 
 .login-header h2 {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-size: 1.5rem;
     font-weight: 700;
     color: var(--text-primary);
@@ -191,7 +191,7 @@ body::after {
     width: 100%;
     padding: 0.8rem 1rem 0.8rem 2.75rem;
     font-size: 0.9rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     background: var(--bg-page);
     border: 1.5px solid var(--border-color);
     border-radius: 0.75rem;
@@ -234,7 +234,7 @@ body::after {
     padding: 0.9rem;
     font-size: 0.9375rem;
     font-weight: 700;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     cursor: pointer;
     display: flex;
     align-items: center;

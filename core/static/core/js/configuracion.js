@@ -1,4 +1,26 @@
 document.addEventListener('DOMContentLoaded', function () {
+    // Navegación entre secciones — resalta el link de la sección visible
+    const configNav = document.getElementById('configNav');
+    if (configNav) {
+        const links = Array.from(configNav.querySelectorAll('a'));
+        const secciones = links
+            .map(a => document.getElementById(a.getAttribute('href').slice(1)))
+            .filter(Boolean);
+
+        if (secciones.length && 'IntersectionObserver' in window) {
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (!entry.isIntersecting) return;
+                    links.forEach(a => a.classList.remove('is-active'));
+                    const link = configNav.querySelector(`a[href="#${entry.target.id}"]`);
+                    if (link) link.classList.add('is-active');
+                });
+            }, { rootMargin: '-30% 0px -60% 0px' });
+
+            secciones.forEach(sec => observer.observe(sec));
+        }
+    }
+
     // Sidebar default toggle — sincroniza con localStorage
     const toggleSidebar = document.getElementById('toggleSidebarDefault');
     if (toggleSidebar) {
@@ -69,6 +91,113 @@ document.addEventListener('DOMContentLoaded', function () {
                     document.getElementById('logoPreviewBox').innerHTML =
                         '<span style="font-size:0.7rem; color:var(--text-muted);">Sin logo</span>';
                     this.style.display = 'none';
+                }
+            });
+        });
+    }
+
+    // ── Facturación Electrónica (ARCA) ──
+    const formArca = document.getElementById('formArca');
+    if (formArca) {
+        const csrf = () => formArca.querySelector('[name=csrfmiddlewaretoken]').value;
+        const urls = window.CONFIG_ARCA_URLS || {};
+        const msg = document.getElementById('arcaMsg');
+
+        formArca.addEventListener('submit', function (e) {
+            e.preventDefault();
+            msg.style.color = '';
+            msg.textContent = 'Guardando...';
+            fetch(urls.guardar, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+                body: JSON.stringify({
+                    habilitado:        document.getElementById('idArcaHabilitado').checked,
+                    ambiente:          document.getElementById('idArcaAmbiente').value,
+                    punto_venta:       document.getElementById('idArcaPuntoVenta').value,
+                    certificado_pem:   document.getElementById('idArcaCertificado').value,
+                    clave_privada_pem: document.getElementById('idArcaClave').value,
+                }),
+            })
+            .then(r => r.json())
+            .then(data => {
+                msg.style.color = data.error ? '#e11d48' : 'var(--success)';
+                msg.textContent = data.error || 'Guardado.';
+                if (!data.error) {
+                    // No dejar la clave privada pegada en el formulario una
+                    // vez que ya se guardó (cifrada) en el servidor.
+                    document.getElementById('idArcaCertificado').value = '';
+                    document.getElementById('idArcaClave').value = '';
+                    const estado = document.getElementById('arcaCertEstado');
+                    if (estado && data.tiene_certificado) {
+                        estado.textContent = 'Sí — ambiente ' +
+                            document.getElementById('idArcaAmbiente').selectedOptions[0].text;
+                    }
+                }
+            });
+        });
+
+        const btnGenerarCsr = document.getElementById('btnArcaGenerarCsr');
+        if (btnGenerarCsr) {
+            btnGenerarCsr.addEventListener('click', function () {
+                btnGenerarCsr.disabled = true;
+                btnGenerarCsr.textContent = 'Generando...';
+                fetch(urls.generarCsr, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrf() },
+                })
+                .then(r => r.json())
+                .then(data => {
+                    btnGenerarCsr.disabled = false;
+                    btnGenerarCsr.textContent = 'Generar CSR';
+                    if (data.error) {
+                        msg.style.color = '#e11d48';
+                        msg.textContent = data.error;
+                        return;
+                    }
+                    document.getElementById('idArcaCsrTexto').value = data.csr;
+                    document.getElementById('arcaCsrBox').style.display = 'block';
+                    const estado = document.getElementById('arcaCsrEstado');
+                    if (estado) {
+                        estado.textContent = 'Listo — subilo a ARCA (ver guía abajo) y después pegá acá el certificado que te devuelvan.';
+                    }
+                    msg.style.color = 'var(--success)';
+                    msg.textContent = 'CSR generado. Descargalo y seguí la guía de abajo.';
+                });
+            });
+        }
+
+        const btnDescargarCsr = document.getElementById('btnArcaDescargarCsr');
+        if (btnDescargarCsr) {
+            btnDescargarCsr.addEventListener('click', function () {
+                const texto = document.getElementById('idArcaCsrTexto').value;
+                if (!texto) return;
+                const blob = new Blob([texto], { type: 'application/x-pem-file' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'certificado.csr';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+            });
+        }
+
+        document.getElementById('btnArcaProbar').addEventListener('click', function () {
+            msg.style.color = '';
+            msg.textContent = 'Probando conexión con ARCA...';
+            fetch(urls.probar, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrf() },
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    msg.style.color = '#e11d48';
+                    msg.textContent = data.error;
+                } else {
+                    msg.style.color = 'var(--success)';
+                    msg.textContent = `Conexión OK (${data.ambiente}) — AppServer: ${data.estado.AppServer}, DbServer: ${data.estado.DbServer}, AuthServer: ${data.estado.AuthServer}`;
                 }
             });
         });

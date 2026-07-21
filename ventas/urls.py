@@ -23,6 +23,7 @@ urlpatterns = [
     path('guardar-borrador/',  views.GuardarBorradorAjax.as_view(),   name='guardar_borrador'),
     path('confirmar/',         views.ConfirmarVentaAjax.as_view(),    name='confirmar_venta'),
     path('eliminar-borrador/', views.EliminarBorradorAjax.as_view(),  name='eliminar_borrador'),
+    path('<int:pk>/facturar/', views.VentaFacturarAjax.as_view(),     name='venta_facturar'),
 
     # ══════════════════════════════════════════════════════════════════
     #  AJAX — Historial

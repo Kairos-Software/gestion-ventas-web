@@ -17,7 +17,7 @@
     font-weight: 700;
     color: var(--text-primary);
     margin: 0 0 0.2rem;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
 }
 
 .historial-title p {
@@ -56,7 +56,7 @@
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
 }
 
 .filtro-group input,
@@ -69,7 +69,7 @@
     color: var(--text-primary);
     outline: none;
     transition: border-color 0.15s, box-shadow 0.15s;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
 }
 
 .filtro-group input:focus,
@@ -90,7 +90,7 @@
     transition: background 0.15s, transform 0.1s;
     white-space: nowrap;
     align-self: flex-end;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
@@ -110,7 +110,7 @@
     transition: color 0.15s, border-color 0.15s;
     align-self: flex-end;
     white-space: nowrap;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
 }
 
 .btn-limpiar:hover {
@@ -182,7 +182,7 @@
     font-size: 0.95rem;
     color: var(--text-primary);
     letter-spacing: 0.02em;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
 }
 
 .compra-fecha {
@@ -203,7 +203,7 @@
     font-size: 1rem;
     color: var(--text-primary);
     white-space: nowrap;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
 }
 
 /* ── Badges de estado ── */
@@ -215,7 +215,7 @@
     font-size: 0.75rem;
     font-weight: 600;
     white-space: nowrap;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
 }
 
 .badge-estado.borrador   { background: rgba(245,158,11,0.1);  color: var(--warning); }
@@ -271,7 +271,7 @@
     text-transform: uppercase;
     letter-spacing: 0.06em;
     margin-bottom: 0.75rem;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
 }
 
 /* ── Tabla de ítems ── */
@@ -295,7 +295,7 @@
     letter-spacing: 0.05em;
     border-bottom: 1px solid var(--border-color);
     background: var(--bg-secondary);
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
 }
 
 .items-table td {
@@ -331,7 +331,7 @@
     background: var(--brand-blue-light);
     color: var(--brand-blue);
     margin-left: 0.25rem;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
 }
 
 .descuento-tag {
@@ -363,7 +363,7 @@
 .detalle-footer strong {
     font-size: 1.05rem;
     color: var(--text-primary);
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
     font-weight: 700;
 }
 
@@ -396,7 +396,7 @@
     cursor: pointer;
     border: 1px solid transparent;
     transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     white-space: nowrap;
 }
 
@@ -481,7 +481,7 @@
     font-weight: 700;
     color: var(--text-primary);
     margin: 0 0 0.5rem;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
 }
 
 .modal-body {
@@ -522,7 +522,7 @@
     cursor: pointer;
     border: 1px solid transparent;
     transition: background 0.15s, transform 0.1s;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
 }
 
 .modal-btn:active { transform: scale(0.97); }
@@ -572,7 +572,7 @@
     border-radius: 10px;
     font-size: 0.875rem;
     font-weight: 600;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     box-shadow: 0 8px 24px rgba(0,0,0,0.14);
     opacity: 0;
     transform: translateY(8px);
@@ -616,7 +616,7 @@
     cursor: pointer;
     color: var(--text-primary);
     transition: border-color 0.15s, color 0.15s;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     box-shadow: var(--shadow-sm);
 }
 
@@ -733,7 +733,7 @@
     font-size: 0.82rem;
     font-weight: 600;
     color: var(--brand-blue);
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
 }
 
 .edit-panel-aviso {
@@ -745,7 +745,7 @@
     font-size: 0.75rem !important;
     font-weight: 500 !important;
     color: var(--brand-blue) !important;
-    font-family: 'DM Sans', sans-serif !important;
+    font-family: var(--font-body) !important;
     line-height: 1.4;
 }
 
@@ -772,7 +772,7 @@
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
 }
 
 /* Reutiliza .cmp-control del módulo compras — sobreescribimos solo
@@ -785,7 +785,7 @@
     font-size: 0.875rem;
     color: var(--text-primary);
     outline: none;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     transition: border-color 0.15s, box-shadow 0.15s;
 }
 
@@ -822,7 +822,7 @@
     outline: none;
     font-size: 0.875rem;
     color: var(--text-primary);
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
 }
 
 .edit-search-input::placeholder { color: var(--text-muted); }
@@ -855,7 +855,7 @@
     border-bottom: 1px solid var(--border-color);
     background: var(--bg-secondary);
     white-space: nowrap;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
 }
 
 .edit-panel .cmp-table tbody td {
@@ -877,7 +877,7 @@
     font-size: 0.82rem;
     color: var(--text-primary);
     outline: none;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     transition: border-color 0.15s, box-shadow 0.15s;
     width: 100%;
 }
@@ -895,7 +895,7 @@
     font-size: 0.82rem;
     color: var(--text-primary);
     outline: none;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     cursor: pointer;
     transition: border-color 0.15s;
     width: 100%;
@@ -939,7 +939,7 @@
     text-align: right;
     font-weight: 600;
     white-space: nowrap;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
 }
 
 /* ── Botón quitar ítem ── */
@@ -994,7 +994,7 @@
     font-size: 1.15rem;
     font-weight: 700;
     color: var(--text-primary);
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
 }
 
 .edit-footer-btns {
@@ -1014,7 +1014,7 @@
     font-weight: 600;
     cursor: pointer;
     border: 1px solid transparent;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     text-decoration: none;
     transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s, box-shadow 0.15s;
     white-space: nowrap;
@@ -1105,13 +1105,13 @@
     font-weight: 600;
     font-size: 0.875rem;
     color: var(--text-primary);
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
 }
 
 .edit-search-wrap .cmp-dropdown-item-codigo {
     font-size: 0.75rem;
     color: var(--text-muted);
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
 }
 
 .edit-search-wrap .cmp-dropdown-item-meta {
@@ -1127,7 +1127,7 @@
     border: 1px solid var(--border-color);
     border-radius: 4px;
     padding: 0.1rem 0.45rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
 }
 
 /* ── Dropdown de proveedor (fixed al body, dentro del editor) ── */
@@ -1156,7 +1156,7 @@
 #editProvGlobalDD .cmp-prov-option-nombre {
     font-weight: 600;
     color: var(--text-primary);
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
 }
 
 #editProvGlobalDD .cmp-prov-option-meta {
@@ -1213,7 +1213,7 @@
 .color-dist-nombre {
     font-weight: 600;
     color: #7c3aed;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
 }
 
 .color-dist-qty {
@@ -1233,7 +1233,7 @@
     background: rgba(139, 92, 246, 0.1);
     color: #7c3aed;
     white-space: nowrap;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
 }
 
 /* ══════════════════════════════════════════════════════
@@ -1252,7 +1252,7 @@
     border-radius: 20px;
     padding: 0.1rem 0.45rem;
     margin-top: 3px;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
 }
 
 .cmp-color-warning {
@@ -1281,7 +1281,7 @@
     font-size: 0.75rem;
     font-weight: 700;
     color: #7c3aed;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
 }
 
 .cmp-colores-panel-resumen {
@@ -1347,7 +1347,7 @@
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
 }
 .docs-count-badge {
     display: inline-flex;
@@ -1403,7 +1403,7 @@
     color: var(--brand-blue);
     text-transform: uppercase;
     letter-spacing: 0.03em;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-heading);
 }
 .doc-descripcion {
     font-size: 0.75rem;
@@ -1448,7 +1448,7 @@
     color: var(--text-muted);
     cursor: pointer;
     transition: color .15s, border-color .15s, background .15s;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     white-space: nowrap;
 }
 .doc-subir-label:hover { color: var(--brand-blue); border-color: var(--brand-blue); background: rgba(59,130,246,0.04); }
@@ -1462,7 +1462,7 @@
     font-size: 0.8rem;
     color: var(--text-primary);
     outline: none;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-body);
     transition: border-color .15s;
 }
 .doc-tipo-select:focus, .doc-desc-input:focus { border-color: var(--brand-blue); }
