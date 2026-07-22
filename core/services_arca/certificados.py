@@ -30,11 +30,16 @@ def _alias_seguro(nombre):
 def generar_csr(config, cuit, nombre_empresa):
     """
     Genera un par de claves RSA 2048 nuevo, guarda la privada cifrada en
-    `config` (ConfiguracionArca) y devuelve (csr_pem, alias).
+    `config` (ConfiguracionArca) y devuelve (csr_pem, alias, clave_pem).
 
     Genera un par nuevo cada vez que se llama — si ya había un
     certificado cargado, queda invalidado (no corresponde a la clave
     nueva), así que hay que volver a autorizarlo en ARCA.
+
+    `clave_pem` se devuelve en texto plano SOLO en este momento — es la
+    única vez que existe fuera de la base (cifrada). El llamador es
+    responsable de mostrarla una única vez y no guardarla en ningún lado
+    del lado del servidor ni en el HTML de páginas futuras.
     """
     clave = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     clave_pem = clave.private_bytes(
@@ -71,4 +76,4 @@ def generar_csr(config, cuit, nombre_empresa):
     config.wsaa_expira = None
     config.save()
 
-    return csr_pem, alias
+    return csr_pem, alias, clave_pem

@@ -131,7 +131,13 @@ class EmpresaArcaGuardarAjax(LoginRequiredMixin, View):
 class EmpresaArcaGenerarCsrAjax(LoginRequiredMixin, View):
     """POST: genera clave privada + CSR en el servidor (sin que el usuario
     toque una terminal). Guarda la clave cifrada de inmediato y devuelve
-    el CSR para que lo suba a ARCA — ese trámite no se puede automatizar."""
+    el CSR para que lo suba a ARCA — ese trámite no se puede automatizar.
+
+    La respuesta incluye la clave privada en texto plano UNA sola vez —
+    nunca se vuelve a servir después de esta respuesta (no se guarda en
+    ningún campo legible ni se manda de nuevo al recargar la página). Es
+    la única oportunidad que tiene el usuario de hacerse una copia propia
+    para poder restaurarla más adelante sin rehacer el trámite con ARCA."""
 
     def post(self, request):
         if not chequear_permiso(request.user, 'editar_empresa'):
@@ -145,8 +151,8 @@ class EmpresaArcaGenerarCsrAjax(LoginRequiredMixin, View):
             )
 
         config = ConfiguracionArca.get_solo()
-        csr_pem, alias = certificados.generar_csr(config, empresa.cuit, empresa.nombre_comercial)
-        return JsonResponse({'ok': True, 'csr': csr_pem, 'alias': alias})
+        csr_pem, alias, clave_pem = certificados.generar_csr(config, empresa.cuit, empresa.nombre_comercial)
+        return JsonResponse({'ok': True, 'csr': csr_pem, 'alias': alias, 'clave_privada': clave_pem})
 
 
 class EmpresaArcaProbarAjax(LoginRequiredMixin, View):

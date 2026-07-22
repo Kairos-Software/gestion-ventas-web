@@ -186,7 +186,26 @@
                 </div>
                 <div id="arcaCsrBox" style="width:100%; margin-top:0.6rem; {% if not configuracion_arca.csr_pendiente %}display:none;{% endif %}">
                     <textarea class="form-control" id="idArcaCsrTexto" rows="4" readonly style="font-size:0.75rem;">{{ configuracion_arca.csr_pendiente }}</textarea>
-                    <button type="button" id="btnArcaDescargarCsr" class="btn btn-sm btn-outline-secondary" style="margin-top:0.5rem; background:white;">Descargar archivo .csr</button>
+                    <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+                        <button type="button" id="btnArcaDescargarCsr" class="btn btn-sm btn-outline-secondary" style="background:white;">Descargar archivo .csr</button>
+                        <button type="button" id="btnArcaCopiarCsr" class="btn btn-sm btn-outline-secondary" style="background:white;">Copiar</button>
+                    </div>
+                </div>
+
+                <!-- Clave privada: solo aparece justo después de generar, nunca se vuelve a
+                     mostrar al recargar la página (no la guardamos en ningún campo legible) -->
+                <div id="arcaClavePrivadaBox" style="width:100%; margin-top:0.75rem; display:none; background:#FFF7ED; border:1px solid #FDBA74; border-radius:0.6rem; padding:0.75rem;">
+                    <div style="font-size:0.78rem; font-weight:700; color:#9A3412; margin-bottom:0.3rem;">
+                        ⚠️ Guardá esta clave privada ahora — es la única vez que la vas a poder ver
+                    </div>
+                    <div style="font-size:0.75rem; color:#9A3412; margin-bottom:0.5rem;">
+                        Si más adelante generás otra (o la de otro cliente), esta se pierde para siempre. Descargá la copia de respaldo de abajo y guardala en un lugar seguro (ej. un gestor de contraseñas) — trae la solicitud y la clave juntas, así nunca te falta una de las dos. Si nunca la vas a necesitar de nuevo, podés ignorar esto sin problema.
+                    </div>
+                    <textarea class="form-control" id="idArcaClavePrivadaTexto" rows="4" readonly style="font-size:0.75rem;"></textarea>
+                    <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+                        <button type="button" id="btnArcaDescargarBackup" class="btn btn-sm" style="background:#EA580C; color:white; border:none;">Descargar copia de respaldo (CSR + clave)</button>
+                        <button type="button" id="btnArcaCopiarClave" class="btn btn-sm btn-outline-secondary" style="background:white;">Copiar solo la clave</button>
+                    </div>
                 </div>
             </div>
 
@@ -627,6 +646,11 @@
         generarCsr:  "{% url 'core:empresa_arca_generar_csr' %}",
         probar:      "{% url 'core:empresa_arca_probar' %}",
     };
+    // Estado real al cargar la página — fuente de verdad para el freno de
+    // seguridad de "Generar CSR". No depende de que ningún badge visual
+    // se mantenga sincronizado: es un valor propio, actualizado a mano en
+    // cada acción que cambia el certificado (ver configuracion.js).
+    window.ARCA_TIENE_CERTIFICADO = {{ configuracion_arca.tiene_certificado|yesno:"true,false" }};
     window.CONFIG_CUENTAS_URLS = {
         guardar: "{% url 'core:cuenta_guardar' %}",
         baja:    "{% url 'core:cuenta_baja' %}",

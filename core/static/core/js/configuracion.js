@@ -103,6 +103,12 @@ document.addEventListener('DOMContentLoaded', function () {
         const urls = window.CONFIG_ARCA_URLS || {};
         const msg = document.getElementById('arcaMsg');
 
+        // Fuente de verdad de "¿hay un certificado cargado ahora mismo?" —
+        // una variable propia, no un badge del DOM que se puede desincronizar.
+        // Arranca con el valor real del servidor y se actualiza a mano en
+        // cada acción que cambia el certificado, acá abajo.
+        let arcaTieneCertificado = window.ARCA_TIENE_CERTIFICADO === true;
+
         formArca.addEventListener('submit', function (e) {
             e.preventDefault();
             msg.style.color = '';
@@ -127,10 +133,17 @@ document.addEventListener('DOMContentLoaded', function () {
                     // vez que ya se guardó (cifrada) en el servidor.
                     document.getElementById('idArcaCertificado').value = '';
                     document.getElementById('idArcaClave').value = '';
+                    arcaTieneCertificado = !!data.tiene_certificado;
                     const estado = document.getElementById('arcaCertEstado');
-                    if (estado && data.tiene_certificado) {
-                        estado.textContent = 'Sí — ambiente ' +
-                            document.getElementById('idArcaAmbiente').selectedOptions[0].text;
+                    if (estado) {
+                        if (arcaTieneCertificado) {
+                            estado.textContent = '✓ Certificado cargado — ' +
+                                document.getElementById('idArcaAmbiente').selectedOptions[0].text;
+                            estado.className = 'config-status-badge config-status-badge--ok';
+                        } else {
+                            estado.textContent = 'Sin certificado';
+                            estado.className = 'config-status-badge config-status-badge--off';
+                        }
                     }
                 }
             })
@@ -143,6 +156,26 @@ document.addEventListener('DOMContentLoaded', function () {
         const btnGenerarCsr = document.getElementById('btnArcaGenerarCsr');
         if (btnGenerarCsr) {
             btnGenerarCsr.addEventListener('click', function () {
+                // Freno de seguridad: SIEMPRE pregunta antes de generar, sin
+                // excepciones — tenga o no un certificado cargado ahora mismo.
+                // No alcanza con un aceptar/cancelar de un clic: hay que
+                // escribir la palabra exacta, mismo criterio que "Reiniciar
+                // sistema" en este mismo panel.
+                const enProduccion = document.getElementById('idArcaAmbiente').value === 'produccion';
+                const advertenciaBase = arcaTieneCertificado
+                    ? 'Ya tenés un certificado cargado. Generar uno nuevo lo invalida de inmediato — vas a tener que rehacer el trámite en ARCA para volver a usarlo (o pegar un respaldo guardado en "uso avanzado", si lo tenés).'
+                    : 'Vas a generar una clave y un CSR nuevos.';
+                const advertencia = (enProduccion
+                    ? '⚠️ ATENCIÓN: el ambiente elegido es PRODUCCIÓN.\n\n' + advertenciaBase
+                    : advertenciaBase
+                ) + '\n\nPara confirmar, escribí GENERAR (en mayúsculas) y aceptá:';
+                const respuesta = window.prompt(advertencia);
+                if (respuesta !== 'GENERAR') {
+                    msg.style.color = '';
+                    msg.textContent = 'Cancelado — no se generó nada nuevo.';
+                    return;
+                }
+
                 btnGenerarCsr.disabled = true;
                 btnGenerarCsr.textContent = 'Generando...';
                 fetch(urls.generarCsr, {
@@ -160,9 +193,23 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                     document.getElementById('idArcaCsrTexto').value = data.csr;
                     document.getElementById('arcaCsrBox').style.display = 'block';
-                    const estado = document.getElementById('arcaCsrEstado');
+
+                    // La clave privada solo viaja en ESTA respuesta — nunca se
+                    // vuelve a mostrar después (ver EmpresaArcaGenerarCsrAjax).
+                    if (data.clave_privada) {
+                        document.getElementById('idArcaClavePrivadaTexto').value = data.clave_privada;
+                        document.getElementById('arcaClavePrivadaBox').style.display = 'block';
+                    }
+
+                    arcaTieneCertificado = false;
+                    const estado = document.getElementById('arcaCertEstado');
                     if (estado) {
-                        estado.textContent = 'Listo — subilo a ARCA (ver guía abajo) y después pegá acá el certificado que te devuelvan.';
+                        estado.textContent = 'Sin certificado';
+                        estado.className = 'config-status-badge config-status-badge--off';
+                    }
+                    const estadoCsr = document.getElementById('arcaCsrEstado');
+                    if (estadoCsr) {
+                        estadoCsr.textContent = 'Listo — subilo a ARCA (ver guía abajo) y después pegá acá el certificado que te devuelvan.';
                     }
                     msg.style.color = 'var(--success)';
                     msg.textContent = 'CSR generado. Descargalo y seguí la guía de abajo.';
@@ -173,6 +220,61 @@ document.addEventListener('DOMContentLoaded', function () {
                     msg.style.color = '#e11d48';
                     msg.textContent = 'Error inesperado del servidor. Revisá los logs o avisá al soporte técnico.';
                 });
+            });
+        }
+
+        function _copiarAlPortapapeles(texto, boton, textoOriginal) {
+            if (!texto) return;
+            navigator.clipboard.writeText(texto).then(() => {
+                boton.textContent = '¡Copiado!';
+                setTimeout(() => { boton.textContent = textoOriginal; }, 1500);
+            });
+        }
+
+        const btnCopiarCsr = document.getElementById('btnArcaCopiarCsr');
+        if (btnCopiarCsr) {
+            btnCopiarCsr.addEventListener('click', function () {
+                _copiarAlPortapapeles(document.getElementById('idArcaCsrTexto').value, btnCopiarCsr, 'Copiar');
+            });
+        }
+
+        const btnCopiarClave = document.getElementById('btnArcaCopiarClave');
+        if (btnCopiarClave) {
+            btnCopiarClave.addEventListener('click', function () {
+                _copiarAlPortapapeles(document.getElementById('idArcaClavePrivadaTexto').value, btnCopiarClave, 'Copiar solo la clave');
+            });
+        }
+
+        function _descargarTexto(texto, nombreArchivo, tipo) {
+            const blob = new Blob([texto], { type: tipo || 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = nombreArchivo;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        }
+
+        // Copia de respaldo: CSR + clave privada en UN solo archivo, para que
+        // nunca se guarde una sin la otra — este archivo NO se sube a ARCA
+        // (eso solo quiere el CSR solo, botón de abajo), es solo para vos.
+        const btnDescargarBackup = document.getElementById('btnArcaDescargarBackup');
+        if (btnDescargarBackup) {
+            btnDescargarBackup.addEventListener('click', function () {
+                const csr = document.getElementById('idArcaCsrTexto').value;
+                const clave = document.getElementById('idArcaClavePrivadaTexto').value;
+                const contenido =
+                    '===== SOLICITUD DE CERTIFICADO (CSR) =====\n' +
+                    'Esto es lo que se sube a ARCA (WSASS / Administrador de Certificados Digitales).\n\n' +
+                    csr + '\n\n' +
+                    '===== CLAVE PRIVADA =====\n' +
+                    'Esto NUNCA se sube a ARCA ni se comparte con nadie — guardalo en un lugar\n' +
+                    'seguro (ej. un gestor de contraseñas). Sirve junto con el certificado que\n' +
+                    'ARCA te dé a partir del CSR de arriba; separado, no sirve para nada.\n\n' +
+                    clave;
+                _descargarTexto(contenido, 'arca-respaldo.txt', 'text/plain');
             });
         }
 
