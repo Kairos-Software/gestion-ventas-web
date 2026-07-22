@@ -2,10 +2,11 @@
 core/services_arca/wsaa.py
 
 Autenticación contra WSAA (Web Service de Autenticación y Autorización) de
-ARCA. Firma el TRA con `openssl smime` (subprocess) en vez de reimplementar
-CMS/PKCS7 en Python puro — es exactamente el comando que probamos a mano
-contra homologación y sabemos que ARCA acepta. Requiere `openssl` en el PATH
-del servidor.
+ARCA. Firma el TRA en Python puro con `cryptography` (CMS/PKCS7) — nada de
+depender de un binario externo (`openssl`) en el PATH del proceso, que varía
+entre entornos (probamos a mano y confirmamos que la firma resultante es
+válida verificándola con `openssl smime -verify`, aunque no se use para
+firmar).
 
 El token/sign que devuelve ARCA vale ~12hs; se cachea en el propio
 ConfiguracionArca (obtener_token no pide uno nuevo si el cacheado sigue
@@ -13,14 +14,14 @@ vigente).
 """
 import base64
 import html
-import os
 import re
-import subprocess
-import tempfile
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import requests
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.serialization import pkcs7
 from django.utils import timezone as dj_timezone
 
 from core.models import AmbienteArca
@@ -65,36 +66,23 @@ def _generar_tra(servicio='wsfe'):
 
 
 def _firmar_tra(tra_xml, certificado_pem, clave_privada_pem):
-    """Firma el TRA con openssl smime (CMS/PKCS7, DER, no-detached) y lo
-    devuelve en base64, listo para meter en el pedido SOAP."""
-    with tempfile.TemporaryDirectory() as tmp:
-        tra_path = os.path.join(tmp, 'tra.xml')
-        cert_path = os.path.join(tmp, 'cert.crt')
-        key_path = os.path.join(tmp, 'key.key')
-        cms_path = os.path.join(tmp, 'tra.cms')
-
-        with open(tra_path, 'w', encoding='utf-8') as f:
-            f.write(tra_xml)
-        with open(cert_path, 'w', encoding='utf-8') as f:
-            f.write(certificado_pem)
-        with open(key_path, 'w', encoding='utf-8') as f:
-            f.write(clave_privada_pem)
-
-        resultado = subprocess.run(
-            [
-                'openssl', 'smime', '-sign',
-                '-in', tra_path, '-out', cms_path,
-                '-signer', cert_path, '-inkey', key_path,
-                '-outform', 'DER', '-nodetach',
-            ],
-            capture_output=True, text=True,
+    """Firma el TRA (CMS/PKCS7, DER, con los datos incluidos — no detached)
+    en Python puro, sin depender de ningún binario externo. Devuelve el
+    resultado en base64, listo para meter en el pedido SOAP."""
+    try:
+        certificado = x509.load_pem_x509_certificate(certificado_pem.encode())
+        clave_privada = serialization.load_pem_private_key(
+            clave_privada_pem.encode(), password=None,
         )
-        if resultado.returncode != 0:
-            raise ArcaError(f'No se pudo firmar el TRA con openssl: {resultado.stderr.strip()}')
+    except ValueError as exc:
+        raise ArcaError(f'El certificado o la clave privada no son válidos: {exc}') from exc
 
-        with open(cms_path, 'rb') as f:
-            cms_bytes = f.read()
-
+    cms_bytes = (
+        pkcs7.PKCS7SignatureBuilder()
+        .set_data(tra_xml.encode('utf-8'))
+        .add_signer(certificado, clave_privada, hashes.SHA256())
+        .sign(serialization.Encoding.DER, [])
+    )
     return base64.b64encode(cms_bytes).decode()
 
 

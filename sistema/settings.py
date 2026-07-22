@@ -152,6 +152,28 @@ EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 
+# Logging — por defecto, con DEBUG=False, Django NO imprime los errores en
+# ningún lado (intenta mandarlos por mail a ADMINS, que acá no está
+# configurado, así que el error se pierde en silencio). Esto los manda
+# también a stderr, que gunicorn captura en journalctl — sin exponer nada
+# a los usuarios reales, a diferencia de dejar DEBUG=True.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': True,
+        },
+    },
+}
+
 # Facturación electrónica ARCA (ex AFIP)
 # Clave usada para cifrar la clave privada del certificado ARCA guardada en
 # ConfiguracionArca. Generarla una vez con:
