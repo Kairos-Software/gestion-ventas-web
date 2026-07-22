@@ -133,6 +133,10 @@ document.addEventListener('DOMContentLoaded', function () {
                             document.getElementById('idArcaAmbiente').selectedOptions[0].text;
                     }
                 }
+            })
+            .catch(() => {
+                msg.style.color = '#e11d48';
+                msg.textContent = 'Error inesperado del servidor. Revisá los logs o avisá al soporte técnico.';
             });
         });
 
@@ -162,6 +166,12 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                     msg.style.color = 'var(--success)';
                     msg.textContent = 'CSR generado. Descargalo y seguí la guía de abajo.';
+                })
+                .catch(() => {
+                    btnGenerarCsr.disabled = false;
+                    btnGenerarCsr.textContent = 'Generar CSR';
+                    msg.style.color = '#e11d48';
+                    msg.textContent = 'Error inesperado del servidor. Revisá los logs o avisá al soporte técnico.';
                 });
             });
         }
@@ -183,14 +193,21 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
 
-        document.getElementById('btnArcaProbar').addEventListener('click', function () {
+        const btnProbar = document.getElementById('btnArcaProbar');
+        btnProbar.addEventListener('click', function () {
             msg.style.color = '';
             msg.textContent = 'Probando conexión con ARCA...';
+            btnProbar.disabled = true;
             fetch(urls.probar, {
                 method: 'POST',
                 headers: { 'X-CSRFToken': csrf() },
             })
-            .then(r => r.json())
+            .then(r => {
+                if (!r.ok) {
+                    throw new Error(`El servidor respondió ${r.status}. No es un error de ARCA — revisá los logs del servidor.`);
+                }
+                return r.json();
+            })
             .then(data => {
                 if (data.error) {
                     msg.style.color = '#e11d48';
@@ -199,6 +216,13 @@ document.addEventListener('DOMContentLoaded', function () {
                     msg.style.color = 'var(--success)';
                     msg.textContent = `Conexión OK (${data.ambiente}) — AppServer: ${data.estado.AppServer}, DbServer: ${data.estado.DbServer}, AuthServer: ${data.estado.AuthServer}`;
                 }
+            })
+            .catch((err) => {
+                msg.style.color = '#e11d48';
+                msg.textContent = err.message || 'Error inesperado del servidor. Revisá los logs o avisá al soporte técnico.';
+            })
+            .finally(() => {
+                btnProbar.disabled = false;
             });
         });
     }
