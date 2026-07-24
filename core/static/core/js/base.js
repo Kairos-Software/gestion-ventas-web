@@ -424,7 +424,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
 });
 
-// ── Reiniciar sistema (solo superusuarios, solo DEBUG) ──────────────────
+// ── Reiniciar sistema (solo superusuarios) ───────────────────────────────
 function reiniciarSistema() {
     const FRASE = 'REINICIAR';
 
@@ -470,7 +470,7 @@ function reiniciarSistema() {
         });
 }
 
-// ── Datos de prueba del catálogo (solo superusuarios, solo DEBUG) ───────
+// ── Datos de prueba del catálogo (solo superusuarios) ────────────────────
 async function cargarDatosDemoCatalogo(btn) {
     if (!window.DEMO_CATALOGO_CARGAR_URL) return;
     if (!await KaiConfirm('Esto crea categorías, productos, paquetes y ofertas de prueba (con el prefijo "DEMO - ") para ver cómo queda el catálogo. No toca nada cargado a mano.')) return;

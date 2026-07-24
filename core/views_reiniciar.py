@@ -1,19 +1,17 @@
 # core/views_reiniciar.py
 """
-Reinicio de datos para desarrollo.
+Reinicio de datos — herramienta de administración para arrancar de cero
+sin tener que dropear la base, recrearla, correr migraciones y volver a
+crear el superusuario cada vez. Pensada para usarse tanto en desarrollo
+como en producción mientras el sistema está en etapa de pruebas.
 
 Borra TODOS los registros de TODAS las tablas de las apps del proyecto
-(menos las internas de Django) para poder arrancar de cero sin tener
-que dropear la base, recrearla, correr migraciones y volver a crear el
-superusuario cada vez.
+(menos las internas de Django).
 
-Candados de seguridad (los cuatro tienen que cumplirse):
+Candados de seguridad (los tres tienen que cumplirse):
   1. Usuario autenticado.
   2. Usuario superusuario.
-  3. settings.DEBUG == True  → esto garantiza que en producción
-     (DEBUG=False) el endpoint responda 403 pase lo que pase, aunque
-     alguien arme el request a mano.
-  4. Confirmación explícita: el front manda un texto exacto
+  3. Confirmación explícita: el front manda un texto exacto
      ("REINICIAR") + la contraseña del usuario logueado.
 
 IMPORTANTE — versión corregida:
@@ -31,7 +29,6 @@ de esas tablas no se lleve puesto al superusuario.
 import logging
 
 from django.apps import apps
-from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.management.color import no_style
@@ -58,16 +55,6 @@ def _es_superuser_activo(user):
 class ReiniciarSistemaAjax(View):
 
     def post(self, request):
-        if not settings.DEBUG:
-            logger.error(
-                'Intento de reiniciar la base con DEBUG=False. Usuario: %s',
-                request.user.username
-            )
-            return JsonResponse(
-                {'ok': False, 'error': 'Esta acción solo está habilitada en modo DEBUG.'},
-                status=403,
-            )
-
         confirmacion = (request.POST.get('confirmacion') or '').strip()
         password = request.POST.get('password') or ''
         dry_run = request.POST.get('dry_run') == '1'

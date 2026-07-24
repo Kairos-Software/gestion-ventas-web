@@ -7,6 +7,7 @@ venv/
 env/
 entorno/
 .env.local
+.env.production
 *.log
 *.sqlite3
 db.sqlite3

@@ -135,19 +135,6 @@ def cargar_datos_demo():
         for idx in range(n_imgs):
             tareas_imagen.append((p, idx, f'kai-cart-{p.pk}-{idx}'))
 
-    # Las imágenes se bajan todas juntas en paralelo — una por una (como era
-    # antes) con 12 productos podía tardar más de un minuto si picsum.photos
-    # respondía lento, y el click se sentía "colgado".
-    with ThreadPoolExecutor(max_workers=8) as pool:
-        resultados = pool.map(lambda t: (t[0], t[1], _imagen_demo(t[2])), tareas_imagen)
-        for p, idx, data in resultados:
-            img = ProductoImagen.objects.create(
-                producto=p, imagen=ContentFile(data, name=f'demo-{p.pk}-{idx}.jpg'),
-                es_portada=(idx == 0), orden=idx,
-            )
-            _registrar(img)
-            resumen['imagenes'] += 1
-
     for nombre, precio, componentes in PAQUETES_DEMO:
         pq = Producto.objects.create(
             nombre=f'{PREFIJO_DEMO}{nombre}',
@@ -166,6 +153,22 @@ def cargar_datos_demo():
                 paquete=pq, producto=productos[nombre_comp], cantidad=cantidad,
             )
             _registrar(comp)
+
+        # Los paquetes también llevan foto de portada, igual que un producto normal.
+        tareas_imagen.append((pq, 0, f'kai-cart-combo-{pq.pk}'))
+
+    # Las imágenes se bajan todas juntas en paralelo — una por una (como era
+    # antes) con 12 productos podía tardar más de un minuto si picsum.photos
+    # respondía lento, y el click se sentía "colgado".
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        resultados = pool.map(lambda t: (t[0], t[1], _imagen_demo(t[2])), tareas_imagen)
+        for p, idx, data in resultados:
+            img = ProductoImagen.objects.create(
+                producto=p, imagen=ContentFile(data, name=f'demo-{p.pk}-{idx}.jpg'),
+                es_portada=(idx == 0), orden=idx,
+            )
+            _registrar(img)
+            resumen['imagenes'] += 1
 
     hoy = timezone.now().date()
     hasta = hoy + timedelta(days=30)

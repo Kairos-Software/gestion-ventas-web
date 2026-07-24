@@ -77,7 +77,7 @@ urlpatterns = [
     path('configuracion/cuentas/guardar/', views_cuentas.CuentaCrearEditarAjax.as_view(), name='cuenta_guardar'),
     path('configuracion/cuentas/baja/', views_cuentas.CuentaEliminarAjax.as_view(), name='cuenta_baja'),
 
-    # ── Reinicio de datos (solo superusuarios, solo DEBUG=True) ────
+    # ── Reinicio de datos (solo superusuarios) ──────────────────────
     path('reiniciar/', views_reiniciar.ReiniciarSistemaAjax.as_view(), name='reiniciar_sistema'),
 
     # ── Notas (Anotador — Herramientas) ────────────────────────────

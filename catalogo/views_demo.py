@@ -1,6 +1,5 @@
 import logging
 
-from django.conf import settings
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.http import JsonResponse
 from django.utils.decorators import method_decorator
@@ -15,18 +14,15 @@ def _es_superuser_activo(user):
     return user.is_authenticated and user.is_active and user.is_superuser
 
 
-# Mismo candado que ReiniciarSistemaAjax (core/views_reiniciar.py): superuser
-# + DEBUG. Es una herramienta de desarrollo para previsualizar el catálogo,
-# no algo pensado para tocar en producción.
+# Mismo candado que ReiniciarSistemaAjax (core/views_reiniciar.py): solo
+# superusuarios. Es una herramienta de administración para previsualizar
+# el catálogo con datos de prueba, usable tanto en desarrollo como en
+# producción mientras el sistema está en etapa de pruebas.
 @method_decorator(login_required, name='dispatch')
 @method_decorator(user_passes_test(_es_superuser_activo), name='dispatch')
 class CargarDatosDemoAjax(View):
 
     def post(self, request):
-        if not settings.DEBUG:
-            return JsonResponse(
-                {'ok': False, 'error': 'Esta acción solo está habilitada en modo DEBUG.'}, status=403,
-            )
         try:
             resumen = cargar_datos_demo()
         except ValueError as e:
@@ -46,10 +42,6 @@ class CargarDatosDemoAjax(View):
 class EliminarDatosDemoAjax(View):
 
     def post(self, request):
-        if not settings.DEBUG:
-            return JsonResponse(
-                {'ok': False, 'error': 'Esta acción solo está habilitada en modo DEBUG.'}, status=403,
-            )
         try:
             eliminados = eliminar_datos_demo()
         except Exception:
