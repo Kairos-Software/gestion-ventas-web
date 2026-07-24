@@ -102,6 +102,147 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // ── Campanita de notificaciones (pedidos del catálogo) ──────────────
+    (function () {
+        const btn  = document.getElementById('notifBellBtn');
+        const menu = document.getElementById('notifMenu');
+        const badge = document.getElementById('notifBadge');
+        const lista = document.getElementById('notifList');
+        if (!btn || !menu || !window.PEDIDOS_URLS) return;
+
+        function fmtFecha(iso) {
+            const d = new Date(iso);
+            const ahora = new Date();
+            const minutos = Math.round((ahora - d) / 60000);
+            if (minutos < 1) return 'recién';
+            if (minutos < 60) return `hace ${minutos} min`;
+            const horas = Math.round(minutos / 60);
+            if (horas < 24) return `hace ${horas} h`;
+            return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+        }
+
+        function fmtMoneda(n) {
+            return '$' + Number(n).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str || '';
+            return div.innerHTML;
+        }
+
+        function renderLista(pedidos) {
+            if (!pedidos.length) {
+                lista.innerHTML = '<p class="notif-menu-vacio">Todavía no llegó ningún pedido del catálogo.</p>';
+                return;
+            }
+            lista.innerHTML = pedidos.map(function (p) {
+                const vendido = p.estado === 'vendido';
+                return `
+                    <div class="notif-item ${!p.leido ? 'notif-item--no-leido' : ''} ${vendido ? 'notif-item--vendido' : ''}">
+                        <div class="notif-item-top">
+                            <span class="notif-item-contacto">${p.contacto_nombre || p.contacto_telefono}</span>
+                            <span class="notif-item-fecha">${fmtFecha(p.fecha_alta)}</span>
+                        </div>
+                        <div class="notif-item-resumen">
+                            ${p.cantidad_items} producto${p.cantidad_items === 1 ? '' : 's'} · <span class="notif-item-total">${fmtMoneda(p.total)}</span>
+                            ${vendido ? ' · Ya convertido en venta' : ''}
+                        </div>
+                        ${p.notas ? `<div class="notif-item-notas">📝 ${escapeHtml(p.notas)}</div>` : ''}
+                        <div class="notif-item-acciones">
+                            <a class="notif-btn" href="${p.wa_link}" target="_blank" rel="noopener">Hablar por WhatsApp</a>
+                            <button type="button" class="notif-btn notif-btn--vender" data-pedido-vender="${p.pk}">
+                                ${vendido ? 'Ver venta' : 'Vender'}
+                            </button>
+                        </div>
+                    </div>`;
+            }).join('');
+        }
+
+        let noLeidosPrevio = null; // null = todavía no hicimos el primer chequeo
+
+        async function actualizarBadge() {
+            try {
+                const res = await fetch(window.PEDIDOS_URLS.noLeidos);
+                if (!res.ok) return;
+                const data = await res.json();
+                badge.textContent = data.no_leidos;
+                badge.hidden = !data.no_leidos;
+
+                // Avisa con un toast si aparecieron pedidos nuevos desde el
+                // último chequeo — así no hace falta refrescar la página ni
+                // abrir la campanita para enterarse. No en el primer chequeo
+                // (recién cargó la página, no es "nuevo").
+                if (noLeidosPrevio !== null && data.no_leidos > noLeidosPrevio && window.KaiToast) {
+                    const nuevos = data.no_leidos - noLeidosPrevio;
+                    KaiToast.show(
+                        nuevos === 1 ? 'Llegó un pedido nuevo del catálogo.' : `Llegaron ${nuevos} pedidos nuevos del catálogo.`,
+                        'info',
+                    );
+                }
+                noLeidosPrevio = data.no_leidos;
+
+                // Si la campanita ya estaba abierta, refresca la lista sola
+                // en vez de dejar al usuario mirando algo desactualizado.
+                if (menu.classList.contains('open')) abrirLista();
+            } catch (e) { /* silencioso — no interrumpe el resto del sistema */ }
+        }
+
+        async function abrirLista() {
+            lista.innerHTML = '<p class="notif-menu-vacio">Cargando...</p>';
+            try {
+                const res = await fetch(window.PEDIDOS_URLS.lista);
+                if (!res.ok) { lista.innerHTML = '<p class="notif-menu-vacio">No se pudo cargar.</p>'; return; }
+                const data = await res.json();
+                renderLista(data.resultados);
+                badge.hidden = true; // se acaban de marcar como leídos en el server
+            } catch (e) {
+                lista.innerHTML = '<p class="notif-menu-vacio">Error de conexión.</p>';
+            }
+        }
+
+        btn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            const isOpen = menu.classList.contains('open');
+            menu.classList.toggle('open', !isOpen);
+            btn.setAttribute('aria-expanded', String(!isOpen));
+            if (!isOpen) abrirLista();
+        });
+
+        document.addEventListener('click', function (e) {
+            if (!btn.contains(e.target) && !menu.contains(e.target)) {
+                menu.classList.remove('open');
+                btn.setAttribute('aria-expanded', 'false');
+            }
+        });
+
+        lista.addEventListener('click', async function (e) {
+            const venderBtn = e.target.closest('[data-pedido-vender]');
+            if (!venderBtn) return;
+            const pk = venderBtn.dataset.pedidoVender;
+            venderBtn.disabled = true;
+            try {
+                const res = await fetch(window.PEDIDOS_URLS.venderBase + pk + '/vender/', {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    window.location.href = data.redirect;
+                } else {
+                    KaiToast.show(data.error || 'No se pudo cargar el pedido en Nueva Venta.', 'danger');
+                    venderBtn.disabled = false;
+                }
+            } catch (e) {
+                KaiToast.show('Error de conexión.', 'danger');
+                venderBtn.disabled = false;
+            }
+        });
+
+        actualizarBadge();
+        setInterval(actualizarBadge, 15000);
+    })();
+
     // Agrega un <span class="logo-shine"> dentro del .logo y lo anima
     // con un sweep periódico (cada 7s, con variación aleatoria de ±2s).
     const logoLink = document.querySelector('.sidebar-header .logo');
@@ -319,7 +460,7 @@ function reiniciarSistema() {
         .then(function (data) {
             if (data.ok) {
                 KaiToast.show('Listo, se reinició la base de datos. La página se va a recargar.', 'success', 2200);
-                setTimeout(function () { window.location.href = '/'; }, 1800);
+                setTimeout(function () { window.location.reload(); }, 1800);
             } else {
                 KaiToast.show('No se pudo reiniciar: ' + (data.error || 'error desconocido.'), 'danger');
             }
@@ -327,6 +468,62 @@ function reiniciarSistema() {
         .catch(function () {
             KaiToast.show('Error de red al intentar reiniciar el sistema.', 'danger');
         });
+}
+
+// ── Datos de prueba del catálogo (solo superusuarios, solo DEBUG) ───────
+async function cargarDatosDemoCatalogo(btn) {
+    if (!window.DEMO_CATALOGO_CARGAR_URL) return;
+    if (!await KaiConfirm('Esto crea categorías, productos, paquetes y ofertas de prueba (con el prefijo "DEMO - ") para ver cómo queda el catálogo. No toca nada cargado a mano.')) return;
+
+    if (btn) btn.disabled = true;
+    // Baja imágenes reales de internet — puede tardar varios segundos.
+    // Sin este aviso, el click se siente "colgado" y da ganas de reintentar.
+    const cargando = KaiToast.show('Cargando datos de prueba… puede tardar unos segundos (está bajando imágenes).', 'info', 0);
+
+    try {
+        const res = await fetch(window.DEMO_CATALOGO_CARGAR_URL, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCookie('csrftoken') },
+        });
+        const data = await res.json();
+        if (data.ok) {
+            const c = data.creados;
+            KaiToast.show(
+                `Listo: ${c.categorias} categorías, ${c.productos} productos, ${c.paquetes} paquetes, ${c.ofertas} ofertas.`,
+                'success', 3000,
+            );
+        } else {
+            KaiToast.show('No se pudo cargar: ' + (data.error || 'error desconocido.'), 'danger');
+        }
+    } catch {
+        KaiToast.show('Error de red al cargar los datos de prueba.', 'danger');
+    } finally {
+        cargando.querySelector('.kai-toast-close')?.click();
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function eliminarDatosDemoCatalogo(btn) {
+    if (!window.DEMO_CATALOGO_ELIMINAR_URL) return;
+    if (!await KaiConfirm('¿Eliminar todos los datos de prueba del catálogo? Solo borra lo que creó esta misma herramienta, nada cargado a mano.', { danger: true, confirmText: 'Eliminar' })) return;
+
+    if (btn) btn.disabled = true;
+    try {
+        const res = await fetch(window.DEMO_CATALOGO_ELIMINAR_URL, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCookie('csrftoken') },
+        });
+        const data = await res.json();
+        if (data.ok) {
+            KaiToast.show(`Listo: se eliminaron ${data.eliminados} registros de prueba.`, 'success', 2500);
+        } else {
+            KaiToast.show('No se pudo eliminar: ' + (data.error || 'error desconocido.'), 'danger');
+        }
+    } catch {
+        KaiToast.show('Error de red al eliminar los datos de prueba.', 'danger');
+    } finally {
+        if (btn) btn.disabled = false;
+    }
 }
 
 function getCookie(name) {

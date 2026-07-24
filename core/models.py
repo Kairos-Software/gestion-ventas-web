@@ -67,6 +67,9 @@ PERMISOS_CHOICES = [
     ('editar_ventas',     'Editar ventas existentes'),
     ('eliminar_ventas',   'Eliminar ventas'),
 
+    # ── Módulo: Pedidos del catálogo ──────────────────────────────
+    ('ver_pedidos', 'Ver los pedidos hechos desde el catálogo público y convertirlos en venta'),
+
     # ── Módulo: Balanza (etiquetas de peso/medida variable) ─────────
     ('ver_balanza',     'Ver etiquetas de balanza generadas'),
     ('crear_balanza',   'Generar etiquetas de balanza'),

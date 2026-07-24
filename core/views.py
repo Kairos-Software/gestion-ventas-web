@@ -24,7 +24,7 @@ class CustomLoginView(LoginView):
         return reverse_lazy('core:home')
 
 class CustomLogoutView(LogoutView):
-    next_page = reverse_lazy('core:login')
+    next_page = reverse_lazy('catalogo:home')
 
 @login_required
 def home(request):

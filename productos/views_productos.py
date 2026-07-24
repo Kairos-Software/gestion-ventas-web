@@ -366,6 +366,13 @@ class ProductoCrearEditarAjax(LoginRequiredMixin, View):
         for f in BOOL_FIELDS:
             if f in form_data:
                 form_data[f] = 'on' if form_data[f] else ''
+            elif inst is not None:
+                # No vino en el payload — pasa con 'publicado', que el modal de
+                # edición no toca (se maneja aparte con el botón toggle de la
+                # tabla, ver togglePublicar en productos.js). Sin este default,
+                # un checkbox ausente en el form es "desmarcado" para Django y
+                # cualquier guardado desde el modal lo hubiera despublicado solo.
+                form_data[f] = 'on' if getattr(inst, f) else ''
 
         # alicuota_iva no se captura del frontend — se fuerza siempre a General (21%)
         form_data['alicuota_iva'] = '21'
@@ -374,6 +381,13 @@ class ProductoCrearEditarAjax(LoginRequiredMixin, View):
 
         if form.is_valid():
             producto = form.save()
+
+            # Si es precio automático, recalcular ahora — no solo esperar a la
+            # próxima compra. Si el producto ya tiene costo (se compró antes)
+            # pero recién ahora se activó el modo automático o se cambió el
+            # % de ganancia, esto evita que quede con precio_venta desactualizado
+            # (o vacío) hasta la siguiente compra.
+            producto.actualizar_costo_y_precio()
 
             if producto.gestiona_variantes and producto.codigo_barras:
                 producto.codigo_barras = ''

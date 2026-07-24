@@ -1289,12 +1289,12 @@ class CuotaDeuda(models.Model):
         return timezone.now().date() >= self.fecha_vencimiento - timedelta(days=DIAS_HABILITACION_CUOTA)
 
     @transaction.atomic
-    def confirmar(self, cuenta_pk, usuario):
+    def confirmar(self, cuenta_pk, usuario, adelantar=False):
         # select_for_update(): mismo guard que en Venta/Compra.confirmar()
         # — un doble clic en "Pagar cuota" no debe generar dos egresos.
         if CuotaDeuda.objects.select_for_update().get(pk=self.pk).estado != EstadoCuota.PENDIENTE:
             raise ValueError('Solo se pueden confirmar cuotas pendientes.')
-        if not self.habilitada:
+        if not self.habilitada and not adelantar:
             fecha_habilitacion = self.fecha_vencimiento - timedelta(days=DIAS_HABILITACION_CUOTA)
             raise ValueError(
                 f'Esta cuota se habilita para pagar a partir del {fecha_habilitacion.strftime("%d/%m/%Y")}.'

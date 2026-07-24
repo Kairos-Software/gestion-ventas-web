@@ -15,7 +15,9 @@ app_name = 'core'
 
 urlpatterns = [
     # ── Generales ─────────────────────────────────────────────────
-    path('', views.CustomLoginView.as_view(), name='login'),
+    # La raíz ('') del sitio ahora es el catálogo público (ver catalogo.urls,
+    # montado antes que este include en sistema/urls.py) — el login vive acá.
+    path('login/', views.CustomLoginView.as_view(), name='login'),
     path('logout/', views.CustomLogoutView.as_view(), name='logout'),
     path('home/', views.home, name='home'),
 

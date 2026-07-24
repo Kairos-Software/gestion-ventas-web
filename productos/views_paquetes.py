@@ -23,7 +23,13 @@ def _serializar_paquete(p):
         'descripcion':  p.descripcion,
         'precio_venta': str(p.precio_venta) if p.precio_venta is not None else '',
         'activo':       p.estado == EstadoProducto.ACTIVO,
+        'publicado':    p.publicado,
+        'destacado':    p.destacado,
         'stock_disponible': p.stock_disponible_paquete,
+        'imagenes': [
+            {'pk': img.pk, 'url': img.imagen.url, 'es_portada': img.es_portada}
+            for img in p.imagenes.all()
+        ],
         'componentes':  [
             {
                 'pk':       comp.pk,
@@ -62,7 +68,7 @@ class PaqueteListaAjax(LoginRequiredMixin, View):
         if not chequear_permiso(request.user, 'gestionar_paquetes'):
             return JsonResponse({'error': 'Sin permiso.'}, status=403)
 
-        qs = Producto.objects.filter(es_paquete=True).prefetch_related('componentes__producto').order_by('nombre')
+        qs = Producto.objects.filter(es_paquete=True).prefetch_related('componentes__producto', 'imagenes').order_by('nombre')
         return JsonResponse({'results': [_serializar_paquete(p) for p in qs]})
 
 
@@ -159,6 +165,12 @@ class PaqueteAccionesAjax(LoginRequiredMixin, View):
         paquete.unidad_medida = UnidadMedida.UNIDAD
         paquete.codigo_barras = codigo_barras
         paquete.estado        = EstadoProducto.ACTIVO if body.get('activo', True) else EstadoProducto.INACTIVO
+        # 'publicado' se maneja aparte con el botón toggle de la lista (mismo
+        # criterio que Producto normal — ver ProductoCrearEditarAjax): si no
+        # vino en el payload, no se toca, para no despublicar un paquete solo
+        # por guardar sus datos.
+        if 'publicado' in body:
+            paquete.publicado = bool(body['publicado'])
         paquete.save()
 
         paquete.componentes.all().delete()

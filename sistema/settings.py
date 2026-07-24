@@ -46,7 +46,10 @@ INSTALLED_APPS = [
     'ventas',  # tu aplicación ventas
     'caja',  # tu aplicación caja
     'asistencia',  # reportes, alertas (whatsapp/mail) y a futuro chat con IA
+    'catalogo',  # catálogo público (landing) — sin login
 ]
+
+LOGIN_URL = 'core:login'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

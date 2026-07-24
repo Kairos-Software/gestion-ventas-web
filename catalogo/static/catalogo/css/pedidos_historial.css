@@ -1,0 +1,23 @@
+/* catalogo/pedidos_historial.css — historial de pedidos del catálogo.
+   Reutiliza las clases prd-* de productos.css (tabla, filtros, badges,
+   botones de acción, paginación); acá solo van los estados propios de
+   Pedido, que no existen en ningún otro lado. */
+
+.prd-estado--pendiente  { background: var(--brand-orange-light); color: var(--brand-orange-dark); border: 1px solid var(--brand-orange-mid); }
+.prd-estado--vendido    { background: rgba(16,185,129,0.1); color: #059669; border: 1px solid rgba(16,185,129,0.2); }
+.prd-estado--descartado { background: var(--bg-secondary); color: var(--text-muted); border: 1px solid var(--border-color); }
+
+.ped-row.ped-row--saliendo { opacity: 0.35; pointer-events: none; transition: opacity 0.2s; }
+
+.ped-btn-vender { color: var(--brand-orange); border-color: var(--brand-orange-mid); }
+.ped-btn-vender:hover { background: var(--brand-orange-light); color: var(--brand-orange-dark); border-color: var(--brand-orange); }
+
+.ped-notas {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    max-width: 220px;
+    font-size: 0.82rem;
+    color: var(--text-primary);
+}

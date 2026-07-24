@@ -1,0 +1,149 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ empresa.nombre_comercial }}{% endblock %}</title>
+    {% if empresa.logo %}
+        <link rel="icon" type="image/png" href="{{ empresa.logo.url }}">
+    {% else %}
+        <link rel="icon" type="image/png" href="{% static 'core/img/logo1.png' %}">
+    {% endif %}
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'catalogo/css/catalogo.css' %}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+    <header class="kc-header">
+        <div class="kc-header-inner">
+            <a href="{% url 'catalogo:home' %}" class="kc-brand">
+                {% if empresa.logo %}
+                    <img src="{{ empresa.logo.url }}" alt="{{ empresa.nombre_comercial }}" class="kc-brand-logo">
+                {% else %}
+                    <span class="kc-brand-fallback">{{ empresa.nombre_comercial|slice:":1" }}</span>
+                {% endif %}
+                <span class="kc-brand-text">
+                    <span class="kc-brand-name">{{ empresa.nombre_comercial }}</span>
+                    {% if empresa.domicilio %}<span class="kc-brand-sub">{{ empresa.domicilio }}</span>{% endif %}
+                </span>
+            </a>
+
+            <nav class="kc-main-nav">
+                <a href="{% url 'catalogo:home' %}" class="{% if seccion_activa != 'ofertas' and seccion_activa != 'paquetes' %}kc-nav-activo{% endif %}">Catálogo</a>
+                <a href="{% url 'catalogo:home' %}?seccion=ofertas" class="{% if seccion_activa == 'ofertas' %}kc-nav-activo{% endif %}">Ofertas</a>
+                <a href="{% url 'catalogo:home' %}?seccion=paquetes" class="{% if seccion_activa == 'paquetes' %}kc-nav-activo{% endif %}">Combos</a>
+            </nav>
+
+            <form class="kc-search" method="get" action="{% url 'catalogo:home' %}">
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6.5" stroke="currentColor" stroke-width="1.6"/><path d="M17 17L13.5 13.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                <input type="text" name="q" placeholder="Buscar productos…" value="{{ request.GET.q }}">
+            </form>
+
+            <div class="kc-header-actions">
+                <a href="{% url 'core:login' %}" class="kc-btn-ingresar">
+                    <svg width="14" height="14" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="6" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M3 15C3 12.24 5.69 10 9 10C12.31 10 15 12.24 15 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                    <span>Ingresar</span>
+                </a>
+                <button type="button" class="kc-btn-carrito" id="kcBtnCarrito" aria-label="Ver carrito">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M2 5H4L5.5 13.5H15.5L17 6.5H5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7.5" cy="17" r="1.15" fill="currentColor"/><circle cx="14.5" cy="17" r="1.15" fill="currentColor"/></svg>
+                    <span class="kc-carrito-badge" id="kcCarritoBadge" hidden>0</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="kc-main">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="kc-footer">
+        <div class="kc-footer-inner">
+            <div class="kc-footer-col kc-footer-col--brand">
+                <span class="kc-footer-name">{{ empresa.nombre_comercial }}</span>
+                <p>{{ config_catalogo.sobre_nosotros|default:"Mirá los productos disponibles, las ofertas del momento y armá tu pedido — coordinamos el pago y la entrega por WhatsApp." }}</p>
+            </div>
+            {% if categorias_footer %}
+            <div class="kc-footer-col">
+                <h4>Categorías</h4>
+                <ul>
+                    {% for cat in categorias_footer %}
+                        <li><a href="{% url 'catalogo:home' %}?categoria={{ cat.slug }}">{{ cat.nombre }}</a></li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+            <div class="kc-footer-col">
+                <h4>Contacto</h4>
+                {% if config_catalogo.contacto_texto %}<p>{{ config_catalogo.contacto_texto }}</p>{% endif %}
+                <ul>
+                    {% if empresa.domicilio %}<li>{{ empresa.domicilio }}</li>{% endif %}
+                    {% if empresa.telefono %}<li>{{ empresa.telefono }}</li>{% endif %}
+                    {% if empresa.email %}<li>{{ empresa.email }}</li>{% endif %}
+                </ul>
+            </div>
+        </div>
+        <div class="kc-footer-copy">© {% now "Y" %} {{ empresa.nombre_comercial }} · Todos los derechos reservados</div>
+    </footer>
+
+    <div class="kc-overlay" id="kcOverlay"></div>
+    <aside class="kc-drawer" id="kcDrawer" aria-label="Carrito de compras">
+        <div class="kc-drawer-head">
+            <h3>Tu pedido</h3>
+            <button type="button" class="kc-drawer-cerrar" id="kcDrawerCerrar" aria-label="Cerrar carrito">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 1L13 13M13 1L1 13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            </button>
+        </div>
+        <div class="kc-drawer-items" id="kcDrawerItems"></div>
+
+        <div class="kc-drawer-foot" id="kcDrawerFootCarrito">
+            <div class="kc-drawer-sub"><span>Subtotal</span><span id="kcDrawerSubtotal">$0</span></div>
+            <div class="kc-drawer-sub kc-drawer-descuento" id="kcDrawerDescuentoRow" hidden>
+                <span id="kcDrawerDescuentoLabel">Descuento</span><span id="kcDrawerDescuentoMonto">-$0</span>
+            </div>
+            <div class="kc-drawer-sub kc-drawer-total" id="kcDrawerTotalRow" hidden>
+                <span>Total</span><span id="kcDrawerTotal">$0</span>
+            </div>
+            <p class="kc-drawer-nota">Dejanos tu WhatsApp y coordinamos el pago y la entrega.</p>
+            <button type="button" class="kc-btn-checkout" id="kcBtnIrAlContacto">Finalizar pedido</button>
+        </div>
+
+        <div class="kc-drawer-foot" id="kcDrawerFootContacto" hidden>
+            <div class="kc-form-field">
+                <label for="kcContactoNombre">Tu nombre <span>(opcional)</span></label>
+                <input type="text" id="kcContactoNombre" placeholder="¿Cómo te llamamos?" maxlength="150">
+            </div>
+            <div class="kc-form-field">
+                <label for="kcContactoTelefono">Tu WhatsApp</label>
+                <input type="tel" id="kcContactoTelefono" placeholder="Ej: 3624 023093" maxlength="40" required>
+                <span class="kc-form-hint">Característica + número, sin 0 ni 15 adelante</span>
+            </div>
+            <div class="kc-form-field">
+                <label for="kcContactoNotas">Algo que debamos saber <span>(opcional)</span></label>
+                <textarea id="kcContactoNotas" rows="2" placeholder="Horario para entregar, aclaraciones..." maxlength="1000"></textarea>
+            </div>
+            <p class="kc-form-error" id="kcContactoError" hidden></p>
+            <div class="kc-drawer-contacto-botones">
+                <button type="button" class="kc-btn-volver" id="kcBtnVolverCarrito">Volver</button>
+                <button type="button" class="kc-btn-checkout kc-btn-checkout--activo" id="kcBtnConfirmarPedido">Confirmar pedido</button>
+            </div>
+        </div>
+
+        <div class="kc-drawer-foot kc-drawer-exito" id="kcDrawerExito" hidden>
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="18" stroke="currentColor" stroke-width="1.6"/><path d="M12 20.5L17 25.5L28 14.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <p><strong>¡Listo! Ya armamos tu pedido.</strong><br>Te vamos a escribir por WhatsApp para coordinar el pago y la entrega.</p>
+            <button type="button" class="kc-btn-checkout kc-btn-checkout--activo" id="kcBtnSeguirComprando">Seguir viendo el catálogo</button>
+        </div>
+    </aside>
+
+    {{ ofertas_umbral_json|json_script:"kcOfertasUmbral" }}
+    <script>
+        window.KC_URLS = { pedidoCrear: "{% url 'catalogo:pedido_crear' %}" };
+        window.KC_OFERTAS_UMBRAL = JSON.parse(document.getElementById('kcOfertasUmbral').textContent) || [];
+    </script>
+    <script src="{% static 'catalogo/js/carrito.js' %}"></script>
+    <script src="{% static 'catalogo/js/catalogo.js' %}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

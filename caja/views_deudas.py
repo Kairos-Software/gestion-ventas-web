@@ -327,8 +327,9 @@ class ConfirmarCuotaAjax(LoginRequiredMixin, View):
         try:
             data = json.loads(request.body)
             cuenta_pk = data.get('cuenta_pk')
+            adelantar = bool(data.get('adelantar', False))
 
-            cuota.confirmar(cuenta_pk, request.user)
+            cuota.confirmar(cuenta_pk, request.user, adelantar=adelantar)
 
             # En segundo plano: si esperáramos a que el mail salga acá,
             # el pedido HTTP se queda 1-2s colgado por el ida y vuelta

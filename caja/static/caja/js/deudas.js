@@ -299,6 +299,15 @@ document.addEventListener('DOMContentLoaded', function () {
                         </select>
                         <button type="button" class="btn btn-primary btn--sm" onclick="confirmarCuota(${c.pk})">Confirmar</button>
                     </div>`;
+            } else if (c.estado === 'pendiente' && !c.habilitada && puedeConfirmar) {
+                accion = `
+                    <div class="deudas-cuota-confirmar">
+                        <select id="cuentaCuota${c.pk}" class="deudas-cuota-select">
+                            ${cuentasPago.map(cta => `<option value="${cta.pk}">${cta.nombre}</option>`).join('')}
+                        </select>
+                        <button type="button" class="btn btn-secondary btn--sm" onclick="confirmarCuota(${c.pk}, true)">Adelantar pago</button>
+                        <span class="deudas-cuota-fecha">Se habilita el ${c.fecha_vencimiento}</span>
+                    </div>`;
             } else if (c.estado === 'pendiente' && !c.habilitada) {
                 accion = `<span class="deudas-cuota-fecha">Se habilita el ${c.fecha_vencimiento}</span>`;
             } else if (c.estado === 'confirmada') {
@@ -315,14 +324,17 @@ document.addEventListener('DOMContentLoaded', function () {
         }).join('');
     }
 
-    window.confirmarCuota = async function (cuotaPk) {
+    window.confirmarCuota = async function (cuotaPk, adelantar = false) {
         const select = document.getElementById(`cuentaCuota${cuotaPk}`);
         const cuentaPk = select ? select.value : '';
         if (!cuentaPk) {
             KaiToast.show('Elegí la cuenta de la que sale el pago.', 'warning');
             return;
         }
-        if (!await KaiConfirm('¿Confirmar el pago de esta cuota? Esto va a impactar la caja.')) return;
+        const mensaje = adelantar
+            ? '¿Adelantar el pago de esta cuota antes de su fecha habilitada? Esto va a impactar la caja.'
+            : '¿Confirmar el pago de esta cuota? Esto va a impactar la caja.';
+        if (!await KaiConfirm(mensaje)) return;
 
         try {
             const response = await fetch(urlConfirmarCuota(cuotaPk), {
@@ -331,7 +343,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': getCookie('csrftoken'),
                 },
-                body: JSON.stringify({ cuenta_pk: cuentaPk }),
+                body: JSON.stringify({ cuenta_pk: cuentaPk, adelantar }),
             });
             const result = await response.json();
 

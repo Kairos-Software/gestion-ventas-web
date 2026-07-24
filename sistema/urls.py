@@ -5,6 +5,10 @@ from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    # El catálogo público es ahora la portada del sitio (''). Va antes que
+    # core.urls a propósito: core ya no define nada en '' (el login se movió
+    # a 'login/'), así que no hay colisión de rutas.
+    path('', include('catalogo.urls', namespace='catalogo')),
     path('', include('core.urls')),
     path('productos/', include('productos.urls', namespace='productos')),  # ← esto
     path('compras/', include('compras.urls', namespace='compras')),  # ← esto

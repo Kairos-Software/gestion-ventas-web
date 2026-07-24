@@ -25,6 +25,18 @@ document.getElementById('btnNuevoPaquete')?.addEventListener('click', () => {
     abrirModal('modalPaquete');
 });
 
+// ════════════════════════════════════════════════════════════════════
+//  TABS del modal (Datos / Imágenes)
+// ════════════════════════════════════════════════════════════════════
+document.querySelectorAll('#modalPaquete .prd-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        document.querySelectorAll('#modalPaquete .prd-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('#modalPaquete .prd-tab-panel').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    });
+});
+
 function _pqEsc(str) {
     if (str === null || str === undefined) return '';
     return String(str)
@@ -87,6 +99,29 @@ function _imprimirCodigoBarras(nombre, precioVenta, codigo) {
     }
 }
 
+async function _togglePublicadoPaquete(pk, publicadoActual, btn) {
+    const p = _cachePaquetes.find(x => x.pk === pk);
+    if (!p) return;
+    const nuevoEstado = !publicadoActual;
+    const body = {
+        pk, nombre: p.nombre, precio_venta: p.precio_venta, descripcion: p.descripcion,
+        activo: p.activo, publicado: nuevoEstado,
+        componentes: p.componentes.map(c => ({ producto_pk: c.producto_pk, cantidad: c.cantidad })),
+    };
+    const res  = await fetch(URLS.paqueteAcciones, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (data.ok) {
+        KaiToast.show(nuevoEstado ? 'Paquete publicado en el catálogo.' : 'Paquete despublicado del catálogo.', 'success');
+        await cargarPaquetes();
+    } else {
+        KaiToast.show(Object.values(data.errors || {}).flat().join(' ') || 'Error al cambiar la publicación.', 'danger');
+    }
+}
+
 function _imprimirCodigoPaquete(pk) {
     const p = _cachePaquetes.find(x => x.pk === pk);
     if (!p) return;
@@ -134,6 +169,14 @@ function _renderPaquetes() {
                 <span class="prd-of-row-meta">${_alcanceComponentesTexto(p)} · Se pueden armar ${p.stock_disponible} ahora${p.codigo_barras ? ` · Código: ${p.codigo_barras}` : ''}</span>
             </div>
             <div class="prd-ld-row-actions">
+                <button type="button" class="prd-ld-icon-btn ${p.publicado ? 'prd-ld-icon-btn--activo' : ''}"
+                        title="${p.publicado ? 'Despublicar del catálogo' : 'Publicar en catálogo'}"
+                        onclick="_togglePublicadoPaquete(${p.pk}, ${p.publicado}, this)">
+                    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                        <path d="M1.5 7.5C1.5 7.5 4 3 7.5 3C11 3 13.5 7.5 13.5 7.5C13.5 7.5 11 12 7.5 12C4 12 1.5 7.5 1.5 7.5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+                        <circle cx="7.5" cy="7.5" r="2" stroke="currentColor" stroke-width="1.3"/>
+                    </svg>
+                </button>
                 <button type="button" class="prd-ld-icon-btn" title="Imprimir código de barras" onclick="_imprimirCodigoPaquete(${p.pk})">
                     <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
                         <path d="M4 2.5H11V5.5H4V2.5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
@@ -172,6 +215,133 @@ function _resetFormPaquete() {
     document.getElementById('pqFormError').style.display = 'none';
     document.getElementById('btnCancelarPaquete').textContent = 'Cancelar';
     _mostrarBarcodePreview('');
+    document.querySelector('#modalPaquete .prd-tab[data-tab="pq-datos"]').click();
+    document.getElementById('pqImgNuevoAviso').style.display = '';
+    document.getElementById('pqImgPanel').style.display = 'none';
+    _renderImagenesPaquete([]);
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  IMÁGENES DEL PAQUETE — mismos endpoints que productos (ProductoImagen
+//  cuelga de cualquier Producto, sin distinguir es_paquete).
+// ════════════════════════════════════════════════════════════════════
+function _actualizarBadgeImagenesPaquete() {
+    const items = document.querySelectorAll('#pqImgGrid .prd-img-item').length;
+    const badge = document.getElementById('tabPqImagenCount');
+    badge.textContent   = items;
+    badge.style.display = items > 0 ? '' : 'none';
+}
+
+function _imagenPaqueteHtml(pk, url, esPortada) {
+    return `
+        <img src="${url}" alt="" class="prd-img-thumb">
+        ${esPortada ? '<span class="prd-img-portada-badge">Portada</span>' : ''}
+        <div class="prd-img-actions">
+            ${!esPortada ? `<button class="prd-img-btn" title="Marcar como portada" onclick="_marcarPortadaPaquete(${pk})">
+                <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1l1.5 3 3.5.5-2.5 2.5.5 3.5L6.5 9 3 10.5l.5-3.5L1 4.5 4.5 4z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+            </button>` : ''}
+            <button class="prd-img-btn prd-img-btn--del" onclick="_eliminarImagenPaquete(${pk})">
+                <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 2L11 11M11 2L2 11" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            </button>
+        </div>`;
+}
+
+function _renderImagenesPaquete(imagenes) {
+    const grid = document.getElementById('pqImgGrid');
+    grid.innerHTML = (imagenes || []).map(img => `
+        <div class="prd-img-item${img.es_portada ? ' prd-img-item--portada' : ''}" id="pq-img-${img.pk}">
+            ${_imagenPaqueteHtml(img.pk, img.url, img.es_portada)}
+        </div>`).join('');
+    _actualizarBadgeImagenesPaquete();
+}
+
+function _agregarImagenPaqueteAlGrid(pk, url, esPortada) {
+    const grid = document.getElementById('pqImgGrid');
+    const item = document.createElement('div');
+    item.className = 'prd-img-item' + (esPortada ? ' prd-img-item--portada' : '');
+    item.id = `pq-img-${pk}`;
+    item.innerHTML = _imagenPaqueteHtml(pk, url, esPortada);
+    grid.appendChild(item);
+    _actualizarBadgeImagenesPaquete();
+}
+
+const pqImgFileInput  = document.getElementById('pqImgFileInput');
+const pqImgUploadZone = document.getElementById('pqImgUploadZone');
+
+pqImgFileInput?.addEventListener('change', () => _subirImagenesPaquete(pqImgFileInput.files));
+pqImgUploadZone?.addEventListener('dragover',  e => { e.preventDefault(); pqImgUploadZone.classList.add('prd-img-upload-zone--over'); });
+pqImgUploadZone?.addEventListener('dragleave', () => pqImgUploadZone.classList.remove('prd-img-upload-zone--over'));
+pqImgUploadZone?.addEventListener('drop', e => {
+    e.preventDefault();
+    pqImgUploadZone.classList.remove('prd-img-upload-zone--over');
+    _subirImagenesPaquete(e.dataTransfer.files);
+});
+
+async function _subirImagenesPaquete(files) {
+    const pk = document.getElementById('pqPk').value;
+    if (!pk) { KaiToast.show('Guardá el paquete primero.', 'warning'); return; }
+    for (const file of files) {
+        if (!file.type.startsWith('image/')) continue;
+        if (file.size > 5 * 1024 * 1024) { KaiToast.show(`"${file.name}" supera 5 MB.`, 'danger'); continue; }
+        const fd = new FormData();
+        fd.append('producto_pk', pk);
+        fd.append('imagen', file);
+        try {
+            const res  = await fetch(URLS.imagenSubir, { method: 'POST', headers: { 'X-CSRFToken': CSRF }, body: fd });
+            const data = await res.json();
+            if (data.ok) {
+                _agregarImagenPaqueteAlGrid(data.imagen_pk, data.url, data.es_portada);
+                KaiToast.show(`Imagen "${file.name}" subida.`, 'success');
+            } else {
+                KaiToast.show(data.errors?.imagen?.[0] || 'Error al subir imagen.', 'danger');
+            }
+        } catch { KaiToast.show('Error de conexión al subir imagen.', 'danger'); }
+    }
+    pqImgFileInput.value = '';
+}
+
+async function _marcarPortadaPaquete(pk) {
+    const res  = await fetch(URLS.imagenPortada, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify({ pk }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+        document.querySelectorAll('#pqImgGrid .prd-img-item').forEach(el => {
+            el.classList.remove('prd-img-item--portada');
+            el.querySelector('.prd-img-portada-badge')?.remove();
+        });
+        const item = document.getElementById(`pq-img-${pk}`);
+        if (item) {
+            item.classList.add('prd-img-item--portada');
+            const badge = document.createElement('span');
+            badge.className   = 'prd-img-portada-badge';
+            badge.textContent = 'Portada';
+            item.prepend(badge);
+            item.querySelector('.prd-img-btn:not(.prd-img-btn--del)')?.remove();
+        }
+        KaiToast.show('Imagen de portada actualizada.', 'success');
+        await cargarPaquetes();
+    }
+}
+
+async function _eliminarImagenPaquete(pk) {
+    if (!await KaiConfirm('¿Eliminar esta imagen?')) return;
+    const res  = await fetch(URLS.imagenEliminar, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify({ pk }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+        document.getElementById(`pq-img-${pk}`)?.remove();
+        _actualizarBadgeImagenesPaquete();
+        KaiToast.show('Imagen eliminada.', 'success');
+        await cargarPaquetes();
+    } else {
+        KaiToast.show('Error al eliminar imagen.', 'danger');
+    }
 }
 
 function _editarPaquete(pk) {
@@ -192,6 +362,10 @@ function _editarPaquete(pk) {
     document.getElementById('pqFormError').style.display = 'none';
     document.getElementById('btnCancelarPaquete').textContent = 'Cerrar';
     _mostrarBarcodePreview(p.codigo_barras);
+    document.getElementById('pqImgNuevoAviso').style.display = 'none';
+    document.getElementById('pqImgPanel').style.display = '';
+    _renderImagenesPaquete(p.imagenes);
+    document.querySelector('#modalPaquete .prd-tab[data-tab="pq-datos"]').click();
     abrirModal('modalPaquete');
 }
 
@@ -321,6 +495,11 @@ async function guardarPaquete() {
     document.getElementById('modalPaqueteTitulo').textContent = 'Editar paquete';
     document.getElementById('btnCancelarPaquete').textContent = 'Cerrar';
     _mostrarBarcodePreview(data.data.codigo_barras);
+    if (data.creado) {
+        document.getElementById('pqImgNuevoAviso').style.display = 'none';
+        document.getElementById('pqImgPanel').style.display = '';
+    }
+    _renderImagenesPaquete(data.data.imagenes);
     await cargarPaquetes();
 }
 
