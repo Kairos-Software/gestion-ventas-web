@@ -117,14 +117,19 @@ class CrearPedidoAjax(View):
                 cantidad = Decimal(str(item.get('cantidad', 1)))
             except (TypeError, ValueError, InvalidOperation):
                 continue
-            if cantidad <= 0:
+            # El catálogo público solo vende por unidades enteras, sin
+            # importar la unidad de medida del producto (kg, litros, etc.
+            # se coordinan puntualmente por WhatsApp, no acá). El carrito
+            # nunca manda fracciones, pero esto igual se valida acá por si
+            # alguien le pega directo a la API salteando la pantalla.
+            if cantidad <= 0 or cantidad != cantidad.to_integral_value():
                 continue
 
             producto = productos_disponibles.filter(pk=producto_id).first()
             if not producto or not _disponible_compra(producto):
                 continue
 
-            oferta_info = _info_oferta(producto, ofertas)
+            oferta_info = _info_oferta(producto, ofertas, cantidad=cantidad)
             precio = oferta_info['precio_final'] if oferta_info else producto.precio_venta
             if precio is None:
                 continue

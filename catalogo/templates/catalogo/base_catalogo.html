@@ -46,7 +46,7 @@
                     <svg width="14" height="14" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="6" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M3 15C3 12.24 5.69 10 9 10C12.31 10 15 12.24 15 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
                     <span>Ingresar</span>
                 </a>
-                <button type="button" class="kc-btn-carrito" id="kcBtnCarrito" aria-label="Ver carrito">
+                <button type="button" class="kc-btn-carrito" id="kcBtnCarrito" aria-label="Ver tu pedido">
                     <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M2 5H4L5.5 13.5H15.5L17 6.5H5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7.5" cy="17" r="1.15" fill="currentColor"/><circle cx="14.5" cy="17" r="1.15" fill="currentColor"/></svg>
                     <span class="kc-carrito-badge" id="kcCarritoBadge" hidden>0</span>
                 </button>
@@ -88,10 +88,10 @@
     </footer>
 
     <div class="kc-overlay" id="kcOverlay"></div>
-    <aside class="kc-drawer" id="kcDrawer" aria-label="Carrito de compras">
+    <aside class="kc-drawer" id="kcDrawer" aria-label="Tu pedido">
         <div class="kc-drawer-head">
             <h3>Tu pedido</h3>
-            <button type="button" class="kc-drawer-cerrar" id="kcDrawerCerrar" aria-label="Cerrar carrito">
+            <button type="button" class="kc-drawer-cerrar" id="kcDrawerCerrar" aria-label="Cerrar pedido">
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 1L13 13M13 1L1 13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
             </button>
         </div>
@@ -138,9 +138,11 @@
     </aside>
 
     {{ ofertas_umbral_json|json_script:"kcOfertasUmbral" }}
+    {{ ofertas_nxm_json|json_script:"kcOfertasNxm" }}
     <script>
         window.KC_URLS = { pedidoCrear: "{% url 'catalogo:pedido_crear' %}" };
         window.KC_OFERTAS_UMBRAL = JSON.parse(document.getElementById('kcOfertasUmbral').textContent) || [];
+        window.KC_OFERTAS_NXM = JSON.parse(document.getElementById('kcOfertasNxm').textContent) || [];
     </script>
     <script src="{% static 'catalogo/js/carrito.js' %}"></script>
     <script src="{% static 'catalogo/js/catalogo.js' %}"></script>

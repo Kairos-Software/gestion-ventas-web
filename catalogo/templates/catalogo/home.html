@@ -89,8 +89,9 @@
                             <button type="button" class="kc-btn-agregar" data-carrito-agregar="prod-{{ p.pk }}"
                                 data-nombre="{{ p.nombre }}" data-precio="{{ p.oferta_info.precio_final|default:p.precio_venta }}"
                                 data-precio-lista="{{ p.precio_venta }}"
+                                data-categoria-id="{{ p.categoria.pk|default:'' }}"
                                 data-imagen="{% if p.imagenes.first %}{{ p.imagenes.first.imagen.url }}{% endif %}">
-                                Agregar
+                                Agregar al pedido
                             </button>
                         </div>
                         {% endif %}
@@ -139,17 +140,23 @@
             {% for pq in paquetes %}
             <div class="kc-combo-card">
                 <a href="{% url 'catalogo:producto_detalle' pq.pk %}" class="kc-combo-top">
-                    {% for c in pq.componentes.all|slice:":3" %}
-                        <span class="kc-combo-thumb">
-                            {% with img=c.producto.imagen_principal %}
-                                {% if img %}
-                                    <img src="{{ img.imagen.url }}" alt="">
-                                {% else %}
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 8L12 3.5L21 8V16L12 20.5L3 16V8Z"/></svg>
-                                {% endif %}
-                            {% endwith %}
-                        </span>
-                    {% endfor %}
+                    {% with portada=pq.imagenes.first %}
+                        {% if portada %}
+                            <span class="kc-combo-foto"><img src="{{ portada.imagen.url }}" alt="{{ pq.nombre }}" loading="lazy"></span>
+                        {% else %}
+                            {% for c in pq.componentes.all|slice:":3" %}
+                                <span class="kc-combo-thumb">
+                                    {% with img=c.producto.imagen_principal %}
+                                        {% if img %}
+                                            <img src="{{ img.imagen.url }}" alt="">
+                                        {% else %}
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 8L12 3.5L21 8V16L12 20.5L3 16V8Z"/></svg>
+                                        {% endif %}
+                                    {% endwith %}
+                                </span>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
                 </a>
                 <div class="kc-combo-body">
                     {% if pq.oferta_info %}<span class="kc-combo-eyebrow">{{ pq.oferta_info.badge }} off</span>{% elif pq.destacado %}<span class="kc-combo-eyebrow">Destacado</span>{% endif %}
@@ -170,8 +177,9 @@
                         <button type="button" class="kc-btn-agregar" data-carrito-agregar="paq-{{ pq.pk }}"
                             data-nombre="{{ pq.nombre }}" data-precio="{{ pq.precio_venta }}"
                             data-precio-lista="{{ pq.precio_venta }}"
+                            data-categoria-id="{{ pq.categoria.pk|default:'' }}"
                             data-imagen="{% if pq.imagenes.first %}{{ pq.imagenes.first.imagen.url }}{% endif %}">
-                            Agregar
+                            Agregar al pedido
                         </button>
                     </div>
                     {% endif %}
@@ -322,8 +330,9 @@
                                 <button type="button" class="kc-btn-agregar" data-carrito-agregar="prod-{{ p.pk }}"
                                     data-nombre="{{ p.nombre }}" data-precio="{{ p.oferta_info.precio_final|default:p.precio_venta }}"
                                     data-precio-lista="{{ p.precio_venta }}"
+                                    data-categoria-id="{{ p.categoria.pk|default:'' }}"
                                     data-imagen="{% if p.imagenes.first %}{{ p.imagenes.first.imagen.url }}{% endif %}">
-                                    Agregar
+                                    Agregar al pedido
                                 </button>
                             </div>
                             {% endif %}
@@ -350,17 +359,23 @@
                 {% for pq in paquetes %}
                 <div class="kc-combo-card">
                     <a href="{% url 'catalogo:producto_detalle' pq.pk %}" class="kc-combo-top">
-                        {% for c in pq.componentes.all|slice:":3" %}
-                            <span class="kc-combo-thumb">
-                                {% with img=c.producto.imagen_principal %}
-                                    {% if img %}
-                                        <img src="{{ img.imagen.url }}" alt="">
-                                    {% else %}
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 8L12 3.5L21 8V16L12 20.5L3 16V8Z"/></svg>
-                                    {% endif %}
-                                {% endwith %}
-                            </span>
-                        {% endfor %}
+                        {% with portada=pq.imagenes.first %}
+                            {% if portada %}
+                                <span class="kc-combo-foto"><img src="{{ portada.imagen.url }}" alt="{{ pq.nombre }}" loading="lazy"></span>
+                            {% else %}
+                                {% for c in pq.componentes.all|slice:":3" %}
+                                    <span class="kc-combo-thumb">
+                                        {% with img=c.producto.imagen_principal %}
+                                            {% if img %}
+                                                <img src="{{ img.imagen.url }}" alt="">
+                                            {% else %}
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 8L12 3.5L21 8V16L12 20.5L3 16V8Z"/></svg>
+                                            {% endif %}
+                                        {% endwith %}
+                                    </span>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
                     </a>
                     <div class="kc-combo-body">
                         {% if pq.oferta_info %}<span class="kc-combo-eyebrow">{{ pq.oferta_info.badge }} off</span>{% elif pq.destacado %}<span class="kc-combo-eyebrow">Destacado</span>{% endif %}
@@ -381,8 +396,9 @@
                             <button type="button" class="kc-btn-agregar" data-carrito-agregar="paq-{{ pq.pk }}"
                                 data-nombre="{{ pq.nombre }}" data-precio="{{ pq.precio_venta }}"
                                 data-precio-lista="{{ pq.precio_venta }}"
+                                data-categoria-id="{{ pq.categoria.pk|default:'' }}"
                                 data-imagen="{% if pq.imagenes.first %}{{ pq.imagenes.first.imagen.url }}{% endif %}">
-                                Agregar
+                                Agregar al pedido
                             </button>
                         </div>
                         {% endif %}

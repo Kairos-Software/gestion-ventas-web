@@ -67,6 +67,7 @@
                     data-nombre="{{ producto.nombre }}"
                     data-precio="{{ oferta_info.precio_final|default:producto.precio_venta }}"
                     data-precio-lista="{{ producto.precio_venta }}"
+                    data-categoria-id="{{ producto.categoria.pk|default:'' }}"
                     data-imagen="{% if imagenes %}{{ imagenes.0.imagen.url }}{% endif %}">
                     Agregar al pedido
                 </button>

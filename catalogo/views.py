@@ -59,25 +59,43 @@ def _fmt_pct(pct):
     return f'{pct.normalize():f}'.replace('.', ',')
 
 
-def _info_oferta(producto, ofertas):
+def _info_oferta(producto, ofertas, cantidad=1):
     """
     De las ofertas vigentes hoy, la primera (ya vienen ordenadas por
     `orden`/nombre) que alcance a este producto — o None. Devuelve además
     el precio ya descontado y un texto corto de badge para la card.
     Las ofertas UMBRAL no se evalúan acá: son sobre el total del carrito,
     no sobre un producto puntual (se muestran aparte, como banner).
+
+    `cantidad` importa solo para NXM ("llevá X, pagá Y"): el % efectivo
+    depende de cuántas unidades se llevan (2x1 con 1 unidad no da nada;
+    con 2, sí — ver Oferta.descuento_equivalente). Por default es 1
+    (navegando el catálogo con una sola unidad no hay descuento todavía);
+    CrearPedidoAjax pasa la cantidad real del carrito para cobrar bien.
+
+    Solo se consideran ofertas de aplicación AUTOMÁTICA: el visitante del
+    catálogo no tiene forma de "elegir" una oferta MANUAL — esas quedan
+    para que el vendedor las aplique a mano desde Nueva Venta. Sin este
+    filtro, una oferta pensada para casos puntuales terminaría
+    aplicándose sola a todo el mundo en el catálogo público.
     """
     precio = producto.precio_venta
     for oferta in ofertas:
         if oferta.tipo == TipoOferta.UMBRAL:
             continue
+        if oferta.aplicacion != AplicacionOferta.AUTOMATICA:
+            continue
         if not oferta.aplica_a_producto(producto):
             continue
         if oferta.tipo == TipoOferta.NXM:
+            pct = oferta.descuento_equivalente(cantidad)
+            precio_final = None
+            if precio is not None:
+                precio_final = (precio * (1 - pct / 100)).quantize(Decimal('0.01'))
             return {
                 'oferta': oferta,
                 'badge': f'{oferta.cantidad_lleva}x{oferta.cantidad_paga}',
-                'precio_final': precio,
+                'precio_final': precio_final,
             }
         # PORCENTAJE
         pct = oferta.porcentaje or Decimal('0')
@@ -110,6 +128,28 @@ def _ofertas_umbral_automaticas_json(ofertas):
         }
         for o in ofertas
         if o.tipo == TipoOferta.UMBRAL and o.aplicacion == AplicacionOferta.AUTOMATICA
+    ]
+
+
+def _ofertas_nxm_automaticas_json(ofertas):
+    """
+    Ofertas NXM ("llevá X, pagá Y") automáticas, con su alcance —
+    para que el carrito del catálogo pueda recalcular el % efectivo
+    según la cantidad de cada línea (2x1 con 1 unidad no da nada; con 2,
+    sí), igual que hace _info_oferta acá en el servidor. Sin esto, el
+    carrito mostraría un precio distinto al que termina cobrándose al
+    confirmar el pedido.
+    """
+    return [
+        {
+            'nombre': o.nombre,
+            'cantidad_lleva': o.cantidad_lleva,
+            'cantidad_paga': o.cantidad_paga,
+            'productos': list(o.productos.values_list('pk', flat=True)),
+            'categorias': list(o.categorias.values_list('pk', flat=True)),
+        }
+        for o in ofertas
+        if o.tipo == TipoOferta.NXM and o.aplicacion == AplicacionOferta.AUTOMATICA
     ]
 
 
@@ -354,6 +394,7 @@ class CatalogoHomeView(TemplateView):
         ctx['precio_max'] = precio_max
         ctx['ofertas_umbral'] = ofertas_umbral
         ctx['ofertas_umbral_json'] = _ofertas_umbral_automaticas_json(ofertas)
+        ctx['ofertas_nxm_json'] = _ofertas_nxm_automaticas_json(ofertas)
         ctx['mostrar_vidriera'] = mostrar_vidriera
         ctx['destacados'] = destacados
         ctx['ofertas_destacadas'] = ofertas_destacadas
@@ -387,6 +428,7 @@ class ProductoDetalleView(DetailView):
         ctx['categorias_footer'] = _categorias_footer()
         ctx['oferta_info'] = _info_oferta(self.object, ofertas)
         ctx['ofertas_umbral_json'] = _ofertas_umbral_automaticas_json(ofertas)
+        ctx['ofertas_nxm_json'] = _ofertas_nxm_automaticas_json(ofertas)
         ctx['imagenes'] = list(self.object.imagenes.all())
         ctx['es_nuevo'] = _es_nuevo(self.object)
         ctx['disponible_compra'] = _disponible_compra(self.object)
