@@ -10,22 +10,19 @@ def _catalogo_hero_path(instance, filename):
 
 
 class PlantillaCatalogo(models.TextChoices):
-    """
-    Plantilla visual activa del catálogo público. Por ahora hay una sola
-    — la pantalla de Configuración para elegir entre varias (cuando haya
-    más de una) y editar estos textos por plantilla es el próximo paso;
-    este modelo ya deja el campo listo para no tener que migrar de nuevo.
-    """
     ALMACEN = 'almacen', 'Almacén'
+    BENTO   = 'bento',   'Bento'
 
 
 class ConfiguracionCatalogo(models.Model):
     """
     Contenido editable del catálogo público — no diseño, sino los textos
     e imagen que cambian según el negocio (título del hero, bajada,
-    sobre nosotros, contacto). Todavía no tiene pantalla propia dentro
-    de Configuración (eso viene después); por ahora se carga desde
-    /admin. Mismo patrón singleton que DatosEmpresa (ver core/models.py).
+    sobre nosotros, contacto). Editable desde Configuración → Catálogo
+    público (ver core/views.py:configuracion), con vista previa en vivo.
+    Mismo patrón singleton que DatosEmpresa (ver core/models.py).
+    hero_titulo/hero_subtitulo/hero_imagen son exclusivos de la plantilla
+    "almacen" — la plantilla "bento" usa SlideHeroCatalogo en su lugar.
     """
     plantilla = models.CharField(
         'Plantilla activa', max_length=20,
@@ -50,6 +47,17 @@ class ConfiguracionCatalogo(models.Model):
     )
     actualizado_el = models.DateTimeField(auto_now=True)
 
+    # Textos que se muestran cuando el campo respectivo está vacío — una
+    # sola fuente de verdad para que el template (|default:) y el JS de
+    # la vista previa en vivo (configuracion.js) no diverjan.
+    DEFAULT_HERO_SUBTITULO = (
+        'Mirá los productos disponibles, las ofertas del momento y armá '
+        'tu pedido — coordinamos el pago y la entrega por WhatsApp.'
+    )
+    DEFAULT_SOBRE_NOSOTROS = (
+        'Trabajamos para ofrecerte los mejores productos con atención personalizada.'
+    )
+
     class Meta:
         verbose_name        = 'Configuración del catálogo'
         verbose_name_plural  = 'Configuración del catálogo'
@@ -61,6 +69,42 @@ class ConfiguracionCatalogo(models.Model):
     def get_solo(cls):
         obj, _creado = cls.objects.get_or_create(pk=1)
         return obj
+
+
+def _catalogo_slide_path(instance, filename):
+    import os
+    ext = os.path.splitext(filename)[1].lower()
+    # A diferencia de _catalogo_hero_path (singleton, ruta fija a propósito),
+    # acá puede haber varios slides a la vez — la ruta tiene que ser por pk
+    # para no pisarse entre sí. Requiere que la fila ya exista (se sube en
+    # un segundo paso, después de crear el slide sin imagen — ver
+    # catalogo/views_config.py:CatalogoSlideImagenAjax).
+    return f'catalogo/slides/{instance.pk}{ext}'
+
+
+class SlideHeroCatalogo(models.Model):
+    """
+    Un slide del carrusel de hero — exclusivo de la plantilla "bento"
+    (ver ConfiguracionCatalogo.hero_titulo/hero_subtitulo/hero_imagen,
+    que cumplen el rol equivalente pero fijo/sin carrusel en "almacen").
+    """
+    configuracion = models.ForeignKey(
+        ConfiguracionCatalogo, on_delete=models.CASCADE, related_name='slides',
+    )
+    imagen = models.ImageField('Imagen', upload_to=_catalogo_slide_path, blank=True, null=True)
+    eyebrow = models.CharField('Texto pequeño (arriba del título)', max_length=60, blank=True)
+    titulo = models.CharField('Título', max_length=200)
+    descripcion = models.TextField('Descripción', blank=True)
+    cta_texto = models.CharField('Texto del botón', max_length=60, default='Ver catálogo completo')
+    orden = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name        = 'Slide del hero (catálogo)'
+        verbose_name_plural  = 'Slides del hero (catálogo)'
+        ordering             = ['orden', 'id']
+
+    def __str__(self):
+        return self.titulo
 
 
 class DatoDemo(models.Model):

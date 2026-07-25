@@ -303,6 +303,45 @@ html { scroll-behavior: smooth; }
 .config-logo-box img { width: 100%; height: 100%; object-fit: contain; }
 
 /* ═══════════════════════════════════════════
+   CATÁLOGO — VISTA PREVIA EN VIVO
+   ═══════════════════════════════════════════ */
+.config-preview-wrap {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    background: var(--bg-primary);
+    min-height: 320px;
+}
+
+.config-preview-wrap iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: top left;
+    border: none;
+    /* Vista de solo lectura: evita que un clic accidental sobre "Agregar
+       al pedido" / "Confirmar pedido" dentro del preview dispare un
+       pedido real contra la base — ver configuracion.js. */
+    pointer-events: none;
+}
+
+.config-preview-empresa-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin: 0 1.375rem 1.1rem;
+    padding: 0.9rem 1.1rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+}
+
+@media (max-width: 767px) {
+    .config-preview-empresa-card { margin: 0 1rem 1rem; }
+}
+
+/* ═══════════════════════════════════════════
    RESPONSIVE
    ═══════════════════════════════════════════ */
 @media (max-width: 767px) {

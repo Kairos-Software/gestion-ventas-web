@@ -1,0 +1,159 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}{{ empresa.nombre_comercial }}{% endblock %}</title>
+{% if empresa.logo %}
+    <link rel="icon" type="image/png" href="{{ empresa.logo.url }}">
+{% else %}
+    <link rel="icon" type="image/png" href="{% static 'core/img/logo1.png' %}">
+{% endif %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'catalogo/css/bento.css' %}">
+{% block extra_css %}{% endblock %}
+</head>
+<body class="kc-bento">
+
+<header class="topbar" id="kcTopbar">
+  <div class="shell topbar-inner">
+    <a href="{% url 'catalogo:home' %}" class="brand">
+      <div class="brand-mark">
+        {% if empresa.logo %}
+          <img src="{{ empresa.logo.url }}" alt="{{ empresa.nombre_comercial }}">
+        {% else %}
+          {{ empresa.nombre_comercial|slice:":2"|upper }}
+        {% endif %}
+      </div>
+      <div class="brand-name">{{ empresa.nombre_comercial }}</div>
+    </a>
+    <form class="search-wrap" method="get" action="{% url 'catalogo:home' %}">
+      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input class="search-input" type="text" name="q" placeholder="Buscar productos..." value="{{ request.GET.q }}">
+    </form>
+    <div class="top-actions">
+      <button type="button" class="theme-switch" id="kcThemeSwitch" title="Modo oscuro"><i></i></button>
+      <button type="button" class="icon-btn" id="kcBtnCarrito" aria-label="Ver tu pedido">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 5H4L5.5 13.5H15.5L17 6.5H5"/><circle cx="7.5" cy="17" r="1.15"/><circle cx="14.5" cy="17" r="1.15"/></svg>
+        <span class="badge-dot" id="kcCarritoBadge" hidden>0</span>
+      </button>
+      <a class="btn-login" href="{% url 'core:login' %}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="7" r="4"/><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/></svg>
+        Ingresar
+      </a>
+    </div>
+  </div>
+</header>
+
+{% block content %}{% endblock %}
+
+<footer class="kc-bento-footer">
+  <div class="shell">
+    <div class="foot-col">
+      <!-- id en el <span>, no en el div entero — no pisar el "Nombre · " de adelante al sincronizar en vivo (ver configuracion.js / catalogo_online.js) -->
+      <b>{{ empresa.nombre_comercial }}</b> · <span id="kcFooterSobreNosotros">{{ config_catalogo.sobre_nosotros|default:default_sobre_nosotros }}</span>
+    </div>
+    <div class="foot-contacto">
+      {# id usado por la vista previa en vivo — se oculta con CSS (:empty) cuando está vacío, no agregar espacios/saltos dentro del div #}
+      <div id="kcFooterContacto">{{ config_catalogo.contacto_texto }}</div>
+      {% if empresa.domicilio %}<div>{{ empresa.domicilio }}</div>{% endif %}
+      {% if empresa.telefono %}<div>{{ empresa.telefono }}</div>{% endif %}
+      {% if empresa.email %}<div>{{ empresa.email }}</div>{% endif %}
+    </div>
+  </div>
+</footer>
+
+<!-- ===== Filter drawer ===== -->
+<div class="drawer-overlay" id="kcFiltroOverlay"></div>
+<aside class="drawer" id="kcFiltroDrawer">
+  <div class="drawer-head"><h3>Filtros</h3><button type="button" class="drawer-close" id="kcFiltroClose">✕</button></div>
+  <form class="drawer-body" method="get" action="{% url 'catalogo:home' %}" id="formFiltrosBento">
+    {% if categoria_activa %}<input type="hidden" name="categoria" value="{{ categoria_activa }}">{% endif %}
+    {% if marca_activa %}<input type="hidden" name="marca" value="{{ marca_activa }}">{% endif %}
+    {% if seccion_activa != 'todos' %}<input type="hidden" name="seccion" value="{{ seccion_activa }}">{% endif %}
+    <div class="d-group">
+      <div class="d-group-title">Categoría</div>
+      <a href="{{ url_todas_categorias }}" class="d-check {% if not categoria_activa %}active{% endif %}">Todos los productos</a>
+      {% for cat in categorias %}
+        <a href="{{ cat.url }}" class="d-check {% if cat.activa %}active{% endif %}">{{ cat.nombre }} ({{ cat.cantidad }})</a>
+      {% endfor %}
+    </div>
+    {% if marcas %}
+    <div class="d-group">
+      <div class="d-group-title">Marca</div>
+      {% for m in marcas %}
+        <a href="{{ m.url }}" class="d-check {% if m.activa %}active{% endif %}">{{ m.nombre }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <div class="d-group">
+      <div class="d-group-title">Precio</div>
+      <div class="d-precio">
+        <input type="number" name="precio_min" placeholder="Mín" value="{{ precio_min|default_if_none:'' }}" min="0">
+        <span>—</span>
+        <input type="number" name="precio_max" placeholder="Máx" value="{{ precio_max|default_if_none:'' }}" min="0">
+      </div>
+    </div>
+    <div class="drawer-foot" style="padding:16px 0 0; border-top:none;">
+      <button type="submit" class="btn-apply">Aplicar filtros</button>
+    </div>
+  </form>
+</aside>
+
+<!-- ===== Carrito — bottom sheet (mismo contrato de ids que carrito.js) ===== -->
+<div id="kcOverlay"></div>
+<aside id="kcDrawer">
+  <div class="kc-drawer-head">
+    <h3>Tu pedido</h3>
+    <button type="button" id="kcDrawerCerrar" aria-label="Cerrar pedido">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 1L13 13M13 1L1 13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+  <div id="kcDrawerItems"></div>
+
+  <div class="kc-drawer-foot" id="kcDrawerFootCarrito">
+    <div class="sf-row"><span>Subtotal</span><span id="kcDrawerSubtotal">$0</span></div>
+    <div class="sf-row" id="kcDrawerDescuentoRow" hidden><span id="kcDrawerDescuentoLabel">Descuento</span><span id="kcDrawerDescuentoMonto">-$0</span></div>
+    <div class="sf-row total" id="kcDrawerTotalRow" hidden><span>Total</span><span id="kcDrawerTotal">$0</span></div>
+    <button type="button" class="btn-checkout" id="kcBtnIrAlContacto">Finalizar pedido</button>
+  </div>
+
+  <div class="kc-drawer-foot" id="kcDrawerFootContacto" hidden>
+    <div class="kc-form-field">
+      <label for="kcContactoNombre">Tu nombre <span>(opcional)</span></label>
+      <input type="text" id="kcContactoNombre" placeholder="¿Cómo te llamamos?" maxlength="150">
+    </div>
+    <div class="kc-form-field">
+      <label for="kcContactoTelefono">Tu WhatsApp</label>
+      <input type="tel" id="kcContactoTelefono" placeholder="Ej: 3624 023093" maxlength="40">
+    </div>
+    <div class="kc-form-field">
+      <label for="kcContactoNotas">Algo que debamos saber <span>(opcional)</span></label>
+      <textarea id="kcContactoNotas" rows="2" placeholder="Horario para entregar, aclaraciones..." maxlength="1000"></textarea>
+    </div>
+    <p class="kc-form-error" id="kcContactoError" hidden></p>
+    <button type="button" class="btn-checkout" id="kcBtnConfirmarPedido">Confirmar pedido</button>
+    <button type="button" class="btn-volver" id="kcBtnVolverCarrito">Volver</button>
+  </div>
+
+  <div class="kc-drawer-foot kc-drawer-exito" id="kcDrawerExito" hidden>
+    <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="18" stroke="currentColor" stroke-width="1.6"/><path d="M12 20.5L17 25.5L28 14.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <p><strong>¡Listo! Ya armamos tu pedido.</strong><br>Te vamos a escribir por WhatsApp para coordinar el pago y la entrega.</p>
+    <button type="button" class="btn-checkout" id="kcBtnSeguirComprando">Seguir viendo el catálogo</button>
+  </div>
+</aside>
+
+{{ ofertas_umbral_json|json_script:"kcOfertasUmbral" }}
+{{ ofertas_nxm_json|json_script:"kcOfertasNxm" }}
+<script>
+    window.KC_URLS = { pedidoCrear: "{% url 'catalogo:pedido_crear' %}" };
+    window.KC_OFERTAS_UMBRAL = JSON.parse(document.getElementById('kcOfertasUmbral').textContent) || [];
+    window.KC_OFERTAS_NXM = JSON.parse(document.getElementById('kcOfertasNxm').textContent) || [];
+</script>
+<script src="{% static 'catalogo/js/carrito.js' %}"></script>
+<script src="{% static 'catalogo/js/bento.js' %}"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

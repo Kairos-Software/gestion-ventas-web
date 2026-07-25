@@ -3,12 +3,20 @@ from django.urls import path
 from . import views
 from . import views_demo
 from . import views_pedidos
+from . import views_config
 
 app_name = 'catalogo'
 
 urlpatterns = [
     path('', views.CatalogoHomeView.as_view(), name='home'),
     path('producto/<int:pk>/', views.ProductoDetalleView.as_view(), name='producto_detalle'),
+
+    # Interno — pantalla de Configuración del sistema (ver core/views.py:configuracion).
+    path('config/guardar/', views_config.CatalogoConfigGuardarAjax.as_view(), name='config_guardar'),
+    path('config/hero-imagen/', views_config.CatalogoConfigHeroImagenAjax.as_view(), name='config_hero_imagen'),
+    path('config/slides/guardar/', views_config.CatalogoSlideGuardarAjax.as_view(), name='config_slide_guardar'),
+    path('config/slides/imagen/', views_config.CatalogoSlideImagenAjax.as_view(), name='config_slide_imagen'),
+    path('config/slides/eliminar/', views_config.CatalogoSlideEliminarAjax.as_view(), name='config_slide_eliminar'),
 
     # Público — el carrito del catálogo confirma el pedido acá.
     path('pedidos/crear/', views_pedidos.CrearPedidoAjax.as_view(), name='pedido_crear'),

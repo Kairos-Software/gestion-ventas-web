@@ -63,6 +63,7 @@ urlpatterns = [
 
     path('mi-perfil/', views_perfil.mi_perfil, name='mi_perfil'),
     path('configuracion/', views.configuracion, name='configuracion'),
+    path('catalogo-online/', views.catalogo_online, name='catalogo_online'),
 
     # ── Empresa (datos de la empresa — Configuración) ──────────────
     path('configuracion/empresa/guardar/', views_empresa.EmpresaGuardarAjax.as_view(), name='empresa_guardar'),

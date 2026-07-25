@@ -70,6 +70,9 @@ PERMISOS_CHOICES = [
     # ── Módulo: Pedidos del catálogo ──────────────────────────────
     ('ver_pedidos', 'Ver los pedidos hechos desde el catálogo público y convertirlos en venta'),
 
+    # ── Módulo: Catálogo público ──────────────────────────────────
+    ('editar_catalogo', 'Editar la configuración del catálogo público (portada, textos, plantilla)'),
+
     # ── Módulo: Balanza (etiquetas de peso/medida variable) ─────────
     ('ver_balanza',     'Ver etiquetas de balanza generadas'),
     ('crear_balanza',   'Generar etiquetas de balanza'),
@@ -122,6 +125,7 @@ PERMISOS_RESTRINGIDOS = {
     'editar_empresa',
     'editar_cuentas',
     'gestionar_notificaciones',
+    'editar_catalogo',
 }
 
 

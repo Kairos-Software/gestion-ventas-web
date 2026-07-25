@@ -14,6 +14,7 @@ from compras.models import LoteCompra
 from productos.models import Moneda, Producto
 from asistencia.models import CanalNotificacion, PreferenciaAsistencia
 from asistencia.services.alertas import productos_por_vencer
+from catalogo.models import ConfiguracionCatalogo, PlantillaCatalogo
 
 
 class CustomLoginView(LoginView):
@@ -133,4 +134,20 @@ def configuracion(request):
         'canales_notificacion':   CanalNotificacion.choices,
         'configuracion_arca':     ConfiguracionArca.get_solo(),
         'ambientes_arca':         AmbienteArca.choices,
+    })
+
+
+@login_required
+def catalogo_online(request):
+    """Pantalla dedicada al catálogo público — plantilla, textos y slides.
+    Antes vivía como una sección más dentro de Configuración; se sacó a su
+    propio ítem del menú para tener más espacio (ver core/templates/core/
+    base.html) y una vista previa en vivo más grande."""
+    return render(request, 'core/catalogo_online.html', {
+        'datos_empresa':          DatosEmpresa.get_solo(),
+        'configuracion_catalogo': ConfiguracionCatalogo.get_solo(),
+        'plantillas_catalogo':    PlantillaCatalogo.choices,
+        'puede_editar_catalogo':  chequear_permiso(request.user, 'editar_catalogo'),
+        'default_hero_subtitulo': ConfiguracionCatalogo.DEFAULT_HERO_SUBTITULO,
+        'default_sobre_nosotros': ConfiguracionCatalogo.DEFAULT_SOBRE_NOSOTROS,
     })

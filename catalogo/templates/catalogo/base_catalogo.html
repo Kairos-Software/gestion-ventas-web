@@ -62,7 +62,8 @@
         <div class="kc-footer-inner">
             <div class="kc-footer-col kc-footer-col--brand">
                 <span class="kc-footer-name">{{ empresa.nombre_comercial }}</span>
-                <p>{{ config_catalogo.sobre_nosotros|default:"Mirá los productos disponibles, las ofertas del momento y armá tu pedido — coordinamos el pago y la entrega por WhatsApp." }}</p>
+                <!-- id usado por configuracion.js (vista previa en vivo) — no renombrar sin actualizar ese archivo -->
+                <p id="kcFooterSobreNosotros">{{ config_catalogo.sobre_nosotros|default:default_sobre_nosotros }}</p>
             </div>
             {% if categorias_footer %}
             <div class="kc-footer-col">
@@ -76,7 +77,8 @@
             {% endif %}
             <div class="kc-footer-col">
                 <h4>Contacto</h4>
-                {% if config_catalogo.contacto_texto %}<p>{{ config_catalogo.contacto_texto }}</p>{% endif %}
+                {# id usado por configuracion.js (vista previa en vivo) — se oculta con CSS (:empty) cuando está vacío, no agregar espacios/saltos dentro del <p> #}
+                <p id="kcFooterContacto">{{ config_catalogo.contacto_texto }}</p>
                 <ul>
                     {% if empresa.domicilio %}<li>{{ empresa.domicilio }}</li>{% endif %}
                     {% if empresa.telefono %}<li>{{ empresa.telefono }}</li>{% endif %}

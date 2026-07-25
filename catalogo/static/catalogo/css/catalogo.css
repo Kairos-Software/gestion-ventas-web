@@ -727,6 +727,7 @@ img { max-width: 100%; display: block; }
 .kc-footer-col a { display: block; font-size: 0.82rem; color: rgba(255,255,255,.62); padding: 0.3rem 0; transition: .15s; }
 .kc-footer-col a:hover { color: var(--primary); }
 .kc-footer-col p { font-size: 0.82rem; color: rgba(255,255,255,.62); line-height: 1.6; }
+#kcFooterContacto:empty { display: none; margin: 0; }
 
 .kc-footer-copy {
     border-top: 1px solid rgba(255,255,255,.1);

@@ -5,6 +5,7 @@ from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.decorators import method_decorator
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.generic import DetailView, TemplateView
 
@@ -13,7 +14,7 @@ from productos.models import (
     AplicacionOferta, CategoriaProducto, EstadoProducto, Producto, TipoOferta, ofertas_vigentes_hoy,
 )
 
-from .models import ConfiguracionCatalogo
+from .models import ConfiguracionCatalogo, PlantillaCatalogo
 
 # Estados de producto que se muestran en el catálogo público. INACTIVO y
 # DISCONTINUADO quedan afuera aunque alguien se olvide de despublicarlos:
@@ -218,8 +219,26 @@ def _decimal_o_none(valor):
 
 
 @method_decorator(ensure_csrf_cookie, name='dispatch')
+# El default de Django es X-Frame-Options: DENY. Esta vista necesita
+# permitir same-origin para la vista previa en vivo de la pantalla de
+# Configuración (ver core/templates/core/configuracion.html, iframe
+# #catalogoPreviewFrame) — sigue bloqueado para cualquier otro origen.
+@method_decorator(xframe_options_sameorigin, name='dispatch')
 class CatalogoHomeView(TemplateView):
-    template_name = 'catalogo/home.html'
+
+    def get_template_names(self):
+        # ?preview_plantilla=<codigo> fuerza una plantilla puntual sin tocar
+        # la guardada — lo usa la pantalla "Catálogo online" (ver
+        # core/templates/core/catalogo_online.html) para mostrar, con datos
+        # reales, tanto las miniaturas de cada plantilla como el preview
+        # grande al instante al cambiar de selección, sin esperar a guardar.
+        # No requiere permiso: no expone nada que la página real no muestre.
+        plantilla = self.request.GET.get('preview_plantilla')
+        if plantilla not in PlantillaCatalogo.values:
+            plantilla = ConfiguracionCatalogo.get_solo().plantilla
+        if plantilla == PlantillaCatalogo.BENTO:
+            return ['catalogo/plantillas/bento/home.html']
+        return ['catalogo/home.html']
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -378,6 +397,12 @@ class CatalogoHomeView(TemplateView):
 
         ctx['empresa'] = DatosEmpresa.get_solo()
         ctx['config_catalogo'] = ConfiguracionCatalogo.get_solo()
+        ctx['default_hero_subtitulo'] = ConfiguracionCatalogo.DEFAULT_HERO_SUBTITULO
+        ctx['default_sobre_nosotros'] = ConfiguracionCatalogo.DEFAULT_SOBRE_NOSOTROS
+        # Exclude(imagen='') defensivo: un slide creado sin llegar a subirle
+        # imagen (ej. el usuario cerró el modal a mitad de camino, ver
+        # catalogo/views_config.py) no debe aparecer roto en el carrusel.
+        ctx['slides'] = ctx['config_catalogo'].slides.exclude(imagen='')
         ctx['secciones'] = secciones
         ctx['seccion_activa'] = seccion
         ctx['mostrar_productos'] = mostrar_productos
@@ -411,8 +436,12 @@ class CatalogoHomeView(TemplateView):
 
 @method_decorator(ensure_csrf_cookie, name='dispatch')
 class ProductoDetalleView(DetailView):
-    template_name = 'catalogo/detalle.html'
     context_object_name = 'producto'
+
+    def get_template_names(self):
+        if ConfiguracionCatalogo.get_solo().plantilla == PlantillaCatalogo.BENTO:
+            return ['catalogo/plantillas/bento/detalle.html']
+        return ['catalogo/detalle.html']
 
     def get_queryset(self):
         return _productos_publicados_base()
@@ -425,6 +454,8 @@ class ProductoDetalleView(DetailView):
         ofertas = ofertas_vigentes_hoy()
         ctx['empresa'] = DatosEmpresa.get_solo()
         ctx['config_catalogo'] = ConfiguracionCatalogo.get_solo()
+        ctx['default_hero_subtitulo'] = ConfiguracionCatalogo.DEFAULT_HERO_SUBTITULO
+        ctx['default_sobre_nosotros'] = ConfiguracionCatalogo.DEFAULT_SOBRE_NOSOTROS
         ctx['categorias_footer'] = _categorias_footer()
         ctx['oferta_info'] = _info_oferta(self.object, ofertas)
         ctx['ofertas_umbral_json'] = _ofertas_umbral_automaticas_json(ofertas)

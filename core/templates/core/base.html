@@ -146,6 +146,19 @@
                 <span>Ofertas</span>
             </a>
 
+            {# ── CATÁLOGO ONLINE (portada, plantilla y textos del catálogo público — no confundir con "Catálogo" de abajo, que es gestión interna de productos/stock) ── #}
+            <a href="{% url 'core:catalogo_online' %}"
+            class="nav-item {% if request.resolver_match.url_name == 'catalogo_online' %}active{% endif %}">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M2 6L3 2.5H17L18 6" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                    <path d="M2 6V16.5C2 17.05 2.45 17.5 3 17.5H17C17.55 17.5 18 17.05 18 16.5V6" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                    <path d="M2 6H18" stroke="currentColor" stroke-width="1.5"/>
+                    <path d="M7 10V13.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    <path d="M13 10V13.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+                <span>Catálogo online</span>
+            </a>
+
             {# ── CATÁLOGO (Productos, Proveedores, Stock, Inventario) ── #}
             {% with en_app=request.resolver_match.app_name en_url=request.resolver_match.url_name %}
             <div class="nav-group {% if en_app == 'productos' or en_url == 'inventario' or en_url == 'pedidos_historial' %}open{% endif %}" id="navGrupoInventario">

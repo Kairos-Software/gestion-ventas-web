@@ -1,0 +1,104 @@
+{% extends 'catalogo/plantillas/bento/base.html' %}
+
+{% block title %}{{ producto.nombre }} — {{ empresa.nombre_comercial }}{% endblock %}
+
+{% block content %}
+
+<div class="shell">
+    <nav class="kc-breadcrumb">
+        <a href="{% url 'catalogo:home' %}">Catálogo</a>
+        {% if producto.categoria %}
+            <span>/</span>
+            <a href="{% url 'catalogo:home' %}?categoria={{ producto.categoria.slug }}">{{ producto.categoria.nombre }}</a>
+        {% endif %}
+        <span>/</span>
+        <span>{{ producto.nombre }}</span>
+    </nav>
+
+    <section class="kc-detalle">
+        <div>
+            <div class="kc-galeria-principal" id="kcGaleriaPrincipal">
+                {% if imagenes %}
+                    <img src="{{ imagenes.0.imagen.url }}" alt="{{ producto.nombre }}" id="kcGaleriaImgActual">
+                {% else %}
+                    <svg width="56" height="56" viewBox="0 0 24 24" fill="none"><path d="M3 8L12 3.5L21 8V16L12 20.5L3 16V8Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+                {% endif %}
+                <div style="position:absolute; top:12px; left:12px; display:flex; gap:6px;">
+                    {% if producto.destacado %}<span class="tile-tag tag-featured" style="position:static;">Destacado</span>{% endif %}
+                    {% if es_nuevo %}<span class="tile-tag tag-new" style="position:static;">Nuevo</span>{% endif %}
+                </div>
+                {% if oferta_info %}<span class="tile-tag tag-offer" style="position:absolute; top:12px; right:12px;">{{ oferta_info.badge }}</span>{% endif %}
+            </div>
+            {% if imagenes|length > 1 %}
+            <div class="kc-galeria-thumbs">
+                {% for img in imagenes %}
+                    <button type="button" class="kc-thumb {% if forloop.first %}kc-thumb--activo{% endif %}" data-src="{{ img.imagen.url }}">
+                        <img src="{{ img.imagen.url }}" alt="{{ producto.nombre }} {{ forloop.counter }}">
+                    </button>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        <div>
+            {% if producto.categoria %}<span class="tile-cat">{{ producto.categoria.nombre }}</span>{% endif %}
+            <h1 class="kc-detalle-nombre">{{ producto.nombre }}</h1>
+            {% if producto.marca %}<p class="kc-detalle-marca">{{ producto.marca }}{% if producto.modelo %} · {{ producto.modelo }}{% endif %}</p>{% endif %}
+
+            <div class="kc-detalle-precio">
+                {% if oferta_info and oferta_info.precio_final != producto.precio_venta %}
+                    <span class="kc-precio-final--grande">${{ oferta_info.precio_final }}</span>
+                    <span class="tile-price-old">${{ producto.precio_venta }}</span>
+                {% elif producto.precio_venta %}
+                    <span class="kc-precio-final--grande">${{ producto.precio_venta }}</span>
+                {% else %}
+                    <span class="tile-consultar">Precio a consultar</span>
+                {% endif %}
+            </div>
+
+            {% if producto.estado == 'agotado' or producto.stock_actual <= 0 and producto.gestiona_stock %}
+                <span class="tile-tag tag-offer" style="position:static; display:inline-block;">Sin stock por el momento</span>
+            {% endif %}
+
+            {% if disponible_compra %}
+            <div class="kc-detalle-agregar" data-carrito-slot>
+                <button type="button"
+                    data-carrito-agregar="{% if producto.es_paquete %}paq{% else %}prod{% endif %}-{{ producto.pk }}"
+                    data-nombre="{{ producto.nombre }}"
+                    data-precio="{{ oferta_info.precio_final|default:producto.precio_venta }}"
+                    data-precio-lista="{{ producto.precio_venta }}"
+                    data-categoria-id="{{ producto.categoria.pk|default:'' }}"
+                    data-imagen="{% if imagenes %}{{ imagenes.0.imagen.url }}{% endif %}">
+                    Agregar al pedido
+                </button>
+            </div>
+            {% endif %}
+
+            {% if producto.es_paquete and componentes %}
+            <div class="kc-detalle-descripcion">
+                <h2>Este combo incluye</h2>
+                <ul class="kc-detalle-incluye">
+                    {% for c in componentes %}
+                        <li>{{ c.cantidad|floatformat:"-2" }}× {{ c.producto.nombre }}{% if c.combinacion %} — {{ c.combinacion.descripcion_legible }}{% endif %}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            {% if producto.descripcion_publica or producto.descripcion %}
+            <div class="kc-detalle-descripcion">
+                <h2>Descripción</h2>
+                <p>{{ producto.descripcion_publica|default:producto.descripcion|linebreaksbr }}</p>
+            </div>
+            {% endif %}
+
+            <div class="kc-detalle-specs">
+                {% if producto.contenido_neto %}<div><span>Contenido</span><strong>{{ producto.contenido_neto }} {{ producto.get_unidad_medida_display }}</strong></div>{% endif %}
+                {% if producto.pais_origen %}<div><span>Origen</span><strong>{{ producto.pais_origen }}</strong></div>{% endif %}
+                {% if producto.sku %}<div><span>SKU</span><strong>{{ producto.sku }}</strong></div>{% endif %}
+            </div>
+        </div>
+    </section>
+</div>
+
+{% endblock %}

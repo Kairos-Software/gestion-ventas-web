@@ -18,14 +18,16 @@
         <div class="kc-hero-grid">
             <div class="kc-hero-copy">
                 <span class="kc-hero-eyebrow">Catálogo online</span>
-                <h1>{{ config_catalogo.hero_titulo|default:empresa.nombre_comercial }}</h1>
-                <p>{{ config_catalogo.hero_subtitulo|default:"Mirá los productos disponibles, las ofertas del momento y armá tu pedido — coordinamos el pago y la entrega por WhatsApp." }}</p>
+                <!-- id usado por configuracion.js (vista previa en vivo) — no renombrar sin actualizar ese archivo -->
+                <h1 id="kcHeroTitulo">{{ config_catalogo.hero_titulo|default:empresa.nombre_comercial }}</h1>
+                <p id="kcHeroSubtitulo">{{ config_catalogo.hero_subtitulo|default:default_hero_subtitulo }}</p>
                 <div class="kc-hero-ctas">
                     <a href="#kcCatalogo" class="kc-hero-cta kc-hero-cta--primary">Ver catálogo completo</a>
                     <a href="?seccion=ofertas" class="kc-hero-cta kc-hero-cta--secondary">Ofertas de hoy</a>
                 </div>
             </div>
-            <div class="kc-hero-visual">
+            <!-- id usado por configuracion.js (vista previa en vivo) — no renombrar sin actualizar ese archivo -->
+            <div class="kc-hero-visual" id="kcHeroVisual">
                 {% if config_catalogo.hero_imagen %}
                     <img src="{{ config_catalogo.hero_imagen.url }}" alt="">
                 {% else %}

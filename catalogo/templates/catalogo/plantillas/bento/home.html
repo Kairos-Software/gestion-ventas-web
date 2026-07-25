@@ -1,0 +1,221 @@
+{% extends 'catalogo/plantillas/bento/base.html' %}
+
+{% block content %}
+
+{% if slides %}
+<div class="carousel" id="kcCarousel">
+  <div class="carousel-track-wrap">
+    <div class="carousel-track" id="kcCarouselTrack">
+      {% for s in slides %}
+      <div class="c-slide">
+        <img src="{{ s.imagen.url }}" alt="">
+        <div class="c-overlay">
+          {% if s.eyebrow %}<div class="c-eyebrow">{{ s.eyebrow }}</div>{% endif %}
+          <div class="c-title">{{ s.titulo }}</div>
+          {% if s.descripcion %}<div class="c-desc">{{ s.descripcion }}</div>{% endif %}
+          <a class="c-cta" href="#bentoGrid">{{ s.cta_texto }} →</a>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% if slides|length > 1 %}
+    <button type="button" class="c-arrow prev" id="kcCPrev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <button type="button" class="c-arrow next" id="kcCNext"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 18l6-6-6-6"/></svg></button>
+    <div class="c-dots" id="kcCDots">
+      {% for s in slides %}<button type="button" class="c-dot {% if forloop.first %}active{% endif %}" data-i="{{ forloop.counter0 }}"></button>{% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% else %}
+<div class="carousel">
+  <div class="hero-simple">
+    <div class="c-eyebrow">Catálogo online</div>
+    <div class="c-title" style="color:#fff;">{{ empresa.nombre_comercial }}</div>
+    <div class="c-desc" style="color:rgba(255,255,255,.78);">{{ default_hero_subtitulo }}</div>
+  </div>
+</div>
+{% endif %}
+
+<div class="stories-wrap">
+  <div class="stories-rail hide-scrollbar">
+    <a href="{{ url_todas_categorias }}" class="story {% if not categoria_activa %}active{% endif %}">
+      <div class="story-ring"><div class="story-ring-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h16"/></svg></div></div>
+      <div class="story-label">Todos</div>
+    </a>
+    {% for cat in categorias %}
+    <a href="{{ cat.url }}" class="story {% if cat.activa %}active{% endif %}">
+      <div class="story-ring"><div class="story-ring-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg></div></div>
+      <div class="story-label">{{ cat.nombre }}</div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="subbar">
+  <div class="shell subbar-inner">
+    <div class="segmented">
+      {% for s in secciones %}
+      <a href="{{ s.url }}" class="{% if s.activa %}active{% endif %}">{{ s.nombre }}</a>
+      {% endfor %}
+    </div>
+    <div class="subbar-right">
+      <span class="result-count">{{ total_productos }} resultado{{ total_productos|pluralize:"s" }}</span>
+      {% if mostrar_productos and productos %}
+      <form method="get" id="formOrdenBento">
+        {% if categoria_activa %}<input type="hidden" name="categoria" value="{{ categoria_activa }}">{% endif %}
+        {% if marca_activa %}<input type="hidden" name="marca" value="{{ marca_activa }}">{% endif %}
+        {% if seccion_activa != 'todos' %}<input type="hidden" name="seccion" value="{{ seccion_activa }}">{% endif %}
+        {% if request.GET.q %}<input type="hidden" name="q" value="{{ request.GET.q }}">{% endif %}
+        <select name="orden" class="sort-select" onchange="document.getElementById('formOrdenBento').submit()">
+          <option value="" {% if not orden_activo %}selected{% endif %}>Relevancia</option>
+          <option value="precio_asc" {% if orden_activo == 'precio_asc' %}selected{% endif %}>Menor precio</option>
+          <option value="precio_desc" {% if orden_activo == 'precio_desc' %}selected{% endif %}>Mayor precio</option>
+          <option value="nuevos" {% if orden_activo == 'nuevos' %}selected{% endif %}>Más nuevos</option>
+        </select>
+      </form>
+      {% endif %}
+      <button type="button" class="filter-fab" id="kcBtnFiltros">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+        Filtros <span class="n">{{ filtros_activos|length }}</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="shell">
+  {% if filtros_activos %}
+  <div style="display:flex; gap:8px; flex-wrap:wrap; padding:14px 0 0;">
+    {% for f in filtros_activos %}
+      <a href="?{{ f.quitar }}" style="font-size:12px; background:var(--surface-2); border-radius:var(--r-pill); padding:5px 10px;">{{ f.etiqueta }} ✕</a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if total_productos == 0 %}
+    <p style="text-align:center; padding:60px 0; color:var(--ink-faint);">No hay resultados para mostrar con estos filtros.</p>
+  {% endif %}
+
+  <div class="bento" id="bentoGrid">
+    {% if mostrar_productos %}
+    {% for p in productos %}
+    <div class="tile {% if p.oferta_info %}sz-offer{% elif p.destacado %}sz-featured{% else %}sz-normal{% endif %}">
+      <a href="{% url 'catalogo:producto_detalle' p.pk %}" class="tile-media">
+        {% if p.destacado %}<span class="tile-tag tag-featured">Destacado</span>{% endif %}
+        {% if p.oferta_info %}<span class="tile-tag tag-offer">{{ p.oferta_info.badge }}</span>{% elif p.es_nuevo %}<span class="tile-tag tag-new">Nuevo</span>{% endif %}
+        {% with portada=p.imagenes.first %}
+          {% if portada %}
+            <img src="{{ portada.imagen.url }}" alt="{{ p.nombre }}" loading="lazy">
+          {% else %}
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" style="margin:auto;"><path d="M3 8L12 3.5L21 8V16L12 20.5L3 16V8Z"/></svg>
+          {% endif %}
+        {% endwith %}
+      </a>
+      <div class="tile-body">
+        {% if p.categoria %}<span class="tile-cat">{{ p.categoria.nombre }}</span>{% endif %}
+        <a href="{% url 'catalogo:producto_detalle' p.pk %}"><span class="tile-name">{{ p.nombre }}</span></a>
+        <div class="tile-price-row">
+          {% if p.oferta_info and p.oferta_info.precio_final != p.precio_venta %}
+            <span class="tile-price-off">${{ p.oferta_info.precio_final }}</span>
+            <span class="tile-price-old">${{ p.precio_venta }}</span>
+          {% elif p.precio_venta %}
+            <span class="tile-price">${{ p.precio_venta }}</span>
+          {% else %}
+            <span class="tile-consultar">A consultar</span>
+          {% endif %}
+        </div>
+        {% if p.disponible_compra %}
+        <div class="tile-agregar" data-carrito-slot>
+          <button type="button" data-carrito-agregar="prod-{{ p.pk }}"
+            data-nombre="{{ p.nombre }}" data-precio="{{ p.oferta_info.precio_final|default:p.precio_venta }}"
+            data-precio-lista="{{ p.precio_venta }}"
+            data-categoria-id="{{ p.categoria.pk|default:'' }}"
+            data-imagen="{% if p.imagenes.first %}{{ p.imagenes.first.imagen.url }}{% endif %}">
+            Agregar al pedido
+          </button>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {% if mostrar_paquetes %}
+    {% for pq in paquetes %}
+    <div class="tile sz-bundle">
+      <a href="{% url 'catalogo:producto_detalle' pq.pk %}" class="tile-media">
+        {% if pq.oferta_info %}<span class="tile-tag tag-offer">{{ pq.oferta_info.badge }}</span>{% elif pq.destacado %}<span class="tile-tag tag-bundle">Combo</span>{% endif %}
+        {% with portada=pq.imagenes.first %}
+          {% if portada %}
+            <img src="{{ portada.imagen.url }}" alt="{{ pq.nombre }}" loading="lazy">
+          {% else %}
+            <div class="tile-collage">
+              {% for c in pq.componentes.all|slice:":3" %}
+                <span>
+                  {% with img=c.producto.imagen_principal %}
+                    {% if img %}<img src="{{ img.imagen.url }}" alt="">{% else %}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 8L12 3.5L21 8V16L12 20.5L3 16V8Z"/></svg>{% endif %}
+                  {% endwith %}
+                </span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+      </a>
+      <div class="tile-body">
+        <a href="{% url 'catalogo:producto_detalle' pq.pk %}"><span class="tile-name">{{ pq.nombre }}</span></a>
+        <div class="tile-includes">
+          {% for c in pq.componentes.all %}{{ c.cantidad|floatformat:"-2" }}× {{ c.producto.nombre }}{% if not forloop.last %} · {% endif %}{% endfor %}
+        </div>
+        <div class="tile-price-row">
+          {% if pq.precio_venta %}<span class="tile-price">${{ pq.precio_venta }}</span>{% else %}<span class="tile-consultar">A consultar</span>{% endif %}
+        </div>
+        {% if pq.disponible_compra %}
+        <div class="tile-agregar" data-carrito-slot>
+          <button type="button" data-carrito-agregar="paq-{{ pq.pk }}"
+            data-nombre="{{ pq.nombre }}" data-precio="{{ pq.precio_venta }}"
+            data-precio-lista="{{ pq.precio_venta }}"
+            data-categoria-id="{{ pq.categoria.pk|default:'' }}"
+            data-imagen="{% if pq.imagenes.first %}{{ pq.imagenes.first.imagen.url }}{% endif %}">
+            Agregar al pedido
+          </button>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+  </div>
+
+  {% if mostrar_productos and paginas|length > 1 %}
+  <nav style="display:flex; justify-content:center; gap:6px; padding:10px 0 40px;">
+    {% if pagina.has_previous %}<a href="{{ url_pagina_anterior }}" class="icon-btn">‹</a>{% endif %}
+    {% for p in paginas %}
+      <a href="{{ p.url }}" class="icon-btn" style="width:auto; padding:0 12px; {% if p.activa %}background:var(--indigo); color:#fff;{% endif %}">{{ p.numero }}</a>
+    {% endfor %}
+    {% if pagina.has_next %}<a href="{{ url_pagina_siguiente }}" class="icon-btn">›</a>{% endif %}
+  </nav>
+  {% endif %}
+</div>
+
+{% if mostrar_vidriera and destacados %}
+<div class="shell rail-section">
+  <div class="rail-head">
+    <div class="rail-title">También te puede interesar</div>
+  </div>
+  <div class="rail-track hide-scrollbar">
+    {% for p in destacados %}
+    <a href="{% url 'catalogo:producto_detalle' p.pk %}" class="rail-card">
+      {% with portada=p.imagenes.first %}
+        {% if portada %}<img src="{{ portada.imagen.url }}" alt="{{ p.nombre }}">{% endif %}
+      {% endwith %}
+      <div class="rail-card-body">
+        <div class="rail-card-name">{{ p.nombre }}</div>
+        <div class="rail-card-price">${{ p.oferta_info.precio_final|default:p.precio_venta }}</div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

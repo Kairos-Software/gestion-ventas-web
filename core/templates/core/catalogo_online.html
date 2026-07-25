@@ -1,0 +1,280 @@
+<!-- core/templates/core/catalogo_online.html -->
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Catálogo online{% endblock %}
+
+{% block breadcrumb %}<strong>Catálogo online</strong>{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/configuracion.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/catalogo_online.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="co-page">
+
+    <div class="co-page-header">
+        <div>
+            <h1>Catálogo online</h1>
+            <p>Portada, textos, plantilla y carrusel del catálogo que ven tus clientes</p>
+        </div>
+        <a href="{% url 'catalogo:home' %}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">Ver catálogo ↗</a>
+    </div>
+
+    {% if puede_editar_catalogo %}
+    <form id="formCatalogo">
+        {% csrf_token %}
+        <input type="hidden" id="idCatalogoPlantilla" value="{{ configuracion_catalogo.plantilla }}">
+
+        <div class="co-layout">
+            <div class="co-col-izq">
+
+                <!-- ── Plantilla — tarjetas con mini vista previa real ── -->
+                <div class="config-section">
+                    <div class="config-section-header">
+                        <div>
+                            <h2>Plantilla</h2>
+                            <p>Elegí un diseño para tu catálogo</p>
+                        </div>
+                    </div>
+                    <div class="co-cards-plantilla" id="coCardsPlantilla">
+                        {% for valor, etiqueta in plantillas_catalogo %}
+                        <div class="co-card-plantilla {% if configuracion_catalogo.plantilla == valor %}co-card-plantilla--activa{% endif %}" data-plantilla-valor="{{ valor }}">
+                            <div class="co-card-check">
+                                <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 8.5L6 12.5L14 3.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            </div>
+                            <div class="co-card-preview-wrap">
+                                <iframe class="co-card-preview-frame" src="{% url 'catalogo:home' %}?preview_plantilla={{ valor }}" tabindex="-1" title="Vista previa — {{ etiqueta }}"></iframe>
+                            </div>
+                            <div class="co-card-nombre">{{ etiqueta }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- ── Datos que vienen de "Datos de la empresa" ── -->
+                <div class="config-section">
+                    <div class="config-preview-empresa-card" style="margin:1.375rem;">
+                        <div class="config-logo-box">
+                            {% if datos_empresa.logo %}
+                                <img src="{{ datos_empresa.logo.url }}" alt="Logo">
+                            {% else %}
+                                <span style="font-size:0.6rem; color:var(--text-muted);">Sin logo</span>
+                            {% endif %}
+                        </div>
+                        <div style="flex:1; min-width:0;">
+                            <div class="config-row-label" style="margin-bottom:0.15rem;">{{ datos_empresa.nombre_comercial|default:"Sin nombre cargado" }}</div>
+                            <div class="config-row-desc">
+                                {{ datos_empresa.domicilio|default:"Sin domicilio" }}{% if datos_empresa.telefono %} · {{ datos_empresa.telefono }}{% endif %}{% if datos_empresa.email %} · {{ datos_empresa.email }}{% endif %}
+                            </div>
+                            <div class="config-row-desc" style="margin-top:0.3rem;">Logo, nombre, domicilio, teléfono y email se muestran en el encabezado y pie del catálogo, pero se editan en <a href="{% url 'core:configuracion' %}#seccion-empresa">"Datos de la empresa"</a>.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── Textos compartidos entre plantillas ── -->
+                <div class="config-section">
+                    <div class="config-section-header">
+                        <div>
+                            <h2>Textos</h2>
+                            <p>Se usan en cualquier plantilla</p>
+                        </div>
+                    </div>
+                    <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                        <label class="config-row-label" for="idCatalogoSobreNosotros">Sobre nosotros</label>
+                        <textarea class="form-control" id="idCatalogoSobreNosotros" rows="3" placeholder="Vacío = usa un texto genérico">{{ configuracion_catalogo.sobre_nosotros }}</textarea>
+                    </div>
+                    <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                        <label class="config-row-label" for="idCatalogoContactoTexto">Texto de contacto</label>
+                        <textarea class="form-control" id="idCatalogoContactoTexto" rows="2">{{ configuracion_catalogo.contacto_texto }}</textarea>
+                        <span class="config-row-desc">Se muestra junto a los datos de contacto en el pie de página.</span>
+                    </div>
+                </div>
+
+                <!-- ── Campos propios de la plantilla "Almacén" ── -->
+                <div class="config-section" data-plantilla="almacen">
+                    <div class="config-section-header">
+                        <div>
+                            <h2>Hero — Almacén</h2>
+                            <p>Título, bajada e imagen fija del hero</p>
+                        </div>
+                    </div>
+                    <div class="config-row" style="flex-direction:column; align-items:flex-start; gap:0.6rem;">
+                        <span class="config-row-label">Imagen del hero</span>
+                        <div style="display:flex; align-items:center; gap:1rem;">
+                            <div class="config-logo-box" id="catalogoHeroPreviewBox">
+                                {% if configuracion_catalogo.hero_imagen %}
+                                    <img src="{{ configuracion_catalogo.hero_imagen.url }}" alt="Hero">
+                                {% else %}
+                                    <span style="font-size:0.7rem; color:var(--text-muted);">Sin imagen</span>
+                                {% endif %}
+                            </div>
+                            <input type="file" id="inputCatalogoHero" accept=".jpg,.jpeg,.png,.webp" style="display:none;">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('inputCatalogoHero').click()">Subir / cambiar</button>
+                            <button type="button" id="btnEliminarCatalogoHero" class="btn btn-sm btn-outline-danger" {% if not configuracion_catalogo.hero_imagen %}style="display:none;"{% endif %}>Eliminar</button>
+                        </div>
+                        <span class="config-row-desc">Opcional — si no se carga, el hero se muestra sin foto.</span>
+                    </div>
+                    <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                        <label class="config-row-label" for="idCatalogoHeroTitulo">Título principal</label>
+                        <input class="form-control" id="idCatalogoHeroTitulo" value="{{ configuracion_catalogo.hero_titulo }}" placeholder="Vacío = usa el nombre comercial de la empresa">
+                    </div>
+                    <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                        <label class="config-row-label" for="idCatalogoHeroSubtitulo">Bajada / subtítulo</label>
+                        <textarea class="form-control" id="idCatalogoHeroSubtitulo" rows="2" placeholder="Vacío = usa un texto genérico">{{ configuracion_catalogo.hero_subtitulo }}</textarea>
+                    </div>
+                </div>
+
+                <!-- ── Campos propios de la plantilla "Bento" ── -->
+                <div class="config-section" data-plantilla="bento">
+                    <div class="config-section-header">
+                        <div>
+                            <h2>Slides — Bento</h2>
+                            <p>Carrusel de hero con varias imágenes</p>
+                        </div>
+                        <button type="button" class="btn btn-sm" style="background:var(--brand-orange); color:white; margin-left:auto;" data-bs-toggle="modal" data-bs-target="#slideModal" id="btnNuevoSlide">+ Nuevo slide</button>
+                    </div>
+                    <div class="config-row" style="flex-direction:column; align-items:stretch;">
+                        <span class="config-row-desc" style="margin-bottom:0.6rem;">Hasta 6 slides. Cada uno necesita una imagen para mostrarse en el catálogo.</span>
+                        <div id="listaSlides">
+                            {% for slide in configuracion_catalogo.slides.all %}
+                            <div class="config-row slide-row"
+                                 data-pk="{{ slide.pk }}"
+                                 data-eyebrow="{{ slide.eyebrow }}"
+                                 data-titulo="{{ slide.titulo }}"
+                                 data-descripcion="{{ slide.descripcion }}"
+                                 data-cta-texto="{{ slide.cta_texto }}">
+                                <div style="display:flex; align-items:center; gap:0.75rem; flex:1; min-width:0;">
+                                    <div class="config-logo-box" style="width:44px; height:44px;">
+                                        {% if slide.imagen %}<img src="{{ slide.imagen.url }}" alt="">{% else %}<span style="font-size:0.6rem; color:var(--text-muted);">Sin imagen</span>{% endif %}
+                                    </div>
+                                    <div class="config-row-info">
+                                        <div class="config-row-label">{{ slide.titulo }}</div>
+                                        {% if not slide.imagen %}<div class="config-row-desc" style="color:#e11d48;">Sin imagen — no se muestra en el catálogo todavía</div>{% endif %}
+                                    </div>
+                                </div>
+                                <div style="display:flex; gap:0.4rem;">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary btn-editar-slide">Editar</button>
+                                    <button type="button" class="btn btn-sm btn-outline-danger btn-eliminar-slide">Eliminar</button>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <div class="config-row">
+                                <div class="config-row-info">
+                                    <div class="config-row-label">Sin slides cargados</div>
+                                    <div class="config-row-desc">El catálogo muestra un hero simple con el nombre de la empresa hasta que cargues al menos uno.</div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="co-guardar-bar">
+                    <div id="catalogoMsg" class="config-empresa-msg" style="padding:0;"></div>
+                    <button type="submit" class="btn btn-sm" style="background:var(--brand-orange); color:white;">Guardar cambios</button>
+                </div>
+            </div>
+
+            <div class="co-col-der">
+                <div class="co-preview-sticky">
+                    <span class="config-row-label">Vista previa en vivo</span>
+                    <div class="config-preview-wrap" id="catalogoPreviewWrap">
+                        <iframe id="catalogoPreviewFrame" src="{% url 'catalogo:home' %}?preview_plantilla={{ configuracion_catalogo.plantilla }}" title="Vista previa del catálogo público"></iframe>
+                    </div>
+                    <span class="config-row-desc">Los productos y precios son los reales — es una vista de solo lectura. Se actualiza mientras escribís y al cambiar de plantilla, antes de guardar.</span>
+                </div>
+            </div>
+        </div>
+    </form>
+    {% else %}
+    <div class="config-section">
+        <div class="config-row">
+            <div class="config-row-info">
+                <div class="config-row-label">Configuración restringida</div>
+                <div class="config-row-desc">No tenés permiso para editar el catálogo público.</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if puede_editar_catalogo %}
+    <div class="modal fade" id="slideModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title" id="slideModalLabel">Nuevo slide</h5>
+                        <p class="modal-subtitle">Carrusel del hero — plantilla "Bento"</p>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="formSlide">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <input type="hidden" id="slidePk">
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start; padding:0 0 0.85rem;">
+                            <span class="config-row-label">Imagen *</span>
+                            <div style="display:flex; align-items:center; gap:1rem;">
+                                <div class="config-logo-box" id="slideImagenPreviewBox">
+                                    <span style="font-size:0.6rem; color:var(--text-muted);">Sin imagen</span>
+                                </div>
+                                <input type="file" id="inputSlideImagen" accept=".jpg,.jpeg,.png,.webp" style="display:none;">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('inputSlideImagen').click()">Elegir imagen</button>
+                            </div>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start; padding:0 0 0.85rem;">
+                            <label class="config-row-label" for="slideEyebrow">Texto pequeño (arriba del título)</label>
+                            <input class="form-control" id="slideEyebrow" placeholder="Ej: Esta semana">
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start; padding:0 0 0.85rem;">
+                            <label class="config-row-label" for="slideTitulo">Título *</label>
+                            <input class="form-control" id="slideTitulo" placeholder="Ej: Ofertas frescas todos los martes" required>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start; padding:0 0 0.85rem;">
+                            <label class="config-row-label" for="slideDescripcion">Descripción</label>
+                            <textarea class="form-control" id="slideDescripcion" rows="2"></textarea>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start; padding:0 0 0.85rem;">
+                            <label class="config-row-label" for="slideCtaTexto">Texto del botón</label>
+                            <input class="form-control" id="slideCtaTexto" placeholder="Ver catálogo completo">
+                        </div>
+                        <div id="slideMsg" class="config-empresa-msg" style="padding:0;"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-sm" style="background:var(--brand-orange); color:white;">Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    window.CONFIG_CATALOGO_URLS = {
+        guardar:    "{% url 'catalogo:config_guardar' %}",
+        heroImagen: "{% url 'catalogo:config_hero_imagen' %}",
+    };
+    // Mismos textos de fallback que usa el template público (ConfiguracionCatalogo.
+    // DEFAULT_HERO_SUBTITULO / DEFAULT_SOBRE_NOSOTROS) — para que la vista previa en
+    // vivo muestre exactamente lo mismo que vería un visitante cuando el campo está vacío.
+    window.CONFIG_CATALOGO_DEFAULTS = {
+        heroTitulo:    "{{ datos_empresa.nombre_comercial|escapejs }}",
+        heroSubtitulo: "{{ default_hero_subtitulo|escapejs }}",
+        sobreNosotros: "{{ default_sobre_nosotros|escapejs }}",
+    };
+    window.CONFIG_SLIDES_URLS = {
+        guardar:  "{% url 'catalogo:config_slide_guardar' %}",
+        imagen:   "{% url 'catalogo:config_slide_imagen' %}",
+        eliminar: "{% url 'catalogo:config_slide_eliminar' %}",
+    };
+    window.CATALOGO_HOME_URL = "{% url 'catalogo:home' %}";
+</script>
+<script src="{% static 'core/js/catalogo_online.js' %}"></script>
+{% endblock %}

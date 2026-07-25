@@ -1,0 +1,121 @@
+/* Pantalla "Catálogo online" — a diferencia de Configuración (.config-page,
+   ancho fijo 860px, ver configuracion.css) esta pantalla es de ancho
+   completo: 2 columnas, controles a la izquierda + vista previa grande
+   pegajosa a la derecha. Reusa clases átomo de configuracion.css
+   (.config-row, .config-section, .config-logo-box, etc.) — no se toca
+   ese archivo, solo se agrega el layout propio acá. */
+.co-page { max-width: 1440px; margin: 0 auto; }
+
+.co-page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+.co-page-header h1 {
+    font-family: var(--font-heading);
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    letter-spacing: -0.4px;
+    margin-bottom: 0.3rem;
+}
+.co-page-header p { font-size: 0.875rem; color: var(--text-muted); }
+
+.co-layout {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.25rem;
+}
+
+.co-col-izq {
+    flex: 0 0 420px;
+    min-width: 0;
+}
+
+.co-col-der {
+    flex: 1;
+    min-width: 0;
+}
+
+.co-preview-sticky {
+    position: sticky;
+    top: calc(var(--header-height, 56px) + 1rem);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.co-guardar-bar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 1rem;
+    padding: 0.5rem 0;
+}
+
+/* ═══════════════════════════════════════════
+   TARJETAS DE PLANTILLA
+   ═══════════════════════════════════════════ */
+.co-cards-plantilla {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0 1.375rem 1.375rem;
+}
+
+.co-card-plantilla {
+    position: relative;
+    border: 2px solid var(--border-color);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    background: var(--bg-primary);
+}
+.co-card-plantilla:hover { border-color: var(--brand-orange); }
+.co-card-plantilla--activa { border-color: var(--brand-orange); box-shadow: 0 0 0 3px rgba(242,106,27,0.15); }
+
+.co-card-check {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    z-index: 2;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--brand-orange);
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+.co-card-plantilla--activa .co-card-check { display: flex; }
+
+.co-card-preview-wrap {
+    position: relative;
+    overflow: hidden;
+    height: 130px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+}
+.co-card-preview-frame {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: top left;
+    border: none;
+    pointer-events: none; /* la card entera es el hit-target del click, ver catalogo_online.js */
+}
+
+.co-card-nombre {
+    padding: 0.6rem 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+@media (max-width: 991px) {
+    .co-layout { flex-direction: column; }
+    .co-col-izq { flex: 1 1 auto; width: 100%; }
+    .co-preview-sticky { position: static; }
+}
