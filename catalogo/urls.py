@@ -9,6 +9,7 @@ app_name = 'catalogo'
 
 urlpatterns = [
     path('', views.CatalogoHomeView.as_view(), name='home'),
+    path('la-tienda/', views.TiendaInstitucionalView.as_view(), name='institucional'),
     path('producto/<int:pk>/', views.ProductoDetalleView.as_view(), name='producto_detalle'),
 
     # Interno — pantalla de Configuración del sistema (ver core/views.py:configuracion).
@@ -17,6 +18,9 @@ urlpatterns = [
     path('config/slides/guardar/', views_config.CatalogoSlideGuardarAjax.as_view(), name='config_slide_guardar'),
     path('config/slides/imagen/', views_config.CatalogoSlideImagenAjax.as_view(), name='config_slide_imagen'),
     path('config/slides/eliminar/', views_config.CatalogoSlideEliminarAjax.as_view(), name='config_slide_eliminar'),
+    path('config/institucional-imagen/', views_config.CatalogoInstitucionalImagenAjax.as_view(), name='config_institucional_imagen'),
+    path('config/galeria/imagen/', views_config.CatalogoGaleriaImagenAjax.as_view(), name='config_galeria_imagen'),
+    path('config/galeria/eliminar/', views_config.CatalogoGaleriaEliminarAjax.as_view(), name='config_galeria_eliminar'),
 
     # Público — el carrito del catálogo confirma el pedido acá.
     path('pedidos/crear/', views_pedidos.CrearPedidoAjax.as_view(), name='pedido_crear'),

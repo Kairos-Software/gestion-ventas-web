@@ -10,12 +10,16 @@ document.addEventListener('DOMContentLoaded', function () {
     const urls = window.CONFIG_CATALOGO_URLS || {};
     const defaults = window.CONFIG_CATALOGO_DEFAULTS || {};
     const catalogoHomeUrl = window.CATALOGO_HOME_URL || '/';
+    const catalogoInstitucionalUrl = window.CATALOGO_INSTITUCIONAL_URL || '/la-tienda/';
 
     // ── Escalado de iframes de vista previa (mismo truco "device preview" para
     //    el preview grande y las mini-cards de plantilla — una sola implementación) ──
     // opts.alturaFija: si viene, la card se recorta a esa altura sin medir el
     // contenido real (mini-cards, no necesitan estar sincronizadas en vivo).
-    // Si no viene, mide scrollHeight real + ResizeObserver (preview grande).
+    // Si no viene, mide scrollHeight real + ResizeObserver (preview grande) —
+    // el WRAP tiene un alto fijo por CSS (.co-preview-viewport) y scrollea
+    // internamente si el contenido escalado no entra; acá solo se dimensiona
+    // el iframe para que el escalado sea fiel al ancho real de producción.
     function crearPreviewEscalado(frame, wrap, opts) {
         opts = opts || {};
         const anchoBase = opts.anchoBase || 1280;
@@ -42,7 +46,8 @@ document.addEventListener('DOMContentLoaded', function () {
             const doc = frame.contentDocument;
             const alturaReal = (doc && doc.documentElement) ? doc.documentElement.scrollHeight : 600;
             frame.style.height = alturaReal + 'px';
-            wrap.style.height = Math.round(alturaReal * factor) + 'px';
+            // El wrap NO se agranda a la altura completa (a diferencia de antes):
+            // queda con el alto fijo de .co-preview-viewport y scrollea si hace falta.
         }
 
         frame.addEventListener('load', function () {
@@ -65,6 +70,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const previewFrame = document.getElementById('catalogoPreviewFrame');
     const previewWrap = document.getElementById('catalogoPreviewWrap');
     let heroObjectUrl = null;
+    let instImagenObjectUrl = null;
 
     function aplicarValoresAlPreview() {
         const doc = previewFrame && previewFrame.contentDocument;
@@ -73,13 +79,59 @@ document.addEventListener('DOMContentLoaded', function () {
         if (titulo) titulo.textContent = document.getElementById('idCatalogoHeroTitulo').value || defaults.heroTitulo || '';
         const subtitulo = doc.getElementById('kcHeroSubtitulo');
         if (subtitulo) subtitulo.textContent = document.getElementById('idCatalogoHeroSubtitulo').value || defaults.heroSubtitulo || '';
-        const sobreNosotros = doc.getElementById('kcFooterSobreNosotros');
+        const sobreNosotros = doc.getElementById('kcHistoriaTexto');
         if (sobreNosotros) sobreNosotros.textContent = document.getElementById('idCatalogoSobreNosotros').value || defaults.sobreNosotros || '';
-        const contacto = doc.getElementById('kcFooterContacto');
+        const contacto = doc.getElementById('kcContactoTexto');
         if (contacto) contacto.textContent = document.getElementById('idCatalogoContactoTexto').value || '';
         if (heroObjectUrl) {
             const visual = doc.getElementById('kcHeroVisual');
             if (visual) visual.innerHTML = `<img src="${heroObjectUrl}" alt="">`;
+        }
+        if (instImagenObjectUrl) {
+            const portada = doc.querySelector('.kc-inst-portada');
+            if (portada) {
+                let img = portada.querySelector('.kc-inst-portada-img');
+                if (!img) {
+                    img = document.createElement('img');
+                    img.className = 'kc-inst-portada-img';
+                    portada.prepend(img);
+                    if (!portada.querySelector('.kc-inst-portada-overlay')) {
+                        const overlay = document.createElement('div');
+                        overlay.className = 'kc-inst-portada-overlay';
+                        img.after(overlay);
+                    }
+                }
+                img.src = instImagenObjectUrl;
+            }
+        }
+        const navCatalogo = doc.getElementById('kcNavCatalogo');
+        if (navCatalogo) navCatalogo.textContent = document.getElementById('idCatalogoNavCatalogo').value || defaults.navCatalogo || '';
+        const navOfertas = doc.getElementById('kcNavOfertas');
+        if (navOfertas) navOfertas.textContent = document.getElementById('idCatalogoNavOfertas').value || defaults.navOfertas || '';
+        const navCombos = doc.getElementById('kcNavCombos');
+        if (navCombos) navCombos.textContent = document.getElementById('idCatalogoNavCombos').value || defaults.navCombos || '';
+        const navTienda = doc.getElementById('kcNavTienda');
+        if (navTienda) navTienda.textContent = document.getElementById('idCatalogoNavTienda').value || defaults.navTienda || '';
+        const instTitulo = doc.getElementById('kcInstTitulo');
+        if (instTitulo) instTitulo.textContent = document.getElementById('idCatalogoInstTitulo').value || defaults.instTitulo || '';
+        const instBajada = doc.getElementById('kcInstBajada');
+        if (instBajada) instBajada.textContent = document.getElementById('idCatalogoInstBajada').value || defaults.instBajada || '';
+        [1, 2, 3].forEach(function (n) {
+            const tituloEl = doc.getElementById('kcDestacado' + n + 'Titulo');
+            const inputTitulo = document.getElementById('idCatalogoDestacado' + n + 'Titulo');
+            if (tituloEl && inputTitulo) tituloEl.textContent = inputTitulo.value || defaults['destacado' + n + 'Titulo'] || '';
+            const textoEl = doc.getElementById('kcDestacado' + n + 'Texto');
+            const inputTexto = document.getElementById('idCatalogoDestacado' + n + 'Texto');
+            if (textoEl && inputTexto) textoEl.textContent = inputTexto.value || defaults['destacado' + n + 'Texto'] || '';
+        });
+        const color = document.getElementById('idCatalogoColorMarca').value || defaults.colorMarca || '#ff9343';
+        const colorSecundario = document.getElementById('idCatalogoColorMarcaSecundario')?.value || defaults.colorMarcaSecundario || '#111e2f';
+        if (doc.documentElement) {
+            doc.documentElement.style.setProperty('--primary', color);
+            doc.documentElement.style.setProperty('--primary-dark', `color-mix(in srgb, ${color} 80%, black)`);
+            doc.documentElement.style.setProperty('--primary-soft', `color-mix(in srgb, ${color} 12%, white)`);
+            doc.documentElement.style.setProperty('--navy', colorSecundario);
+            doc.documentElement.style.setProperty('--navy-2', `color-mix(in srgb, ${colorSecundario} 82%, black)`);
         }
     }
 
@@ -91,9 +143,26 @@ document.addEventListener('DOMContentLoaded', function () {
         previewResizeTimeout = setTimeout(recalcularPreviewGrande, 150);
     });
 
-    ['idCatalogoHeroTitulo', 'idCatalogoHeroSubtitulo', 'idCatalogoSobreNosotros', 'idCatalogoContactoTexto'].forEach(function (id) {
+    [
+        'idCatalogoHeroTitulo', 'idCatalogoHeroSubtitulo', 'idCatalogoSobreNosotros', 'idCatalogoContactoTexto',
+        'idCatalogoColorMarca', 'idCatalogoColorMarcaSecundario', 'idCatalogoNavCatalogo', 'idCatalogoNavOfertas', 'idCatalogoNavCombos', 'idCatalogoNavTienda',
+        'idCatalogoInstTitulo', 'idCatalogoInstBajada',
+        'idCatalogoDestacado1Titulo', 'idCatalogoDestacado1Texto',
+        'idCatalogoDestacado2Titulo', 'idCatalogoDestacado2Texto',
+        'idCatalogoDestacado3Titulo', 'idCatalogoDestacado3Texto',
+    ].forEach(function (id) {
         const el = document.getElementById(id);
         if (el) el.addEventListener('input', aplicarValoresAlPreview);
+    });
+
+    document.getElementById('btnResetColorMarca')?.addEventListener('click', function () {
+        document.getElementById('idCatalogoColorMarca').value = defaults.colorMarca || '#ff9343';
+        aplicarValoresAlPreview();
+    });
+
+    document.getElementById('btnResetColorMarcaSecundario')?.addEventListener('click', function () {
+        document.getElementById('idCatalogoColorMarcaSecundario').value = defaults.colorMarcaSecundario || '#111e2f';
+        aplicarValoresAlPreview();
     });
 
     // ── Mini-previews de las tarjetas de plantilla ──
@@ -103,13 +172,54 @@ document.addEventListener('DOMContentLoaded', function () {
         if (frame && wrap) crearPreviewEscalado(frame, wrap, { alturaFija: 130 });
     });
 
-    // ── Toggle de campos por plantilla — corre al cargar y al elegir una card ──
+    // ── Tabs: la columna izquierda muestra un solo panel a la vez; los
+    //    botones viven arriba de la vista previa (columna derecha) a
+    //    pedido del usuario, pero controlan qué panel se ve a la izquierda ──
+    const tabs = document.querySelectorAll('.co-tab');
+    const panels = document.querySelectorAll('.co-panel');
+    let tabActiva = 'plantillas';
+    // Qué página muestra el preview grande ahora mismo — "La tienda" y
+    // "Contacto" vive en /la-tienda/, el resto en la home del catálogo.
+    let previewPagina = 'home';
+
+    function mostrarPanel(tabId) {
+        tabActiva = tabId;
+        panels.forEach(function (panel) {
+            const coincideTab = panel.dataset.panel === tabId;
+            const coincidePlantilla = !panel.dataset.plantilla || panel.dataset.plantilla === inputPlantilla.value;
+            panel.style.display = (coincideTab && coincidePlantilla) ? '' : 'none';
+        });
+        tabs.forEach(function (btn) {
+            btn.classList.toggle('co-tab--activa', btn.dataset.tab === tabId);
+        });
+    }
+
+    tabs.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            mostrarPanel(btn.dataset.tab);
+            const paginaDestino = btn.dataset.preview || 'home';
+            if (paginaDestino !== previewPagina && previewFrame) {
+                previewPagina = paginaDestino;
+                previewFrame.src = paginaDestino === 'institucional'
+                    ? catalogoInstitucionalUrl
+                    : catalogoHomeUrl + '?preview_plantilla=' + encodeURIComponent(inputPlantilla.value);
+            }
+        });
+    });
+
+    // ── Toggle de tabs/campos por plantilla — corre al cargar y al elegir una
+    //    card (ej: la tab "Hero" solo tiene sentido con la plantilla Almacén) ──
     const inputPlantilla = document.getElementById('idCatalogoPlantilla');
     function aplicarToggleDataPlantilla() {
         if (!inputPlantilla) return;
-        document.querySelectorAll('[data-plantilla]').forEach(function (bloque) {
-            bloque.style.display = (bloque.dataset.plantilla === inputPlantilla.value) ? '' : 'none';
+        let tabActivaOculta = false;
+        tabs.forEach(function (btn) {
+            const restringida = btn.dataset.plantillaTab;
+            const visible = !restringida || restringida === inputPlantilla.value;
+            btn.hidden = !visible;
+            if (!visible && btn.dataset.tab === tabActiva) tabActivaOculta = true;
         });
+        mostrarPanel(tabActivaOculta ? 'plantillas' : tabActiva);
     }
     aplicarToggleDataPlantilla();
 
@@ -140,11 +250,30 @@ document.addEventListener('DOMContentLoaded', function () {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
             body: JSON.stringify({
-                plantilla:       document.getElementById('idCatalogoPlantilla').value,
-                hero_titulo:     document.getElementById('idCatalogoHeroTitulo').value,
-                hero_subtitulo:  document.getElementById('idCatalogoHeroSubtitulo').value,
-                sobre_nosotros:  document.getElementById('idCatalogoSobreNosotros').value,
-                contacto_texto:  document.getElementById('idCatalogoContactoTexto').value,
+                plantilla:          document.getElementById('idCatalogoPlantilla').value,
+                hero_titulo:        document.getElementById('idCatalogoHeroTitulo').value,
+                hero_subtitulo:     document.getElementById('idCatalogoHeroSubtitulo').value,
+                hero_producto:      document.getElementById('idCatalogoHeroProducto')?.value || '',
+                sobre_nosotros:     document.getElementById('idCatalogoSobreNosotros').value,
+                contacto_texto:     document.getElementById('idCatalogoContactoTexto').value,
+                color_marca:        document.getElementById('idCatalogoColorMarca').value,
+                color_marca_secundario: document.getElementById('idCatalogoColorMarcaSecundario').value,
+                nav_catalogo_label: document.getElementById('idCatalogoNavCatalogo').value,
+                nav_ofertas_label:  document.getElementById('idCatalogoNavOfertas').value,
+                nav_combos_label:   document.getElementById('idCatalogoNavCombos').value,
+                nav_tienda_label:   document.getElementById('idCatalogoNavTienda').value,
+                institucional_titulo: document.getElementById('idCatalogoInstTitulo').value,
+                institucional_bajada: document.getElementById('idCatalogoInstBajada').value,
+                destacado1_titulo: document.getElementById('idCatalogoDestacado1Titulo').value,
+                destacado1_texto:  document.getElementById('idCatalogoDestacado1Texto').value,
+                destacado2_titulo: document.getElementById('idCatalogoDestacado2Titulo').value,
+                destacado2_texto:  document.getElementById('idCatalogoDestacado2Texto').value,
+                destacado3_titulo: document.getElementById('idCatalogoDestacado3Titulo').value,
+                destacado3_texto:  document.getElementById('idCatalogoDestacado3Texto').value,
+                horarios_texto:    document.getElementById('idCatalogoHorarios').value,
+                instagram_url:     document.getElementById('idCatalogoInstagram').value,
+                facebook_url:      document.getElementById('idCatalogoFacebook').value,
+                tiktok_url:        document.getElementById('idCatalogoTiktok').value,
             }),
         })
         .then(r => r.json())
@@ -207,6 +336,97 @@ document.addEventListener('DOMContentLoaded', function () {
                     previewFrame.contentWindow.location.reload();
                 }
             }
+        });
+    });
+
+    // ── Imagen de portada de "La tienda" (mismo patrón que la del hero) ──
+    document.getElementById('inputCatalogoInstImagen')?.addEventListener('change', function () {
+        if (!this.files[0]) return;
+
+        if (instImagenObjectUrl) URL.revokeObjectURL(instImagenObjectUrl);
+        instImagenObjectUrl = URL.createObjectURL(this.files[0]);
+        aplicarValoresAlPreview();
+
+        const fd = new FormData();
+        fd.append('imagen', this.files[0]);
+        fetch(urls.institucionalImagen, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrf() },
+            body: fd,
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.ok) {
+                document.getElementById('catalogoInstImagenPreviewBox').innerHTML =
+                    `<img src="${data.imagen_url}" alt="Portada">`;
+                document.getElementById('btnEliminarCatalogoInstImagen').style.display = 'inline-block';
+            }
+        });
+    });
+
+    document.getElementById('btnEliminarCatalogoInstImagen')?.addEventListener('click', function () {
+        fetch(urls.institucionalImagen, {
+            method: 'DELETE',
+            headers: { 'X-CSRFToken': csrf() },
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.ok) {
+                document.getElementById('catalogoInstImagenPreviewBox').innerHTML =
+                    '<span style="font-size:0.7rem; color:var(--text-muted);">Sin imagen</span>';
+                this.style.display = 'none';
+                if (instImagenObjectUrl) {
+                    URL.revokeObjectURL(instImagenObjectUrl);
+                    instImagenObjectUrl = null;
+                }
+                if (previewFrame && previewFrame.contentWindow) {
+                    previewFrame.contentWindow.location.reload();
+                }
+            }
+        });
+    });
+
+    // ── Galería de fotos de "La tienda" — a diferencia de los slides, la
+    //    foto se sube en un solo paso (no hay ningún campo de texto
+    //    obligatorio que la bloquee) — ver CatalogoGaleriaImagenAjax. ──
+    const urlsGaleria = window.CONFIG_GALERIA_URLS || {};
+    document.getElementById('inputGaleriaImagen')?.addEventListener('change', function () {
+        if (!this.files[0]) return;
+        const msg = document.getElementById('galeriaMsg');
+        const fd = new FormData();
+        fd.append('imagen', this.files[0]);
+        fetch(urlsGaleria.imagen, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrf() },
+            body: fd,
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                msg.style.color = '#e11d48';
+                msg.textContent = data.error;
+                return;
+            }
+            window.location.reload();
+        });
+        this.value = '';
+    });
+
+    document.querySelectorAll('.btn-eliminar-galeria').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+            const item = btn.closest('.galeria-item-admin');
+            const ok = await KaiConfirm('¿Seguro que querés eliminar esta foto?');
+            if (!ok) return;
+            fetch(urlsGaleria.eliminar, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+                body: JSON.stringify({ pk: item.dataset.pk }),
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) { KaiToast.show(data.error, 'danger'); return; }
+                window.location.reload();
+            });
         });
     });
 

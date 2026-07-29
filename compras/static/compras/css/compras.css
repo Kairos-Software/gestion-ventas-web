@@ -931,7 +931,18 @@ a.cmp-doc-item-nombre:hover { color: var(--brand-orange); text-decoration: under
 @media (max-width: 960px)  { .cdt-layout { grid-template-columns: 1fr; } }
 
 .cdt-col-main  { min-width: 0; }
-.cdt-col-side  { position: sticky; top: 1rem; }
+.cdt-col-side  { min-width: 0; }
+
+/* Punto de estado en una pestaña (ej. "Medios de pago") — gris
+   mientras falta cargar, verde cuando ese bloque ya está completo. */
+.cdt-tab-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--warning, #f59e0b);
+    flex-shrink: 0;
+}
+.cdt-tab-dot--ok { background: var(--success, #16a34a); }
 
 /* Acciones del header */
 .cdt-header-actions {

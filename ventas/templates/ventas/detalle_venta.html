@@ -29,6 +29,60 @@
     }
 
     /* ══════════════════════════════════════════════════════════════
+   DETALLE DE VENTA — menú horizontal (pestañas) en vez de tener
+   todos los campos apilados: cada pestaña muestra solo su sección,
+   así el panel entra sin necesidad de scrollear la columna.
+══════════════════════════════════════════════════════════════ */
+    .cdt-tabs {
+        display: flex;
+        border-bottom: 1px solid var(--border-color);
+        padding: 0 1.25rem;
+        gap: 1.25rem;
+    }
+
+    .cdt-tab {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: .8rem 0;
+        font-size: .8rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        cursor: pointer;
+        transition: color .15s;
+        white-space: nowrap;
+    }
+
+    .cdt-tab:hover {
+        color: var(--text-secondary);
+    }
+
+    .cdt-tab--active {
+        color: var(--brand-orange);
+        border-bottom-color: var(--brand-orange);
+    }
+
+    .cdt-tab-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--warning, #f59e0b);
+        flex-shrink: 0;
+    }
+
+    .cdt-tab-dot--ok {
+        background: var(--success, #16a34a);
+    }
+
+    .cdt-tab-panel {
+        display: block;
+    }
+
+    /* ══════════════════════════════════════════════════════════════
    CABECERA
 ══════════════════════════════════════════════════════════════ */
     .cdt-header-actions {
@@ -275,6 +329,18 @@
         white-space: nowrap;
     }
 
+    .vdt-pago-cuotas-extra {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1.3fr;
+        gap: .35rem;
+    }
+    .vdt-pago-cuotas-extra .vdt-pago-cuotas-label {
+        font-size: .68rem;
+        color: var(--text-muted);
+        margin-bottom: .2rem;
+        display: block;
+    }
+
     .vdt-pago-btn-quitar {
         display: flex;
         align-items: center;
@@ -351,6 +417,36 @@
 
     .vdt-pago-resumen strong {
         font-weight: 700;
+    }
+
+    .vdt-pago-resumen--recargo {
+        background: rgba(99, 102, 241, .07);
+        border: 1px solid rgba(99, 102, 241, .2);
+        color: var(--text-secondary);
+    }
+
+    .vdt-pago-recargo-extra {
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        flex-wrap: wrap;
+    }
+    .vdt-pago-recargo-extra .vdt-pago-select { flex: 0 1 170px; }
+
+    .vdt-pago-recargo-check {
+        display: flex;
+        align-items: center;
+        gap: .35rem;
+        font-size: .78rem;
+        color: var(--text-secondary);
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .vdt-pago-recargo-monto {
+        font-size: .75rem;
+        color: var(--text-muted);
+        white-space: nowrap;
     }
 
     /* Medio de pago badge (vista confirmada) */
@@ -627,90 +723,110 @@
     <div class="cdt-col-side">
 
         {% if es_borrador %}
-        {# ─── SIDEBAR BORRADOR ─── #}
+        {# ─── SIDEBAR BORRADOR — pestañas horizontales ─── #}
         <div class="vta-card">
             <div class="vta-card-header">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                     <rect x="2" y="2" width="12" height="12" rx="1.5" stroke="currentColor" stroke-width="1.3" />
                     <path d="M5 6H11M5 9H11M5 12H8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
                 </svg>
-                <span class="vta-card-title">Datos de la venta</span>
+                <span class="vta-card-title">Detalle de Venta</span>
             </div>
+
+            <div class="cdt-tabs">
+                <button type="button" class="cdt-tab cdt-tab--active" data-tab="general" onclick="vdtSwitchTab('general', this)">
+                    General
+                </button>
+                <button type="button" class="cdt-tab" data-tab="pago" onclick="vdtSwitchTab('pago', this)">
+                    Medios de pago
+                    <span class="cdt-tab-dot" id="vdtTabPagoDot"></span>
+                </button>
+                {% if configuracion_arca.habilitado and configuracion_arca.tiene_certificado %}
+                <button type="button" class="cdt-tab" data-tab="facturacion" onclick="vdtSwitchTab('facturacion', this)">
+                    Facturación
+                </button>
+                {% endif %}
+            </div>
+
             <div class="vta-card-body">
 
-                <div class="vta-field">
-                    <label class="vta-label" for="vdtFecha">Fecha</label>
-                    <input type="date" id="vdtFecha" class="vta-control" value="{{ venta.fecha|date:'Y-m-d' }}">
-                </div>
+                <div id="vdtPanelGeneral" class="cdt-tab-panel">
+                    <div class="vta-field">
+                        <label class="vta-label" for="vdtFecha">Fecha</label>
+                        <input type="date" id="vdtFecha" class="vta-control" value="{{ venta.fecha|date:'Y-m-d' }}">
+                    </div>
 
-                {# ─── MEDIOS DE PAGO ─── #}
-                <div class="vta-field" style="margin-bottom:.5rem">
-                    <div class="vdt-pago-title">Medios de pago</div>
-                    <div class="vdt-pago-lineas" id="vdtPagoLineas"></div>
-                    <button class="vdt-pago-agregar" id="vdtBtnAgregarPago">
-                        <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-                            <path d="M7 2V12M2 7H12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
-                        </svg>
-                        Agregar otro medio
-                    </button>
-                    <div class="vdt-pago-resumen vdt-pago-resumen--pendiente" id="vdtPagoResumen">
-                        <span>Asignado: <strong id="vdtPagoAsignado">$0,00</strong></span>
-                        <span>Pendiente: <strong id="vdtPagoPendiente">${{ venta.total|floatformat:"2" }}</strong></span>
+                    <div class="cdt-resumen-row"><span>Cliente</span><strong>{{ venta.cliente_display }}</strong></div>
+
+                    <div class="vta-field" style="margin-top:1rem">
+                        <label class="vta-label" for="vdtNotas">Notas generales</label>
+                        <textarea id="vdtNotas" class="vta-control" rows="2"
+                            placeholder="Observaciones, condiciones especiales…">{{ venta.notas }}</textarea>
                     </div>
                 </div>
 
-                <div class="vta-field">
-                    <label class="vta-label" for="vdtNotas">Notas generales</label>
-                    <textarea id="vdtNotas" class="vta-control" rows="2"
-                        placeholder="Observaciones, condiciones especiales…">{{ venta.notas }}</textarea>
+                <div id="vdtPanelPago" class="cdt-tab-panel" style="display:none">
+                    {# ─── MEDIOS DE PAGO ─── #}
+                    <div class="vta-field" style="margin-bottom:.5rem">
+                        <div class="vdt-pago-title">Medios de pago</div>
+                        <div class="vdt-pago-lineas" id="vdtPagoLineas"></div>
+                        <button class="vdt-pago-agregar" id="vdtBtnAgregarPago">
+                            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                                <path d="M7 2V12M2 7H12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                            </svg>
+                            Agregar otro medio
+                        </button>
+                        <div class="vdt-pago-resumen vdt-pago-resumen--pendiente" id="vdtPagoResumen">
+                            <span>Asignado: <strong id="vdtPagoAsignado">$0,00</strong></span>
+                            <span>Pendiente: <strong id="vdtPagoPendiente">${{ venta.total|floatformat:"2" }}</strong></span>
+                        </div>
+                        <div class="vdt-pago-resumen vdt-pago-resumen--recargo" id="vdtRecargoResumen" style="display:none">
+                            <span>Recargo: <strong id="vdtRecargoMonto">$0,00</strong></span>
+                            <span>Total a cobrar: <strong id="vdtTotalACobrar">$0,00</strong></span>
+                        </div>
+                    </div>
                 </div>
+
+                {# — Facturar electrónicamente (ARCA) — #}
+                {% comment %}
+                El cliente y su condición de IVA ya se resolvieron una sola
+                vez (cliente único del carrito + ficha del cliente) — acá
+                no se vuelve a preguntar nada, solo se informa qué va a salir.
+                {% endcomment %}
+                {% if configuracion_arca.habilitado and configuracion_arca.tiene_certificado %}
+                <div id="vdtPanelFacturacion" class="cdt-tab-panel" style="display:none">
+                    <div class="vta-field" id="vdtFacturarBox"
+                         style="border:1px solid var(--border-color); border-radius:.5rem; padding:.6rem .7rem; margin-bottom:.75rem;">
+                        <label style="display:flex; align-items:center; gap:.5rem; font-weight:600; cursor:pointer;">
+                            <input type="checkbox" id="vdtFacturarCheck">
+                            Facturar electrónicamente
+                        </label>
+                        <div style="font-size:.78rem; color:var(--text-muted); margin-top:.3rem; margin-left:1.6rem;">
+                            {{ venta.cliente_display }} — se va a emitir
+                            <strong>{{ tipo_comprobante_previsto_display|default:"Factura C" }}</strong>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
 
                 <div class="vta-totals">
                     <div class="vta-totals-row">
                         <span>Líneas</span>
                         <span>{{ items|length }}</span>
                     </div>
+                    <div class="vta-totals-row">
+                        <span>Total productos</span>
+                        <span>${{ venta.total|floatformat:"2" }}</span>
+                    </div>
+                    <div class="vta-totals-row" id="vdtTotalsRecargoRow" style="display:none">
+                        <span>Recargo</span>
+                        <span id="vdtTotalsRecargoValue">$0,00</span>
+                    </div>
                     <div class="vta-totals-grand">
-                        <span class="vta-totals-grand-label">Total</span>
-                        <span class="vta-totals-grand-value">${{ venta.total|floatformat:"2" }}</span>
+                        <span class="vta-totals-grand-label" id="vdtTotalsGrandLabel">Total</span>
+                        <span class="vta-totals-grand-value" id="vdtTotalsGrandValue">${{ venta.total|floatformat:"2" }}</span>
                     </div>
                 </div>
-
-                {# — Facturar electrónicamente (ARCA) — #}
-                {% if configuracion_arca.habilitado and configuracion_arca.tiene_certificado %}
-                <div class="vta-field" id="vdtFacturarBox" style="border:1px solid var(--border-color); border-radius:.5rem; padding:.6rem .7rem; margin-bottom:.75rem;">
-                    <label style="display:flex; align-items:center; gap:.5rem; font-weight:600; cursor:pointer;">
-                        <input type="checkbox" id="vdtFacturarCheck">
-                        Facturar electrónicamente (Factura C)
-                    </label>
-
-                    <div id="vdtFacturarOpciones" style="display:none; margin-top:.6rem; flex-direction:column; gap:.5rem;">
-                        <label style="display:flex; align-items:center; gap:.4rem; font-weight:400;">
-                            <input type="radio" name="vdtFacturarA" value="cf" id="vdtFacturarCF" checked>
-                            Consumidor Final
-                        </label>
-                        {% if cliente_unico_venta %}
-                        <label style="display:flex; align-items:center; gap:.4rem; font-weight:400;">
-                            <input type="radio" name="vdtFacturarA" value="cliente" id="vdtFacturarCliente"
-                                data-cliente-pk="{{ cliente_unico_venta.pk }}">
-                            A nombre de {{ cliente_unico_venta.nombre|default:cliente_unico_venta.razon_social|default:cliente_unico_venta.nombre_comercial }}
-                        </label>
-                        <div id="vdtFacturarCondIva" style="display:none; margin-left:1.6rem;">
-                            <label class="vta-label" for="idFacturarCondIva" style="font-size:.75rem;">Condición frente al IVA de {{ cliente_unico_venta.nombre|default:cliente_unico_venta.razon_social }}</label>
-                            <select class="form-select form-select-sm" id="idFacturarCondIva">
-                                {% for valor, etiqueta in condiciones_iva_receptor %}
-                                <option value="{{ valor }}">{{ etiqueta }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-                {% elif datos_empresa.condicion_iva == 'RI' %}
-                <div class="vta-field" style="font-size:.78rem; color:var(--text-muted); margin-bottom:.75rem;">
-                    Facturación electrónica: todavía no está disponible para Responsable Inscripto (requiere desglose de IVA por producto).
-                </div>
-                {% endif %}
 
                 {# Previsualizar ticket antes de confirmar #}
                 <button id="vdtBtnPreviewTicket" class="vta-btn vta-btn-ghost" style="margin-bottom:.25rem">
@@ -752,7 +868,7 @@
         </div>
 
         {% else %}
-        {# ─── SIDEBAR VENTA CONFIRMADA / ANULADA ─── #}
+        {# ─── SIDEBAR VENTA CONFIRMADA / ANULADA — pestañas ─── #}
         <div class="vta-card">
             <div class="vta-card-header">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -761,11 +877,24 @@
                 </svg>
                 <span class="vta-card-title">Resumen</span>
             </div>
+
+            <div class="cdt-tabs">
+                <button type="button" class="cdt-tab cdt-tab--active" data-tab="resumen" onclick="vdtSwitchTab('resumen', this)">
+                    Resumen
+                </button>
+                <button type="button" class="cdt-tab" data-tab="auditoria" onclick="vdtSwitchTab('auditoria', this)">
+                    Auditoría
+                </button>
+            </div>
+
             <div class="vta-card-body">
+
+                <div id="vdtPanelResumen" class="cdt-tab-panel">
 
                 {# — Datos principales — #}
                 <div class="cdt-resumen-row"><span>Número</span><strong>{{ venta.numero }}</strong></div>
                 <div class="cdt-resumen-row"><span>Fecha</span><strong>{{ venta.fecha }}</strong></div>
+                <div class="cdt-resumen-row"><span>Cliente</span><strong>{{ venta.cliente_display }}</strong></div>
                 <div class="cdt-resumen-row">
                     <span>Estado</span>
                     <span class="cdt-estado cdt-estado--{{ venta.estado }}">{{ venta.get_estado_display }}</span>
@@ -781,7 +910,8 @@
                                     stroke-width="1.3" />
                                 <path d="M1 6H13" stroke="currentColor" stroke-width="1.3" />
                             </svg>
-                            {{ pago.get_medio_display }}: ${{ pago.monto|floatformat:"2" }}{% if pago.cuenta %} · {{ pago.cuenta.nombre }}{% endif %}
+                            {{ pago.get_medio_display }}{% if pago.tarjeta %} · {{ pago.tarjeta.nombre }}{% endif %}{% if pago.medio == 'credito' %} ({{ pago.etiqueta_plan }}){% endif %}:
+                            ${{ pago.monto_base|floatformat:"2" }}{% if pago.recargo_monto %} + ${{ pago.recargo_monto|floatformat:"2" }} recargo{% endif %}{% if pago.cuenta %} → {{ pago.cuenta.nombre }}{% endif %}
                         </span>
                         {% endfor %}
                     </div>
@@ -799,10 +929,25 @@
                 </div>
                 {% endif %}
                 <div class="cdt-resumen-row"><span>Líneas</span><strong>{{ items|length }}</strong></div>
+                {% if total_recargo %}
+                <div class="cdt-resumen-row">
+                    <span>Total productos</span>
+                    <strong>${{ venta.total|floatformat:"2" }}</strong>
+                </div>
+                <div class="cdt-resumen-row">
+                    <span>Recargo</span>
+                    <strong>${{ total_recargo|floatformat:"2" }}</strong>
+                </div>
+                <div class="cdt-resumen-row cdt-resumen-row--total">
+                    <span>Total cobrado</span>
+                    <strong class="cdt-total-val">${{ total_a_cobrar|floatformat:"2" }}</strong>
+                </div>
+                {% else %}
                 <div class="cdt-resumen-row cdt-resumen-row--total">
                     <span>Total</span>
                     <strong class="cdt-total-val">${{ venta.total|floatformat:"2" }}</strong>
                 </div>
+                {% endif %}
 
                 {# — Facturación electrónica (ARCA) — #}
                 {% if venta.estado == 'confirmada' %}
@@ -810,7 +955,7 @@
                     {% if comprobante_arca %}
                     <div class="cdt-resumen-row">
                         <span>Comprobante</span>
-                        <strong>Factura C {{ comprobante_arca.punto_venta|stringformat:"04d" }}-{{ comprobante_arca.numero|stringformat:"08d" }}</strong>
+                        <strong>{{ comprobante_arca.get_tipo_comprobante_display }} {{ comprobante_arca.punto_venta|stringformat:"04d" }}-{{ comprobante_arca.numero|stringformat:"08d" }}</strong>
                     </div>
                     <div class="cdt-resumen-row">
                         <span>CAE</span>
@@ -829,11 +974,10 @@
                 </div>
                 {% endif %}
 
+                </div>{# /vdtPanelResumen #}
+
                 {# — Auditoría — #}
-                <div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--border-color)">
-                    <div
-                        style="font-size:.69rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin-bottom:.4rem">
-                        Auditoría</div>
+                <div id="vdtPanelAuditoria" class="cdt-tab-panel" style="display:none">
 
                     {% if venta.confirmado_por %}
                     <div class="cdt-audit-row">
@@ -1057,6 +1201,21 @@
     </div>
 </div>
 
+<script>
+    /* Pestañas horizontales del panel "Detalle de Venta" — cada
+       botón/panel se busca dentro de la misma .vta-card para no
+       interferir con otros grupos de pestañas que pueda haber en
+       la página. */
+    function vdtSwitchTab(id, btn) {
+        const card = btn.closest('.vta-card');
+        if (!card) return;
+        card.querySelectorAll('.cdt-tab').forEach(t => t.classList.remove('cdt-tab--active'));
+        card.querySelectorAll('.cdt-tab-panel').forEach(p => p.style.display = 'none');
+        btn.classList.add('cdt-tab--active');
+        const panel = card.querySelector('#vdtPanel' + id.charAt(0).toUpperCase() + id.slice(1));
+        if (panel) panel.style.display = '';
+    }
+</script>
 
 <script>
     window.TICKET_DATA = {
@@ -1073,18 +1232,28 @@
         venta: {
             numero: "{{ venta.numero|escapejs }}",
             fecha: "{{ venta.fecha|date:'d/m/Y'|escapejs }}",
+            fecha_hora: "{% if venta.fecha_confirmacion %}{{ venta.fecha_confirmacion|date:'d/m/Y H:i' }}{% else %}{{ venta.fecha_alta|date:'d/m/Y H:i' }}{% endif %}",
             notas: "{{ venta.notas|escapejs }}",
             total: "{{ venta.total|stringformat:'.2f' }}",
             confirmado_por: "{% if venta.confirmado_por %}{{ venta.confirmado_por.get_full_name|default:venta.confirmado_por.username|escapejs }}{% else %}{% endif %}",
             medio_pago_display: "{{ venta.get_medio_pago_display|escapejs }}",
         },
+        cliente: {% if cliente_unico_venta %}{
+            nombre: "{{ cliente_unico_venta.get_nombre_display|escapejs }}",
+            documento: "{% if cliente_unico_venta.tipo == 'empresa' %}{% if cliente_unico_venta.cuit %}CUIT {{ cliente_unico_venta.cuit|escapejs }}{% endif %}{% else %}{% if cliente_unico_venta.dni %}DNI {{ cliente_unico_venta.dni|escapejs }}{% elif cliente_unico_venta.cuil %}CUIL {{ cliente_unico_venta.cuil|escapejs }}{% endif %}{% endif %}",
+            telefono: "{{ cliente_unico_venta.telefonos.first.numero|default:''|escapejs }}",
+            direccion: "{{ cliente_unico_venta.get_direccion_completa|escapejs }}",
+        }{% else %}null{% endif %},
         comprobante_arca: {% if comprobante_arca %}{
-            tipo_display: "Factura C",
+            tipo_display: "{{ comprobante_arca.get_tipo_comprobante_display|escapejs }}",
+            tipo_comprobante: {{ comprobante_arca.tipo_comprobante }},
             punto_venta: {{ comprobante_arca.punto_venta }},
             numero: {{ comprobante_arca.numero }},
             numero_display: "{{ comprobante_arca.punto_venta|stringformat:'04d' }}-{{ comprobante_arca.numero|stringformat:'08d' }}",
             cae: "{{ comprobante_arca.cae }}",
             cae_vencimiento: "{{ comprobante_arca.cae_vencimiento|date:'d/m/Y' }}",
+            importe_neto: "{{ comprobante_arca.importe_neto|stringformat:'.2f' }}",
+            importe_iva: "{{ comprobante_arca.importe_iva|stringformat:'.2f' }}",
             qrDataUrl: "",
             qrPayload: {
                 ver: 1,
@@ -1104,7 +1273,15 @@
         }{% else %}null{% endif %},
         pagos: [
             {% for pago in pagos %}
-    { medio_display: "{{ pago.get_medio_display|escapejs }}", monto: "{{ pago.monto|stringformat:'.2f' }}" } {% if not forloop.last %}, {% endif %}
+    {
+        medio_display: "{{ pago.get_medio_display|escapejs }}",
+        tarjeta_nombre: "{{ pago.tarjeta.nombre|default:''|escapejs }}",
+        monto: "{{ pago.monto|stringformat:'.2f' }}",
+        cantidad_pagos: {{ pago.cantidad_pagos }},
+        etiqueta_plan: "{{ pago.etiqueta_plan|escapejs }}",
+        recargo_pct: "{{ pago.recargo_pct|stringformat:'.2f' }}",
+        recargo_monto: "{{ pago.recargo_monto|stringformat:'.2f' }}"
+    } {% if not forloop.last %}, {% endif %}
     {% endfor %}
     ],
     items: [
@@ -1149,6 +1326,8 @@
 </script>
 {% endif %}
 <script id="cuentas-data" type="application/json">{{ cuentas_json|safe }}</script>
+<script id="tarjetas-data" type="application/json">{{ tarjetas_json|safe }}</script>
+<script id="recargos-data" type="application/json">{{ recargos_json|safe }}</script>
 <script>
     window.VDT_CONFIG = {
         ventaPk: {{ venta.pk }},
@@ -1164,12 +1343,16 @@
         urlDocEliminar: "{{ url_doc_eliminar }}",
         urlFacturar: "{{ url_facturar }}",
         csrfToken: "{{ csrf_token }}",
+        clienteUnicoPk: {{ cliente_unico_venta.pk|default:"null" }},
+        hoy: "{% now 'Y-m-d' %}",
         mediosPago: [
             {% for val, label in medios_pago %}
             { value: "{{ val }}", label: "{{ label }}" }{% if not forloop.last %},{% endif %}
             {% endfor %}
         ],
         cuentas: JSON.parse(document.getElementById('cuentas-data').textContent),
+        tarjetas: JSON.parse(document.getElementById('tarjetas-data').textContent),
+        recargos: JSON.parse(document.getElementById('recargos-data').textContent),
     };
 </script>
 {# Generadores de ticket — orden importante #}

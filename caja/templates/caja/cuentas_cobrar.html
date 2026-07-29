@@ -1,0 +1,173 @@
+{% extends 'core/base.html' %}
+
+{% load static %}
+
+{% block title %}Cuentas por cobrar{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'caja/css/cuentas_cobrar.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="cxc-container">
+    {% if sin_permiso %}
+    <div class="cxc-sin-permiso">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M12 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="12" cy="16.2" r="0.9" fill="currentColor"/>
+        </svg>
+        <p>No tenés permiso para ver cuentas por cobrar.</p>
+    </div>
+    {% else %}
+    <!-- ══════════════════════════════════
+         ENCABEZADO
+    ══════════════════════════════════ -->
+    <header class="cxc-header">
+        <div>
+            <h1 class="cxc-title">Cuentas por cobrar</h1>
+            <p class="cxc-subtitle">Ventas financiadas en cuotas por el propio negocio. Nacen solas al confirmar una venta con medio de pago "Cuotas" — ninguna cuota impacta caja hasta que se confirma su cobro.</p>
+        </div>
+    </header>
+
+    <!-- ══════════════════════════════════
+         FILTROS
+    ══════════════════════════════════ -->
+    <section class="cxc-section">
+        <div class="cxc-filtros-header">
+            <h2 class="cxc-section-title">Historial</h2>
+            <button type="button" class="btn-filtros-toggle" id="btnToggleFiltros" aria-expanded="false">
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                    <path d="M2 4H14M4.5 8H11.5M7 12H9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                </svg>
+                Filtros
+            </button>
+        </div>
+
+        <form id="formFiltros" class="cxc-filtros" hidden>
+            <div class="filtro-campo">
+                <label for="fEstado">Estado</label>
+                <select id="fEstado" name="estado">
+                    <option value="">Todos</option>
+                    <option value="activa">Activa</option>
+                    <option value="anulada">Anulada</option>
+                </select>
+            </div>
+            <div class="filtro-campo">
+                <label for="fMoneda">Moneda</label>
+                <select id="fMoneda" name="moneda">
+                    <option value="">Todas</option>
+                    {% for moneda, label in monedas %}
+                    <option value="{{ moneda }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filtro-campo filtro-campo--ancho">
+                <label for="fQ">Buscar</label>
+                <input type="text" id="fQ" name="q" placeholder="Cliente o descripción...">
+            </div>
+            <div class="filtro-acciones">
+                <button type="submit" class="btn btn-primary">Filtrar</button>
+                <button type="button" class="btn btn-ghost" id="btnLimpiarFiltros">Limpiar</button>
+            </div>
+        </form>
+    </section>
+
+    <!-- ══════════════════════════════════
+         TABLA
+    ══════════════════════════════════ -->
+    <section class="cxc-section">
+        <div class="cxc-tabla-wrap">
+            <table class="cxc-tabla">
+                <thead>
+                    <tr>
+                        <th>Cliente</th>
+                        <th>Venta</th>
+                        <th class="th-monto">Monto total</th>
+                        <th class="th-monto">Saldo pendiente</th>
+                        <th>Cuotas</th>
+                        <th>Estado</th>
+                        <th class="th-acciones">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="cxcBody">
+                    <tr>
+                        <td colspan="7" class="cxc-tabla-loading">Cargando…</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="cxc-paginacion" id="paginacionContainer"></div>
+    </section>
+</div>
+
+<!-- ══════════════════════════════════
+     MODAL DETALLE (cuotas)
+══════════════════════════════════ -->
+<div class="modal" id="modalDetalle" hidden>
+    <div class="modal-backdrop" id="modalDetalleBackdrop"></div>
+    <div class="modal-content modal-content--ancho">
+        <div class="modal-header">
+            <h2 class="modal-title" id="detalleTitle">Detalle de cuenta por cobrar</h2>
+            <button type="button" class="modal-close" id="btnCerrarDetalle" aria-label="Cerrar">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M5 5L15 15M5 15L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="cxc-detalle-resumen" id="detalleResumen"></div>
+
+            <div class="cxc-detalle-notas form-campo">
+                <label for="detNotas">Notas</label>
+                <input type="text" id="detNotas" placeholder="Observaciones (opcional)">
+            </div>
+
+            <h3 class="cxc-cuotas-title">Cuotas</h3>
+            <div class="cxc-cuotas-wrap">
+                <table class="cxc-cuotas-tabla">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Vencimiento</th>
+                            <th class="th-monto">Monto</th>
+                            <th>Estado</th>
+                            <th class="th-acciones">Confirmar cobro</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cuotasBody"></tbody>
+                </table>
+            </div>
+
+            <div class="modal-footer">
+                {% if puede_eliminar %}
+                <button type="button" class="btn btn-ghost cxc-btn-danger" id="btnEliminarCxc">Eliminar</button>
+                {% endif %}
+                {% if puede_editar %}
+                <button type="button" class="btn btn-primary" id="btnGuardarNotas">Guardar notas</button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endif %}
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script id="cuentas-data" type="application/json">{{ cuentas_json|safe }}</script>
+<script>
+    window.cxcUrls = {
+        listar: '{{ url_listar }}',
+        editar: '{{ url_editar }}',
+        eliminar: '{{ url_eliminar }}',
+        detalle: '{{ url_detalle }}',
+        confirmarCuota: '{{ url_confirmar_cuota }}',
+    };
+    window.cxcPuedeConfirmar = {{ puede_confirmar|yesno:"true,false" }};
+    window.cxcPuedeEditar = {{ puede_editar|yesno:"true,false" }};
+</script>
+<script src="{% static 'caja/js/cuentas_cobrar.js' %}"></script>
+{% endblock %}

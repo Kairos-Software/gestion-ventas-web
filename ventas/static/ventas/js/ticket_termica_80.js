@@ -4,7 +4,10 @@
  * Generador de HTML para ticket de venta en impresora térmica 80mm.
  *
  * Características del formato:
- *   - Ancho fijo de 72mm (80mm de papel - ~4mm de márgenes c/lado)
+ *   - Ancho fijo de 72mm (80mm de papel - márgenes reales del cabezal
+ *     de impresión, que en esta categoría imprime ~72mm/576 dots a
+ *     203dpi aunque el rollo mida 80mm — mismo criterio que 58mm/48mm
+ *     en ticket_termica_58.js)
  *   - Fuente monoespaciada para alinear columnas sin tablas complejas
  *   - Sin colores ni imágenes de fondo (las térmicas no los imprimen)
  *   - Logo en blanco/negro si existe (max 200px ancho)
@@ -24,14 +27,12 @@
  * @returns {string}
  */
 function ticketHtmlTermica80(data) {
-    const emp   = data.empresa || {};
-    const venta = data.venta   || {};
-    const items = data.items   || [];
-    const pagos = data.pagos   || [];
-    const cbte  = data.comprobante_arca || null;
-
-    // En 80mm con fuente monoespaciada ~9pt entran ~42 caracteres por línea
-    const COLS = 42;
+    const emp     = data.empresa || {};
+    const venta   = data.venta   || {};
+    const items   = data.items   || [];
+    const pagos   = data.pagos   || [];
+    const cbte    = data.comprobante_arca || null;
+    const cliente = data.cliente || null;
 
     return `<!DOCTYPE html>
 <html lang="es">
@@ -70,6 +71,15 @@ function ticketHtmlTermica80(data) {
         /* ── Info de venta ── */
         .t80-venta-num  { font-size: 9.5pt; font-weight: bold; text-align: center; margin: 3pt 0 1pt; }
         .t80-venta-meta { font-size: 7.5pt; text-align: center; color: #333; margin-bottom: 2pt; }
+
+        /* ── Cliente ── */
+        .t80-cliente-cf {
+            font-size: 8pt; font-weight: bold; text-align: center;
+            letter-spacing: .04em; margin: 3pt 0;
+        }
+        .t80-cliente { text-align: center; margin: 3pt 0; }
+        .t80-cliente-nombre { font-weight: bold; font-size: 8.5pt; }
+        .t80-cliente-dato   { font-size: 7pt; color: #444; line-height: 1.5; }
 
         /* ── Tabla de ítems (sin <table>, usa divs para control exacto de ancho) ── */
         .t80-items { width: 100%; margin: 3pt 0; }
@@ -140,7 +150,7 @@ function ticketHtmlTermica80(data) {
             body { padding: 0 2mm 8mm; }
             @page {
                 size: 80mm auto;   /* alto automático = corte por contenido */
-                margin: 2mm 0 0 0;
+                margin: 2mm 1mm 0 1mm;
             }
         }
     </style>
@@ -162,8 +172,13 @@ function ticketHtmlTermica80(data) {
 
     <!-- Número y fecha -->
     <div class="t80-venta-num">${cbte ? _esc(cbte.tipo_display) + ' ' + _esc(cbte.numero_display) : 'TICKET ' + _esc(venta.numero)}</div>
-    <div class="t80-venta-meta">Fecha: ${_esc(venta.fecha)}</div>
+    <div class="t80-venta-meta">Fecha: ${_esc(venta.fecha_hora || venta.fecha)}</div>
     ${venta.confirmado_por ? `<div class="t80-venta-meta">Op: ${_esc(venta.confirmado_por)}</div>` : ''}
+
+    <hr class="t80-sep-simple">
+
+    <!-- Cliente -->
+    ${_t80Cliente(cliente)}
 
     <hr class="t80-sep-simple">
 
@@ -179,6 +194,7 @@ function ticketHtmlTermica80(data) {
         <div class="t80-total-row">
             <span>Líneas:</span><span>${items.length}</span>
         </div>
+        ${_t80DesgloseIva(cbte)}
         <div class="t80-total-final">
             <span>TOTAL</span>
             <span>$${_fmtNum(venta.total)}</span>
@@ -223,6 +239,18 @@ function ticketHtmlTermica80(data) {
 
 /* ── Helpers internos ─────────────────────────────────────────── */
 
+function _t80Cliente(cliente) {
+    if (!cliente) {
+        return `<div class="t80-cliente-cf">CONSUMIDOR FINAL</div>`;
+    }
+    return `<div class="t80-cliente">
+        <div class="t80-cliente-nombre">${_esc(cliente.nombre)}</div>
+        ${cliente.documento ? `<div class="t80-cliente-dato">${_esc(cliente.documento)}</div>` : ''}
+        ${cliente.direccion ? `<div class="t80-cliente-dato">${_esc(cliente.direccion)}</div>` : ''}
+        ${cliente.telefono  ? `<div class="t80-cliente-dato">Tel: ${_esc(cliente.telefono)}</div>` : ''}
+    </div>`;
+}
+
 function _t80Item(item) {
     const detalle = [
         item.marca   ? item.marca                  : '',
@@ -244,6 +272,16 @@ function _t80Item(item) {
     </div>`;
 }
 
+// Factura A/B discrimina IVA (tipo_comprobante: 1=A, 6=B, 11=C) — Factura C
+// nunca lo mostró y sigue igual.
+function _t80DesgloseIva(cbte) {
+    if (!cbte || (cbte.tipo_comprobante !== 1 && cbte.tipo_comprobante !== 6)) return '';
+    return `
+        <div class="t80-total-row"><span>Neto gravado</span><span>$${_fmtNum(cbte.importe_neto)}</span></div>
+        <div class="t80-total-row"><span>IVA</span><span>$${_fmtNum(cbte.importe_iva)}</span></div>
+    `;
+}
+
 function _t80Comprobante(cbte) {
     if (!cbte) return '';
     return `<div class="t80-comprobante">
@@ -254,13 +292,23 @@ function _t80Comprobante(cbte) {
     </div>`;
 }
 
+function _t80PagoDetalle(p) {
+    const partes = [];
+    if (p.etiqueta_plan && Number(p.cantidad_pagos) > 1) partes.push(p.etiqueta_plan);
+    if (p.recargo_monto && parseFloat(p.recargo_monto) > 0) partes.push(`+${p.recargo_pct}%`);
+    return partes.length ? ` (${partes.join(', ')})` : '';
+}
+
 function _t80Pagos(pagos, venta) {
     if (pagos && pagos.length) {
-        return pagos.map(p => `
+        return pagos.map(p => {
+            const tarjeta = p.tarjeta_nombre ? ` · ${_esc(p.tarjeta_nombre)}` : '';
+            return `
         <div class="t80-pago-row">
-            <span>${_esc(p.medio_display)}</span>
+            <span>${_esc(p.medio_display)}${tarjeta}${_t80PagoDetalle(p)}</span>
             <span>$${_fmtNum(p.monto)}</span>
-        </div>`).join('');
+        </div>`;
+        }).join('');
     }
     if (venta.medio_pago_display) {
         return `<div class="t80-pago-row"><span>${_esc(venta.medio_pago_display)}</span><span></span></div>`;

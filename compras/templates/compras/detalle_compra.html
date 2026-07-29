@@ -516,47 +516,62 @@
 
     </div>{# /col-main #}
 
-    {# ── COLUMNA DERECHA: datos + documentos ── #}
+    {# ── COLUMNA DERECHA: datos / resumen ── #}
     <div class="cdt-col-side">
 
         {% if es_borrador %}
-        {# ══ PANEL BORRADOR: fecha, notas, confirmar ══ #}
+        {# ══ PANEL BORRADOR — pestañas horizontales en vez de todo apilado ══ #}
         <div class="cmp-card">
             <div class="cmp-card-header">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                     <rect x="2" y="2" width="12" height="12" rx="1.5" stroke="currentColor" stroke-width="1.3"/>
                     <path d="M5 6H11M5 9H11M5 12H8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
                 </svg>
-                <span class="cmp-card-title">Datos de la compra</span>
+                <span class="cmp-card-title">Detalle de Compra</span>
             </div>
+
+            <div class="cdt-tabs">
+                <button type="button" class="cdt-tab cdt-tab--active" data-tab="general" onclick="cdtSwitchTab('general', this)">
+                    General
+                </button>
+                <button type="button" class="cdt-tab" data-tab="pago" onclick="cdtSwitchTab('pago', this)">
+                    Medios de pago
+                    <span class="cdt-tab-dot" id="cdtTabPagoDot"></span>
+                </button>
+            </div>
+
             <div class="cmp-card-body">
 
-                <div class="cmp-field">
-                    <label class="cmp-label" for="cdtFecha">Fecha</label>
-                    <input type="date" id="cdtFecha" class="cmp-control"
-                           value="{{ compra.fecha|date:'Y-m-d' }}">
-                </div>
+                <div id="cdtPanelGeneral" class="cdt-tab-panel">
+                    <div class="cmp-field">
+                        <label class="cmp-label" for="cdtFecha">Fecha</label>
+                        <input type="date" id="cdtFecha" class="cmp-control"
+                               value="{{ compra.fecha|date:'Y-m-d' }}">
+                    </div>
 
-                {# ─── MEDIOS DE PAGO ─── #}
-                <div class="cmp-field" style="margin-bottom:.5rem">
-                    <div class="vdt-pago-title">Medios de pago</div>
-                    <div class="vdt-pago-lineas" id="cdtPagoLineas"></div>
-                    <button class="vdt-pago-agregar" id="cdtBtnAgregarPago" type="button">
-                        <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-                            <path d="M7 2V12M2 7H12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
-                        </svg>
-                        Agregar otro medio
-                    </button>
-                    <div class="vdt-pago-resumen vdt-pago-resumen--pendiente" id="cdtPagoResumen">
-                        <span>Asignado: <strong id="cdtPagoAsignado">$0,00</strong></span>
-                        <span>Pendiente: <strong id="cdtPagoPendiente">${{ compra.total|floatformat:"2" }}</strong></span>
+                    <div class="cmp-field">
+                        <label class="cmp-label" for="cdtNotas">Notas generales</label>
+                        <textarea id="cdtNotas" class="cmp-control"
+                                  placeholder="Observaciones, número de OC, condiciones especiales…">{{ compra.notas }}</textarea>
                     </div>
                 </div>
 
-                <div class="cmp-field">
-                    <label class="cmp-label" for="cdtNotas">Notas generales</label>
-                    <textarea id="cdtNotas" class="cmp-control"
-                              placeholder="Observaciones, número de OC, condiciones especiales…">{{ compra.notas }}</textarea>
+                <div id="cdtPanelPago" class="cdt-tab-panel" style="display:none">
+                    {# ─── MEDIOS DE PAGO ─── #}
+                    <div class="cmp-field" style="margin-bottom:.5rem">
+                        <div class="vdt-pago-title">Medios de pago</div>
+                        <div class="vdt-pago-lineas" id="cdtPagoLineas"></div>
+                        <button class="vdt-pago-agregar" id="cdtBtnAgregarPago" type="button">
+                            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                                <path d="M7 2V12M2 7H12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                            </svg>
+                            Agregar otro medio
+                        </button>
+                        <div class="vdt-pago-resumen vdt-pago-resumen--pendiente" id="cdtPagoResumen">
+                            <span>Asignado: <strong id="cdtPagoAsignado">$0,00</strong></span>
+                            <span>Pendiente: <strong id="cdtPagoPendiente">${{ compra.total|floatformat:"2" }}</strong></span>
+                        </div>
+                    </div>
                 </div>
 
                 {# Resumen numérico #}
@@ -644,7 +659,6 @@
         </div>
         {% endif %}
 
-
     </div>{# /col-side #}
 
 </div>{# /cdt-layout #}
@@ -661,11 +675,18 @@
 <script id="cuentas-data" type="application/json">{{ cuentas_json|safe }}</script>
 <script id="tarjetas-data" type="application/json">{{ tarjetas_json|safe }}</script>
 <script>
+/* Pestañas horizontales — se buscan dentro de la misma .cmp-card
+   para no interferir con otro grupo de pestañas de la página (hay
+   dos: "Productos/Documentos" a la izquierda y "Detalle de Compra"
+   a la derecha en el borrador). */
 function cdtSwitchTab(id, btn) {
-    document.querySelectorAll('.cdt-tab').forEach(t => t.classList.remove('cdt-tab--active'));
-    document.querySelectorAll('.cdt-tab-panel').forEach(p => p.style.display = 'none');
+    const card = btn.closest('.cmp-card');
+    if (!card) return;
+    card.querySelectorAll('.cdt-tab').forEach(t => t.classList.remove('cdt-tab--active'));
+    card.querySelectorAll('.cdt-tab-panel').forEach(p => p.style.display = 'none');
     btn.classList.add('cdt-tab--active');
-    document.getElementById('cdtPanel' + id.charAt(0).toUpperCase() + id.slice(1)).style.display = '';
+    const panel = card.querySelector('#cdtPanel' + id.charAt(0).toUpperCase() + id.slice(1));
+    if (panel) panel.style.display = '';
 }
 window.CDT_CONFIG = {
     compraPk:             {{ compra.pk }},

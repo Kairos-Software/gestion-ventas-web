@@ -103,6 +103,7 @@ def cargar_datos_demo():
         raise ValueError('Ya hay datos de prueba cargados — eliminalos antes de volver a cargar.')
 
     resumen = {'categorias': 0, 'productos': 0, 'imagenes': 0, 'paquetes': 0, 'ofertas': 0}
+    hoy = timezone.now().date()
 
     categorias = {}
     for i, nombre in enumerate(CATEGORIAS_DEMO):
@@ -113,6 +114,11 @@ def cargar_datos_demo():
         _registrar(cat)
         categorias[nombre] = cat
         resumen['categorias'] += 1
+
+    # Import acá adentro (no al tope del módulo) para evitar el ciclo
+    # catalogo -> productos/compras -> ... — mismo criterio que el resto
+    # del proyecto (ver services_arca/facturacion.py, views_stock.py).
+    from compras.models import LoteCompra
 
     productos = {}
     tareas_imagen = []  # (producto, idx, seed) — se resuelven todas en paralelo después
@@ -131,6 +137,23 @@ def cargar_datos_demo():
         _registrar(p)
         productos[nombre] = p
         resumen['productos'] += 1
+
+        # Lote genérico para respaldar stock_actual — sin esto el producto
+        # demo "tiene" stock a los ojos del catálogo pero el motor de
+        # ventas no encuentra de qué lote descontar y la venta se cae
+        # (mismo problema que resuelve el ajuste manual de stock, ver
+        # StockAjusteAjax en productos/views_stock.py).
+        if not agotado:
+            lote = LoteCompra.objects.create(
+                item_compra=None,
+                producto=p,
+                cantidad_inicial=Decimal('25'),
+                cantidad_actual=Decimal('25'),
+                costo_unitario=Decimal('0'),
+                fecha_vencimiento=None,
+                fecha_compra=hoy,
+            )
+            _registrar(lote)
 
         for idx in range(n_imgs):
             tareas_imagen.append((p, idx, f'kai-cart-{p.pk}-{idx}'))
@@ -170,7 +193,6 @@ def cargar_datos_demo():
             _registrar(img)
             resumen['imagenes'] += 1
 
-    hoy = timezone.now().date()
     hasta = hoy + timedelta(days=30)
 
     oferta_pct = Oferta.objects.create(
@@ -196,6 +218,8 @@ def cargar_datos_demo():
 
 @transaction.atomic
 def eliminar_datos_demo():
+    from compras.models import LoteCompra
+
     registros = list(DatoDemo.objects.select_related('content_type').all())
     por_modelo = {}
     for r in registros:
@@ -210,6 +234,11 @@ def eliminar_datos_demo():
             os.remove(img.imagen.path)
 
     eliminados = 0
+    # LoteCompra.producto es SET_NULL (no CASCADE) — si no se borra
+    # explícitamente acá, borrar el Producto de abajo lo dejaría huérfano
+    # (producto=None) para siempre, en vez de desaparecer con el resto
+    # de los datos demo.
+    eliminados += LoteCompra.objects.filter(pk__in=por_modelo.get('lotecompra', [])).delete()[0]
     # Orden importa: los paquetes primero, para que al cascadear se lleven
     # puesto sus PaqueteComponente y liberen el PROTECT sobre los productos
     # componente (que se borran en la segunda tanda).

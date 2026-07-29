@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views, views_gastos, views_caja_diaria, views_transacciones, views_deudas, views_cheques
+from . import views, views_gastos, views_caja_diaria, views_transacciones, views_deudas, views_cheques, views_cuentas_cobrar, views_recargos
 
 app_name = 'caja'
 
@@ -15,7 +15,9 @@ urlpatterns = [
     path('gastos/',                  views_gastos.GastosView.as_view(),               name='gastos'),
     path('transacciones/',           views_transacciones.TransaccionesPageView.as_view(), name='transacciones_listar_page'),
     path('deudas/',                  views_deudas.DeudasView.as_view(),               name='deudas'),
+    path('cuentas-cobrar/',          views_cuentas_cobrar.CuentasCobrarView.as_view(), name='cuentas_cobrar'),
     path('cheques/',                 views_cheques.ChequesView.as_view(),             name='cheques'),
+    path('recargos/',                views_recargos.RecargosView.as_view(),           name='recargos'),
 
     # ══════════════════════════════════════════════════════════════════
     #  AJAX — Caja grande
@@ -41,6 +43,15 @@ urlpatterns = [
     path('deudas/cuotas/<int:pk>/confirmar/', views_deudas.ConfirmarCuotaAjax.as_view(), name='confirmar_cuota_deuda'),
 
     # ══════════════════════════════════════════════════════════════════
+    #  AJAX — Cuentas por cobrar (ventas en cuotas)
+    # ══════════════════════════════════════════════════════════════════
+    path('cuentas-cobrar/listar/',                   views_cuentas_cobrar.ListarCuentasCobrarAjax.as_view(),   name='listar_cuentas_cobrar'),
+    path('cuentas-cobrar/editar/<int:pk>/',          views_cuentas_cobrar.EditarCuentaCobrarAjax.as_view(),    name='editar_cuenta_cobrar'),
+    path('cuentas-cobrar/eliminar/<int:pk>/',        views_cuentas_cobrar.EliminarCuentaCobrarAjax.as_view(),  name='eliminar_cuenta_cobrar'),
+    path('cuentas-cobrar/<int:pk>/',                 views_cuentas_cobrar.DetalleCuentaCobrarAjax.as_view(),   name='detalle_cuenta_cobrar'),
+    path('cuentas-cobrar/cuotas/<int:pk>/confirmar/', views_cuentas_cobrar.ConfirmarCuotaCobroAjax.as_view(),  name='confirmar_cuota_cobro'),
+
+    # ══════════════════════════════════════════════════════════════════
     #  AJAX — Cheques
     # ══════════════════════════════════════════════════════════════════
     path('cheques/listar/',            views_cheques.ListarChequesAjax.as_view(),    name='listar_cheques'),
@@ -49,6 +60,16 @@ urlpatterns = [
     path('cheques/eliminar/<int:pk>/', views_cheques.EliminarChequeAjax.as_view(),   name='eliminar_cheque'),
     path('cheques/<int:pk>/confirmar/', views_cheques.ConfirmarChequeAjax.as_view(), name='confirmar_cheque'),
     path('cheques/<int:pk>/rechazar/',  views_cheques.RechazarChequeAjax.as_view(),  name='rechazar_cheque'),
+
+    # ══════════════════════════════════════════════════════════════════
+    #  AJAX — Recargos por medio de pago
+    # ══════════════════════════════════════════════════════════════════
+    path('recargos/guardar/',          views_recargos.RecargoGuardarAjax.as_view(),  name='recargo_guardar'),
+    path('recargos/<int:pk>/baja/',    views_recargos.RecargoBajaAjax.as_view(),     name='recargo_baja'),
+    path('recargos/<int:pk>/eliminar/', views_recargos.RecargoEliminarAjax.as_view(), name='recargo_eliminar'),
+    path('recargos/tarjetas/guardar/', views_recargos.TarjetaGuardarAjax.as_view(),  name='tarjeta_guardar'),
+    path('recargos/tarjetas/medios/',  views_recargos.TarjetaMediosGuardarAjax.as_view(), name='tarjeta_medios_guardar'),
+    path('recargos/tarjetas/<int:pk>/baja/', views_recargos.TarjetaBajaAjax.as_view(), name='tarjeta_baja'),
 
     # ══════════════════════════════════════════════════════════════════
     #  AJAX — Comunes

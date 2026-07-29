@@ -54,6 +54,20 @@ function _normalizarPosibleCodigoLote(raw) {
 /* ════════════════════════════════════════════════════════════════
    ESTADO
 ════════════════════════════════════════════════════════════════ */
+
+// El cliente es UNO SOLO para toda la venta (no por ítem) — no tiene
+// sentido de negocio que un producto sea para un cliente y otro para
+// "Consumidor Final", y complicaba la facturación. Se elige una vez
+// (ver _bindClienteVentaInput) y se replica a cada ítem del payload,
+// así el backend/DB (que sigue guardando cliente por ItemVenta) no
+// necesitó cambiar. Si un borrador viejo llegara a tener clientes
+// mezclados por ítem, acá se toma el primero no vacío como punto de
+// partida y _sincronizarClienteEnCarrito() lo empareja en todos.
+let clienteVenta = { pk: null, nombre: '' };
+for (const fila of (CFG.itemsIniciales || [])) {
+    if (fila.cliente_pk) { clienteVenta = { pk: fila.cliente_pk, nombre: fila.cliente_nombre || '' }; break; }
+}
+
 let nextId  = 0;
 let carrito = (CFG.itemsIniciales || []).map(fila => ({
     id:              nextId++,
@@ -67,8 +81,8 @@ let carrito = (CFG.itemsIniciales || []).map(fila => ({
     lote_codigo:     fila.lote_codigo || '',
     etiqueta_balanza_pk:     fila.etiqueta_balanza_pk || null,
     etiqueta_balanza_codigo: fila.etiqueta_balanza_codigo || '',
-    cliente_pk:      fila.cliente_pk || null,
-    cliente_nombre:  fila.cliente_nombre || '',
+    cliente_pk:      clienteVenta.pk,
+    cliente_nombre:  clienteVenta.nombre,
     cantidad:        fila.cantidad,
     precio:          fila.precio,
     moneda:          fila.moneda || 'ARS',
@@ -91,6 +105,10 @@ const btnContinuar   = document.getElementById('vtaBtnContinuar');
 const badge          = document.getElementById('vtaBadge');
 const totalItemsEl   = document.getElementById('vtaTotalItems');
 const totalMontoEl   = document.getElementById('vtaTotalMonto');
+const clienteVentaInput    = document.getElementById('vtaClienteInput');
+const clienteVentaDropdown = document.getElementById('vtaClienteDropdown');
+const clienteVentaClear    = document.getElementById('vtaClienteClear');
+const clienteVentaSpinner  = document.getElementById('vtaClienteSpinner');
 
 if (searchInput) {
 
@@ -434,8 +452,8 @@ function _agregarFila(fila) {
             lote_codigo:     '',
             etiqueta_balanza_pk:     fila.etiqueta_balanza_pk,
             etiqueta_balanza_codigo: fila.etiqueta_balanza_codigo,
-            cliente_pk:      null,
-            cliente_nombre:  '',
+            cliente_pk:      clienteVenta.pk,
+            cliente_nombre:  clienteVenta.nombre,
             cantidad:        fila.cantidad_fija,
             precio:          fila.precio_venta ?? '',
             moneda:          fila.moneda || 'ARS',
@@ -483,8 +501,8 @@ function _agregarFila(fila) {
         lote_codigo:     fila.lote_codigo || '',
         etiqueta_balanza_pk:     null,
         etiqueta_balanza_codigo: '',
-        cliente_pk:      null,
-        cliente_nombre:  '',
+        cliente_pk:      clienteVenta.pk,
+        cliente_nombre:  clienteVenta.nombre,
         cantidad:        1,
         precio:          fila.precio_venta ?? '',
         moneda:          fila.moneda || 'ARS',
@@ -506,52 +524,91 @@ function _quitarItem(id) {
 }
 
 /* ════════════════════════════════════════════════════════════════
-   AUTOCOMPLETE DE CLIENTE POR ÍTEM
+   AUTOCOMPLETE DE CLIENTE — uno solo para toda la venta
 ════════════════════════════════════════════════════════════════ */
 let clienteSearchTimer;
 
-function _bindClienteInput(inputEl, itemId) {
-    const item = carrito.find(i => i.id === itemId);
-    if (!item) return;
-    const dropdown = inputEl.nextElementSibling;
+// Empareja el cliente elegido en TODOS los ítems ya cargados en el
+// carrito (no solo en los que se agreguen de ahora en más).
+function _sincronizarClienteEnCarrito() {
+    carrito.forEach(item => {
+        item.cliente_pk     = clienteVenta.pk;
+        item.cliente_nombre = clienteVenta.nombre;
+    });
+}
 
-    inputEl.addEventListener('input', () => {
+function _bindClienteVentaInput() {
+    if (!clienteVentaInput || !clienteVentaDropdown) return;
+    clienteVentaInput.value = clienteVenta.nombre;
+    clienteVentaClear.style.display = clienteVenta.pk ? 'inline-flex' : 'none';
+
+    clienteVentaInput.addEventListener('input', () => {
         clearTimeout(clienteSearchTimer);
-        const q = inputEl.value.trim();
-        item.cliente_pk = null;
+        const q = clienteVentaInput.value.trim();
+        clienteVenta = { pk: null, nombre: '' };
+        clienteVentaClear.style.display = 'none';
+        _sincronizarClienteEnCarrito();
 
         if (!q) {
-            dropdown.classList.remove('open');
-            dropdown.innerHTML = '';
+            clienteVentaDropdown.classList.remove('open');
+            clienteVentaDropdown.innerHTML = '';
+            clienteVentaSpinner.style.display = 'none';
             return;
         }
         clienteSearchTimer = setTimeout(async () => {
+            clienteVentaSpinner.style.display = 'block';
             try {
                 const res  = await fetch(`${CFG.urlBuscarCliente}?q=${encodeURIComponent(q)}`);
                 const data = await res.json();
+                // Guarda contra respuestas que llegan fuera de orden: si el
+                // usuario ya siguió escribiendo, esta respuesta quedó vieja.
+                if (clienteVentaInput.value.trim() !== q) return;
                 const results = data.results || [];
 
-                dropdown.innerHTML = results.length
+                clienteVentaDropdown.innerHTML = results.length
                     ? results.map(c => `
                         <div class="vta-cli-option" data-pk="${c.pk}" data-nombre="${_esc(c.nombre)}">
-                            <div class="vta-cli-option-nombre">${_esc(c.nombre)}</div>
-                            ${c.telefono || c.email ? `<div class="vta-cli-option-meta">${_esc(c.telefono || c.email)}</div>` : ''}
+                            <div class="vta-cli-option-top">
+                                <span class="vta-cli-option-nombre">${_esc(c.nombre)}</span>
+                                ${c.codigo ? `<span class="vta-dropdown-item-codigo">${_esc(c.codigo)}</span>` : ''}
+                            </div>
+                            ${c.doc ? `
+                            <div class="vta-cli-option-doc">
+                                <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
+                                    <rect x="1.5" y="3.5" width="13" height="9" rx="1.3" stroke="currentColor" stroke-width="1.2"/>
+                                    <circle cx="5" cy="8" r="1.15" stroke="currentColor" stroke-width="1"/>
+                                    <path d="M8.3 6.7H12M8.3 9.3H10.6" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+                                </svg>
+                                ${_esc(c.doc)}
+                            </div>` : ''}
                         </div>`).join('')
-                    : '<div class="vta-dropdown-empty">Sin resultados</div>';
+                    : `<div class="vta-dropdown-empty">Sin resultados para "${_esc(q)}"</div>`;
 
-                dropdown.querySelectorAll('.vta-cli-option').forEach(el => {
+                clienteVentaDropdown.querySelectorAll('.vta-cli-option').forEach(el => {
                     el.addEventListener('click', () => {
-                        item.cliente_pk     = parseInt(el.dataset.pk, 10);
-                        item.cliente_nombre = el.dataset.nombre;
-                        inputEl.value = el.dataset.nombre;
-                        dropdown.classList.remove('open');
-                        dropdown.innerHTML = '';
+                        clienteVenta = { pk: parseInt(el.dataset.pk, 10), nombre: el.dataset.nombre };
+                        clienteVentaInput.value = el.dataset.nombre;
+                        clienteVentaClear.style.display = 'inline-flex';
+                        clienteVentaDropdown.classList.remove('open');
+                        clienteVentaDropdown.innerHTML = '';
+                        _sincronizarClienteEnCarrito();
                     });
                 });
-                dropdown.classList.add('open');
+                clienteVentaDropdown.classList.add('open');
             } catch { /* silencioso */ }
+            finally { clienteVentaSpinner.style.display = 'none'; }
         }, 260);
     });
+
+    clienteVentaClear.addEventListener('click', () => {
+        clienteVenta = { pk: null, nombre: '' };
+        clienteVentaInput.value = '';
+        clienteVentaClear.style.display = 'none';
+        _sincronizarClienteEnCarrito();
+        clienteVentaInput.focus();
+    });
+    // El cierre al clickear afuera ya lo maneja el listener global de
+    // document más arriba en este archivo (busca .vta-cli-dropdown.open).
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -653,11 +710,6 @@ function _renderCarrito() {
                     <option value="tarjeta" ${item.condicion === 'tarjeta' ? 'selected' : ''}>Tarjeta</option>
                 </select>
             </td>
-            <td class="vta-cli-wrap">
-                <input type="text" class="vta-input-inline vta-cli-input" data-item-id="${item.id}"
-                       placeholder="Consumidor final" value="${_esc(item.cliente_nombre)}" autocomplete="off">
-                <div class="vta-cli-dropdown"></div>
-            </td>
             <td><input type="text" class="vta-input-inline w-md" data-item-id="${item.id}" data-campo="referencia" value="${_esc(item.referencia)}"></td>
             <td class="vta-subtotal-cell">${_fmt(_calcSub(item), item.moneda)}</td>
             <td><button class="vta-btn-remove" data-item-id="${item.id}" title="Quitar">✕</button></td>
@@ -667,9 +719,6 @@ function _renderCarrito() {
     cartBody.querySelectorAll('.vta-input-inline[data-campo], .vta-select-inline[data-campo]').forEach(el => {
         const ev = el.tagName === 'SELECT' ? 'change' : 'input';
         el.addEventListener(ev, () => _onCampoCambiado(el));
-    });
-    cartBody.querySelectorAll('.vta-cli-input').forEach(el => {
-        _bindClienteInput(el, parseInt(el.dataset.itemId, 10));
     });
     cartBody.querySelectorAll('.vta-btn-remove').forEach(el => {
         el.addEventListener('click', () => _quitarItem(parseInt(el.dataset.itemId, 10)));
@@ -919,6 +968,7 @@ if (btnContinuar) {
 /* ════════════════════════════════════════════════════════════════
    INIT
 ════════════════════════════════════════════════════════════════ */
+_bindClienteVentaInput();
 _renderCarrito();
 searchInput.focus();
 

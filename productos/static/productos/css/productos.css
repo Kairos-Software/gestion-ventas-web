@@ -957,6 +957,17 @@
     color: var(--brand-orange);
 }
 
+.prd-img-upload-zone--full {
+    cursor: default;
+    opacity: 0.6;
+}
+
+.prd-img-upload-zone--full:hover {
+    border-color: var(--border-color);
+    background: none;
+    color: var(--text-muted);
+}
+
 .prd-img-upload-zone p { margin: 0.4rem 0 0; }
 .prd-img-upload-hint { font-size: 0.74rem; color: var(--text-muted) !important; margin-top: 0.25rem !important; }
 .prd-img-upload-link { color: var(--brand-orange); text-decoration: underline; cursor: pointer; font-weight: 600; }
@@ -1027,6 +1038,53 @@
 
 .prd-img-btn:hover { background: #fff; transform: scale(1.1); }
 .prd-img-btn--del:hover { background: rgba(239,68,68,0.12); color: var(--danger); }
+
+/* ════════════════════════════════════════════════════════════
+   CARACTERÍSTICAS
+   ════════════════════════════════════════════════════════════ */
+.prd-caract-form {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.9rem;
+}
+.prd-caract-form .prd-input { flex: 1 1 auto; }
+
+.prd-caract-lista {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.prd-caract-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    background: var(--bg-secondary);
+    font-size: 0.85rem;
+}
+
+.prd-caract-item-del {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 0.375rem;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    flex: 0 0 auto;
+    transition: all 0.15s;
+}
+.prd-caract-item-del:hover { background: rgba(239,68,68,0.12); color: var(--danger); }
 
 /* ════════════════════════════════════════════════════════════
    MODAL ELIMINAR

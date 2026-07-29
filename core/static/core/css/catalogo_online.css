@@ -23,9 +23,15 @@
 }
 .co-page-header p { font-size: 0.875rem; color: var(--text-muted); }
 
+/* align-items: stretch (no flex-start) — la columna derecha tiene que
+   estirarse al alto real de la izquierda para que el preview (position:
+   sticky adentro) pueda seguir "pegado" mientras se scrollea un panel
+   largo (ej. "La tienda"); con flex-start la columna derecha quedaba con
+   su propio alto corto y el sticky se quedaba pegado ahí, dejando un
+   hueco vacío debajo mientras la izquierda seguía. */
 .co-layout {
     display: flex;
-    align-items: flex-start;
+    align-items: stretch;
     gap: 1.25rem;
 }
 
@@ -53,6 +59,50 @@
     justify-content: flex-end;
     gap: 1rem;
     padding: 0.5rem 0;
+}
+
+/* ═══════════════════════════════════════════
+   TABS — controlan qué panel se ve en la columna
+   izquierda, pero viven arriba de la vista previa
+   (columna derecha) a pedido del usuario.
+   ═══════════════════════════════════════════ */
+.co-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 0.75rem;
+}
+.co-tab {
+    appearance: none;
+    border: 1px solid var(--border-color);
+    background: var(--bg-white);
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    padding: 0.45rem 0.9rem;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.co-tab:hover { border-color: var(--brand-orange); color: var(--text-primary); }
+.co-tab--activa {
+    background: var(--brand-orange);
+    border-color: var(--brand-orange);
+    color: white;
+}
+.co-tab[hidden] { display: none; }
+
+/* Vista previa grande: a diferencia de las mini-cards de plantilla, ya no
+   crece a la altura completa del contenido (ver catalogo_online.js) — queda
+   con un alto fijo tipo viewport y scrollea internamente si no entra todo. */
+.co-preview-viewport {
+    height: 640px;
+    overflow-x: hidden;
+    overflow-y: scroll; /* siempre reservado, evita que el ancho salte al aparecer/desaparecer */
+}
+
+@media (max-width: 1200px) {
+    .co-preview-viewport { height: 520px; }
 }
 
 /* ═══════════════════════════════════════════

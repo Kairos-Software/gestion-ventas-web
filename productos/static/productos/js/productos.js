@@ -6,6 +6,8 @@
 
 'use strict';
 
+const MAX_IMAGENES_PRODUCTO = 3; // debe coincidir con MAX_IMAGENES_POR_PRODUCTO en productos/models.py
+
 // ════════════════════════════════════════════════════════════════════
 //  TOAST
 // ════════════════════════════════════════════════════════════════════
@@ -62,7 +64,58 @@ function setModoPrecio(modo) {
     const inputPrecio = document.getElementById('f_precio_venta');
     inputPrecio.readOnly = esAutomatico;
     inputPrecio.classList.toggle('prd-input--readonly', esAutomatico);
+    _actualizarHintAlicuota();
 }
+
+// Alícuota de IVA + "¿el precio incluye IVA?" — el hint junto a "Precio de
+// venta" y el preview de precio final reflejan ambos, en vivo. Antes el
+// hint era un texto fijo "(IVA 21% incluido)" que no correspondía a
+// productos con otra alícuota real, y no existía forma de cargar el
+// precio SIN IVA (ver Producto.calcular_precio_final en el backend).
+function _incluyeIva() {
+    return document.getElementById('f_precio_incluye_iva').value === '1';
+}
+
+function _actualizarHintAlicuota() {
+    const alicuota = document.getElementById('f_alicuota_iva').value;
+    const incluyeIva = _incluyeIva();
+    const hint = document.getElementById('prd-hint-precio-iva');
+    const ayuda = document.getElementById('prd-hint-incluye-iva');
+    const preview = document.getElementById('badge_precio_final_preview');
+
+    if (incluyeIva || alicuota === '0') {
+        hint.textContent = (alicuota === '0') ? '(exento de IVA)' : `(IVA ${alicuota}% incluido)`;
+        ayuda.textContent = 'El precio que cargaste arriba es el precio final que le cobrás al cliente.';
+        preview.hidden = true;
+        return;
+    }
+
+    hint.textContent = '(precio SIN IVA)';
+    ayuda.textContent = `El precio de arriba es SIN IVA — el sistema le suma el ${alicuota}% para calcular el precio final que se cobra.`;
+
+    const inputPrecio = document.getElementById('f_precio_venta');
+    const base = parseFloat(inputPrecio.value);
+    if (inputPrecio.readOnly || isNaN(base)) {
+        preview.hidden = true;
+        return;
+    }
+    const precioFinal = base * (1 + parseFloat(alicuota) / 100);
+    preview.hidden = false;
+    preview.textContent = `Precio final (con IVA): $${precioFinal.toFixed(2)}`;
+}
+document.getElementById('f_alicuota_iva').addEventListener('change', _actualizarHintAlicuota);
+document.getElementById('f_precio_venta').addEventListener('input', _actualizarHintAlicuota);
+
+function setIncluyeIva(incluye) {
+    document.getElementById('f_precio_incluye_iva').value = incluye ? '1' : '0';
+    document.querySelectorAll('.prd-precio-toggle-btn[data-incluye-iva]').forEach(btn => {
+        btn.classList.toggle('prd-precio-toggle-btn--active', btn.dataset.incluyeIva === (incluye ? '1' : '0'));
+    });
+    _actualizarHintAlicuota();
+}
+document.querySelectorAll('.prd-precio-toggle-btn[data-incluye-iva]').forEach(btn => {
+    btn.addEventListener('click', () => setIncluyeIva(btn.dataset.incluyeIva === '1'));
+});
 
 function actualizarBadgeCosto(costoActual) {
     const badge = document.getElementById('badge_costo_actual');
@@ -73,7 +126,7 @@ function actualizarBadgeCosto(costoActual) {
     badge.textContent = `Último costo de compra: $${parseFloat(costoActual).toFixed(2)}`;
 }
 
-document.querySelectorAll('.prd-precio-toggle-btn').forEach(btn => {
+document.querySelectorAll('.prd-precio-toggle-btn[data-modo]').forEach(btn => {
     btn.addEventListener('click', () => setModoPrecio(btn.dataset.modo));
 });
 
@@ -112,6 +165,8 @@ document.getElementById('btnNuevoProducto').addEventListener('click', () => {
     document.querySelector('.prd-tab[data-tab="identificacion"]').click();
     document.getElementById('imgNuevoAviso').style.display = '';
     document.getElementById('imgPanel').style.display = 'none';
+    document.getElementById('caracteristicaNuevoAviso').style.display = '';
+    document.getElementById('caracteristicaPanel').style.display = 'none';
     _actualizarPanelVariantes(false);
     abrirModal('modalProducto');
 });
@@ -153,11 +208,17 @@ function limpiarFormProducto() {
     document.getElementById('combinacionStockTotal').textContent = '0';
     const badge = document.getElementById('tabCombinacionCount');
     badge.textContent = '0'; badge.style.display = 'none';
+    // Limpiar características del producto anterior
+    document.getElementById('caracteristicaLista').innerHTML = '';
+    document.getElementById('caracteristicaInput').value = '';
+    actualizarBadgeCaracteristicas();
     cancelarFormCombinacion();
     _actualizarPanelVariantes(false);
     _actualizarCampoCodigoBarras(false);
     setModoPrecio('manual');
     actualizarBadgeCosto(null);
+    document.getElementById('f_alicuota_iva').value = '21';
+    setIncluyeIva(true);
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -201,6 +262,8 @@ async function abrirEditar(pk) {
     setModoPrecio(data.modo_precio || 'manual');
     document.getElementById('f_porcentaje_ganancia').value     = data.porcentaje_ganancia || '';
     actualizarBadgeCosto(data.costo_actual);
+    document.getElementById('f_alicuota_iva').value             = data.alicuota_iva || '21';
+    setIncluyeIva(data.precio_incluye_iva !== false);
     document.getElementById('f_notas').value                   = data.notas || '';
     document.getElementById('f_peso_kg').value                 = data.peso_kg || '';
     document.getElementById('f_alto_cm').value                 = data.alto_cm || '';
@@ -230,7 +293,12 @@ async function abrirEditar(pk) {
 
     document.getElementById('imgNuevoAviso').style.display = 'none';
     document.getElementById('imgPanel').style.display      = '';
-    cargarImagenes(data.pk);
+    cargarImagenes(data.imagenes);
+
+    document.getElementById('caracteristicaNuevoAviso').style.display = 'none';
+    document.getElementById('caracteristicaPanel').style.display      = '';
+    cargarCaracteristicas(data.caracteristicas || []);
+
     document.querySelector('.prd-tab[data-tab="identificacion"]').click();
 }
 
@@ -275,6 +343,8 @@ async function guardarProducto() {
         precio_venta:           document.getElementById('f_precio_venta').value || null,
         modo_precio:            document.getElementById('f_modo_precio').value,
         porcentaje_ganancia:    document.getElementById('f_porcentaje_ganancia').value || null,
+        alicuota_iva:           document.getElementById('f_alicuota_iva').value,
+        precio_incluye_iva:     _incluyeIva(),
         estado:                 document.getElementById('f_estado').value,
         destacado:              document.getElementById('f_destacado').checked,
         requiere_refrigeracion: document.getElementById('f_requiere_refrigeracion').checked,
@@ -312,7 +382,11 @@ async function guardarProducto() {
                 // Habilitar imágenes silenciosamente
                 document.getElementById('imgNuevoAviso').style.display = 'none';
                 document.getElementById('imgPanel').style.display      = '';
-                cargarImagenes(data.pk);
+                cargarImagenes(data.imagenes);
+
+                // Habilitar características silenciosamente
+                document.getElementById('caracteristicaNuevoAviso').style.display = 'none';
+                document.getElementById('caracteristicaPanel').style.display      = '';
 
                 // Habilitar variantes si corresponde
                 if (tieneVariantes) {
@@ -522,10 +596,31 @@ document.getElementById('nuevoTipoNombre').addEventListener('keydown',  e => { i
 // ════════════════════════════════════════════════════════════════════
 //  IMÁGENES
 // ════════════════════════════════════════════════════════════════════
-function cargarImagenes(pk) {
+function cargarImagenes(imagenes) {
     const grid = document.getElementById('imgGrid');
-    grid.innerHTML = '<p style="font-size:.8rem;color:var(--text-muted);padding:.5rem 0">Las imágenes existentes se muestran arriba en la tabla. Subí nuevas desde aquí.</p>';
+    if (!imagenes || !imagenes.length) {
+        grid.innerHTML = '';
+        actualizarBadgeImagenes();
+        return;
+    }
+    grid.innerHTML = imagenes.map(img => _imagenProductoItemHtml(img.pk, img.url, img.es_portada)).join('');
     actualizarBadgeImagenes();
+}
+
+function _imagenProductoItemHtml(pk, url, esPortada) {
+    return `
+        <div class="prd-img-item${esPortada ? ' prd-img-item--portada' : ''}" id="img-${pk}">
+            <img src="${url}" alt="" class="prd-img-thumb">
+            ${esPortada ? '<span class="prd-img-portada-badge">Portada</span>' : ''}
+            <div class="prd-img-actions">
+                ${!esPortada ? `<button class="prd-img-btn" title="Marcar como portada" onclick="marcarPortada(${pk})">
+                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1l1.5 3 3.5.5-2.5 2.5.5 3.5L6.5 9 3 10.5l.5-3.5L1 4.5 4.5 4z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+                </button>` : ''}
+                <button class="prd-img-btn prd-img-btn--del" onclick="eliminarImagen(${pk})">
+                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 2L11 11M11 2L2 11" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+                </button>
+            </div>
+        </div>`;
 }
 
 function actualizarBadgeImagenes() {
@@ -533,6 +628,13 @@ function actualizarBadgeImagenes() {
     const badge = document.getElementById('tabImagenCount');
     badge.textContent   = items;
     badge.style.display = items > 0 ? '' : 'none';
+
+    const limite = items >= MAX_IMAGENES_PRODUCTO;
+    imgUploadZone.classList.toggle('prd-img-upload-zone--full', limite);
+    imgFileInput.disabled = limite;
+    imgUploadZone.querySelector('.prd-img-upload-hint').textContent = limite
+        ? `Límite de ${MAX_IMAGENES_PRODUCTO} imágenes alcanzado — eliminá una para subir otra.`
+        : 'JPG, PNG o WEBP · Máx. 5 MB por imagen · hasta ' + MAX_IMAGENES_PRODUCTO + ' imágenes';
 }
 
 const imgFileInput  = document.getElementById('imgFileInput');
@@ -551,6 +653,10 @@ async function subirImagenes(files) {
     const pk = document.getElementById('prdPk').value;
     if (!pk) { showToast('Guardá el producto primero.', 'error'); return; }
     for (const file of files) {
+        if (document.querySelectorAll('.prd-img-item').length >= MAX_IMAGENES_PRODUCTO) {
+            showToast(`Límite de ${MAX_IMAGENES_PRODUCTO} imágenes alcanzado.`, 'error');
+            break;
+        }
         if (!file.type.startsWith('image/')) continue;
         if (file.size > 5 * 1024 * 1024) { showToast(`"${file.name}" supera 5 MB.`, 'error'); continue; }
         const fd = new FormData();
@@ -572,22 +678,7 @@ async function subirImagenes(files) {
 
 function agregarImagenAlGrid(pk, url, esPortada) {
     const grid = document.getElementById('imgGrid');
-    grid.querySelectorAll('p').forEach(p => p.remove());
-    const item = document.createElement('div');
-    item.className = 'prd-img-item' + (esPortada ? ' prd-img-item--portada' : '');
-    item.id = `img-${pk}`;
-    item.innerHTML = `
-        <img src="${url}" alt="" class="prd-img-thumb">
-        ${esPortada ? '<span class="prd-img-portada-badge">Portada</span>' : ''}
-        <div class="prd-img-actions">
-            ${!esPortada ? `<button class="prd-img-btn" title="Marcar como portada" onclick="marcarPortada(${pk})">
-                <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1l1.5 3 3.5.5-2.5 2.5.5 3.5L6.5 9 3 10.5l.5-3.5L1 4.5 4.5 4z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
-            </button>` : ''}
-            <button class="prd-img-btn prd-img-btn--del" onclick="eliminarImagen(${pk})">
-                <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 2L11 11M11 2L2 11" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-            </button>
-        </div>`;
-    grid.appendChild(item);
+    grid.insertAdjacentHTML('beforeend', _imagenProductoItemHtml(pk, url, esPortada));
     actualizarBadgeImagenes();
 }
 
@@ -630,6 +721,90 @@ async function eliminarImagen(pk) {
         showToast('Imagen eliminada.');
     } else {
         showToast('Error al eliminar imagen.', 'error');
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  CARACTERÍSTICAS — texto libre, una por fila
+// ════════════════════════════════════════════════════════════════════
+function cargarCaracteristicas(lista) {
+    const ul = document.getElementById('caracteristicaLista');
+    ul.innerHTML = '';
+    lista.forEach(c => agregarCaracteristicaItem(c.pk, c.texto));
+    actualizarBadgeCaracteristicas();
+}
+
+function actualizarBadgeCaracteristicas() {
+    const items = document.querySelectorAll('#caracteristicaLista .prd-caract-item').length;
+    const badge = document.getElementById('tabCaracteristicaCount');
+    badge.textContent   = items;
+    badge.style.display = items > 0 ? '' : 'none';
+}
+
+function agregarCaracteristicaItem(pk, texto) {
+    const ul = document.getElementById('caracteristicaLista');
+    const li = document.createElement('li');
+    li.className = 'prd-caract-item';
+    li.id = `caract-${pk}`;
+
+    const span = document.createElement('span');
+    span.textContent = texto; // textContent, no innerHTML: texto libre del usuario, nunca se interpreta como HTML
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'prd-caract-item-del';
+    btn.title = 'Quitar';
+    btn.onclick = () => eliminarCaracteristica(pk);
+    btn.innerHTML = '<svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 2L10 10M10 2L2 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+
+    li.appendChild(span);
+    li.appendChild(btn);
+    ul.appendChild(li);
+}
+
+async function agregarCaracteristica() {
+    const pk = document.getElementById('prdPk').value;
+    if (!pk) { showToast('Guardá el producto primero.', 'error'); return; }
+    const input = document.getElementById('caracteristicaInput');
+    const texto = input.value.trim();
+    if (!texto) return;
+
+    try {
+        const res  = await fetch(URLS.caracteristicaAgregar, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+            body: JSON.stringify({ producto_pk: pk, texto }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+            agregarCaracteristicaItem(data.pk, data.texto);
+            actualizarBadgeCaracteristicas();
+            input.value = '';
+            input.focus();
+        } else {
+            showToast(data.error || 'Error al agregar la característica.', 'error');
+        }
+    } catch {
+        showToast('Error de conexión.', 'error');
+    }
+}
+
+document.getElementById('caracteristicaInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); agregarCaracteristica(); }
+});
+
+async function eliminarCaracteristica(pk) {
+    const res  = await fetch(URLS.caracteristicaEliminar, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify({ pk }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+        document.getElementById(`caract-${pk}`)?.remove();
+        actualizarBadgeCaracteristicas();
+    } else {
+        showToast('Error al quitar la característica.', 'error');
     }
 }
 

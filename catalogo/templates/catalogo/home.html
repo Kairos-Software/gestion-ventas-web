@@ -1,109 +1,94 @@
 {% extends 'catalogo/base_catalogo.html' %}
-{% load static %}
 
 {% block content %}
 
-    {% if ofertas_umbral %}
-    <div class="kc-promo-strip">
-        {% for oferta in ofertas_umbral %}
-            <span>
-                <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8.5 1.5L14.5 7.5L7.5 14.5L1.5 8.5V2.5C1.5 1.95 1.95 1.5 2.5 1.5H8.5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="5" cy="5" r="0.9" fill="currentColor"/></svg>
-                {{ oferta.nombre }} — {{ oferta.porcentaje }}% off llevando ${{ oferta.monto_minimo }} o más
-            </span>
-        {% endfor %}
-    </div>
-    {% endif %}
-
     <section class="kc-hero">
+        <canvas id="kcHeroCanvas"></canvas>
+        <div class="kc-hero-bg-shape"></div>
         <div class="kc-hero-grid">
             <div class="kc-hero-copy">
-                <span class="kc-hero-eyebrow">Catálogo online</span>
+                <span class="kc-hero-eyebrow">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                    {% if ofertas_umbral %}
+                        {% for oferta in ofertas_umbral %}{{ oferta.porcentaje|floatformat:"-0" }}% OFF desde ${{ oferta.monto_minimo|floatformat:"-0" }}{% if not forloop.last %} · {% endif %}{% endfor %}
+                    {% else %}
+                        Catálogo online
+                    {% endif %}
+                </span>
                 <!-- id usado por configuracion.js (vista previa en vivo) — no renombrar sin actualizar ese archivo -->
                 <h1 id="kcHeroTitulo">{{ config_catalogo.hero_titulo|default:empresa.nombre_comercial }}</h1>
                 <p id="kcHeroSubtitulo">{{ config_catalogo.hero_subtitulo|default:default_hero_subtitulo }}</p>
                 <div class="kc-hero-ctas">
-                    <a href="#kcCatalogo" class="kc-hero-cta kc-hero-cta--primary">Ver catálogo completo</a>
-                    <a href="?seccion=ofertas" class="kc-hero-cta kc-hero-cta--secondary">Ofertas de hoy</a>
+                    <a href="#kcCatalogo" class="kc-hero-cta kc-hero-cta--primary">
+                        Ver catálogo completo
+                        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    </a>
+                    <a href="?seccion=ofertas#kcCatalogo" class="kc-hero-cta kc-hero-cta--secondary">Ofertas de hoy &rarr;</a>
                 </div>
             </div>
-            <!-- id usado por configuracion.js (vista previa en vivo) — no renombrar sin actualizar ese archivo -->
-            <div class="kc-hero-visual" id="kcHeroVisual">
-                {% if config_catalogo.hero_imagen %}
-                    <img src="{{ config_catalogo.hero_imagen.url }}" alt="">
-                {% else %}
-                    <div class="kc-hero-visual-fallback">
-                        <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>
-                    </div>
-                {% endif %}
-            </div>
-        </div>
-    </section>
-
-    {% if categorias %}
-    <section class="kc-cat-rail-wrap">
-        <div class="kc-cat-rail">
-            <a href="{{ url_todas_categorias }}" class="kc-cat-chip {% if not categoria_activa %}kc-cat-chip--activo{% endif %}">
-                <span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></span>
-                Todos <span class="count">{{ total_catalogo }}</span>
-            </a>
-            {% for cat in categorias %}
-            <a href="{{ cat.url }}" class="kc-cat-chip {% if cat.activa %}kc-cat-chip--activo{% endif %}">
-                <span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg></span>
-                {{ cat.nombre }} <span class="count">{{ cat.cantidad }}</span>
-            </a>
-            {% endfor %}
-        </div>
-    </section>
-    {% endif %}
-
-    {% if mostrar_vidriera and destacados %}
-    <section class="kc-sec-vidriera">
-        <div class="kc-sec-head"><h2>Destacados</h2><span class="kc-sec-sub">los que nunca faltan</span></div>
-        <div class="kc-feat-row">
-            {% for p in destacados %}
-            <div class="kc-feat-card">
-                <a href="{% url 'catalogo:producto_detalle' p.pk %}" class="kc-feat-media {% if not p.imagenes.all %}kc-card-img--vacia{% endif %}">
-                    {% with portada=p.imagenes.first %}
-                        {% if portada %}
-                            <img src="{{ portada.imagen.url }}" alt="{{ p.nombre }}" loading="lazy">
+            <div class="kc-hero-tilt-wrap" id="kcHeroTiltWrap">
+                <!-- id usado por configuracion.js (vista previa en vivo) — no renombrar sin actualizar ese archivo -->
+                <div class="kc-hero-visual" id="kcHeroVisual">
+                    <div class="kc-hero-glare"></div>
+                    <div class="kc-hero-product-img">
+                        {% if config_catalogo.hero_imagen %}
+                            <img src="{{ config_catalogo.hero_imagen.url }}" alt="">
+                        {% elif hero_producto.imagenes.first %}
+                            <img src="{{ hero_producto.imagenes.first.imagen.url }}" alt="{{ hero_producto.nombre }}">
                         {% else %}
-                            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 8L12 3.5L21 8V16L12 20.5L3 16V8Z"/></svg>
+                            <div class="kc-hero-visual-fallback">
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none"><path d="M3 8L12 3.5L21 8V16L12 20.5L3 16V8Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M3 8L12 12.5L21 8" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M12 12.5V20.5" stroke="currentColor" stroke-width="1.3"/></svg>
+                            </div>
                         {% endif %}
-                    {% endwith %}
-                    <span class="kc-feat-badge">Destacado</span>
-                </a>
-                <div class="kc-feat-body">
-                    {% if p.categoria %}<span class="kc-card-categoria">{{ p.categoria.nombre }}</span>{% endif %}
-                    <a href="{% url 'catalogo:producto_detalle' p.pk %}"><h3 class="kc-feat-nombre">{{ p.nombre }}</h3></a>
-                    <div class="kc-feat-foot">
-                        <div class="kc-card-precio">
-                            {% if p.oferta_info and p.oferta_info.precio_final != p.precio_venta %}
-                                <span class="kc-precio-final">${{ p.oferta_info.precio_final }}</span>
-                                <span class="kc-precio-tachado">${{ p.precio_venta }}</span>
-                            {% elif p.precio_venta %}
-                                <span class="kc-precio-final">${{ p.precio_venta }}</span>
-                            {% else %}
-                                <span class="kc-precio-consultar">A consultar</span>
-                            {% endif %}
-                        </div>
-                        {% if p.disponible_compra %}
-                        <div data-carrito-slot>
-                            <button type="button" class="kc-btn-agregar" data-carrito-agregar="prod-{{ p.pk }}"
-                                data-nombre="{{ p.nombre }}" data-precio="{{ p.oferta_info.precio_final|default:p.precio_venta }}"
-                                data-precio-lista="{{ p.precio_venta }}"
-                                data-categoria-id="{{ p.categoria.pk|default:'' }}"
-                                data-imagen="{% if p.imagenes.first %}{{ p.imagenes.first.imagen.url }}{% endif %}">
-                                Agregar al pedido
-                            </button>
-                        </div>
+                        {% if hero_producto %}
+                        <span class="kc-hero-tag-featured">{% if hero_producto.categoria %}{{ hero_producto.categoria.nombre }}{% else %}Destacado{% endif %}</span>
                         {% endif %}
                     </div>
+                    {% if hero_producto %}
+                    <div class="kc-hero-product-meta">{{ hero_producto.marca|default:empresa.nombre_comercial }}</div>
+                    <a href="{% url 'catalogo:producto_detalle' hero_producto.pk %}"><h3 class="kc-hero-product-nombre">{{ hero_producto.nombre }}</h3></a>
+                    <div class="kc-hero-product-price kc-card-precio">
+                        {% if hero_producto.oferta_info and hero_producto.oferta_info.precio_final != hero_producto.precio_venta %}
+                            <span class="kc-precio-final">${{ hero_producto.oferta_info.precio_final }}</span>
+                            <span class="kc-precio-tachado">${{ hero_producto.precio_venta }}</span>
+                        {% elif hero_producto.precio_venta %}
+                            <span class="kc-precio-final">${{ hero_producto.precio_venta }}</span>
+                        {% else %}
+                            <span class="kc-precio-consultar">A consultar</span>
+                        {% endif %}
+                    </div>
+                    {% if hero_producto.disponible_compra %}
+                    <div data-carrito-slot>
+                        <button type="button" class="kc-btn-agregar kc-btn-agregar--hero"
+                            data-carrito-agregar="{% if hero_producto.es_paquete %}paq{% else %}prod{% endif %}-{{ hero_producto.pk }}"
+                            data-nombre="{{ hero_producto.nombre }}" data-precio="{{ hero_producto.oferta_info.precio_final|default:hero_producto.precio_venta }}"
+                            data-precio-lista="{{ hero_producto.precio_venta }}"
+                            data-categoria-id="{{ hero_producto.categoria.pk|default:'' }}"
+                            data-imagen="{% if hero_producto.imagenes.first %}{{ hero_producto.imagenes.first.imagen.url }}{% endif %}">
+                            Agregar al pedido
+                        </button>
+                    </div>
+                    {% endif %}
+                    {% endif %}
                 </div>
             </div>
-            {% endfor %}
         </div>
     </section>
-    {% endif %}
+
+    <section class="kc-features-bar">
+        <div class="kc-feature-item">
+            <span class="kc-feature-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.3"/><circle cx="18.5" cy="18.5" r="2.3"/></svg></span>
+            <span class="kc-feature-text"><strong>Coordinamos el envío</strong><small>Lo acordamos por WhatsApp al confirmar</small></span>
+        </div>
+        <div class="kc-feature-item">
+            <span class="kc-feature-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></span>
+            <span class="kc-feature-text"><strong>Pago a coordinar</strong><small>Sin registros ni cuentas — hablás directo</small></span>
+        </div>
+        <div class="kc-feature-item">
+            <span class="kc-feature-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
+            <span class="kc-feature-text"><strong>Atención personalizada</strong><small>Te acompañamos antes y después de comprar</small></span>
+        </div>
+    </section>
 
     {% if mostrar_vidriera and ofertas_destacadas %}
     <section class="kc-sec-vidriera">
@@ -135,71 +120,6 @@
     </section>
     {% endif %}
 
-    {% if mostrar_vidriera and paquetes %}
-    <section class="kc-sec-vidriera">
-        <div class="kc-sec-head"><h2>Combos armados</h2><span class="kc-sec-sub">más barato que llevarlo suelto</span></div>
-        <div class="kc-combo-row">
-            {% for pq in paquetes %}
-            <div class="kc-combo-card">
-                <a href="{% url 'catalogo:producto_detalle' pq.pk %}" class="kc-combo-top">
-                    {% with portada=pq.imagenes.first %}
-                        {% if portada %}
-                            <span class="kc-combo-foto"><img src="{{ portada.imagen.url }}" alt="{{ pq.nombre }}" loading="lazy"></span>
-                        {% else %}
-                            {% for c in pq.componentes.all|slice:":3" %}
-                                <span class="kc-combo-thumb">
-                                    {% with img=c.producto.imagen_principal %}
-                                        {% if img %}
-                                            <img src="{{ img.imagen.url }}" alt="">
-                                        {% else %}
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 8L12 3.5L21 8V16L12 20.5L3 16V8Z"/></svg>
-                                        {% endif %}
-                                    {% endwith %}
-                                </span>
-                            {% endfor %}
-                        {% endif %}
-                    {% endwith %}
-                </a>
-                <div class="kc-combo-body">
-                    {% if pq.oferta_info %}<span class="kc-combo-eyebrow">{{ pq.oferta_info.badge }} off</span>{% elif pq.destacado %}<span class="kc-combo-eyebrow">Destacado</span>{% endif %}
-                    <a href="{% url 'catalogo:producto_detalle' pq.pk %}"><h3 class="kc-combo-nombre">{{ pq.nombre }}</h3></a>
-                    <ul class="kc-combo-items">
-                        {% for c in pq.componentes.all %}<li>{{ c.cantidad|floatformat:"-2" }}× {{ c.producto.nombre }}</li>{% endfor %}
-                    </ul>
-                </div>
-                <div class="kc-combo-div"></div>
-                <div class="kc-combo-bottom">
-                    <div class="kc-combo-priceblock">
-                        {% if pq.ahorro %}<span class="kc-combo-sum">${{ pq.ahorro.suma|floatformat:2 }}</span>{% endif %}
-                        {% if pq.precio_venta %}<span class="kc-combo-final">${{ pq.precio_venta }}</span>{% else %}<span class="kc-precio-consultar">A consultar</span>{% endif %}
-                        {% if pq.ahorro %}<span class="kc-combo-save">Ahorrás ${{ pq.ahorro.ahorro|floatformat:2 }}</span>{% endif %}
-                    </div>
-                    {% if pq.disponible_compra %}
-                    <div data-carrito-slot>
-                        <button type="button" class="kc-btn-agregar" data-carrito-agregar="paq-{{ pq.pk }}"
-                            data-nombre="{{ pq.nombre }}" data-precio="{{ pq.precio_venta }}"
-                            data-precio-lista="{{ pq.precio_venta }}"
-                            data-categoria-id="{{ pq.categoria.pk|default:'' }}"
-                            data-imagen="{% if pq.imagenes.first %}{{ pq.imagenes.first.imagen.url }}{% endif %}">
-                            Agregar al pedido
-                        </button>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-    </section>
-    {% endif %}
-
-    <nav class="kc-tabs-wrap">
-        <div class="kc-tabs">
-            {% for s in secciones %}
-                <a href="{{ s.url }}" class="kc-tab {% if s.activa %}kc-tab-activo{% endif %}">{{ s.nombre }}</a>
-            {% endfor %}
-        </div>
-    </nav>
-
     <div class="kc-layout" id="kcCatalogo">
         <aside class="kc-sidebar" id="kcSidebar">
             <div class="kc-sidebar-panel">
@@ -223,6 +143,18 @@
                     </nav>
                 </div>
 
+                {% if tipos %}
+                <div class="kc-filtro-grupo">
+                    <h3>Tipo</h3>
+                    <nav class="kc-filtro-lista">
+                        <a href="{{ url_todos_tipos }}" class="{% if not tipo_activo %}kc-filtro-activo{% endif %}">Todos los tipos</a>
+                        {% for t in tipos %}
+                            <a href="{{ t.url }}" class="{% if t.activa %}kc-filtro-activo{% endif %}">{{ t.nombre }}</a>
+                        {% endfor %}
+                    </nav>
+                </div>
+                {% endif %}
+
                 {% if marcas %}
                 <div class="kc-filtro-grupo">
                     <h3>Marca</h3>
@@ -234,9 +166,10 @@
                 </div>
                 {% endif %}
 
-                <form class="kc-filtro-grupo" method="get" id="formPrecio">
+                <form class="kc-filtro-grupo" method="get" id="formPrecio" action="{% url 'catalogo:home' %}#kcCatalogo">
                     <h3>Precio</h3>
                     {% if categoria_activa %}<input type="hidden" name="categoria" value="{{ categoria_activa }}">{% endif %}
+                    {% if tipo_activo %}<input type="hidden" name="tipo" value="{{ tipo_activo }}">{% endif %}
                     {% if marca_activa %}<input type="hidden" name="marca" value="{{ marca_activa }}">{% endif %}
                     {% if seccion_activa != 'todos' %}<input type="hidden" name="seccion" value="{{ seccion_activa }}">{% endif %}
                     <div class="kc-precio-inputs">
@@ -258,7 +191,7 @@
                         <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1 1L9 9M9 1L1 9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
                     </a>
                 {% endfor %}
-                <a href="{% url 'catalogo:home' %}" class="kc-limpiar-filtros">Limpiar todo</a>
+                <a href="{% url 'catalogo:home' %}#kcCatalogo" class="kc-limpiar-filtros">Limpiar todo</a>
             </div>
             {% endif %}
 
@@ -269,8 +202,9 @@
                 </button>
                 <p class="kc-contador">{{ total_productos }} resultado{{ total_productos|pluralize:"s" }}</p>
                 {% if mostrar_productos and productos %}
-                <form method="get" class="kc-orden" id="formOrden">
+                <form method="get" class="kc-orden" id="formOrden" action="{% url 'catalogo:home' %}#kcCatalogo">
                     {% if categoria_activa %}<input type="hidden" name="categoria" value="{{ categoria_activa }}">{% endif %}
+                    {% if tipo_activo %}<input type="hidden" name="tipo" value="{{ tipo_activo }}">{% endif %}
                     {% if marca_activa %}<input type="hidden" name="marca" value="{{ marca_activa }}">{% endif %}
                     {% if seccion_activa != 'todos' %}<input type="hidden" name="seccion" value="{{ seccion_activa }}">{% endif %}
                     {% if request.GET.q %}<input type="hidden" name="q" value="{{ request.GET.q }}">{% endif %}
@@ -302,13 +236,16 @@
                             {% endif %}
                         {% endwith %}
                         <div class="kc-card-badges">
+                            {% if p.oferta_info %}<span class="kc-badge-oferta">{{ p.oferta_info.badge }}</span>{% endif %}
                             {% if p.destacado %}<span class="kc-badge kc-badge--destacado">Destacado</span>{% endif %}
                             {% if p.es_nuevo %}<span class="kc-badge kc-badge--nuevo">Nuevo</span>{% endif %}
                         </div>
-                        {% if p.oferta_info %}<span class="kc-badge-oferta">{{ p.oferta_info.badge }}</span>{% endif %}
                         {% if p.estado == 'agotado' or p.stock_actual <= 0 and p.gestiona_stock %}
                             <span class="kc-badge-stock">Sin stock</span>
+                        {% elif p.gestiona_stock and p.stock_actual > 0 %}
+                            <span class="kc-badge-disponible">Disponible</span>
                         {% endif %}
+                        <span class="kc-card-quickview">Ver detalle</span>
                     </a>
                     <div class="kc-card-body">
                         <div class="kc-card-meta">
@@ -355,7 +292,7 @@
             {% endif %}
             {% endif %}
 
-            {% if mostrar_paquetes and paquetes %}
+            {% if mostrar_paquetes and paquetes and not mostrar_vidriera %}
             {% if mostrar_productos and productos %}<h2 class="kc-subtitulo">Paquetes y combos</h2>{% endif %}
             <div class="kc-combo-row">
                 {% for pq in paquetes %}
@@ -411,5 +348,115 @@
             {% endif %}
         </div>
     </div>
+
+    {% if mostrar_vidriera and destacados %}
+    <section class="kc-sec-vidriera">
+        <div class="kc-sec-head"><h2>Destacados</h2><span class="kc-sec-sub">los que nunca faltan</span></div>
+        <div class="kc-feat-row">
+            {% for p in destacados %}
+            <div class="kc-feat-card">
+                <a href="{% url 'catalogo:producto_detalle' p.pk %}" class="kc-feat-media {% if not p.imagenes.all %}kc-card-img--vacia{% endif %}">
+                    {% with portada=p.imagenes.first %}
+                        {% if portada %}
+                            <img src="{{ portada.imagen.url }}" alt="{{ p.nombre }}" loading="lazy">
+                        {% else %}
+                            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 8L12 3.5L21 8V16L12 20.5L3 16V8Z"/></svg>
+                        {% endif %}
+                    {% endwith %}
+                    <span class="kc-feat-badge">Destacado</span>
+                    <span class="kc-card-quickview">Ver detalle</span>
+                </a>
+                <div class="kc-feat-body">
+                    {% if p.categoria %}<span class="kc-card-categoria">{{ p.categoria.nombre }}</span>{% endif %}
+                    <a href="{% url 'catalogo:producto_detalle' p.pk %}"><h3 class="kc-feat-nombre">{{ p.nombre }}</h3></a>
+                    <div class="kc-feat-foot">
+                        <div class="kc-card-precio">
+                            {% if p.oferta_info and p.oferta_info.precio_final != p.precio_venta %}
+                                <span class="kc-precio-final">${{ p.oferta_info.precio_final }}</span>
+                                <span class="kc-precio-tachado">${{ p.precio_venta }}</span>
+                            {% elif p.precio_venta %}
+                                <span class="kc-precio-final">${{ p.precio_venta }}</span>
+                            {% else %}
+                                <span class="kc-precio-consultar">A consultar</span>
+                            {% endif %}
+                        </div>
+                        {% if p.disponible_compra %}
+                        <div data-carrito-slot>
+                            <button type="button" class="kc-btn-agregar" data-carrito-agregar="prod-{{ p.pk }}"
+                                data-nombre="{{ p.nombre }}" data-precio="{{ p.oferta_info.precio_final|default:p.precio_venta }}"
+                                data-precio-lista="{{ p.precio_venta }}"
+                                data-categoria-id="{{ p.categoria.pk|default:'' }}"
+                                data-imagen="{% if p.imagenes.first %}{{ p.imagenes.first.imagen.url }}{% endif %}">
+                                Agregar al pedido
+                            </button>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if mostrar_vidriera and paquetes_destacados %}
+    <section class="kc-sec-vidriera">
+        <div class="kc-sec-head">
+            <div><h2>Combos armados</h2><span class="kc-sec-sub">más barato que llevarlo suelto</span></div>
+            {% if paquetes|length > 4 %}<a href="?seccion=paquetes" class="kc-sec-vertodos">Ver todos ({{ paquetes|length }})</a>{% endif %}
+        </div>
+        <div class="kc-combo-row">
+            {% for pq in paquetes_destacados %}
+            <div class="kc-combo-card">
+                <a href="{% url 'catalogo:producto_detalle' pq.pk %}" class="kc-combo-top">
+                    {% with portada=pq.imagenes.first %}
+                        {% if portada %}
+                            <span class="kc-combo-foto"><img src="{{ portada.imagen.url }}" alt="{{ pq.nombre }}" loading="lazy"></span>
+                        {% else %}
+                            {% for c in pq.componentes.all|slice:":3" %}
+                                <span class="kc-combo-thumb">
+                                    {% with img=c.producto.imagen_principal %}
+                                        {% if img %}
+                                            <img src="{{ img.imagen.url }}" alt="">
+                                        {% else %}
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 8L12 3.5L21 8V16L12 20.5L3 16V8Z"/></svg>
+                                        {% endif %}
+                                    {% endwith %}
+                                </span>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+                </a>
+                <div class="kc-combo-body">
+                    {% if pq.oferta_info %}<span class="kc-combo-eyebrow">{{ pq.oferta_info.badge }} off</span>{% elif pq.destacado %}<span class="kc-combo-eyebrow">Destacado</span>{% endif %}
+                    <a href="{% url 'catalogo:producto_detalle' pq.pk %}"><h3 class="kc-combo-nombre">{{ pq.nombre }}</h3></a>
+                    <ul class="kc-combo-items">
+                        {% for c in pq.componentes.all %}<li>{{ c.cantidad|floatformat:"-2" }}× {{ c.producto.nombre }}</li>{% endfor %}
+                    </ul>
+                </div>
+                <div class="kc-combo-div"></div>
+                <div class="kc-combo-bottom">
+                    <div class="kc-combo-priceblock">
+                        {% if pq.ahorro %}<span class="kc-combo-sum">${{ pq.ahorro.suma|floatformat:2 }}</span>{% endif %}
+                        {% if pq.precio_venta %}<span class="kc-combo-final">${{ pq.precio_venta }}</span>{% else %}<span class="kc-precio-consultar">A consultar</span>{% endif %}
+                        {% if pq.ahorro %}<span class="kc-combo-save">Ahorrás ${{ pq.ahorro.ahorro|floatformat:2 }}</span>{% endif %}
+                    </div>
+                    {% if pq.disponible_compra %}
+                    <div data-carrito-slot>
+                        <button type="button" class="kc-btn-agregar" data-carrito-agregar="paq-{{ pq.pk }}"
+                            data-nombre="{{ pq.nombre }}" data-precio="{{ pq.precio_venta }}"
+                            data-precio-lista="{{ pq.precio_venta }}"
+                            data-categoria-id="{{ pq.categoria.pk|default:'' }}"
+                            data-imagen="{% if pq.imagenes.first %}{{ pq.imagenes.first.imagen.url }}{% endif %}">
+                            Agregar al pedido
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
 
 {% endblock %}

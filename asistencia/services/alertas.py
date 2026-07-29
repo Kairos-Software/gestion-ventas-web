@@ -3,7 +3,9 @@ from decimal import Decimal
 
 from django.utils import timezone
 
-from caja.models import CuotaDeuda, EstadoCuota, EstadoDeuda, Cheque, EstadoCheque, TipoCheque
+from caja.models import (
+    CuotaDeuda, EstadoCuota, EstadoDeuda, Cheque, EstadoCheque, TipoCheque, CuotaCobro,
+)
 from core.services_estadisticas.productos import perdidas_vencimiento, sin_movimiento
 
 
@@ -114,6 +116,44 @@ def deudas_pagadas_recientemente(dentro_de_dias, hoy=None):
     return {
         'cuotas': cuotas,
         'total_pagado': _fmt(total),
+    }
+
+
+# ══════════════════════════════════════════════════════════════════
+#  CUOTAS DE COBRO RECIÉN CONFIRMADAS  (ventas en cuotas — financiación
+#  propia del comercio, contracara de deudas_pagadas_recientemente:
+#  acá es el CLIENTE quien te pagó a vos, no vos a un proveedor)
+# ══════════════════════════════════════════════════════════════════
+
+def cuotas_cobro_pagadas_recientemente(dentro_de_dias, hoy=None):
+    """Cuotas de cuentas por cobrar confirmadas (cobradas) en los últimos `dentro_de_dias` días."""
+    ahora = timezone.now()
+    limite = ahora - timedelta(days=dentro_de_dias)
+
+    qs = (
+        CuotaCobro.objects
+        .filter(estado=EstadoCuota.CONFIRMADA, fecha_confirmacion__gte=limite)
+        .select_related('cuenta_por_cobrar', 'cuenta_por_cobrar__cliente')
+        .order_by('-fecha_confirmacion')
+    )
+
+    cuotas = []
+    total = Decimal('0')
+    for cuota in qs:
+        total += cuota.monto
+        cliente = cuota.cuenta_por_cobrar.cliente
+        cuotas.append({
+            'cliente': cliente.get_nombre_display() if cliente else '(cliente eliminado)',
+            'numero': cuota.numero,
+            'total_cuotas': cuota.cuenta_por_cobrar.cantidad_cuotas,
+            'fecha_confirmacion': cuota.fecha_confirmacion.strftime('%d/%m/%Y'),
+            'monto_fmt': _fmt(cuota.monto),
+            'referencia': cuota.pk,
+        })
+
+    return {
+        'cuotas': cuotas,
+        'total_cobrado': _fmt(total),
     }
 
 

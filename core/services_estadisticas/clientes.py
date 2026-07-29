@@ -16,6 +16,7 @@ from django.utils import timezone
 
 from core.models import Cliente
 from ventas.models import ItemVenta, EstadoVenta
+from caja.models import CuotaCobro, EstadoCuota, EstadoDeuda
 
 from .ventas import SUBTOTAL_EXPR
 
@@ -144,3 +145,69 @@ def distribucion_estado():
         {'estado': f['estado'], 'label': labels.get(f['estado'], f['estado']), 'cantidad': f['cantidad']}
         for f in Cliente.objects.values('estado').annotate(cantidad=Count('id')).order_by('-cantidad')
     ]
+
+
+# ══════════════════════════════════════════════════════════════════
+#  CUENTAS POR COBRAR (ventas en cuotas — financiación propia del
+#  comercio, ver ventas.models.MedioPago.CUOTAS). Tiempo real, salvo
+#  "cobrado_periodo" que sí respeta el filtro de fecha. No confundir
+#  con Deuda/CuotaDeuda (caja/models.py): eso es lo que VOS le debés
+#  a un proveedor o préstamo; esto es lo que te deben LOS CLIENTES.
+# ══════════════════════════════════════════════════════════════════
+
+def cuentas_por_cobrar(desde, hasta, dias_proximo_vencimiento=15, top=10):
+    hoy = timezone.now().date()
+
+    cuotas_pendientes = CuotaCobro.objects.filter(
+        estado=EstadoCuota.PENDIENTE, cuenta_por_cobrar__estado=EstadoDeuda.ACTIVA,
+    )
+    total_pendiente = cuotas_pendientes.aggregate(total=Sum('monto'))['total'] or Decimal('0')
+    cantidad_pendiente = cuotas_pendientes.count()
+
+    vencidas = cuotas_pendientes.filter(fecha_vencimiento__lt=hoy)
+    total_vencido = vencidas.aggregate(total=Sum('monto'))['total'] or Decimal('0')
+    cantidad_vencidas = vencidas.count()
+
+    proximas = cuotas_pendientes.filter(
+        fecha_vencimiento__gte=hoy,
+        fecha_vencimiento__lte=hoy + timedelta(days=dias_proximo_vencimiento),
+    )
+    total_proximo = proximas.aggregate(total=Sum('monto'))['total'] or Decimal('0')
+    cantidad_proximas = proximas.count()
+
+    cobrado_periodo = CuotaCobro.objects.filter(
+        estado=EstadoCuota.CONFIRMADA, fecha_confirmacion__date__range=(desde, hasta),
+    ).aggregate(total=Sum('monto'))['total'] or Decimal('0')
+
+    por_cliente = list(
+        cuotas_pendientes.values('cuenta_por_cobrar__cliente__id')
+        .annotate(total=Sum('monto'), cantidad=Count('id'))
+        .order_by('-total')[:top]
+    )
+    clientes_dict = {
+        c.id: c for c in Cliente.objects.filter(
+            id__in=[f['cuenta_por_cobrar__cliente__id'] for f in por_cliente])
+    }
+    ranking_deudores = [
+        {
+            'id': f['cuenta_por_cobrar__cliente__id'],
+            'nombre': (
+                clientes_dict[f['cuenta_por_cobrar__cliente__id']].get_nombre_display()
+                if f['cuenta_por_cobrar__cliente__id'] in clientes_dict else '(cliente eliminado)'
+            ),
+            'total': f['total'] or Decimal('0'),
+            'cantidad_cuotas': f['cantidad'],
+        }
+        for f in por_cliente
+    ]
+
+    return {
+        'total_pendiente': total_pendiente,
+        'cantidad_pendiente': cantidad_pendiente,
+        'total_vencido': total_vencido,
+        'cantidad_vencidas': cantidad_vencidas,
+        'total_proximo': total_proximo,
+        'cantidad_proximas': cantidad_proximas,
+        'cobrado_periodo': cobrado_periodo,
+        'ranking_deudores': ranking_deudores,
+    }

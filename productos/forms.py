@@ -241,7 +241,8 @@ class ProductoForm(forms.ModelForm):
             # Dimensiones
             'peso_kg', 'alto_cm', 'ancho_cm', 'profundidad_cm',
             # Precios
-            'precio_venta', 'modo_precio', 'porcentaje_ganancia',
+            'precio_venta', 'modo_precio', 'porcentaje_ganancia', 'alicuota_iva',
+            'precio_incluye_iva',
             # Estado y visibilidad (publicado se maneja con botón toggle en tabla)
             'estado', 'publicado', 'destacado',
             # Logística
@@ -323,7 +324,8 @@ class ProductoForm(forms.ModelForm):
             'precio_venta':     forms.NumberInput(attrs={'class': 'form-control nx-input', 'step': '0.01', 'min': '0', 'placeholder': '0.00'}),
             'modo_precio':      forms.Select(attrs={'class': 'form-select nx-input'}),
             'porcentaje_ganancia': forms.NumberInput(attrs={'class': 'form-control nx-input', 'step': '0.01', 'min': '0', 'placeholder': '0.00'}),
- 
+            'alicuota_iva':     forms.Select(attrs={'class': 'form-select nx-input'}),
+
             # — Estado —
             'estado':     forms.Select(attrs={'class': 'form-select nx-input'}),
             'publicado':  forms.CheckboxInput(attrs={'class': 'form-check-input'}),

@@ -105,6 +105,13 @@
     overflow: visible;
 }
 
+/* La card del carrito necesita overflow visible para que el dropdown
+   del cliente de la venta (en el header) pueda flotar por encima de la
+   tabla sin quedar recortado — hace falta reponer el redondeado del
+   header a mano porque ya no lo recorta el overflow:hidden del padre. */
+.vta-card--carrito { overflow: visible; }
+.vta-card--carrito .vta-card-header { border-radius: 1rem 1rem 0 0; }
+
 .vta-card-header {
     padding: .875rem 1.25rem;
     border-bottom: 1px solid var(--border-color);
@@ -382,8 +389,113 @@
     font-size: .8rem;
 }
 
-/* Cliente autocomplete en fila */
+/* Cliente autocomplete en fila (usado hoy solo por historial_editor.js) */
 .vta-cli-wrap { position: relative; min-width: 140px; }
+
+/* Cliente único de la venta — vive en el header de la card del carrito,
+   no por fila (ver nueva_venta.js). Namespaced aparte para no afectar el
+   autocomplete por fila que historial_editor.js todavía usa. */
+.vta-cliente-venta {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    margin-left: auto;
+}
+
+.vta-cliente-venta-label {
+    font-size: .7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.vta-cliente-venta .vta-cli-wrap { min-width: 260px; }
+.vta-cliente-venta .vta-cli-input { width: 100%; padding-left: 1.95rem; padding-right: 1.75rem; }
+
+.vta-cli-icon {
+    position: absolute;
+    left: .6rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    pointer-events: none;
+}
+
+.vta-cliente-venta .vta-cli-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    width: auto;
+}
+
+.vta-cliente-venta-clear {
+    position: absolute;
+    top: 50%;
+    right: .5rem;
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: .7rem;
+    line-height: 1;
+    padding: 0;
+}
+
+.vta-cliente-venta-clear:hover { color: var(--danger, #e11d48); }
+
+/* Spinner chico mientras se espera la respuesta de la búsqueda —
+   ocupa el mismo lugar que el botón de limpiar, nunca se muestran
+   juntos (escribir ya vacía el cliente elegido, ver nueva_venta.js). */
+.vta-cli-spinner {
+    position: absolute;
+    top: 50%;
+    right: .55rem;
+    width: 13px;
+    height: 13px;
+    margin-top: -6.5px;
+    border: 2px solid var(--border-color);
+    border-top-color: var(--brand-orange);
+    border-radius: 50%;
+    animation: vta-cli-spin .6s linear infinite;
+}
+
+@keyframes vta-cli-spin { to { transform: rotate(360deg); } }
+
+/* Tarjeta de resultado del cliente — nombre + código a la izquierda/
+   derecha en una fila, documento (si tiene) en una segunda fila con
+   ícono. Clases propias (no las genéricas .vta-cli-option-nombre/-meta,
+   que también usa historial_editor.js) para no afectar esa pantalla. */
+.vta-cli-option-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+}
+
+.vta-cli-option-doc {
+    display: flex;
+    align-items: center;
+    gap: .3rem;
+    font-size: .7rem;
+    color: var(--text-muted);
+    margin-top: .2rem;
+}
+.vta-cli-option-doc svg { flex-shrink: 0; color: var(--text-muted); }
+
+@media (max-width: 720px) {
+    .vta-card-header { flex-wrap: wrap; }
+    .vta-cliente-venta { margin-left: 0; width: 100%; }
+    .vta-cliente-venta .vta-cli-wrap { flex: 1; min-width: 0; }
+}
 
 .vta-cli-dropdown {
     background: var(--bg-white);

@@ -52,6 +52,10 @@ class PreferenciaAsistencia(models.Model):
         default=2, help_text='Avisar deudas que vencen dentro de esta cantidad de días.',
     )
     recibir_deuda_pagada = models.BooleanField(default=True)
+    recibir_cuota_cobro_confirmada = models.BooleanField(
+        default=True,
+        help_text='Avisar cuando un cliente paga una cuota de una venta financiada en cuotas.',
+    )
     recibir_stock_estancado = models.BooleanField(default=True)
     dias_stock_estancado = models.PositiveSmallIntegerField(
         default=60, help_text='Sin ventas en esta cantidad de días = stock estancado.',
@@ -96,6 +100,7 @@ class TipoNotificacion(models.TextChoices):
     ALERTA_VENCIMIENTO = 'alerta_vencimiento', 'Producto por vencer'
     ALERTA_DEUDA = 'alerta_deuda', 'Deuda próxima a vencer'
     DEUDA_PAGADA = 'deuda_pagada', 'Deuda pagada'
+    CUOTA_COBRO_CONFIRMADA = 'cuota_cobro_confirmada', 'Cobro de cuota confirmado'
     STOCK_ESTANCADO = 'stock_estancado', 'Stock sin movimiento'
     ALERTA_CHEQUE = 'alerta_cheque', 'Cheque próximo a vencer'
 

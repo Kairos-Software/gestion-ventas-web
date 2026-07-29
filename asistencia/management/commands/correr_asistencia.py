@@ -10,7 +10,7 @@ from core.models import DatosEmpresa
 
 TIPOS = [
     'periodico_mensual', 'periodico_semanal', 'vencimiento',
-    'deuda', 'deuda_pagada', 'stock', 'cheques', 'todos',
+    'deuda', 'deuda_pagada', 'cuota_cobro_confirmada', 'stock', 'cheques', 'todos',
 ]
 
 
@@ -69,6 +69,12 @@ class Command(BaseCommand):
         # (ver probar_asistencia.py).
         if tipo == 'deuda_pagada' and pref.recibir_deuda_pagada:
             self._deuda_pagada(hoy, destino, forzar, empresa_nombre, saludo)
+        # 'cuota_cobro_confirmada' tampoco entra en 'todos': mismo criterio
+        # que 'deuda_pagada' — en producción sale al toque desde
+        # asistencia.services.eventos.notificar_cuota_cobro_confirmada
+        # (ver ConfirmarCuotaCobroAjax) apenas se confirma el cobro.
+        if tipo == 'cuota_cobro_confirmada' and pref.recibir_cuota_cobro_confirmada:
+            self._cuota_cobro_confirmada(hoy, destino, forzar, empresa_nombre, saludo)
         if tipo in ('stock', 'todos') and pref.recibir_stock_estancado:
             self._stock_estancado(hoy, destino, forzar, pref, empresa_nombre, saludo)
         if tipo in ('cheques', 'todos') and pref.recibir_alerta_cheques:
@@ -137,8 +143,8 @@ class Command(BaseCommand):
         asunto = f'Kai-Cart · {empresa_nombre}: {n} producto(s) por vencer'
         datos.update({
             'titulo': 'Productos por vencer', 'subtitulo': None,
-            'intro': f'{saludo} estos productos de {empresa_nombre} están por vencer. Te '
-                     f'recomendamos priorizar su venta o ponerlos en oferta antes de esa fecha.',
+            'intro': f'{saludo} estos productos de {empresa_nombre} están próximos a vencer. '
+                     f'Se recomienda priorizar su venta antes de esa fecha.',
             'badge_texto': 'Aviso', 'badge_color': '#F59E0B',
         })
         self._enviar(TipoNotificacion.ALERTA_VENCIMIENTO, destino, asunto,
@@ -165,15 +171,35 @@ class Command(BaseCommand):
         if not datos['cuotas']:
             self.stdout.write('  Sin pagos recientes.')
             return
-        asunto = f'Kai-Cart · {empresa_nombre}: pago confirmado'
+        # Texto neutro/administrativo a propósito (ver mismo comentario
+        # en asistencia/services/eventos.py): "buenas noticias, pago
+        # confirmado" es casi calcado al fraseo típico de phishing de
+        # confirmación de pago, y Gmail lo manda a Spam con bastante
+        # consistencia por eso.
+        asunto = f'Kai-Cart · {empresa_nombre}: registro de pago de cuota'
         datos.update({
             'titulo': 'Deudas pagadas', 'subtitulo': None,
-            'intro': f'{saludo} buenas noticias: se confirmó el pago de estas cuotas de '
+            'intro': f'{saludo} se registraron en el sistema estos pagos de cuotas de '
                      f'{empresa_nombre}.',
             'badge_texto': 'Al día', 'badge_color': '#10B981',
         })
         self._enviar(TipoNotificacion.DEUDA_PAGADA, destino, asunto,
                      'deuda_pagada.html', datos, f'pagada-{hoy:%Y-%m-%d}', forzar)
+
+    def _cuota_cobro_confirmada(self, hoy, destino, forzar, empresa_nombre, saludo):
+        datos = alertas.cuotas_cobro_pagadas_recientemente(7, hoy=hoy)
+        if not datos['cuotas']:
+            self.stdout.write('  Sin cobros recientes.')
+            return
+        asunto = f'Kai-Cart · {empresa_nombre}: registro de cobro de cuota'
+        datos.update({
+            'titulo': 'Cobros confirmados', 'subtitulo': None,
+            'intro': f'{saludo} se registraron en el sistema estos cobros de cuotas de '
+                     f'{empresa_nombre}.',
+            'badge_texto': 'Cobrado', 'badge_color': '#10B981',
+        })
+        self._enviar(TipoNotificacion.CUOTA_COBRO_CONFIRMADA, destino, asunto,
+                     'cuota_cobro_confirmada.html', datos, f'cobrada-{hoy:%Y-%m-%d}', forzar)
 
     def _stock_estancado(self, hoy, destino, forzar, pref, empresa_nombre, saludo):
         datos = alertas.stock_estancado(pref.dias_stock_estancado)
@@ -184,8 +210,8 @@ class Command(BaseCommand):
         datos.update({
             'titulo': 'Stock sin movimiento', 'subtitulo': None,
             'intro': f'{saludo} estos productos de {empresa_nombre} tienen stock cargado '
-                     f'pero no se vendieron hace tiempo. Te dejamos algunas sugerencias '
-                     f'para rotarlos: liquidación, combo, o bajar el precio.',
+                     f'pero sin ventas registradas hace tiempo — conviene revisar precio '
+                     f'y rotación.',
             'badge_texto': 'Sugerencia', 'badge_color': '#1E6FA8',
         })
         self._enviar(TipoNotificacion.STOCK_ESTANCADO, destino, asunto,

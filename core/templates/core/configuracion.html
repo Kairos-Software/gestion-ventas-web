@@ -489,6 +489,18 @@
                 </label>
             </div>
 
+            <!-- Cobro de cuota (ventas en cuotas) -->
+            <div class="config-row">
+                <div class="config-row-info">
+                    <div class="config-row-label">Cobro de cuotas (ventas)</div>
+                    <div class="config-row-desc">Avisar cuando un cliente paga una cuota de una venta financiada en cuotas</div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="idRecibirCuotaCobroConfirmada" {% if preferencia_asistencia.recibir_cuota_cobro_confirmada %}checked{% endif %}>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+
             <!-- Stock estancado -->
             <div class="config-row">
                 <div class="config-row-info">
@@ -604,11 +616,16 @@
                                 <input class="form-control" id="cuentaTerminadaEn" placeholder="Últimos 4 dígitos o alias">
                             </div>
                             <div style="flex:1; display:flex; align-items:flex-end; padding-bottom:0.5rem;">
-                                <div class="form-check">
+                                <div class="form-check kai-label-help">
                                     <input class="form-check-input" type="checkbox" id="cuentaEsCredito">
-                                    <label class="form-check-label" for="cuentaEsCredito">Es tarjeta de crédito</label>
+                                    <label class="form-check-label" for="cuentaEsCredito">Es tarjeta de crédito propia (compras)</label>
+                                    <button type="button" class="kai-help-btn" data-help-target="ayuda_cuenta_es_credito" aria-label="Ayuda">?</button>
                                 </div>
                             </div>
+                        </div>
+                        <div class="kai-help-popover" id="ayuda_cuenta_es_credito" style="margin:-0.4rem 0 0.85rem;">
+                            Esto NO es para las cuentas que te pagan los clientes (Mercado Pago, Naranja X, el Posnet del banco) — esas se cargan igual, sin tildar esto. Es solo si usás esta tarjeta para comprarle a tus proveedores.
+                            Los recargos que le cobrás al cliente se configuran aparte, en Finanzas → Recargos.
                         </div>
                         <div class="config-row" id="cuentaCreditoFields" style="gap:1rem; padding:0 0 0.85rem; display:none;">
                             <div style="flex:1;">

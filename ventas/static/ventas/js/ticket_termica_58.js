@@ -3,9 +3,16 @@
  * ─────────────────────────────────────────────────────────────────
  * Generador de HTML para ticket de venta en impresora térmica 58mm.
  *
+ * Ancho real: aunque el rollo es de 58mm, el cabezal de impresión de
+ * la enorme mayoría de estas impresoras solo imprime ~48mm de ancho
+ * (48mm / 384 dots a 203dpi es el estándar de la categoría "58mm").
+ * Diseñar a 50mm+ hace que la columna derecha se corte en la
+ * impresión real — por eso acá el contenido se arma a 48mm con
+ * márgenes de 1.5mm a los costados, no a los 58mm nominales del papel.
+ *
  * Diferencias respecto a ticket_termica_80.js:
- *   - Ancho útil ~50mm (más estrecho aún)
- *   - Fuente más pequeña (8pt base) para que entren más caracteres
+ *   - Ancho útil ~45mm (más estrecho aún)
+ *   - Fuente más pequeña (7.5pt base) para que entren más caracteres
  *   - Nombres de producto más cortos — se truncan con CSS
  *   - Total aún más destacado (es lo más importante en 58mm)
  *   - Sin columnas precio/cant en la misma línea si el nombre es largo
@@ -24,11 +31,12 @@
  * @returns {string}
  */
 function ticketHtmlTermica58(data) {
-    const emp   = data.empresa || {};
-    const venta = data.venta   || {};
-    const items = data.items   || [];
-    const pagos = data.pagos   || [];
-    const cbte  = data.comprobante_arca || null;
+    const emp     = data.empresa || {};
+    const venta   = data.venta   || {};
+    const items   = data.items   || [];
+    const pagos   = data.pagos   || [];
+    const cbte    = data.comprobante_arca || null;
+    const cliente = data.cliente || null;
 
     return `<!DOCTYPE html>
 <html lang="es">
@@ -41,9 +49,9 @@ function ticketHtmlTermica58(data) {
 
         /* ── Página ── */
         html, body {
-            width: 50mm;
+            width: 48mm;
             font-family: 'Courier New', Courier, monospace;
-            font-size: 8pt;
+            font-size: 7.5pt;
             color: #000;
             background: #fff;
         }
@@ -53,48 +61,57 @@ function ticketHtmlTermica58(data) {
         .t58-center { text-align: center; }
         .t58-right  { text-align: right; }
         .t58-bold   { font-weight: bold; }
-        .t58-peq    { font-size: 6.5pt; color: #333; }
+        .t58-peq    { font-size: 6.2pt; color: #333; line-height: 1.4; }
 
         .t58-sep-doble  { border: none; border-top: 2px solid #000; margin: 3pt 0; }
         .t58-sep-simple { border: none; border-top: 1px dashed #000; margin: 2pt 0; }
 
         /* ── Cabecera empresa ── */
-        .t58-logo { max-width: 130px; max-height: 40px; display: block; margin: 0 auto 3pt; }
-        .t58-empresa-nombre { font-size: 9.5pt; font-weight: bold; text-align: center; }
-        .t58-empresa-dato   { font-size: 6.5pt; text-align: center; line-height: 1.5; }
+        .t58-logo { max-width: 110px; max-height: 34px; display: block; margin: 0 auto 3pt; }
+        .t58-empresa-nombre { font-size: 9pt; font-weight: bold; text-align: center; }
+        .t58-empresa-dato   { font-size: 6.2pt; text-align: center; line-height: 1.45; }
 
         /* ── Número de venta ── */
-        .t58-venta-num  { font-size: 8.5pt; font-weight: bold; text-align: center; margin: 2pt 0 1pt; }
-        .t58-venta-meta { font-size: 6.5pt; text-align: center; color: #333; }
+        .t58-venta-num  { font-size: 8pt; font-weight: bold; text-align: center; margin: 2pt 0 1pt; }
+        .t58-venta-meta { font-size: 6.2pt; text-align: center; color: #333; }
+
+        /* ── Cliente ── */
+        .t58-cliente-cf {
+            font-size: 6.8pt; font-weight: bold; text-align: center;
+            letter-spacing: .03em; margin: 2pt 0;
+        }
+        .t58-cliente { text-align: center; margin: 2pt 0; }
+        .t58-cliente-nombre { font-weight: bold; font-size: 7pt; }
 
         /* ── Ítems ── */
         .t58-items { width: 100%; margin: 3pt 0; }
         .t58-item  { margin-bottom: 4pt; }
         .t58-item-nombre {
             font-weight: bold;
-            font-size: 7.5pt;
+            font-size: 7pt;
             word-break: break-word;
             line-height: 1.3;
         }
-        .t58-item-detalle { font-size: 6pt; color: #555; }
+        .t58-item-detalle { font-size: 5.8pt; color: #555; }
         .t58-item-nums {
             display: flex;
             justify-content: space-between;
-            font-size: 7.5pt;
+            font-size: 7pt;
             margin-top: 1pt;
+            gap: 3pt;
         }
 
         /* ── Totales ── */
         .t58-total-row {
             display: flex;
             justify-content: space-between;
-            font-size: 7.5pt;
+            font-size: 7pt;
             line-height: 1.7;
         }
         .t58-total-final {
             display: flex;
             justify-content: space-between;
-            font-size: 13pt;
+            font-size: 12pt;
             font-weight: bold;
             margin-top: 2pt;
         }
@@ -103,7 +120,7 @@ function ticketHtmlTermica58(data) {
         .t58-pago-row {
             display: flex;
             justify-content: space-between;
-            font-size: 7pt;
+            font-size: 6.5pt;
             line-height: 1.6;
         }
 
@@ -116,9 +133,9 @@ function ticketHtmlTermica58(data) {
             margin: 3pt 0;
         }
         .t58-comprobante-label {
-            font-size: 6pt;
+            font-size: 5.8pt;
             font-weight: bold;
-            letter-spacing: .05em;
+            letter-spacing: .04em;
             text-transform: uppercase;
             margin-bottom: 2pt;
         }
@@ -126,7 +143,7 @@ function ticketHtmlTermica58(data) {
         /* ── Pie ── */
         .t58-footer {
             text-align: center;
-            font-size: 6.5pt;
+            font-size: 6.2pt;
             color: #555;
             margin-top: 4pt;
             line-height: 1.6;
@@ -138,7 +155,7 @@ function ticketHtmlTermica58(data) {
             body { padding: 0 1.5mm 8mm; }
             @page {
                 size: 58mm auto;
-                margin: 1mm 0 0 0;
+                margin: 1mm 1mm 0 1mm;
             }
         }
     </style>
@@ -158,8 +175,13 @@ function ticketHtmlTermica58(data) {
 
     <!-- Número y fecha -->
     <div class="t58-venta-num">${cbte ? _esc(cbte.tipo_display) + ' ' + _esc(cbte.numero_display) : _esc(venta.numero)}</div>
-    <div class="t58-venta-meta">${_esc(venta.fecha)}</div>
+    <div class="t58-venta-meta">${_esc(venta.fecha_hora || venta.fecha)}</div>
     ${venta.confirmado_por ? `<div class="t58-venta-meta">Op: ${_esc(venta.confirmado_por)}</div>` : ''}
+
+    <hr class="t58-sep-simple">
+
+    <!-- Cliente -->
+    ${_t58Cliente(cliente)}
 
     <hr class="t58-sep-simple">
 
@@ -171,6 +193,7 @@ function ticketHtmlTermica58(data) {
     <hr class="t58-sep-doble">
 
     <!-- Total -->
+    ${_t58DesgloseIva(cbte)}
     <div class="t58-total-final">
         <span>TOTAL</span>
         <span>$${_fmtNum(venta.total)}</span>
@@ -211,6 +234,18 @@ function ticketHtmlTermica58(data) {
 
 /* ── Helpers internos ─────────────────────────────────────────── */
 
+function _t58Cliente(cliente) {
+    if (!cliente) {
+        return `<div class="t58-cliente-cf">CONSUMIDOR FINAL</div>`;
+    }
+    return `<div class="t58-cliente">
+        <div class="t58-cliente-nombre">${_esc(cliente.nombre)}</div>
+        ${cliente.documento ? `<div class="t58-peq">${_esc(cliente.documento)}</div>` : ''}
+        ${cliente.direccion ? `<div class="t58-peq">${_esc(cliente.direccion)}</div>` : ''}
+        ${cliente.telefono  ? `<div class="t58-peq">Tel: ${_esc(cliente.telefono)}</div>` : ''}
+    </div>`;
+}
+
 function _t58Item(item) {
     const desc = item.descuento_pct && item.descuento_pct !== '0.00'
         ? ` -${item.descuento_pct}%`
@@ -229,23 +264,43 @@ function _t58Item(item) {
     </div>`;
 }
 
+// Factura A/B discrimina IVA (tipo_comprobante: 1=A, 6=B, 11=C) — Factura C
+// nunca lo mostró y sigue igual.
+function _t58DesgloseIva(cbte) {
+    if (!cbte || (cbte.tipo_comprobante !== 1 && cbte.tipo_comprobante !== 6)) return '';
+    return `
+        <div class="t58-total-row"><span>Neto gravado</span><span>$${_fmtNum(cbte.importe_neto)}</span></div>
+        <div class="t58-total-row"><span>IVA</span><span>$${_fmtNum(cbte.importe_iva)}</span></div>
+    `;
+}
+
 function _t58Comprobante(cbte) {
     if (!cbte) return '';
     return `<div class="t58-comprobante">
         <div class="t58-comprobante-label">Autorizado por ARCA</div>
-        ${cbte.qrDataUrl ? `<img src="${cbte.qrDataUrl}" alt="QR AFIP" style="width:26mm; height:26mm; margin:2pt auto; display:block;">` : ''}
+        ${cbte.qrDataUrl ? `<img src="${cbte.qrDataUrl}" alt="QR AFIP" style="width:24mm; height:24mm; margin:2pt auto; display:block;">` : ''}
         <div class="t58-peq">CAE: <strong>${_esc(cbte.cae)}</strong></div>
         <div class="t58-peq">Vto: <strong>${_esc(cbte.cae_vencimiento)}</strong></div>
     </div>`;
 }
 
+function _t58PagoDetalle(p) {
+    const partes = [];
+    if (p.etiqueta_plan && Number(p.cantidad_pagos) > 1) partes.push(p.etiqueta_plan);
+    if (p.recargo_monto && parseFloat(p.recargo_monto) > 0) partes.push(`+${p.recargo_pct}%`);
+    return partes.length ? ` (${partes.join(', ')})` : '';
+}
+
 function _t58Pagos(pagos, venta) {
     if (pagos && pagos.length) {
-        return pagos.map(p => `
+        return pagos.map(p => {
+            const tarjeta = p.tarjeta_nombre ? ` · ${_esc(p.tarjeta_nombre)}` : '';
+            return `
         <div class="t58-pago-row">
-            <span>${_esc(p.medio_display)}</span>
+            <span>${_esc(p.medio_display)}${tarjeta}${_t58PagoDetalle(p)}</span>
             <span>$${_fmtNum(p.monto)}</span>
-        </div>`).join('');
+        </div>`;
+        }).join('');
     }
     if (venta.medio_pago_display) {
         return `<div class="t58-pago-row"><span>${_esc(venta.medio_pago_display)}</span><span></span></div>`;

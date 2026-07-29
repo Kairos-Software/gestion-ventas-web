@@ -8,7 +8,7 @@
 {% if empresa.logo %}
     <link rel="icon" type="image/png" href="{{ empresa.logo.url }}">
 {% else %}
-    <link rel="icon" type="image/png" href="{% static 'core/img/logo1.png' %}">
+    <link rel="icon" type="image/png" href="{% static 'core/img/kai-cart-icono1.png' %}">
 {% endif %}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -71,6 +71,7 @@
   <div class="drawer-head"><h3>Filtros</h3><button type="button" class="drawer-close" id="kcFiltroClose">✕</button></div>
   <form class="drawer-body" method="get" action="{% url 'catalogo:home' %}" id="formFiltrosBento">
     {% if categoria_activa %}<input type="hidden" name="categoria" value="{{ categoria_activa }}">{% endif %}
+    {% if tipo_activo %}<input type="hidden" name="tipo" value="{{ tipo_activo }}">{% endif %}
     {% if marca_activa %}<input type="hidden" name="marca" value="{{ marca_activa }}">{% endif %}
     {% if seccion_activa != 'todos' %}<input type="hidden" name="seccion" value="{{ seccion_activa }}">{% endif %}
     <div class="d-group">
@@ -80,6 +81,15 @@
         <a href="{{ cat.url }}" class="d-check {% if cat.activa %}active{% endif %}">{{ cat.nombre }} ({{ cat.cantidad }})</a>
       {% endfor %}
     </div>
+    {% if tipos %}
+    <div class="d-group">
+      <div class="d-group-title">Tipo</div>
+      <a href="{{ url_todos_tipos }}" class="d-check {% if not tipo_activo %}active{% endif %}">Todos los tipos</a>
+      {% for t in tipos %}
+        <a href="{{ t.url }}" class="d-check {% if t.activa %}active{% endif %}">{{ t.nombre }} ({{ t.cantidad }})</a>
+      {% endfor %}
+    </div>
+    {% endif %}
     {% if marcas %}
     <div class="d-group">
       <div class="d-group-title">Marca</div>

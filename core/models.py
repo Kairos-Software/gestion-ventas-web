@@ -29,6 +29,10 @@ PERMISOS_CHOICES = [
     # ── Módulo: Cuentas de caja ───────────────────────────────────
     ('editar_cuentas',     'Cargar y editar cuentas de caja (tarjetas, billeteras, bancos)'),
 
+    # ── Módulo: Recargos por medio de pago ─────────────────────────
+    ('ver_recargos',       'Ver recargos configurados por medio de pago'),
+    ('editar_recargos',    'Cargar y editar recargos por medio de pago'),
+
     # ── Módulo: Clientes ──────────────────────────────────────────
     ('ver_clientes',       'Ver lista de clientes'),
     ('crear_clientes',     'Crear clientes'),
@@ -103,6 +107,12 @@ PERMISOS_CHOICES = [
     ('eliminar_deudas',         'Eliminar créditos y préstamos'),
     ('confirmar_cuotas_deuda',  'Confirmar el pago de una cuota'),
 
+    # ── Módulo: Cuentas por cobrar (ventas en cuotas) ──────────────
+    ('ver_cuentas_cobrar',        'Ver cuentas por cobrar'),
+    ('editar_cuentas_cobrar',     'Editar notas de una cuenta por cobrar'),
+    ('eliminar_cuentas_cobrar',   'Eliminar una cuenta por cobrar'),
+    ('confirmar_cuotas_cobro',    'Confirmar el cobro de una cuota'),
+
     # ── Módulo: Cheques ────────────────────────────────────────────
     ('ver_cheques',        'Ver cheques'),
     ('crear_cheques',      'Crear cheques'),
@@ -124,6 +134,7 @@ CODIGOS_PERMISOS = {codigo for codigo, _ in PERMISOS_CHOICES}
 PERMISOS_RESTRINGIDOS = {
     'editar_empresa',
     'editar_cuentas',
+    'editar_recargos',
     'gestionar_notificaciones',
     'editar_catalogo',
 }
@@ -690,6 +701,16 @@ class GrupoFamiliar(models.Model):
 #  CLIENTE — modelo principal
 # ══════════════════════════════════════════════════════════════════
 
+class CondicionIVA(models.TextChoices):
+    """Condición ante el IVA — la misma lista para Cliente (receptor de
+    facturas) y DatosEmpresa (emisor), así facturacion.py puede comparar
+    ambas con el mismo vocabulario al decidir Factura A/B/C."""
+    RESPONSABLE_INSCRIPTO = 'RI', 'Responsable Inscripto'
+    MONOTRIBUTISTA = 'M', 'Monotributista'
+    EXENTO = 'E', 'Exento'
+    CONSUMIDOR_FINAL = 'CF', 'Consumidor Final'
+
+
 def _generar_codigo_cliente():
     """
     Genera el próximo código único con formato GK-NNNNNN-XX.
@@ -778,7 +799,9 @@ class Cliente(models.Model):
     razon_social     = models.CharField('Razón social', max_length=200, blank=True)
     nombre_comercial = models.CharField('Nombre comercial', max_length=200, blank=True)
     cuit             = models.CharField('CUIT', max_length=20, blank=True)
-    cond_iva         = models.CharField('Condición ante IVA', max_length=50, blank=True)
+    cond_iva         = models.CharField('Condición ante IVA', max_length=2,
+                           choices=CondicionIVA.choices, blank=True,
+                           help_text='Se usa para decidir si corresponde Factura A, B o C al facturar.')
     rubro            = models.CharField(max_length=100, blank=True)
     sitio_web        = models.URLField(blank=True)
     fecha_fundacion  = models.DateField(blank=True, null=True)
@@ -1005,13 +1028,6 @@ class ClienteContactoAdicional(models.Model):
 # ══════════════════════════════════════════════════════════════════
 #  DATOS DE LA EMPRESA
 # ══════════════════════════════════════════════════════════════════
-
-class CondicionIVA(models.TextChoices):
-    RESPONSABLE_INSCRIPTO = 'RI', 'Responsable Inscripto'
-    MONOTRIBUTISTA = 'M', 'Monotributista'
-    EXENTO = 'E', 'Exento'
-    CONSUMIDOR_FINAL = 'CF', 'Consumidor Final'
-
 
 def _empresa_logo_path(instance, filename):
     import os

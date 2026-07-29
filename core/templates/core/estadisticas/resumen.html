@@ -48,6 +48,17 @@
         </div>
 
         <div class="est-finanzas-grupo">
+            <span class="est-finanzas-grupo-titulo">Te deben (ventas en cuotas)</span>
+            {% if situacion_financiera.cxc_pendientes %}
+                {% for c in situacion_financiera.cxc_pendientes %}
+                <div class="est-finanzas-monto positivo">${{ c.total|floatformat:0|intcomma }} <span>{{ c.moneda }}</span></div>
+                {% endfor %}
+            {% else %}
+                <div class="est-finanzas-monto neutro">$0</div>
+            {% endif %}
+        </div>
+
+        <div class="est-finanzas-grupo">
             <span class="est-finanzas-grupo-titulo">Cheques a cobrar</span>
             {% if situacion_financiera.cheques_a_cobrar %}
                 {% for c in situacion_financiera.cheques_a_cobrar %}
@@ -123,6 +134,18 @@
         </div>
         <div class="est-kpi-value">${{ ticket_promedio|floatformat:0|intcomma }}</div>
         <div class="est-kpi-sub">{{ resumen.cantidad_ventas }} venta{{ resumen.cantidad_ventas|pluralize }} confirmada{{ resumen.cantidad_ventas|pluralize }}</div>
+    </div>
+
+    <!-- Facturado con ARCA -->
+    <div class="est-kpi-card">
+        <div class="est-kpi-top">
+            <div class="est-kpi-icon morado">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M5 2.5H15V17.5L12.5 16L10 17.5L7.5 16L5 17.5V2.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7.5 6.5H12.5M7.5 9.5H12.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            </div>
+            <div class="est-kpi-label">Facturado con ARCA</div>
+        </div>
+        <div class="est-kpi-value">${{ facturacion_arca.total_facturado|floatformat:0|intcomma }}</div>
+        <div class="est-kpi-sub">{{ facturacion_arca.pct_facturado }}% del total vendido — detalle en <a href="{% url 'core:estadisticas_ventas' %}">Ventas</a></div>
     </div>
 
     <!-- Total gastado -->

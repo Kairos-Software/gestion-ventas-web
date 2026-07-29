@@ -259,14 +259,6 @@
                                         <input type="text" class="form-control" name="nombre_comercial" id="id_nombre_comercial">
                                     </div>
                                     <div class="col-md-4">
-                                        <label class="form-label">CUIT</label>
-                                        <input type="text" class="form-control" name="cuit" id="id_cuit">
-                                    </div>
-                                    <div class="col-md-4">
-                                        <label class="form-label">Condición ante IVA</label>
-                                        <input type="text" class="form-control" name="cond_iva" id="id_cond_iva">
-                                    </div>
-                                    <div class="col-md-4">
                                         <label class="form-label">Rubro</label>
                                         <input type="text" class="form-control" name="rubro" id="id_rubro">
                                     </div>
@@ -278,6 +270,36 @@
                                         <label class="form-label">Fecha de fundación</label>
                                         <input type="date" class="form-control" name="fecha_fundacion" id="id_fecha_fundacion">
                                     </div>
+                                </div>
+                            </div>
+
+                            {% comment %}
+                            CUIT y Condición ante IVA: comunes a persona y
+                            empresa (un monotributista o Responsable Inscripto
+                            puede ser perfectamente una persona física) — se
+                            usan para decidir sola la Factura A/B/C al
+                            facturar, sin preguntarlo en cada venta (ver
+                            core/services_arca). ARCA exige identificar por
+                            CUIT a todo receptor que no sea Consumidor Final
+                            (RG 5616) — sin CUIT cargado acá, facturar a este
+                            cliente como A o B va a ser rechazado.
+                            {% endcomment %}
+                            <p class="form-section-title mt-4">Facturación</p>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">CUIT</label>
+                                    <input type="text" class="form-control" name="cuit" id="id_cuit"
+                                           placeholder="Obligatorio si no es Consumidor Final">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Condición ante IVA</label>
+                                    <select class="form-select" name="cond_iva" id="id_cond_iva">
+                                        <option value="">— Sin especificar —</option>
+                                        <option value="RI">Responsable Inscripto</option>
+                                        <option value="M">Monotributista</option>
+                                        <option value="E">Exento</option>
+                                        <option value="CF">Consumidor Final</option>
+                                    </select>
                                 </div>
                             </div>
 

@@ -8,6 +8,7 @@ from django.db.models import Sum, Q
 from django.utils import timezone
 
 from productos.models import Moneda
+from core.models import Cliente
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -49,6 +50,7 @@ class OrigenMovimiento(models.TextChoices):
     CHEQUE      = 'cheque',      'Cheque'
     DEUDA_TARJETA       = 'deuda_tarjeta',       'Compra con tarjeta (débito en tarjeta)'
     CUOTA_DEUDA_TARJETA = 'cuota_deuda_tarjeta', 'Pago de cuota (capital acreditado a tarjeta)'
+    CUOTA_COBRO = 'cuota_cobro', 'Cobro de cuota (venta en cuotas)'
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -94,6 +96,23 @@ class CuentaCaja(models.Model):
                            help_text='Día del mes en que cierra el resumen (1-31). Solo si es_credito.')
     dia_vencimiento  = models.PositiveSmallIntegerField(null=True, blank=True,
                            help_text='Día del mes en que vence el pago (1-31). Solo si es_credito.')
+
+    # ── Medios de cobro que acepta esta cuenta (lado VENTAS) ────────
+    # OJO, esto NO es lo mismo que `es_credito` de arriba: `es_credito`
+    # es sobre una tarjeta PROPIA del negocio usada para pagar a
+    # proveedores (compras a crédito, con día de cierre/vencimiento).
+    # Estos 4 campos son al revés: describen qué medios puede COBRARLE
+    # esta cuenta a un cliente (ej. el Posnet de un banco cobra débito
+    # y crédito; una cuenta bancaria para transferencias solo eso).
+    # Sirven para no ofrecer "Crédito" como recargo/medio de pago en
+    # cuentas donde no tiene sentido (ver ventas.models.RecargoMedioPago).
+    # Default=True en los 4 para no romper cuentas ya cargadas: hasta que
+    # el dueño los ajuste a mano en la pantalla de Recargos, se sigue
+    # comportando como antes (todos los medios disponibles).
+    acepta_debito       = models.BooleanField(default=True)
+    acepta_credito      = models.BooleanField(default=True)
+    acepta_qr           = models.BooleanField(default=True)
+    acepta_transferencia = models.BooleanField(default=True)
 
     activa  = models.BooleanField(default=True)
     notas   = models.CharField(max_length=300, blank=True)
@@ -1507,6 +1526,250 @@ def sincronizar_movimiento_cuota_tarjeta(cuota):
             tipo=TipoMovimientoCaja.INGRESO, monto=cuota.monto_capital, moneda=deuda.moneda,
             fecha=cuota.fecha_confirmacion.date(), descripcion=descripcion,
             referencia=f'Deuda #{deuda.pk}', origen=OrigenMovimiento.CUOTA_DEUDA_TARJETA,
+            origen_app='caja', origen_id=cuota.pk, creado_por=cuota.confirmado_por,
+        )
+
+
+# ══════════════════════════════════════════════════════════════════
+#  CUENTAS POR COBRAR (ventas en cuotas)
+#
+#  Espejo de Deuda/CuotaDeuda, pero en la dirección opuesta: acá el
+#  CLIENTE le debe al negocio (no el negocio a un tercero). Nace de una
+#  venta financiada por el propio comercio (sin tarjeta de por medio) y
+#  nunca genera un movimiento de caja al crearse — la mercadería ya se
+#  entregó, pero la plata todavía no llegó. Cada CuotaCobro confirmada
+#  SÍ genera un INGRESO real (lo inverso de CuotaDeuda, que genera un
+#  EGRESO) cuando el cliente efectivamente paga esa cuota.
+# ══════════════════════════════════════════════════════════════════
+
+class CuentaPorCobrar(models.Model):
+    """
+    Cabecera de una venta financiada en cuotas. El detalle de cobro
+    vive en CuotaCobro — ver comentario de sección más arriba.
+    """
+    pago_venta = models.OneToOneField(
+        'ventas.PagoVenta', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='cuenta_por_cobrar',
+        help_text='Línea de pago (medio=cuotas) de la venta que originó esta cuenta por cobrar.',
+    )
+    cliente = models.ForeignKey(
+        Cliente, on_delete=models.PROTECT, related_name='cuentas_por_cobrar',
+        help_text='A quién hay que cobrarle. Obligatorio: no se puede vender en cuotas a Consumidor Final.',
+    )
+    descripcion = models.CharField(max_length=300, blank=True)
+
+    monto_original     = models.DecimalField(max_digits=14, decimal_places=2,
+                              help_text='Precio de venta, sin interés.')
+    porcentaje_interes  = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    moneda              = models.CharField(max_length=5, choices=Moneda.choices, default=Moneda.ARS)
+    cantidad_cuotas     = models.PositiveSmallIntegerField()
+    fecha_inicio        = models.DateField(help_text='Vencimiento de la primera cuota. Las siguientes son mensuales a partir de acá.')
+
+    estado = models.CharField(max_length=10, choices=EstadoDeuda.choices, default=EstadoDeuda.ACTIVA)
+    notas  = models.CharField(max_length=300, blank=True)
+
+    creado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='cuentas_por_cobrar_creadas',
+    )
+    fecha_alta         = models.DateTimeField(auto_now_add=True)
+    fecha_modificacion = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name        = 'Cuenta por cobrar'
+        verbose_name_plural = 'Cuentas por cobrar'
+        ordering             = ['-fecha_alta']
+
+    def __str__(self):
+        return f'{self.cliente} — {self.monto_total} {self.moneda}'
+
+    @property
+    def monto_total(self):
+        """Suma de las cuotas ya generadas (capital + interés). No se cachea."""
+        return self.cuotas.aggregate(total=models.Sum('monto'))['total'] or Decimal('0')
+
+    @property
+    def cuotas_cobradas(self):
+        return self.cuotas.filter(estado=EstadoCuota.CONFIRMADA).count()
+
+    @property
+    def saldo_pendiente(self):
+        return self.cuotas.filter(estado=EstadoCuota.PENDIENTE).aggregate(
+            total=models.Sum('monto'))['total'] or Decimal('0')
+
+    @classmethod
+    @transaction.atomic
+    def crear_con_cuotas(cls, *, cliente, monto_original, porcentaje_interes, cantidad_cuotas,
+                          fecha_inicio, moneda=Moneda.ARS, descripcion='', notas='',
+                          pago_venta=None, creado_por=None):
+        """Crea la CuentaPorCobrar y su plan de cuotas. No genera ningún movimiento de caja."""
+        if cantidad_cuotas < 1:
+            raise ValueError('La cantidad de cuotas debe ser al menos 1.')
+        if monto_original <= 0:
+            raise ValueError('El monto debe ser mayor a 0.')
+        if not cliente:
+            raise ValueError('Una venta en cuotas necesita un cliente vinculado.')
+
+        cuenta_por_cobrar = cls.objects.create(
+            cliente=cliente, pago_venta=pago_venta, descripcion=descripcion,
+            monto_original=monto_original, porcentaje_interes=porcentaje_interes,
+            moneda=moneda, cantidad_cuotas=cantidad_cuotas, fecha_inicio=fecha_inicio,
+            notas=notas, creado_por=creado_por,
+        )
+        generar_cuotas_cobro(cuenta_por_cobrar)
+        return cuenta_por_cobrar
+
+    @transaction.atomic
+    def anular(self):
+        if self.estado == EstadoDeuda.ANULADA:
+            raise ValueError('La cuenta por cobrar ya está anulada.')
+        if self.cuotas.filter(estado=EstadoCuota.CONFIRMADA).exists():
+            raise ValueError('No se puede anular: ya hay cuotas cobradas de esta cuenta.')
+
+        self.estado = EstadoDeuda.ANULADA
+        self.save(update_fields=['estado'])
+        self.cuotas.filter(estado=EstadoCuota.PENDIENTE).update(estado=EstadoCuota.ANULADA)
+
+    def delete(self, *args, **kwargs):
+        if self.cuotas.filter(estado=EstadoCuota.CONFIRMADA).exists():
+            raise ValueError('No se puede eliminar: ya hay cuotas cobradas de esta cuenta.')
+        super().delete(*args, **kwargs)
+
+
+class CuotaCobro(models.Model):
+    """
+    Una cuota del plan de cobro de una CuentaPorCobrar. Se habilita
+    para confirmar recién DIAS_HABILITACION_CUOTA días antes de su
+    vencimiento — mismo criterio que CuotaDeuda.
+    """
+    cuenta_por_cobrar = models.ForeignKey(CuentaPorCobrar, on_delete=models.CASCADE, related_name='cuotas')
+    numero  = models.PositiveSmallIntegerField()
+    monto   = models.DecimalField(max_digits=14, decimal_places=2)
+    monto_capital = models.DecimalField(
+        max_digits=14, decimal_places=2, default=Decimal('0'),
+        help_text='Porción de `monto` que es capital (sin interés). El resto es interés — '
+                   'informativo, no cambia cuánto ingresa a caja al confirmar (eso es siempre `monto`).',
+    )
+    fecha_vencimiento = models.DateField()
+
+    estado  = models.CharField(max_length=10, choices=EstadoCuota.choices, default=EstadoCuota.PENDIENTE)
+    cuenta_cobro = models.ForeignKey(
+        CuentaCaja, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='cuotas_cobradas',
+        help_text='Cuenta real (banco/efectivo) a la que entra la plata al confirmar el cobro.',
+    )
+    fecha_confirmacion = models.DateTimeField(null=True, blank=True)
+    confirmado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='cuotas_cobro_confirmadas',
+    )
+
+    class Meta:
+        verbose_name        = 'Cuota de cobro'
+        verbose_name_plural = 'Cuotas de cobro'
+        ordering            = ['cuenta_por_cobrar', 'numero']
+        unique_together     = [('cuenta_por_cobrar', 'numero')]
+
+    def __str__(self):
+        return f'{self.cuenta_por_cobrar} — cuota {self.numero}/{self.cuenta_por_cobrar.cantidad_cuotas}'
+
+    @property
+    def monto_interes(self):
+        return self.monto - self.monto_capital
+
+    @property
+    def habilitada(self):
+        return timezone.now().date() >= self.fecha_vencimiento - timedelta(days=DIAS_HABILITACION_CUOTA)
+
+    @transaction.atomic
+    def confirmar(self, cuenta_pk, usuario, adelantar=False):
+        # select_for_update(): mismo guard que CuotaDeuda.confirmar() —
+        # un doble clic en "Confirmar cobro" no debe generar dos ingresos.
+        if CuotaCobro.objects.select_for_update().get(pk=self.pk).estado != EstadoCuota.PENDIENTE:
+            raise ValueError('Solo se pueden confirmar cuotas pendientes.')
+        if not self.habilitada and not adelantar:
+            fecha_habilitacion = self.fecha_vencimiento - timedelta(days=DIAS_HABILITACION_CUOTA)
+            raise ValueError(
+                f'Esta cuota se habilita para cobrar a partir del {fecha_habilitacion.strftime("%d/%m/%Y")}.'
+            )
+
+        cuenta = CuentaCaja.objects.filter(
+            pk=cuenta_pk, caja=TipoCaja.GRANDE, activa=True,
+            es_credito=False, moneda=self.cuenta_por_cobrar.moneda,
+        ).first()
+        if not cuenta:
+            raise ValueError('Elegí una cuenta válida para el cobro de la cuota.')
+
+        self.cuenta_cobro = cuenta
+        self.estado = EstadoCuota.CONFIRMADA
+        self.fecha_confirmacion = timezone.now()
+        self.confirmado_por = usuario
+        self.save(update_fields=['cuenta_cobro', 'estado', 'fecha_confirmacion', 'confirmado_por'])
+
+        sincronizar_movimiento_cuota_cobro(self)
+
+
+def generar_cuotas_cobro(cuenta_por_cobrar):
+    """
+    Genera el plan de CuotaCobro de una CuentaPorCobrar recién creada:
+    interés simple sobre el monto original, repartido en partes iguales
+    entre `cantidad_cuotas` (la última absorbe el resto del redondeo).
+    Misma matemática que generar_cuotas() para Deuda.
+    """
+    monto_total = (cuenta_por_cobrar.monto_original * (Decimal('1') + cuenta_por_cobrar.porcentaje_interes / Decimal('100'))) \
+        .quantize(Decimal('0.01'))
+    cuota_base = (monto_total / cuenta_por_cobrar.cantidad_cuotas).quantize(Decimal('0.01'))
+    capital_base = (cuenta_por_cobrar.monto_original / cuenta_por_cobrar.cantidad_cuotas).quantize(Decimal('0.01'))
+
+    acumulado = Decimal('0')
+    acumulado_capital = Decimal('0')
+    for i in range(1, cuenta_por_cobrar.cantidad_cuotas + 1):
+        if i < cuenta_por_cobrar.cantidad_cuotas:
+            monto_cuota = cuota_base
+            monto_capital = capital_base
+            acumulado += monto_cuota
+            acumulado_capital += monto_capital
+        else:
+            monto_cuota = monto_total - acumulado
+            monto_capital = cuenta_por_cobrar.monto_original - acumulado_capital
+
+        CuotaCobro.objects.create(
+            cuenta_por_cobrar=cuenta_por_cobrar, numero=i, monto=monto_cuota, monto_capital=monto_capital,
+            fecha_vencimiento=_sumar_meses(cuenta_por_cobrar.fecha_inicio, i - 1),
+        )
+
+
+@transaction.atomic
+def sincronizar_movimiento_cuota_cobro(cuota):
+    """Sincroniza el MovimientoCaja (ingreso) de una CuotaCobro con su estado actual."""
+    movimiento = MovimientoCaja.objects.filter(
+        origen=OrigenMovimiento.CUOTA_COBRO, origen_app='caja', origen_id=cuota.pk,
+    ).first()
+
+    if cuota.estado != EstadoCuota.CONFIRMADA:
+        if movimiento:
+            movimiento.delete()
+        return
+
+    cxc = cuota.cuenta_por_cobrar
+    concepto = _concepto_default('Cobro de cuota (venta)', TipoMovimientoCaja.INGRESO)
+    descripcion = f'Cuota {cuota.numero}/{cxc.cantidad_cuotas} — {cxc.cliente.get_nombre_display()}'
+
+    if movimiento:
+        movimiento.cuenta = cuota.cuenta_cobro
+        movimiento.concepto = concepto
+        movimiento.tipo = TipoMovimientoCaja.INGRESO
+        movimiento.monto = cuota.monto
+        movimiento.moneda = cxc.moneda
+        movimiento.fecha = cuota.fecha_confirmacion.date()
+        movimiento.descripcion = descripcion
+        movimiento.save()
+    else:
+        MovimientoCaja.objects.create(
+            caja=TipoCaja.GRANDE, cuenta=cuota.cuenta_cobro, concepto=concepto,
+            tipo=TipoMovimientoCaja.INGRESO, monto=cuota.monto, moneda=cxc.moneda,
+            fecha=cuota.fecha_confirmacion.date(), descripcion=descripcion,
+            referencia=f'Cuenta por cobrar #{cxc.pk}', origen=OrigenMovimiento.CUOTA_COBRO,
             origen_app='caja', origen_id=cuota.pk, creado_por=cuota.confirmado_por,
         )
 

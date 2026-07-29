@@ -9,6 +9,12 @@ def _catalogo_hero_path(instance, filename):
     return f'catalogo/hero{ext}'
 
 
+def _catalogo_institucional_path(instance, filename):
+    import os
+    ext = os.path.splitext(filename)[1].lower()
+    return f'catalogo/institucional{ext}'
+
+
 class PlantillaCatalogo(models.TextChoices):
     ALMACEN = 'almacen', 'Almacén'
     BENTO   = 'bento',   'Bento'
@@ -40,11 +46,59 @@ class ConfiguracionCatalogo(models.Model):
         'Imagen del hero', upload_to=_catalogo_hero_path, blank=True, null=True,
         help_text='Opcional — si no se carga, el hero se muestra sin foto.',
     )
+    hero_producto = models.ForeignKey(
+        'productos.Producto', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+        verbose_name='Producto destacado en el hero',
+        help_text='Vacío = se elige automáticamente (el destacado más reciente).',
+    )
     sobre_nosotros = models.TextField('Sobre nosotros', blank=True)
     contacto_texto = models.TextField(
         'Texto de contacto', blank=True,
         help_text='Se muestra junto a los datos de contacto en el pie de página.',
     )
+    # — Personalización visual/textual de la plantilla "almacen" —
+    color_marca = models.CharField(
+        'Color de marca', max_length=7, blank=True,
+        help_text='Código hex, ej: #ff9343. Vacío = color por defecto. Botones, precios y detalles.',
+    )
+    color_marca_secundario = models.CharField(
+        'Color secundario', max_length=7, blank=True,
+        help_text='Código hex, ej: #111e2f. Vacío = color por defecto. Encabezado, hero y pie de página.',
+    )
+    nav_catalogo_label = models.CharField('Texto del menú "Catálogo"', max_length=30, blank=True)
+    nav_ofertas_label  = models.CharField('Texto del menú "Ofertas"', max_length=30, blank=True)
+    nav_combos_label   = models.CharField('Texto del menú "Combos"', max_length=30, blank=True)
+    nav_tienda_label   = models.CharField('Texto del menú "La tienda"', max_length=30, blank=True)
+
+    # — Página institucional "La tienda" (/la-tienda/) — información del
+    # negocio separada del catálogo a propósito: quien entra a comprar no
+    # tiene por qué ver esto, pero existe a un click (nav "La tienda").
+    institucional_titulo = models.CharField(
+        'Título de portada', max_length=200, blank=True,
+        help_text='Vacío = usa un título genérico.',
+    )
+    institucional_bajada = models.TextField(
+        'Bajada de portada', blank=True,
+        help_text='Vacío = usa un texto genérico.',
+    )
+    institucional_imagen = models.ImageField(
+        'Imagen de portada', upload_to=_catalogo_institucional_path, blank=True, null=True,
+        help_text='Opcional — si no se carga, la portada se muestra sin foto.',
+    )
+    destacado1_titulo = models.CharField('Título', max_length=80, blank=True)
+    destacado1_texto  = models.CharField('Texto', max_length=200, blank=True)
+    destacado2_titulo = models.CharField('Título', max_length=80, blank=True)
+    destacado2_texto  = models.CharField('Texto', max_length=200, blank=True)
+    destacado3_titulo = models.CharField('Título', max_length=80, blank=True)
+    destacado3_texto  = models.CharField('Texto', max_length=200, blank=True)
+    horarios_texto = models.TextField(
+        'Horarios de atención', blank=True,
+        help_text='Texto libre, ej: "Lun a Vie 9 a 18 hs · Sáb 9 a 13 hs".',
+    )
+    instagram_url = models.CharField('Instagram', max_length=200, blank=True)
+    facebook_url  = models.CharField('Facebook', max_length=200, blank=True)
+    tiktok_url    = models.CharField('TikTok', max_length=200, blank=True)
+
     actualizado_el = models.DateTimeField(auto_now=True)
 
     # Textos que se muestran cuando el campo respectivo está vacío — una
@@ -57,6 +111,23 @@ class ConfiguracionCatalogo(models.Model):
     DEFAULT_SOBRE_NOSOTROS = (
         'Trabajamos para ofrecerte los mejores productos con atención personalizada.'
     )
+    DEFAULT_COLOR_MARCA = '#ff9343'
+    DEFAULT_COLOR_MARCA_SECUNDARIO = '#111e2f'
+    DEFAULT_NAV_CATALOGO = 'Catálogo'
+    DEFAULT_NAV_OFERTAS  = 'Ofertas'
+    DEFAULT_NAV_COMBOS   = 'Combos'
+    DEFAULT_NAV_TIENDA   = 'La tienda'
+
+    DEFAULT_INSTITUCIONAL_TITULO = 'Conocé nuestra historia'
+    DEFAULT_INSTITUCIONAL_BAJADA = (
+        'Más que un catálogo — quiénes somos, dónde estamos y cómo te podemos ayudar.'
+    )
+    DEFAULT_DESTACADO1_TITULO = 'Atención personalizada'
+    DEFAULT_DESTACADO1_TEXTO  = 'Te acompañamos antes, durante y después de la compra.'
+    DEFAULT_DESTACADO2_TITULO = 'Coordinamos por WhatsApp'
+    DEFAULT_DESTACADO2_TEXTO  = 'Sin registros ni cuentas — hablás directo con nosotros.'
+    DEFAULT_DESTACADO3_TITULO = 'Calidad que se nota'
+    DEFAULT_DESTACADO3_TEXTO  = 'Elegimos con cuidado cada producto que ofrecemos.'
 
     class Meta:
         verbose_name        = 'Configuración del catálogo'
@@ -105,6 +176,37 @@ class SlideHeroCatalogo(models.Model):
 
     def __str__(self):
         return self.titulo
+
+
+def _catalogo_galeria_path(instance, filename):
+    import os
+    ext = os.path.splitext(filename)[1].lower()
+    # Mismo motivo que _catalogo_slide_path: puede haber varias fotos a la
+    # vez, la ruta va por pk — requiere que la fila ya exista (se sube en
+    # un segundo paso, ver catalogo/views_config.py:CatalogoGaleriaImagenAjax).
+    return f'catalogo/galeria/{instance.pk}{ext}'
+
+
+class ImagenInstitucional(models.Model):
+    """
+    Una foto de la galería de la página institucional (/la-tienda/) — el
+    local, el equipo, productos en contexto, lo que el dueño quiera
+    mostrar. Sin relación con el catálogo de productos en sí.
+    """
+    configuracion = models.ForeignKey(
+        ConfiguracionCatalogo, on_delete=models.CASCADE, related_name='galeria',
+    )
+    imagen = models.ImageField('Imagen', upload_to=_catalogo_galeria_path, blank=True, null=True)
+    titulo = models.CharField('Título (opcional)', max_length=100, blank=True)
+    orden = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name        = 'Imagen de la galería institucional'
+        verbose_name_plural  = 'Imágenes de la galería institucional'
+        ordering             = ['orden', 'id']
+
+    def __str__(self):
+        return self.titulo or f'Imagen #{self.pk}'
 
 
 class DatoDemo(models.Model):

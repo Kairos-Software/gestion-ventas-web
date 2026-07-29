@@ -1,3 +1,4 @@
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.db import models
@@ -6,7 +7,7 @@ from django.db import transaction
 from django.db.models import F
 from django.utils import timezone
 
-from productos.models import Producto, Moneda, CondicionPago, CombinacionVariante
+from productos.models import Producto, Moneda, CondicionPago, CombinacionVariante, AlicuotaIVA
 from core.models import Cliente, AmbienteArca
 from compras.models import LoteCompra
 
@@ -22,11 +23,21 @@ class EstadoVenta(models.TextChoices):
 
 
 class MedioPago(models.TextChoices):
+    """
+    CUOTAS ('venta financiada por el propio comercio') no impacta caja
+    al confirmar la venta: genera una CuentaPorCobrar con cuotas (ver
+    caja.models.CuentaPorCobrar) que se van confirmando y acreditando
+    una por una a medida que el cliente paga. Requiere que la venta
+    tenga un cliente vinculado (ver Venta.cliente_unico) — no se le
+    puede vender en cuotas a un Consumidor Final anónimo. El resto de
+    los medios sigue impactando caja grande de inmediato, como siempre.
+    """
     EFECTIVO      = 'efectivo',      'Efectivo'
     TRANSFERENCIA = 'transferencia', 'Transferencia'
     DEBITO        = 'debito',        'Débito'
     CREDITO       = 'credito',       'Crédito'
     QR            = 'qr',            'QR'
+    CUOTAS        = 'cuotas',        'Cuotas'
 
 
 class TipoResolucionLote(models.TextChoices):
@@ -288,6 +299,19 @@ def _revertir_stock_venta_item(item):
             prod.save(update_fields=['stock_actual'])
 
 
+def _anular_cuentas_por_cobrar_de_venta(venta):
+    """
+    Anula las CuentaPorCobrar activas vinculadas a las líneas de cuotas
+    de esta venta. CuentaPorCobrar.anular() ya bloquea si hay cuotas
+    cobradas — el ValueError se propaga tal cual, mismo criterio que
+    _anular_deudas_de_compra en compras/models.py (fail fast, antes de
+    tocar stock).
+    """
+    from caja.models import CuentaPorCobrar, EstadoDeuda
+    for cxc in CuentaPorCobrar.objects.filter(pago_venta__venta=venta, estado=EstadoDeuda.ACTIVA):
+        cxc.anular()
+
+
 # ══════════════════════════════════════════════════════════════════
 #  VENTA  (cabecera)
 # ══════════════════════════════════════════════════════════════════
@@ -394,6 +418,25 @@ class Venta(models.Model):
     def __str__(self):
         return self.numero or f'Venta #{self.pk}'
 
+    @property
+    def cliente_unico(self):
+        """
+        Cliente de la venta, si todos sus ítems apuntan al mismo — None
+        si ningún ítem tiene cliente cargado o si hay más de uno
+        distinto (venta mixta). Ver `cliente_display` para el texto
+        listo para mostrar en pantalla/ticket/factura.
+        """
+        ids = {item.cliente_id for item in self.items.all() if item.cliente_id}
+        if len(ids) == 1:
+            return Cliente.objects.filter(pk=ids.pop()).first()
+        return None
+
+    @property
+    def cliente_display(self):
+        """Nombre de cliente a mostrar — 'Consumidor Final' si no hay uno solo vinculado."""
+        cliente = self.cliente_unico
+        return cliente.get_nombre_display() if cliente else 'Consumidor Final'
+
     def save(self, *args, **kwargs):
         if not self.numero:
             self.numero = _generar_numero_venta()
@@ -411,6 +454,8 @@ class Venta(models.Model):
                 estado_actual = Venta.objects.select_for_update().get(pk=self.pk).estado
             except Venta.DoesNotExist:
                 return
+            # Falla rápido: bloquea el borrado si hay cuotas ya cobradas.
+            _anular_cuentas_por_cobrar_de_venta(self)
             if estado_actual == EstadoVenta.CONFIRMADA:
                 # No permitir el borrado físico de una venta que pertenece a
                 # un turno ya cerrado: el turno guardó una foto congelada de
@@ -454,6 +499,47 @@ class Venta(models.Model):
             subtotal = subtotal * (1 - self.descuento_global_pct / 100)
         self.total = round(subtotal, 2)
         self.save(update_fields=['total'])
+
+    def calcular_iva_por_alicuota(self):
+        """
+        Agrupa los ítems por alícuota de IVA (snapshot en ItemVenta.alicuota_iva)
+        y calcula neto/IVA reales de cada grupo — para Factura A/B, que a
+        diferencia de la C sí tienen que declarar el IVA discriminado ante
+        ARCA. Aplica el mismo descuento_global_pct que calcular_total()
+        para que neto_total + iva_total cierren EXACTO con self.total
+        (WSFEv1 rechaza el comprobante si no cierra).
+
+        Devuelve {'grupos': [{'alicuota': '21', 'neto': Decimal, 'iva': Decimal}, ...],
+                  'neto_total': Decimal, 'iva_total': Decimal}.
+        """
+        factor = (1 - self.descuento_global_pct / 100) if self.descuento_global_pct else Decimal('1')
+        acumulado = {}
+        for item in self.items.all():
+            alicuota = item.alicuota_iva or AlicuotaIVA.GENERAL
+            acumulado[alicuota] = acumulado.get(alicuota, Decimal('0')) + item.subtotal * factor
+
+        grupos = []
+        for alicuota, base_mas_iva in acumulado.items():
+            neto = base_mas_iva / (1 + Decimal(alicuota) / 100)
+            grupos.append({
+                'alicuota': alicuota,
+                'neto': round(neto, 2),
+                'iva': round(base_mas_iva - neto, 2),
+            })
+
+        neto_total = sum(g['neto'] for g in grupos)
+        iva_total  = sum(g['iva']  for g in grupos)
+
+        # El redondeo por grupo puede dejar un centavo de diferencia con
+        # self.total — se absorbe en el neto del grupo más grande, mismo
+        # criterio que usan los sistemas de facturación reales.
+        diferencia = self.total - (neto_total + iva_total)
+        if diferencia and grupos:
+            mas_grande = max(grupos, key=lambda g: g['neto'] + g['iva'])
+            mas_grande['neto'] = round(mas_grande['neto'] + diferencia, 2)
+            neto_total = sum(g['neto'] for g in grupos)
+
+        return {'grupos': grupos, 'neto_total': neto_total, 'iva_total': iva_total}
 
     def aplicar_descuento_global(self, pct, oferta_nombre=''):
         """Fija el descuento global (oferta por monto mínimo) y recalcula el total."""
@@ -508,7 +594,7 @@ class Venta(models.Model):
         # pero así evitamos descontar stock para nada).
         pagos_resueltos = None
         if pagos is not None:
-            from caja.models import CuentaCaja, TipoCaja, _cuenta_default
+            from caja.models import CuentaCaja, TipoCaja, TipoCuenta, _cuenta_default
             labels_medio = dict(MedioPago.choices)
 
             pagos_resueltos = []
@@ -518,14 +604,50 @@ class Venta(models.Model):
                     continue
                 medio = p.get('medio', MedioPago.EFECTIVO)
 
+                cuotas_info = None
                 if medio == MedioPago.EFECTIVO:
                     cuenta = _cuenta_default(moneda=Moneda.ARS, caja=TipoCaja.GRANDE)
                     cotizacion = None
+                elif medio == MedioPago.CUOTAS:
+                    # Sin cuenta ni cotización: no entra plata a caja
+                    # todavía, solo se genera la CuentaPorCobrar (ver
+                    # más abajo, después de guardar los PagoVenta).
+                    cuenta = None
+                    cotizacion = None
+                    cliente_venta = self.cliente_unico
+                    if cliente_venta is None:
+                        raise ValueError(
+                            'Para vender en cuotas la venta necesita un único cliente vinculado '
+                            '(no se le puede vender en cuotas a Consumidor Final).'
+                        )
+                    try:
+                        cantidad_cuotas = int(p.get('cuotas', 0))
+                    except (TypeError, ValueError):
+                        cantidad_cuotas = 0
+                    if cantidad_cuotas < 1:
+                        raise ValueError('Indicá la cantidad de cuotas para el pago financiado.')
+                    try:
+                        interes_pct = Decimal(str(p.get('interes_pct', 0) or 0))
+                    except Exception:
+                        raise ValueError('Porcentaje de interés inválido.')
+                    if interes_pct < 0:
+                        raise ValueError('El porcentaje de interés no puede ser negativo.')
+                    fecha_inicio_raw = p.get('fecha_inicio_cobro')
+                    if not fecha_inicio_raw:
+                        raise ValueError('Indicá la fecha de la primera cuota.')
+                    try:
+                        fecha_inicio_cobro = date.fromisoformat(str(fecha_inicio_raw))
+                    except ValueError:
+                        raise ValueError('Fecha de inicio de cobro inválida.')
+                    cuotas_info = {
+                        'cliente': cliente_venta, 'cantidad_cuotas': cantidad_cuotas,
+                        'interes_pct': interes_pct, 'fecha_inicio_cobro': fecha_inicio_cobro,
+                    }
                 else:
                     cuenta = CuentaCaja.objects.filter(
                         pk=p.get('cuenta_pk'), caja=TipoCaja.GRANDE, activa=True,
                         es_credito=False,
-                    ).first()
+                    ).exclude(tipo=TipoCuenta.EFECTIVO).first()
                     if not cuenta:
                         raise ValueError(
                             f'Elegí una cuenta válida para el pago con '
@@ -543,7 +665,49 @@ class Venta(models.Model):
                                 f'{cuenta.get_moneda_display()}.'
                             )
 
-                pagos_resueltos.append({'medio': medio, 'monto': monto, 'cuenta': cuenta, 'cotizacion': cotizacion})
+                # Recargo (débito/crédito/QR/transferencia — no aplica a
+                # efectivo ni a cuotas de financiación propia): `monto` acá
+                # sigue siendo la porción del precio de venta que cubre
+                # esta línea (igual que siempre — no cambia la validación
+                # de que la suma cubra venta.total, ver vista de confirmar).
+                # El recargo se calcula ENCIMA de esa base y se snapshotea;
+                # abajo se suma a `monto` para guardar en PagoVenta lo que
+                # realmente se acredita en la cuenta.
+                #
+                # `tarjeta` es la TarjetaPago con la que pagó el CLIENTE
+                # (Visa, Mercado Pago, Personal Pay...) — un dato aparte de
+                # `cuenta` (a cuál de MIS cuentas entra la plata). Es
+                # opcional: si la venta no necesita trazabilidad de recargo,
+                # se puede confirmar sin elegir tarjeta (recargo 0).
+                tarjeta = None
+                recargo_pct = Decimal('0')
+                cantidad_pagos = 1
+                nombre_plan = ''
+                recargo_monto = Decimal('0')
+                if medio in RecargoMedioPago.MEDIOS_CON_RECARGO:
+                    if p.get('tarjeta_pk'):
+                        tarjeta = TarjetaPago.objects.filter(pk=p.get('tarjeta_pk'), activa=True).first()
+                    try:
+                        recargo_pct = Decimal(str(p.get('recargo_pct', 0) or 0))
+                    except Exception:
+                        raise ValueError('Porcentaje de recargo inválido.')
+                    if recargo_pct < 0:
+                        raise ValueError('El porcentaje de recargo no puede ser negativo.')
+                    if medio == MedioPago.CREDITO:
+                        try:
+                            cantidad_pagos = max(1, int(p.get('cantidad_pagos', 1) or 1))
+                        except (TypeError, ValueError):
+                            cantidad_pagos = 1
+                        nombre_plan = str(p.get('nombre_plan', '') or '').strip()[:60]
+                    recargo_monto = (Decimal(str(monto)) * recargo_pct / 100).quantize(Decimal('0.01'))
+
+                pagos_resueltos.append({
+                    'medio': medio, 'monto': monto, 'cuenta': cuenta, 'tarjeta': tarjeta,
+                    'cotizacion': cotizacion,
+                    'cuotas_info': cuotas_info, 'recargo_pct': recargo_pct,
+                    'cantidad_pagos': cantidad_pagos, 'nombre_plan': nombre_plan,
+                    'recargo_monto': recargo_monto,
+                })
 
         # Validar las etiquetas de balanza ANTES de tocar stock: si
         # alguna ya no está disponible (se vendió o se anuló mientras
@@ -585,13 +749,32 @@ class Venta(models.Model):
         if pagos_resueltos is not None:
             self.pagos.all().delete()
             for p in pagos_resueltos:
-                PagoVenta.objects.create(
-                    venta      = self,
-                    medio      = p['medio'],
-                    monto      = p['monto'],
-                    cuenta     = p['cuenta'],
-                    cotizacion = p['cotizacion'],
+                pago = PagoVenta.objects.create(
+                    venta          = self,
+                    medio          = p['medio'],
+                    monto          = Decimal(str(p['monto'])) + p['recargo_monto'],
+                    cuenta         = p['cuenta'],
+                    tarjeta        = p['tarjeta'],
+                    cotizacion     = p['cotizacion'],
+                    cantidad_pagos = p['cantidad_pagos'],
+                    nombre_plan    = p['nombre_plan'],
+                    recargo_pct    = p['recargo_pct'],
+                    recargo_monto  = p['recargo_monto'],
                 )
+                if p['cuotas_info'] is not None:
+                    from caja.models import CuentaPorCobrar
+                    info = p['cuotas_info']
+                    CuentaPorCobrar.crear_con_cuotas(
+                        cliente=info['cliente'],
+                        pago_venta=pago,
+                        monto_original=Decimal(str(p['monto'])),
+                        porcentaje_interes=info['interes_pct'],
+                        cantidad_cuotas=info['cantidad_cuotas'],
+                        fecha_inicio=info['fecha_inicio_cobro'],
+                        moneda=Moneda.ARS,
+                        descripcion=f'Venta {self.numero}',
+                        creado_por=confirmado_por,
+                    )
 
         # Sincronizar movimiento de caja grande
         from caja.models import sincronizar_movimiento_venta
@@ -607,6 +790,10 @@ class Venta(models.Model):
             raise ValueError('La venta ya está anulada.')
         if estado_actual == EstadoVenta.BORRADOR:
             raise ValueError('Las ventas en borrador no se anulan — simplemente no se confirman.')
+
+        # Falla rápido: si alguna cuota de una venta en cuotas ya fue
+        # cobrada, no se puede anular la venta sin antes resolver eso.
+        _anular_cuentas_por_cobrar_de_venta(self)
 
         for item in self.items.select_related('producto', 'combinacion'):
             _revertir_stock_venta_item(item)
@@ -733,6 +920,12 @@ class ItemVenta(models.Model):
     producto_codigo  = models.CharField(max_length=50,  blank=True)
     cliente_nombre   = models.CharField(max_length=200, blank=True)
     combinacion_descripcion = models.CharField(max_length=300, blank=True)
+    # Alícuota de IVA del producto AL MOMENTO de vender — se guarda acá
+    # (no alcanza con producto.alicuota_iva en runtime) porque si el
+    # producto cambia de alícuota después, esta venta ya facturada
+    # tiene que seguir reflejando la que tenía en ese momento.
+    alicuota_iva = models.CharField('Alícuota IVA', max_length=5,
+                       choices=AlicuotaIVA.choices, blank=True)
 
     # — Cantidades y precios —
     cantidad        = models.DecimalField(max_digits=12, decimal_places=3)
@@ -781,8 +974,10 @@ class ItemVenta(models.Model):
             if self.producto and not self.producto_nombre:
                 self.producto_nombre = self.producto.nombre or ''
                 self.producto_codigo = self.producto.codigo or ''
+            if self.producto and not self.alicuota_iva:
+                self.alicuota_iva = self.producto.alicuota_iva
             if self.cliente and not self.cliente_nombre:
-                self.cliente_nombre = self.cliente.nombre or self.cliente.razon_social or ''
+                self.cliente_nombre = self.cliente.get_nombre_display()
             if self.combinacion and not self.combinacion_descripcion:
                 self.combinacion_descripcion = self.combinacion.descripcion_legible() or ''
         super().save(*args, **kwargs)
@@ -806,7 +1001,7 @@ class ItemVenta(models.Model):
     @property
     def nombre_cliente_display(self):
         if self.cliente:
-            return self.cliente.nombre or self.cliente.razon_social or str(self.cliente)
+            return self.cliente.get_nombre_display()
         if self.cliente_nombre:
             return f'{self.cliente_nombre} (eliminado)'
         return '(sin cliente)'
@@ -952,6 +1147,42 @@ class EtiquetaBalanza(models.Model):
 #  PAGO DE VENTA — soporta pago dividido (ej: mitad efectivo, mitad transferencia)
 # ══════════════════════════════════════════════════════════════════
 
+class TarjetaPago(models.Model):
+    """
+    Tarjeta o billetera con la que puede pagar un CLIENTE (Visa, Mastercard,
+    Naranja X, Mercado Pago, Personal Pay, Ualá, etc.) — es el eje real del
+    recargo (ver PagoVenta/RecargoMedioPago), independiente de si el
+    negocio tiene o no una CuentaCaja propia con ese mismo nombre.
+
+    Por qué está separado de CuentaCaja: `CuentaCaja` es "a cuál de MIS
+    cuentas entra la plata de verdad" (para que la caja grande cuadre).
+    `TarjetaPago` es "con qué me pagó el cliente" (para saber qué recargo
+    corresponde). No son lo mismo — un negocio puede no tener cuenta propia
+    en Personal Pay y sin embargo un cliente pagarle desde ahí (la plata cae
+    igual en su cuenta bancaria de siempre); y una tarjeta de crédito PROPIA
+    del negocio para pagarle a proveedores (`CuentaCaja.es_credito=True`)
+    nunca debería poder tener un recargo configurado, porque no recibe
+    pagos de clientes — con el viejo modelo (recargo atado a CuentaCaja)
+    ambos casos rompían.
+    """
+    nombre = models.CharField(max_length=100, unique=True)
+    acepta_debito       = models.BooleanField(default=True)
+    acepta_credito      = models.BooleanField(default=True)
+    acepta_qr           = models.BooleanField(default=True)
+    acepta_transferencia = models.BooleanField(default=True)
+    activa = models.BooleanField(default=True)
+    orden  = models.PositiveSmallIntegerField(default=0)
+    fecha_alta = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name        = 'Tarjeta/billetera de pago'
+        verbose_name_plural = 'Tarjetas/billeteras de pago'
+        ordering            = ['orden', 'nombre']
+
+    def __str__(self):
+        return self.nombre
+
+
 class PagoVenta(models.Model):
     """
     Una línea de pago de una venta. Una venta puede tener varias
@@ -971,6 +1202,10 @@ class PagoVenta(models.Model):
     una cuenta genérica por nombre de medio al cerrar el turno (ver
     TurnoCaja.cerrar en caja/models.py).
 
+    `tarjeta`: con qué TarjetaPago pagó el CLIENTE — un dato aparte de
+    `cuenta` (ver TarjetaPago.__doc__). Define el recargo. Puede quedar
+    vacío si esa venta no tuvo recargo asociado.
+
     `cotizacion`: solo se completa cuando `cuenta` NO es en pesos —
     cuántos pesos vale 1 unidad de esa moneda, según lo acordado en
     el momento del cobro (no hay ninguna fuente automática de tipo de
@@ -986,9 +1221,38 @@ class PagoVenta(models.Model):
         'caja.CuentaCaja', on_delete=models.PROTECT,
         null=True, blank=True, related_name='pagos_venta',
     )
+    tarjeta = models.ForeignKey(
+        TarjetaPago, on_delete=models.PROTECT,
+        null=True, blank=True, related_name='pagos_venta',
+    )
     cotizacion = models.DecimalField(
         'Cotización', max_digits=12, decimal_places=4, null=True, blank=True,
         help_text='Pesos por unidad de la moneda de la cuenta. Solo aplica si la cuenta no es en pesos.',
+    )
+
+    # ── Recargo por medio de pago (débito/crédito/QR/transferencia) ──
+    # Snapshot del recargo vigente en RecargoMedioPago al momento de
+    # cobrar (mismo criterio que ItemVenta.alicuota_iva: si el recargo
+    # configurado cambia después, este pago ya cobrado no debe cambiar).
+    # `monto` de arriba YA incluye `recargo_monto` — es lo que
+    # realmente se acredita en `cuenta` (ver sincronizar_movimiento_venta
+    # en caja/models.py, que usa `monto` tal cual). `monto_base` es la
+    # porción que corresponde al precio de venta en sí.
+    cantidad_pagos = models.PositiveSmallIntegerField(
+        'Cantidad de pagos', default=1,
+        help_text='Plan de pagos de la tarjeta de crédito (1, 3, 6...). Siempre 1 para los demás medios.',
+    )
+    nombre_plan = models.CharField(
+        'Nombre del plan', max_length=60, blank=True,
+        help_text='Nombre comercial del plan (ej. "Plan Z"), snapshot de RecargoMedioPago.nombre_plan.',
+    )
+    recargo_pct = models.DecimalField(
+        'Recargo %', max_digits=5, decimal_places=2, default=Decimal('0'),
+        help_text='Porcentaje de recargo aplicado a esta línea, snapshot de RecargoMedioPago.',
+    )
+    recargo_monto = models.DecimalField(
+        'Recargo', max_digits=14, decimal_places=2, default=Decimal('0'),
+        help_text='Monto de recargo (en la moneda de `cuenta`), ya incluido en `monto`.',
     )
 
     class Meta:
@@ -1000,11 +1264,81 @@ class PagoVenta(models.Model):
         return f'{self.venta.numero} — {self.get_medio_display()}: {self.monto}'
 
     @property
+    def monto_base(self):
+        """Porción de `monto` que corresponde al precio de venta, sin el recargo."""
+        return self.monto - self.recargo_monto
+
+    @property
+    def etiqueta_plan(self):
+        """"Plan Z (3 pagos)" si tiene nombre, si no simplemente "3 pagos"."""
+        pagos = f'{self.cantidad_pagos} pago{"" if self.cantidad_pagos == 1 else "s"}'
+        return f'{self.nombre_plan} ({pagos})' if self.nombre_plan else pagos
+
+    @property
     def monto_ars(self):
         """Equivalente en pesos de este pago (monto tal cual si ya es en pesos)."""
         if self.cotizacion and self.cuenta_id and self.cuenta.moneda != Moneda.ARS:
             return (self.monto * self.cotizacion).quantize(Decimal('0.01'))
         return self.monto
+
+
+class RecargoMedioPago(models.Model):
+    """
+    Recargo que cobra una TarjetaPago (Posnet, Mercado Pago, Naranja X,
+    Personal Pay, etc.) por medio de pago — ver TarjetaPago.__doc__ para
+    por qué esto vive sobre la tarjeta/billetera del CLIENTE y no sobre
+    una CuentaCaja propia del negocio. Dentro de una tarjeta, el recargo
+    varía por medio y, si es crédito, por la cantidad de pagos (plan).
+    Por eso se configura por (tarjeta, medio, cantidad_pagos).
+
+    `cantidad_pagos` solo tiene sentido > 1 para medio=CREDITO (planes de
+    pago tipo "3 pagos", "6 pagos" — a propósito NO se llama "cuotas" acá:
+    ese nombre ya lo usa MedioPago.CUOTAS para la financiación propia del
+    comercio, un concepto sin relación con esto). Para débito/QR/
+    transferencia siempre es 1: un único recargo fijo por tarjeta.
+    """
+    MEDIOS_CON_RECARGO = ['debito', 'credito', 'qr', 'transferencia']
+
+    tarjeta = models.ForeignKey(
+        TarjetaPago, on_delete=models.CASCADE, related_name='recargos',
+    )
+    medio = models.CharField(
+        max_length=20,
+        choices=[(v, l) for v, l in MedioPago.choices if v in ['debito', 'credito', 'qr', 'transferencia']],
+    )
+    cantidad_pagos = models.PositiveSmallIntegerField(
+        'Cantidad de pagos', default=1,
+        help_text='Solo aplica a Crédito. Para los demás medios siempre es 1.',
+    )
+    # Nombre comercial del plan (ej. "Plan Z", "Ahora 12") — opcional.
+    # Muchas tarjetas venden sus planes de cuotas con un nombre propio
+    # que el dueño del negocio conoce, pero no necesariamente sabe (ni
+    # necesita saber) a cuántos pagos exactos corresponde ese nombre en
+    # todos los casos — `cantidad_pagos` sigue siendo el dato que se usa
+    # para calcular/mostrar, esto es solo una etiqueta más reconocible.
+    nombre_plan = models.CharField('Nombre del plan', max_length=60, blank=True)
+    recargo_pct = models.DecimalField('Recargo %', max_digits=5, decimal_places=2)
+    activo = models.BooleanField(default=True)
+    orden  = models.PositiveSmallIntegerField(default=0)
+
+    fecha_alta         = models.DateTimeField(auto_now_add=True)
+    fecha_modificacion = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name        = 'Recargo por medio de pago'
+        verbose_name_plural = 'Recargos por medio de pago'
+        ordering            = ['tarjeta', 'medio', 'cantidad_pagos']
+        unique_together     = [('tarjeta', 'medio', 'cantidad_pagos')]
+
+    def __str__(self):
+        plan = f' ({self.etiqueta_plan})' if self.medio == MedioPago.CREDITO else ''
+        return f'{self.tarjeta.nombre} — {self.get_medio_display()}{plan}: {self.recargo_pct}%'
+
+    @property
+    def etiqueta_plan(self):
+        """"Plan Z (3 pagos)" si tiene nombre, si no simplemente "3 pagos"."""
+        pagos = f'{self.cantidad_pagos} pago{"" if self.cantidad_pagos == 1 else "s"}'
+        return f'{self.nombre_plan} ({pagos})' if self.nombre_plan else pagos
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -1118,6 +1452,36 @@ class ComprobanteArca(models.Model):
 # ══════════════════════════════════════════════════════════════════
 #  HELPER — número correlativo
 # ══════════════════════════════════════════════════════════════════
+
+HORAS_DESCARTE_BORRADOR = 24
+
+
+def descartar_borradores_vencidos(excluir_pk=None):
+    """
+    Borra los borradores de venta abandonados hace más de
+    HORAS_DESCARTE_BORRADOR horas — el caso típico es alguien que salió
+    de la pantalla de detalle sin tocar "Cancelar venta" (por ejemplo,
+    después de un error de stock al confirmar), dejando un borrador que
+    nunca se cierra y que tampoco aparece en el historial (que solo
+    muestra confirmada/anulada).
+
+    Un borrador nunca tocó stock ni caja (eso recién pasa en
+    confirmar()), así que borrarlo siempre es seguro. `excluir_pk` es
+    el borrador que se está por editar en esta misma request (ver
+    NuevaVentaView) — nunca hay que descartar el que el usuario está
+    a punto de retomar, aunque sea viejo.
+
+    No hay scheduler corriendo dentro de Django, así que esto se llama
+    perezosamente al entrar a "Nueva venta" — mismo criterio que
+    procesar_lotes_vencidos() en compras/models.py.
+    """
+    umbral = timezone.now() - timedelta(hours=HORAS_DESCARTE_BORRADOR)
+    qs = Venta.objects.filter(estado=EstadoVenta.BORRADOR, fecha_alta__lt=umbral)
+    if excluir_pk:
+        qs = qs.exclude(pk=excluir_pk)
+    for venta in qs:
+        venta.delete()
+
 
 def _generar_numero_venta():
     ultimo = Venta.objects.order_by('-id').first()

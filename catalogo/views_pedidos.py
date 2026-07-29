@@ -17,6 +17,7 @@ from productos.models import AplicacionOferta, BaseCalculoUmbral, TipoOferta, of
 from ventas.models import EstadoVenta, ItemVenta, Venta
 
 from .models import EstadoPedido, ItemPedido, Pedido
+from .utils import wa_link_ar
 from .views import _disponible_compra, _info_oferta, _productos_publicados_base
 
 MAX_ITEMS_POR_PEDIDO = 40
@@ -44,35 +45,6 @@ def _resolver_oferta_global(ofertas, items_a_crear):
         if pct > mejor_pct:
             mejor, mejor_pct = oferta, pct
     return (mejor, mejor_pct) if mejor and mejor_pct > 0 else (None, Decimal('0'))
-
-
-def _wa_link_ar(telefono_crudo):
-    """
-    Arma el link de wa.me a partir de lo que haya escrito el visitante.
-    La gente rara vez escribe el formato que pide WhatsApp (54 9 +
-    característica + número) — lo normal es solo "característica +
-    número" (ej: 3624023093). Reglas que aplicamos, en orden:
-    - Nos quedamos solo con los dígitos.
-    - Si ya viene con 00 o 54 de prefijo, no lo duplicamos.
-    - Si empieza con 0 (como se marca en el país), lo sacamos.
-    - Si no tiene el 9 que WhatsApp exige para celulares argentinos,
-      se lo agregamos.
-    No es infalible — no hay forma de adivinar si alguien metió un
-    "15" en el medio — pero cubre el caso normal de la mayoría de la
-    gente: característica + número, sin prefijos.
-    """
-    digitos = ''.join(ch for ch in telefono_crudo if ch.isdigit())
-    if not digitos:
-        return ''
-    if digitos.startswith('00'):
-        digitos = digitos[2:]
-    if digitos.startswith('54'):
-        digitos = digitos[2:]
-    if digitos.startswith('0'):
-        digitos = digitos[1:]
-    if not digitos.startswith('9'):
-        digitos = '9' + digitos
-    return f'https://wa.me/54{digitos}'
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -178,7 +150,7 @@ def _serializar_pedido(p):
         'cantidad_items': p.items.count(),
         'fecha_alta': p.fecha_alta.isoformat(),
         'venta_pk': p.venta_id,
-        'wa_link': _wa_link_ar(p.contacto_telefono),
+        'wa_link': wa_link_ar(p.contacto_telefono),
     }
 
 
@@ -291,7 +263,7 @@ class PedidosHistorialView(LoginRequiredMixin, TemplateView):
             page_num = 1
         pedidos = Paginator(qs, self.PAGE_SIZE).get_page(page_num)
         for p in pedidos:
-            p.wa_link = _wa_link_ar(p.contacto_telefono)
+            p.wa_link = wa_link_ar(p.contacto_telefono)
 
         ctx.update({
             'pedidos': pedidos,

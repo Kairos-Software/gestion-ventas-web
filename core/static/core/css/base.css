@@ -208,7 +208,12 @@ button, input, select, textarea {
     color: white;
 }
 
-/* ── Logo ── */
+/* ── Logo ──
+   El PNG del logo tiene transparencia real (no fondo negro como el
+   anterior), así que va directo sobre el sidebar oscuro, sin tarjeta ni
+   mix-blend-mode (ese truco era del logo viejo y lo lavaba). El
+   drop-shadow sigue el contorno real del dibujo (no es una caja) y le
+   da definición extra sobre el navy oscuro. */
 .logo {
     display: flex;
     align-items: center;
@@ -216,19 +221,18 @@ button, input, select, textarea {
     text-decoration: none;
     position: relative;
     overflow: hidden;
-    border-radius: 8px;
+    border-radius: 10px;
     padding: 4px 6px;
 }
 
 .logo-img {
-    width: 118px;
+    width: 158px;
     max-width: 100%;
     height: auto;
     object-fit: contain;
-    mix-blend-mode: screen;
-    filter: brightness(1.1) contrast(1.05);
     position: relative;
     z-index: 1;
+    filter: drop-shadow(0 1px 3px rgba(0,0,0,0.5)) brightness(1.08) saturate(1.1);
 }
 
 /* ── Logo shine ── */
@@ -1441,7 +1445,7 @@ textarea.form-control {
     .sidebar.collapsed .nav-group-items,
     .sidebar.collapsed .nav-group-arrow { display: revert; }
     .sidebar.collapsed .nav-group-toggle { justify-content: space-between; padding: 0.625rem 0.875rem; }
-    .sidebar.collapsed .logo-img { width: 118px; }
+    .sidebar.collapsed .logo-img { width: 158px; }
     .sidebar.collapsed .logo-shine { display: block; }
 
     /* Botón cerrar visible en móvil */

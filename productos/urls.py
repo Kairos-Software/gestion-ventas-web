@@ -26,6 +26,10 @@ urlpatterns = [
     path('imagenes/eliminar/',    views_productos.ProductoImagenEliminarAjax.as_view(), name='producto_imagen_eliminar'),
     path('imagenes/portada/',     views_productos.ProductoImagenPortadaAjax.as_view(),  name='producto_imagen_portada'),
 
+    # — Características —
+    path('caracteristicas/agregar/',  views_productos.CaracteristicaAgregarAjax.as_view(),  name='caracteristica_agregar'),
+    path('caracteristicas/eliminar/', views_productos.CaracteristicaEliminarAjax.as_view(), name='caracteristica_eliminar'),
+
     # — Variantes genéricas —
     path('variantes/',                 views_productos.VarianteListaAjax.as_view(),            name='variante_lista'),
     path('variantes/acciones/',        views_productos.VarianteAccionesAjax.as_view(),         name='variante_acciones'),

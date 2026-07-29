@@ -280,6 +280,23 @@ html[data-theme="dark"] .kc-bento .theme-switch i{ left:20px; background:var(--l
 .kc-bento .kc-detalle-specs div{ font-size:12px; }
 .kc-bento .kc-detalle-specs span{ display:block; color:var(--ink-faint); margin-bottom:2px; }
 
+.kc-bento .kc-detalle-badges{ margin-top:14px; display:flex; gap:8px; flex-wrap:wrap; }
+.kc-bento .kc-detalle-badge{
+    font-size:11.5px; font-weight:700; padding:5px 11px; border-radius:999px;
+    background:var(--surface-2); color:var(--ink-soft); border:1px solid var(--line);
+}
+.kc-bento .kc-detalle-badge--fragil  { color:#b45309; border-color:rgba(180,83,9,.3); background:rgba(180,83,9,.08); }
+.kc-bento .kc-detalle-badge--frio    { color:#1e6fa8; border-color:rgba(30,111,168,.3); background:rgba(30,111,168,.08); }
+.kc-bento .kc-detalle-badge--peligro { color:#dc2626; border-color:rgba(220,38,38,.3); background:rgba(220,38,38,.08); }
+
+.kc-bento .kc-detalle-caracteristicas{ margin-top:18px; padding-top:18px; border-top:1px solid var(--line); }
+.kc-bento .kc-detalle-caracteristicas h2{ font-family:var(--f-display); font-size:15px; font-weight:700; margin-bottom:8px; }
+.kc-bento .kc-detalle-caracteristicas ul{ list-style:none; display:flex; flex-direction:column; gap:6px; }
+.kc-bento .kc-detalle-caracteristicas li{ font-size:13px; color:var(--ink-soft); padding-left:16px; position:relative; }
+.kc-bento .kc-detalle-caracteristicas li::before{
+    content:''; position:absolute; left:0; top:.55em; width:5px; height:5px; border-radius:50%; background:var(--lime);
+}
+
 footer.kc-bento-footer{ background:var(--indigo); color:rgba(255,255,255,.6); padding:30px 0 90px; }
 footer.kc-bento-footer .shell{ display:flex; flex-wrap:wrap; gap:20px; justify-content:space-between; align-items:flex-start; }
 footer.kc-bento-footer b{ color:#fff; }

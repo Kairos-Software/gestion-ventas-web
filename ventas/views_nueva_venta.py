@@ -18,22 +18,13 @@ from core.models import Cliente, DatosEmpresa, ConfiguracionArca
 from compras.models import LoteCompra
 from .models import (
     Venta, ItemVenta, EstadoVenta, MedioPago, TipoResolucionLote,
-    EtiquetaBalanza, EstadoEtiquetaBalanza,
+    EtiquetaBalanza, EstadoEtiquetaBalanza, descartar_borradores_vencidos,
+    TipoComprobante,
 )
 from core.permisos import chequear_permiso
 from core.services_arca import facturacion
-from core.services_arca.tipos import CondicionIvaReceptor
 from core.services_arca.wsaa import ArcaError
-
-# Subconjunto de CondicionIvaReceptor.LABELS para el selector de "facturar a
-# nombre de un cliente" — las 4 que realmente aparecen en el día a día.
-CONDICIONES_IVA_RECEPTOR_COMUNES = [
-    (CondicionIvaReceptor.CONSUMIDOR_FINAL, 'Consumidor Final'),
-    (CondicionIvaReceptor.RESPONSABLE_INSCRIPTO, 'Responsable Inscripto'),
-    (CondicionIvaReceptor.MONOTRIBUTO, 'Monotributo'),
-    (CondicionIvaReceptor.EXENTO, 'Exento'),
-]
-from caja.models import TurnoCaja, CuentaCaja, TipoCaja
+from caja.models import TurnoCaja, CuentaCaja, TipoCaja, TipoCuenta
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -57,6 +48,9 @@ class NuevaVentaView(LoginRequiredMixin, TemplateView):
             ctx['sin_permiso'] = True
             return ctx
         ctx['puede_crear'] = True
+
+        editar_pk = self.request.GET.get('editar', '').strip()
+        descartar_borradores_vencidos(excluir_pk=editar_pk or None)
 
         ctx['listas_descuento'] = [
             {'nombre': l.nombre, 'porcentaje': str(l.porcentaje)}
@@ -92,7 +86,6 @@ class NuevaVentaView(LoginRequiredMixin, TemplateView):
         ctx['venta_editar_pk'] = None
         ctx['items_iniciales']  = []
 
-        editar_pk = self.request.GET.get('editar', '').strip()
         if editar_pk:
             venta = (
                 Venta.objects
@@ -400,12 +393,18 @@ class BuscarClienteAjax(LoginRequiredMixin, View):
         q  = request.GET.get('q', '').strip()
         qs = Cliente.objects.filter(estado='activo').order_by('nombre')
         if q:
-            qs = qs.filter(nombre__icontains=q) | qs.filter(razon_social__icontains=q)
+            qs = qs.filter(
+                Q(nombre__icontains=q) | Q(apellido__icontains=q) |
+                Q(dni__icontains=q) | Q(cuil__icontains=q) |
+                Q(razon_social__icontains=q) | Q(nombre_comercial__icontains=q) |
+                Q(cuit__icontains=q)
+            )
         data = [
             {
                 'pk':     c.pk,
-                'nombre': c.nombre or c.razon_social or str(c),
+                'nombre': c.get_nombre_display(),
                 'codigo': c.codigo or '',
+                'doc':    c.dni or c.cuit or c.cuil or '',
             }
             for c in qs[:20]
         ]
@@ -699,6 +698,22 @@ class ConfirmarVentaAjax(LoginRequiredMixin, View):
                         'monto': monto_p,
                         'cuenta_pk': p.get('cuenta_pk'),
                         'cotizacion': cotizacion_p,
+                        # Solo se usan si medio_p == 'cuotas' (ver Venta.confirmar) —
+                        # se pasan tal cual, la validación real vive ahí.
+                        'cuotas': p.get('cuotas'),
+                        'interes_pct': p.get('interes_pct'),
+                        'fecha_inicio_cobro': p.get('fecha_inicio_cobro'),
+                        # Recargo por medio de pago (débito/crédito/QR/transferencia) —
+                        # se pasa tal cual, `monto_p`/`suma_ars` de arriba NO lo incluyen
+                        # (siguen siendo la porción que cubre venta.total); el recargo se
+                        # calcula y snapshotea aparte en Venta.confirmar().
+                        'recargo_pct': p.get('recargo_pct'),
+                        'cantidad_pagos': p.get('cantidad_pagos'),
+                        'nombre_plan': p.get('nombre_plan'),
+                        # Con qué tarjeta/billetera pagó el cliente (define
+                        # el recargo) — dato aparte de 'cuenta_pk' (a cuál
+                        # de MIS cuentas entra la plata). Ver Venta.confirmar.
+                        'tarjeta_pk': p.get('tarjeta_pk'),
                     })
 
                 if not pagos_normalizados:
@@ -731,10 +746,15 @@ class ConfirmarVentaAjax(LoginRequiredMixin, View):
         factura_error = None
         comprobante = None
         if body.get('facturar'):
-            cliente = None
+            # El cliente a facturar es el cliente único de la venta (ya
+            # elegido una sola vez en el carrito) — no se vuelve a pedir
+            # acá. cliente_pk sigue soportado por si algún caller externo
+            # lo manda explícito, pero el frontend ya no lo hace.
             cliente_pk = body.get('cliente_pk')
             if cliente_pk:
                 cliente = Cliente.objects.filter(pk=cliente_pk).first()
+            else:
+                cliente = venta.cliente_unico
             try:
                 comprobante = facturacion.facturar_venta(
                     venta,
@@ -779,10 +799,16 @@ class VentaFacturarAjax(LoginRequiredMixin, View):
         except json.JSONDecodeError:
             body = {}
 
-        cliente = None
+        # Sin cliente_pk explícito en el body (el caso común: el botón
+        # "Facturar ahora" manda body vacío) se usa el cliente único de
+        # la venta — antes acá quedaba en None y el reintento terminaba
+        # facturando siempre a Consumidor Final aunque la venta tuviera
+        # un cliente real con su condición de IVA cargada.
         cliente_pk = body.get('cliente_pk')
         if cliente_pk:
             cliente = Cliente.objects.filter(pk=cliente_pk).first()
+        else:
+            cliente = venta.cliente_unico
 
         try:
             comprobante = facturacion.facturar_venta(
@@ -928,7 +954,7 @@ class DetalleVentaView(LoginRequiredMixin, View):
         venta = get_object_or_404(
             Venta.objects.prefetch_related(
                 'items__producto', 'items__cliente', 'items__combinacion',
-                'documentos', 'pagos__cuenta',
+                'documentos', 'pagos__cuenta', 'pagos__tarjeta',
             ),
             pk=pk
         )
@@ -937,40 +963,98 @@ class DetalleVentaView(LoginRequiredMixin, View):
         asegurar_cuentas_efectivo(caja=TipoCaja.GRANDE)
 
         moneda_venta = venta.items.values_list('moneda', flat=True).first() or 'ARS'
+        # Efectivo se excluye acá: el pago en efectivo resuelve su cuenta solo
+        # (ver PagoVenta), nunca se elige a mano — no tiene sentido ofrecerlo
+        # como destino de un cobro con tarjeta/QR/transferencia.
         cuentas = (
             CuentaCaja.objects
             .filter(caja=TipoCaja.GRANDE, activa=True, es_credito=False)
+            .exclude(tipo=TipoCuenta.EFECTIVO)
             .order_by('orden', 'nombre')
         )
         cuentas_json = json.dumps([
-            {'pk': c.pk, 'nombre': c.nombre, 'moneda': c.moneda}
+            {
+                'pk': c.pk, 'nombre': c.nombre, 'moneda': c.moneda,
+                # Qué medios acepta ESTA CUENTA REAL (a dónde entra la
+                # plata) — ver caja.models.CuentaCaja.acepta_*. No confundir
+                # con TarjetaPago.acepta_* de más abajo (con qué le pagó el
+                # cliente): son dos ejes independientes, ver
+                # ventas.models.TarjetaPago.__doc__.
+                'acepta_debito': c.acepta_debito,
+                'acepta_credito': c.acepta_credito,
+                'acepta_qr': c.acepta_qr,
+                'acepta_transferencia': c.acepta_transferencia,
+            }
             for c in cuentas
         ])
 
-        # Si todos los ítems de la venta comparten el mismo cliente, se lo
-        # ofrece como destinatario directo de la factura (sin tener que
-        # buscarlo de nuevo) — si hay más de uno o ninguno, sólo queda la
-        # opción de facturar a Consumidor Final.
-        clientes_venta = {item.cliente_id for item in venta.items.all() if item.cliente_id}
-        cliente_unico = None
-        if len(clientes_venta) == 1:
-            cliente_unico = Cliente.objects.filter(pk=clientes_venta.pop()).first()
+        # Tarjetas/billeteras del CLIENTE (Visa, Mercado Pago, Personal
+        # Pay...) — definen el recargo, independiente de a cuál `cuenta`
+        # real entra la plata (ver ventas.models.TarjetaPago.__doc__).
+        from .models import RecargoMedioPago, TarjetaPago
+        tarjetas = TarjetaPago.objects.filter(activa=True).order_by('orden', 'nombre')
+        tarjetas_json = json.dumps([
+            {
+                'pk': t.pk, 'nombre': t.nombre,
+                'acepta_debito': t.acepta_debito,
+                'acepta_credito': t.acepta_credito,
+                'acepta_qr': t.acepta_qr,
+                'acepta_transferencia': t.acepta_transferencia,
+            }
+            for t in tarjetas
+        ])
+
+        # Recargos configurados (ver ventas.models.RecargoMedioPago) para las
+        # tarjetas elegibles de esta venta — el JS arma los selectores de
+        # plan/recargo por línea de pago a partir de esta lista plana.
+        recargos_json = json.dumps([
+            {
+                'tarjeta_pk': r.tarjeta_id,
+                'medio': r.medio,
+                'cantidad_pagos': r.cantidad_pagos,
+                'nombre_plan': r.nombre_plan,
+                'etiqueta_plan': r.etiqueta_plan,
+                'recargo_pct': str(r.recargo_pct),
+            }
+            for r in RecargoMedioPago.objects.filter(tarjeta__in=tarjetas, activo=True)
+        ])
+
+        # El cliente a facturar es el mismo cliente único de la venta (ya
+        # resuelto una sola vez desde el carrito, ver Venta.cliente_unico) —
+        # no se vuelve a preguntar acá. Si la empresa ya tiene ARCA
+        # habilitado, se previsualiza qué tipo de comprobante saldría con
+        # los datos actuales (sin llamar a ARCA), para mostrarlo antes de
+        # que el vendedor confirme.
+        cliente_unico = venta.cliente_unico
+        config_arca = ConfiguracionArca.get_solo()
+        tipo_previsto = None
+        if config_arca.habilitado and config_arca.tiene_certificado():
+            tipo_previsto = facturacion.tipo_comprobante_previsto(cliente_unico)
+
+        pagos_lista = list(venta.pagos.all())
+        total_recargo = sum((p.recargo_monto for p in pagos_lista), Decimal('0'))
 
         from django.urls import reverse
         return _render(request, self.template_name, {
             'venta':      venta,
             'items':      venta.items.select_related('producto', 'cliente', 'combinacion').all(),
             'documentos': venta.documentos.all(),
-            'pagos':      venta.pagos.all(),
+            'pagos':      pagos_lista,
+            'total_recargo': total_recargo,
+            'total_a_cobrar': venta.total + total_recargo,
             'es_borrador': venta.estado == EstadoVenta.BORRADOR,
             'medios_pago': MedioPago.choices,
             'datos_empresa': DatosEmpresa.get_solo(),
-            'configuracion_arca': ConfiguracionArca.get_solo(),
+            'configuracion_arca': config_arca,
             'comprobante_arca': getattr(venta, 'comprobante_arca', None),
             'cliente_unico_venta': cliente_unico,
-            'condiciones_iva_receptor': CONDICIONES_IVA_RECEPTOR_COMUNES,
+            'tipo_comprobante_previsto_display': (
+                TipoComprobante(tipo_previsto).label if tipo_previsto else None
+            ),
             'venta_moneda': moneda_venta,
             'cuentas_json': cuentas_json,
+            'tarjetas_json': tarjetas_json,
+            'recargos_json': recargos_json,
             'url_confirmar':         reverse('ventas:confirmar_venta'),
             'url_eliminar_borrador': reverse('ventas:eliminar_borrador'),
             'url_nueva_venta':       reverse('ventas:nueva_venta'),

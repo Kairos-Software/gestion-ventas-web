@@ -1,0 +1,347 @@
+/* core/static/core/css/manual.css
+   Manual de usuario — diseño propio tipo "documentación": TOC vertical
+   sticky a la izquierda + contenido a la derecha con pasos numerados y
+   dos tipos de aviso (tip / advertencia). No depende de configuracion.css.
+*/
+
+.manual-page-header {
+    max-width: 720px;
+    margin-bottom: 1.75rem;
+}
+
+.manual-page-header h1 {
+    font-family: var(--font-heading);
+    font-size: 1.65rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    letter-spacing: -0.4px;
+    margin-bottom: 0.4rem;
+}
+
+.manual-page-header p {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    line-height: 1.55;
+}
+
+/* ═══════════════════════════════════════════
+   LAYOUT: TOC vertical + contenido
+   ═══════════════════════════════════════════ */
+.manual-shell {
+    display: flex;
+    align-items: flex-start;
+    gap: 2.25rem;
+}
+
+.manual-toc {
+    position: sticky;
+    top: calc(var(--header-height, 56px) + 1rem);
+    width: 234px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    max-height: calc(100vh - var(--header-height, 56px) - 2rem);
+    overflow-y: auto;
+    padding: 0.5rem;
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+}
+
+.manual-toc a {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.55rem 0.65rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.815rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.manual-toc a svg { flex-shrink: 0; opacity: 0.75; }
+
+.manual-toc a:hover { background: var(--bg-primary); color: var(--text-primary); }
+
+.manual-toc a.is-active {
+    background: var(--brand-orange-light);
+    color: var(--brand-orange);
+}
+
+.manual-toc a.is-active svg { opacity: 1; }
+
+.manual-content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+/* ═══════════════════════════════════════════
+   SECCIONES
+   ═══════════════════════════════════════════ */
+.manual-section {
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    scroll-margin-top: calc(var(--header-height, 56px) + 1.25rem);
+}
+
+.manual-section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 1.1rem 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-primary);
+}
+
+.manual-section-icon {
+    width: 38px; height: 38px;
+    border-radius: 0.7rem;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+}
+
+.manual-section-header h2 {
+    font-family: var(--font-heading);
+    font-size: 1.02rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.manual-section-header p {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin: 0.1rem 0 0;
+}
+
+.manual-body {
+    padding: 1.25rem 1.5rem 1.5rem;
+    font-size: 0.875rem;
+    line-height: 1.62;
+    color: var(--text-secondary);
+}
+
+.manual-body > *:first-child { margin-top: 0; }
+
+.manual-body p { margin: 0 0 0.75rem; }
+.manual-body p:last-child { margin-bottom: 0; }
+
+.manual-body h3 {
+    font-family: var(--font-heading);
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 1.5rem 0 0.6rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.manual-body > h3:first-of-type { margin-top: 0; padding-top: 0; border-top: none; }
+
+.manual-list {
+    margin: 0 0 0.75rem;
+    padding-left: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.manual-list li { color: var(--text-secondary); }
+.manual-list strong { color: var(--text-primary); }
+.manual-list--numbered { padding-left: 1.4rem; }
+
+/* ── Pasos numerados (procedimientos) ── */
+.manual-steps {
+    list-style: none;
+    counter-reset: manual-step;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    margin: 0.75rem 0 1rem;
+    padding: 0;
+}
+
+.manual-steps > li {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+}
+
+.manual-steps > li::before {
+    counter-increment: manual-step;
+    content: counter(manual-step);
+    flex-shrink: 0;
+    width: 1.55rem;
+    height: 1.55rem;
+    margin-top: 0.05rem;
+    border-radius: 50%;
+    background: var(--brand-orange);
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.manual-steps > li > div { padding-top: 0.15rem; }
+.manual-steps strong { color: var(--text-primary); }
+
+/* ── Nombres exactos de UI (botones, campos) ── */
+.manual-ui {
+    display: inline-block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--brand-blue);
+    background: var(--brand-blue-light);
+    border-radius: 0.35rem;
+    padding: 0.05rem 0.4rem;
+}
+
+/* ── Callouts: tip (celeste/naranja) y advertencia (rojo) ── */
+.manual-tip,
+.manual-warning {
+    position: relative;
+    border-radius: var(--radius-md);
+    padding: 0.8rem 1rem 0.8rem 2.3rem;
+    font-size: 0.825rem;
+    line-height: 1.55;
+    margin: 0.85rem 0;
+}
+
+.manual-tip {
+    background: var(--brand-orange-light);
+    border: 1px solid rgba(242,106,27,0.22);
+    color: var(--text-primary);
+}
+
+.manual-tip::before {
+    content: "💡";
+    position: absolute;
+    left: 0.9rem;
+    top: 0.78rem;
+    line-height: 1;
+}
+
+.manual-warning {
+    background: rgba(239,68,68,0.07);
+    border: 1px solid rgba(239,68,68,0.28);
+    color: var(--text-primary);
+}
+
+.manual-warning::before {
+    content: "⚠️";
+    position: absolute;
+    left: 0.85rem;
+    top: 0.78rem;
+    line-height: 1;
+}
+
+.manual-warning strong { color: var(--danger); }
+.manual-tip strong { color: var(--brand-orange-dark); }
+
+/* ── Texto literal que muestra el sistema (mensajes, confirmaciones) ── */
+.manual-quote {
+    display: block;
+    font-style: italic;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    background: var(--bg-primary);
+    border-left: 3px solid var(--border-strong);
+    padding: 0.5rem 0.75rem;
+    border-radius: 0 0.4rem 0.4rem 0;
+    margin: 0.5rem 0;
+}
+
+/* ── Acordeones ── */
+.manual-accordion {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 0;
+    margin-bottom: 0.75rem;
+    background: var(--bg-primary);
+    overflow: hidden;
+}
+
+.manual-accordion summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 0.7rem 0.9rem;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    user-select: none;
+}
+
+.manual-accordion summary::-webkit-details-marker { display: none; }
+
+.manual-accordion summary::after {
+    content: "+";
+    font-size: 1.05rem;
+    color: var(--text-muted);
+    transition: transform var(--transition-fast);
+}
+
+.manual-accordion[open] summary::after { transform: rotate(45deg); }
+.manual-accordion summary:hover { background: var(--bg-surface-hover); }
+.manual-accordion > *:not(summary) { padding: 0 0.9rem 0.9rem; }
+.manual-accordion p:first-of-type { margin-top: 0.1rem; }
+
+/* ── Tabla de atajos ── */
+.manual-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.825rem;
+    margin-bottom: 0.5rem;
+}
+
+.manual-table td {
+    padding: 0.35rem 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-secondary);
+}
+
+.manual-table tr:last-child td { border-bottom: none; }
+
+.manual-kbd {
+    display: inline-block;
+    font-family: monospace;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    background: var(--bg-white);
+    border: 1px solid var(--border-strong);
+    border-bottom-width: 2px;
+    border-radius: 0.35rem;
+    padding: 0.15rem 0.45rem;
+}
+
+/* ═══════════════════════════════════════════
+   RESPONSIVE — TOC pasa a barra horizontal
+   ═══════════════════════════════════════════ */
+@media (max-width: 900px) {
+    .manual-shell { flex-direction: column; gap: 1.25rem; }
+    .manual-toc {
+        position: sticky;
+        width: 100%;
+        flex-direction: row;
+        overflow-x: auto;
+        overflow-y: hidden;
+        max-height: none;
+        gap: 0.3rem;
+    }
+    .manual-toc a { white-space: nowrap; }
+}

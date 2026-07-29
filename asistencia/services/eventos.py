@@ -66,13 +66,17 @@ def notificar_deuda_pagada(cuota):
     if ya_notificado(TipoNotificacion.DEUDA_PAGADA, referencia, dentro_de_dias=7):
         return
 
+    # Texto deliberadamente neutro/administrativo (sin "buenas noticias",
+    # sin asunto tipo "pago confirmado" a secas): ese fraseo es casi
+    # calcado al de los mails de phishing de "confirmación de pago", y
+    # Gmail lo manda a Spam con bastante consistencia por eso — ver
+    # notificar_cuota_cobro_confirmada más abajo, mismo criterio.
     empresa_nombre = DatosEmpresa.get_solo().nombre_comercial
-    asunto = f'Kai-Cart · {empresa_nombre}: pago confirmado'
+    asunto = f'Kai-Cart · {empresa_nombre}: registro de pago de cuota'
     contexto = {
         'titulo': 'Deuda pagada',
         'subtitulo': None,
-        'intro': f'Buen día, buenas noticias: se confirmó el pago de esta '
-                 f'cuota de {empresa_nombre}.',
+        'intro': f'Se registró en el sistema el pago de esta cuota de {empresa_nombre}.',
         'badge_texto': 'Al día',
         'badge_color': '#10B981',
         'cuotas': [{
@@ -87,6 +91,58 @@ def notificar_deuda_pagada(cuota):
     enviar_mail_asistencia(
         TipoNotificacion.DEUDA_PAGADA, destino, asunto,
         'deuda_pagada.html', contexto, referencia,
+    )
+
+
+def notificar_cuota_cobro_confirmada(cuota):
+    """
+    Manda el mail de "cobro confirmado" al toque, apenas se confirma el
+    cobro de una cuota de una venta financiada en cuotas (financiación
+    propia del comercio, ver ventas.models.MedioPago.CUOTAS) — análogo
+    a notificar_deuda_pagada pero en la dirección contraria: acá es el
+    CLIENTE quien te pagó a vos, no vos a un proveedor/préstamo. Se
+    llama desde ConfirmarCuotaCobroAjax, después de CuotaCobro.confirmar(),
+    para no bloquear el cobro si el mail falla.
+    """
+    pref = PreferenciaAsistencia.get_solo()
+    if not pref.recibir_cuota_cobro_confirmada:
+        return
+    destino = pref.email_efectivo
+    if not destino:
+        return
+
+    referencia = f'cobrada-cuota-{cuota.pk}'
+    if ya_notificado(TipoNotificacion.CUOTA_COBRO_CONFIRMADA, referencia, dentro_de_dias=7):
+        return
+
+    # Texto neutro/administrativo a propósito — ver el comentario en
+    # notificar_deuda_pagada: el fraseo tipo "buenas noticias, pago
+    # confirmado" es casi calcado al de los mails de phishing de
+    # confirmación de pago, y eso hace que Gmail lo clasifique como
+    # Spam con bastante consistencia.
+    empresa_nombre = DatosEmpresa.get_solo().nombre_comercial
+    cxc = cuota.cuenta_por_cobrar
+    cliente_nombre = cxc.cliente.get_nombre_display() if cxc.cliente_id else '(cliente eliminado)'
+    asunto = f'Kai-Cart · {empresa_nombre}: registro de cobro de cuota'
+    contexto = {
+        'titulo': 'Cobro confirmado',
+        'subtitulo': None,
+        'intro': f'Se registró en el sistema el cobro de esta cuota de {empresa_nombre}, '
+                 f'a cargo de {cliente_nombre}.',
+        'badge_texto': 'Cobrado',
+        'badge_color': '#10B981',
+        'cuotas': [{
+            'cliente': cliente_nombre,
+            'numero': cuota.numero,
+            'total_cuotas': cxc.cantidad_cuotas,
+            'fecha_confirmacion': cuota.fecha_confirmacion.strftime('%d/%m/%Y'),
+            'monto_fmt': _fmt(cuota.monto),
+        }],
+        'total_cobrado': _fmt(cuota.monto),
+    }
+    enviar_mail_asistencia(
+        TipoNotificacion.CUOTA_COBRO_CONFIRMADA, destino, asunto,
+        'cuota_cobro_confirmada.html', contexto, referencia,
     )
 
 
@@ -227,8 +283,8 @@ def notificar_lotes_si_proximos(compra, hoy=None):
         contexto = {
             'titulo': 'Producto por vencer',
             'subtitulo': None,
-            'intro': f'Buen día, este producto de {empresa_nombre} está por vencer. Te '
-                     f'recomendamos priorizar su venta o ponerlo en oferta antes de esa fecha.',
+            'intro': f'Este producto de {empresa_nombre} está próximo a vencer. Se recomienda '
+                     f'priorizar su venta antes de esa fecha.',
             'badge_texto': 'Aviso',
             'badge_color': '#F59E0B',
             'lotes': [{

@@ -191,13 +191,33 @@
 </div>
 
 {# Carrito #}
-<div class="vta-card">
+<div class="vta-card vta-card--carrito">
     <div class="vta-card-header">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <rect x="1" y="1" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.3"/>
             <path d="M1 5.5H15M1 9.5H15M5.5 5.5V14.5" stroke="currentColor" stroke-width="1.2"/>
         </svg>
         <span class="vta-card-title">Ítems de la venta</span>
+
+        {% comment %}
+        Cliente de la venta — uno solo para todos los ítems (no por producto):
+        no tiene sentido de negocio vender un producto a un cliente y otro a
+        "Consumidor Final" en la misma venta, y complicaba la facturación.
+        {% endcomment %}
+        <div class="vta-cliente-venta">
+            <span class="vta-cliente-venta-label">Cliente</span>
+            <div class="vta-cli-wrap">
+                <svg class="vta-cli-icon" width="14" height="14" viewBox="0 0 16 16" fill="none">
+                    <circle cx="8" cy="5.4" r="2.7" stroke="currentColor" stroke-width="1.3"/>
+                    <path d="M2.6 13.6C3 10.9 5.2 9 8 9s5 1.9 5.4 4.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                </svg>
+                <input type="text" id="vtaClienteInput" class="vta-input-inline vta-cli-input"
+                       placeholder="Buscar por nombre, apellido o DNI…" autocomplete="off">
+                <div id="vtaClienteDropdown" class="vta-cli-dropdown"></div>
+                <div id="vtaClienteSpinner" class="vta-cli-spinner" style="display:none;" title="Buscando…"></div>
+                <button type="button" id="vtaClienteClear" class="vta-cliente-venta-clear" title="Quitar cliente" style="display:none;">✕</button>
+            </div>
+        </div>
     </div>
 
     <div class="vta-table-wrap">
@@ -212,7 +232,6 @@
                     <th>Lista</th>
                     <th>Oferta</th>
                     <th>Cond. pago</th>
-                    <th>Cliente</th>
                     <th>Referencia</th>
                     <th>Subtotal</th>
                     <th></th>

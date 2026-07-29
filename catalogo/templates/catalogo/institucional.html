@@ -1,0 +1,116 @@
+{% extends 'catalogo/base_catalogo.html' %}
+
+{% block title %}{{ config_catalogo.nav_tienda_label|default:default_nav_tienda }} — {{ empresa.nombre_comercial }}{% endblock %}
+
+{% block content %}
+
+    <section class="kc-inst-portada {% if not config_catalogo.institucional_imagen %}kc-inst-portada--sin-imagen{% endif %}">
+        {% if config_catalogo.institucional_imagen %}
+            <img src="{{ config_catalogo.institucional_imagen.url }}" alt="" class="kc-inst-portada-img">
+            <div class="kc-inst-portada-overlay"></div>
+        {% endif %}
+        <div class="kc-inst-portada-inner">
+            <!-- ids usados por catalogo_online.js (vista previa en vivo) — no renombrar sin actualizar ese archivo -->
+            <h1 id="kcInstTitulo">{{ config_catalogo.institucional_titulo|default:default_institucional_titulo }}</h1>
+            <p id="kcInstBajada">{{ config_catalogo.institucional_bajada|default:default_institucional_bajada }}</p>
+        </div>
+    </section>
+
+    <section class="kc-inst-historia">
+        <div class="kc-inst-historia-inner">
+            <span class="kc-inst-eyebrow">Nuestra historia</span>
+            <p id="kcHistoriaTexto">{{ config_catalogo.sobre_nosotros|default:default_sobre_nosotros }}</p>
+        </div>
+    </section>
+
+    <section class="kc-inst-destacados">
+        <div class="kc-inst-destacados-inner">
+            <div class="kc-destacado-card">
+                <span class="kc-destacado-num">01</span>
+                <h3 id="kcDestacado1Titulo">{{ config_catalogo.destacado1_titulo|default:default_destacado1_titulo }}</h3>
+                <p id="kcDestacado1Texto">{{ config_catalogo.destacado1_texto|default:default_destacado1_texto }}</p>
+            </div>
+            <div class="kc-destacado-card">
+                <span class="kc-destacado-num">02</span>
+                <h3 id="kcDestacado2Titulo">{{ config_catalogo.destacado2_titulo|default:default_destacado2_titulo }}</h3>
+                <p id="kcDestacado2Texto">{{ config_catalogo.destacado2_texto|default:default_destacado2_texto }}</p>
+            </div>
+            <div class="kc-destacado-card">
+                <span class="kc-destacado-num">03</span>
+                <h3 id="kcDestacado3Titulo">{{ config_catalogo.destacado3_titulo|default:default_destacado3_titulo }}</h3>
+                <p id="kcDestacado3Texto">{{ config_catalogo.destacado3_texto|default:default_destacado3_texto }}</p>
+            </div>
+        </div>
+    </section>
+
+    {% if galeria %}
+    <section class="kc-inst-galeria">
+        <div class="kc-inst-galeria-inner">
+            <div class="kc-sec-head"><h2>Un vistazo por adentro</h2><span class="kc-sec-sub">fotos del local y los productos</span></div>
+            <div class="kc-galeria-grid">
+                {% for foto in galeria %}
+                <a href="{{ foto.imagen.url }}" target="_blank" rel="noopener" class="kc-galeria-item {% if forloop.first %}kc-galeria-item--grande{% endif %}">
+                    <img src="{{ foto.imagen.url }}" alt="{{ foto.titulo }}" loading="lazy">
+                    {% if foto.titulo %}<span class="kc-galeria-caption">{{ foto.titulo }}</span>{% endif %}
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
+    <section class="kc-inst-info">
+        <div class="kc-inst-info-inner">
+            <div class="kc-inst-info-col">
+                <h3>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+                    Horarios
+                </h3>
+                {% if config_catalogo.horarios_texto %}
+                    <p>{{ config_catalogo.horarios_texto|linebreaksbr }}</p>
+                {% else %}
+                    <p class="kc-inst-info-vacio">Todavía no cargamos los horarios de atención.</p>
+                {% endif %}
+            </div>
+            <div class="kc-inst-info-col">
+                <h3>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 21S5 14.5 5 9.5A7 7 0 0119 9.5C19 14.5 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
+                    Ubicación
+                </h3>
+                {% if empresa.domicilio %}
+                    <p>{{ empresa.domicilio }}</p>
+                    {% if maps_url %}<a href="{{ maps_url }}" target="_blank" rel="noopener" class="kc-inst-link">Cómo llegar →</a>{% endif %}
+                {% else %}
+                    <p class="kc-inst-info-vacio">Todavía no cargamos la dirección.</p>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+
+    <section class="kc-inst-contacto">
+        <div class="kc-inst-contacto-inner">
+            <div class="kc-inst-contacto-texto">
+                <h2>Hablemos</h2>
+                <p id="kcContactoTexto">{{ config_catalogo.contacto_texto|default:"Estamos para ayudarte con lo que necesites." }}</p>
+                <ul class="kc-inst-contacto-datos">
+                    {% if empresa.telefono %}<li>{{ empresa.telefono }}</li>{% endif %}
+                    {% if empresa.email %}<li>{{ empresa.email }}</li>{% endif %}
+                </ul>
+                {% if config_catalogo.instagram_url or config_catalogo.facebook_url or config_catalogo.tiktok_url %}
+                <div class="kc-inst-redes">
+                    {% if config_catalogo.instagram_url %}<a href="{{ config_catalogo.instagram_url }}" target="_blank" rel="noopener" aria-label="Instagram"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r="1"/></svg></a>{% endif %}
+                    {% if config_catalogo.facebook_url %}<a href="{{ config_catalogo.facebook_url }}" target="_blank" rel="noopener" aria-label="Facebook"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M15 8.5h-2a1.5 1.5 0 00-1.5 1.5v2h3.4l-.4 3h-3v7h-3v-7H6v-3h2.5v-2.3C8.5 6.9 10 5 12.8 5H15v3.5z"/></svg></a>{% endif %}
+                    {% if config_catalogo.tiktok_url %}<a href="{{ config_catalogo.tiktok_url }}" target="_blank" rel="noopener" aria-label="TikTok"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 4v10.5a3.5 3.5 0 11-3-3.46"/><path d="M14 4a5 5 0 005 5"/></svg></a>{% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% if whatsapp_url %}
+            <a href="{{ whatsapp_url }}" target="_blank" rel="noopener" class="kc-inst-whatsapp-btn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 11.5a8.5 8.5 0 01-12.4 7.55L3 20l1.02-5.4A8.5 8.5 0 1121 11.5z"/></svg>
+                Escribir por WhatsApp
+            </a>
+            {% endif %}
+        </div>
+    </section>
+
+{% endblock %}

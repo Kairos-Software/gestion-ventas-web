@@ -1,0 +1,449 @@
+/* ══════════════════════════════════════════════════════════════════
+   RECARGOS — estilos
+   Usa las variables del sistema base.css para consistencia visual
+   (mismo criterio que cheques.css).
+   ══════════════════════════════════════════════════════════════════ */
+
+.rec-container {
+    font-family: var(--font-body);
+    color: var(--text-primary);
+    padding-bottom: 2rem;
+}
+
+.rec-sin-permiso {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 4rem 2rem;
+    color: var(--text-secondary);
+}
+
+.rec-sin-permiso svg {
+    color: var(--text-muted);
+}
+
+/* ── Encabezado ───────────────────────────────────────────────── */
+.rec-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.5rem;
+    margin-bottom: 1.75rem;
+}
+
+.rec-title {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 1.5rem;
+    margin: 0 0 0.35rem;
+}
+
+.rec-header-btns {
+    display: flex;
+    gap: 0.6rem;
+    flex-shrink: 0;
+}
+
+/* El popover de ayuda hereda el peso del h1 si no se corrige */
+#ayuda_recargos {
+    font-weight: 400;
+    max-width: 480px;
+}
+
+.rec-vacio {
+    background: var(--bg-white);
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius-lg);
+    padding: 3rem 2rem;
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+.rec-vacio p { margin: 0; }
+.rec-vacio-sub {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: 0.4rem !important;
+}
+
+.btn--sm {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.78rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+/* ── Grilla de cuentas ────────────────────────────────────────── */
+.rec-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 1.25rem;
+}
+
+.rec-card {
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem 1.35rem;
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow var(--transition-fast);
+}
+
+.rec-card:hover {
+    box-shadow: var(--shadow-md);
+}
+
+.rec-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.85rem;
+}
+
+.rec-card-title {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 1.02rem;
+    margin: 0;
+}
+
+.rec-card-moneda {
+    font-weight: 500;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin-left: 0.3rem;
+}
+
+/* ── "Acepta" — pills toggle ─────────────────────────────────── */
+.rec-medios-aceptados {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    padding-bottom: 0.9rem;
+    margin-bottom: 0.9rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.rec-medios-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+}
+
+.rec-medios-pills {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+}
+
+.rec-medio-pill {
+    font-family: var(--font-body);
+    font-size: 0.74rem;
+    font-weight: 600;
+    padding: 0.3rem 0.65rem;
+    border-radius: 999px;
+    border: 1px solid var(--border-strong);
+    background: var(--bg-white);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    opacity: 0.65;
+}
+
+.rec-medio-pill:hover:not(:disabled) {
+    opacity: 1;
+    border-color: var(--text-secondary);
+}
+
+.rec-medio-pill:disabled {
+    cursor: default;
+}
+
+.rec-medio-pill--on {
+    opacity: 1;
+    color: #fff;
+    border-color: transparent;
+}
+
+.rec-medio-pill--debito.rec-medio-pill--on       { background: var(--info); }
+.rec-medio-pill--credito.rec-medio-pill--on      { background: var(--accent-primary); }
+.rec-medio-pill--qr.rec-medio-pill--on           { background: var(--success); }
+.rec-medio-pill--transferencia.rec-medio-pill--on { background: #6B7280; }
+
+/* ── Badges de medio (en la tabla) ────────────────────────────── */
+.rec-badge-medio {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 0.15rem 0.55rem;
+    border-radius: 0.35rem;
+    white-space: nowrap;
+}
+
+.rec-badge-medio--debito       { background: rgba(59,130,246,0.1);  color: var(--info); }
+.rec-badge-medio--credito      { background: var(--accent-light);   color: var(--accent-primary); }
+.rec-badge-medio--qr           { background: rgba(16,185,129,0.1);  color: var(--success); }
+.rec-badge-medio--transferencia { background: rgba(107,114,128,0.12); color: #4B5563; }
+
+.rec-card-vacio {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin: 0;
+    padding: 0.5rem 0;
+}
+
+/* ── Tabla ────────────────────────────────────────────────────── */
+.rec-tabla {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.rec-tabla thead th {
+    text-align: left;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-muted);
+    padding: 0 0.4rem 0.5rem;
+    white-space: nowrap;
+}
+
+.rec-tabla tbody td {
+    padding: 0.55rem 0.4rem;
+    border-top: 1px solid var(--border-color);
+    vertical-align: middle;
+}
+
+.rec-fila-inactiva {
+    opacity: 0.5;
+}
+
+.rec-pct {
+    font-weight: 700;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.th-acciones { width: 1%; }
+
+.rec-tabla-acciones {
+    display: flex;
+    gap: 0.3rem;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+}
+
+.rec-badge-estado {
+    display: inline-block;
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 0.12rem 0.45rem;
+    border-radius: 0.35rem;
+    white-space: nowrap;
+}
+
+.rec-badge-estado--activo {
+    background: rgba(16,185,129,0.1);
+    color: var(--success);
+}
+
+.rec-badge-estado--inactivo {
+    background: rgba(107,114,128,0.1);
+    color: var(--text-muted);
+}
+
+.icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 27px;
+    height: 27px;
+    flex-shrink: 0;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: var(--bg-white);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background .15s, color .15s, border-color .15s;
+}
+
+.icon-btn:hover:not(:disabled) {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border-color: var(--border-strong);
+}
+
+.icon-btn--success {
+    color: var(--success);
+    border-color: rgba(16,185,129,0.3);
+}
+.icon-btn--success:hover:not(:disabled) {
+    background: rgba(16,185,129,0.08);
+    color: var(--success);
+}
+
+.icon-btn--danger {
+    color: var(--danger);
+    border-color: rgba(239,68,68,0.3);
+}
+.icon-btn--danger:hover:not(:disabled) {
+    background: rgba(239,68,68,0.08);
+    color: var(--danger);
+}
+
+/* ── Modal ────────────────────────────────────────────────────── */
+.modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(13,27,42,0.45);
+    z-index: 1001;
+}
+
+.modal-content {
+    position: relative;
+    z-index: 1002;
+    background: var(--bg-white);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    max-width: 460px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-title {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 1.2rem;
+    margin: 0;
+}
+
+.modal-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.modal-close:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.modal-body {
+    padding: 1.5rem;
+}
+
+.rec-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.85rem;
+}
+
+.form-campo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-bottom: 1rem;
+}
+
+.form-campo--checkbox label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.form-campo label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.form-hint {
+    font-size: 0.75rem;
+    color: var(--danger);
+    margin: 0.1rem 0 0;
+}
+
+.form-campo input,
+.form-campo select {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 0.6rem 0.75rem;
+    font-size: 0.9rem;
+    background: var(--bg-white);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+}
+
+.form-campo input:focus,
+.form-campo select:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px var(--accent-light);
+}
+
+.form-campo select:disabled {
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+}
+
+/* ── Responsive ──────────────────────────────────────────────── */
+@media (max-width: 640px) {
+    .rec-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .rec-grid {
+        grid-template-columns: 1fr;
+    }
+    .rec-form-grid {
+        grid-template-columns: 1fr;
+    }
+}

@@ -243,6 +243,25 @@ function _cdtPagoActualizarResumen() {
             <span>Pendiente: <strong>${_cdtFmtARS(pendiente)}</strong></span>`;
         }
     }
+
+    _cdtActualizarEstadoConfirmar();
+}
+
+/** Habilita "Confirmar compra" solo cuando ya está todo cargado: fecha,
+ *  pago cubierto exacto, cuenta/cotización de cada línea, y datos
+ *  completos de cuotas para cada línea con tarjeta. Se re-evalúa en
+ *  cada cambio del panel de pago y de la fecha. */
+function _cdtActualizarEstadoConfirmar() {
+    const btn = document.getElementById('cdtBtnConfirmar');
+    const dot = document.getElementById('cdtTabPagoDot');
+    const pagoOk = _cdtPagoEsCubierto() && !_cdtPagoFaltanCuentas() && !_cdtPagoFaltanDatosCredito();
+
+    if (dot) dot.classList.toggle('cdt-tab-dot--ok', pagoOk);
+
+    if (btn) {
+        const fecha = document.getElementById('cdtFecha');
+        btn.disabled = !(fecha && fecha.value && pagoOk);
+    }
 }
 
 function _cdtPagoAgregarLinea() {
@@ -325,6 +344,9 @@ if (CDT.esBorrador) {
 
     const btnAgregarPago = document.getElementById('cdtBtnAgregarPago');
     if (btnAgregarPago) btnAgregarPago.addEventListener('click', _cdtPagoAgregarLinea);
+
+    if (inputFecha) inputFecha.addEventListener('input', _cdtActualizarEstadoConfirmar);
+    _cdtActualizarEstadoConfirmar();
 
     /* ── Editar carrito (vuelve a Nueva Compra CON los productos cargados) ── */
     btnEditar.addEventListener('click', () => {

@@ -119,6 +119,7 @@ def resumen(request):
         'comparacion_label': ETIQUETAS_COMPARACION.get(preset, 'que el período anterior'),
         'perdidas_periodo': perdidas_periodo,
         'serie_mensual_json': serie_json,
+        'facturacion_arca': stats_ventas.facturacion_arca(desde, hasta),
     }
 
     if chequear_permiso(request.user, 'ver_caja'):
@@ -142,6 +143,13 @@ def ventas(request):
     ], cls=DjangoJSONEncoder)
 
     por_medio_pago = stats_ventas.por_medio_pago(desde, hasta)
+    facturacion_arca = stats_ventas.facturacion_arca(desde, hasta)
+
+    facturacion_arca_json = json.dumps([
+        {'label': f['label'], 'total': float(f['total'])}
+        for f in facturacion_arca['por_tipo']
+    ] + ([{'label': 'Sin facturar', 'total': float(facturacion_arca['total_sin_facturar'])}]
+         if facturacion_arca['total_sin_facturar'] else []), cls=DjangoJSONEncoder)
 
     contexto = {
         'desde': desde,
@@ -154,6 +162,8 @@ def ventas(request):
         'por_dia_semana_json': por_dia_semana_json,
         'impacto_descuentos': stats_ventas.impacto_descuentos(desde, hasta),
         'por_medio_pago_ars_json': _medio_pago_ars_json(por_medio_pago),
+        'facturacion_arca': facturacion_arca,
+        'facturacion_arca_json': facturacion_arca_json,
     }
     return render(request, 'core/estadisticas/ventas.html', contexto)
 
@@ -238,6 +248,10 @@ def clientes(request):
             {'label': f['label'], 'cantidad': f['cantidad']} for f in distribucion_estado
         ], cls=DjangoJSONEncoder),
     }
+
+    if chequear_permiso(request.user, 'ver_cuentas_cobrar'):
+        contexto['cuentas_por_cobrar'] = stats_clientes.cuentas_por_cobrar(desde, hasta)
+
     return render(request, 'core/estadisticas/clientes.html', contexto)
 
 

@@ -2,10 +2,10 @@
 asistencia/management/commands/probar_asistencia.py
 
 COMANDO DE PRUEBA. Genera datos de ejemplo (si hace falta) y manda los
-7 mails de asistencia (reporte mensual, semanal, vencimiento, deuda
-por pagar, deuda pagada, stock estancado, cheques) a una casilla de
-prueba, para poder revisar diseño y contenido sin esperar a que pase
-un mes de verdad o venza una deuda real.
+8 mails de asistencia (reporte mensual, semanal, vencimiento, deuda
+por pagar, deuda pagada, cobro de cuota confirmado, stock estancado,
+cheques) a una casilla de prueba, para poder revisar diseño y
+contenido sin esperar a que pase un mes de verdad o venza una deuda real.
 
 CÓMO USARLO
 -----------
@@ -64,7 +64,7 @@ from ventas.models import Venta
 # Este comando de prueba SIEMPRE manda acá, sin condiciones — editá
 # esta línea para cambiar a dónde llegan los mails de prueba. No afecta
 # a correr_asistencia (el comando "real", que solo mira Configuración).
-EMAIL_DE_RESPALDO = 'dn.lopez.2804@gmail.com'
+EMAIL_DE_RESPALDO = 'andy.lpz024@gmail.com'
 
 
 class Command(BaseCommand):
@@ -113,6 +113,11 @@ class Command(BaseCommand):
         # del batch diario) — se prueba aparte para no perder cobertura
         # del diseño de ese mail acá.
         call_command('correr_asistencia', tipo='deuda_pagada', fecha=fecha, forzar=True)
+        # 'cuota_cobro_confirmada' también queda afuera de 'todos' por el
+        # mismo motivo — se prueba aparte. generar_datos_prueba ya crea
+        # una venta en cuotas con su primera cuota cobrada hoy, así que
+        # este mail sí tiene datos para mandar.
+        call_command('correr_asistencia', tipo='cuota_cobro_confirmada', fecha=fecha, forzar=True)
         self.stdout.write(self.style.SUCCESS('Listo. Revisá la casilla (y la carpeta de spam).'))
 
     def _limpiar_datos_previos(self):
@@ -121,7 +126,8 @@ class Command(BaseCommand):
         cuelga de un producto "TEST - "), sin tocar ventas/compras
         reales que pueda haber en la misma base más adelante.
         """
-        from caja.models import Cheque, CuentaCaja, Deuda, MovimientoCaja
+        from caja.models import Cheque, CuentaCaja, CuentaPorCobrar, Deuda, MovimientoCaja
+        from core.models import Cliente
 
         ventas_test = Venta.objects.filter(items__producto__nombre__startswith='TEST - ').distinct()
         compras_test = Compra.objects.filter(items__producto__nombre__startswith='TEST - ').distinct()
@@ -130,11 +136,17 @@ class Command(BaseCommand):
         deuda_ids = list(
             Deuda.objects.filter(pago_compra__compra_id__in=compra_ids).values_list('pk', flat=True)
         )
+        # CuentaPorCobrar.pago_venta es SET_NULL (no CASCADE) al borrar la
+        # Venta, así que hay que borrarla explícitamente ANTES — si no,
+        # queda huérfana (y su Cliente de prueba tampoco se puede borrar
+        # después, porque CuentaPorCobrar.cliente es PROTECT).
+        CuentaPorCobrar.objects.filter(pago_venta__venta_id__in=venta_ids).delete()
 
         ventas_test.delete()
         compras_test.delete()
         Deuda.objects.filter(pk__in=deuda_ids).delete()
         Cheque.objects.filter(numero_cheque__startswith='TEST - ').delete()
+        Cliente.objects.filter(nombre__startswith='TEST - ').delete()
 
         # MovimientoCaja no tiene FK real a Venta/Compra (se vincula por
         # origen_app/origen_id), así que no cae solo con el cascade de

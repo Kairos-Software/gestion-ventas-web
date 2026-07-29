@@ -23,6 +23,86 @@
 
 {% include "core/estadisticas/_filtros.html" %}
 
+<!-- ══════════ FACTURACIÓN ELECTRÓNICA (ARCA) ══════════ -->
+<div class="card mb-4">
+    <div class="card-header">
+        <div>
+            <p class="card-title">¿Cuánto facturaste con ARCA?</p>
+            <p class="text-muted" style="font-size:.8125rem;">Comprobantes con CAE real vs. ventas sin facturar electrónicamente en este período</p>
+        </div>
+    </div>
+    <div class="card-body">
+        {% if facturacion_arca.cantidad_ventas %}
+            <div class="est-mini-stat-grid mb-3">
+                <div class="est-mini-stat">
+                    <div class="est-mini-stat-valor">${{ facturacion_arca.total_ventas|floatformat:0|intcomma }}</div>
+                    <div class="est-mini-stat-label">Total vendido en el período</div>
+                </div>
+                <div class="est-mini-stat">
+                    <div class="est-mini-stat-valor">${{ facturacion_arca.total_facturado|floatformat:0|intcomma }}</div>
+                    <div class="est-mini-stat-label">Facturado con ARCA ({{ facturacion_arca.pct_facturado }}%)</div>
+                </div>
+                <div class="est-mini-stat">
+                    <div class="est-mini-stat-valor">${{ facturacion_arca.total_sin_facturar|floatformat:0|intcomma }}</div>
+                    <div class="est-mini-stat-label">Sin facturar ({{ facturacion_arca.cantidad_sin_facturar }} venta{{ facturacion_arca.cantidad_sin_facturar|pluralize }})</div>
+                </div>
+                <div class="est-mini-stat">
+                    <div class="est-mini-stat-valor">${{ facturacion_arca.iva_total|floatformat:0|intcomma }}</div>
+                    <div class="est-mini-stat-label">IVA declarado</div>
+                </div>
+                <div class="est-mini-stat">
+                    <div class="est-mini-stat-valor">{{ facturacion_arca.cantidad_facturada }}</div>
+                    <div class="est-mini-stat-label">Comprobantes emitidos</div>
+                </div>
+            </div>
+
+            {% if facturacion_arca.por_tipo %}
+            <div class="est-row-2" style="align-items:center;">
+                <div>
+                    {% for f in facturacion_arca.por_tipo %}
+                    <div class="est-ranking-row">
+                        <div class="est-ranking-left">
+                            <div>
+                                <div class="est-ranking-nombre">{{ f.label }}</div>
+                                <div class="est-ranking-detalle">{{ f.cantidad }} comprobante{{ f.cantidad|pluralize }}</div>
+                            </div>
+                        </div>
+                        <div class="est-ranking-right">
+                            <div class="est-ranking-ganancia">${{ f.total|floatformat:0|intcomma }}</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% if facturacion_arca.total_sin_facturar %}
+                    <div class="est-ranking-row">
+                        <div class="est-ranking-left">
+                            <div>
+                                <div class="est-ranking-nombre">Sin facturar</div>
+                                <div class="est-ranking-detalle">{{ facturacion_arca.cantidad_sin_facturar }} venta{{ facturacion_arca.cantidad_sin_facturar|pluralize }}</div>
+                            </div>
+                        </div>
+                        <div class="est-ranking-right">
+                            <div class="est-ranking-ganancia">${{ facturacion_arca.total_sin_facturar|floatformat:0|intcomma }}</div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="est-chart-wrap chico">
+                    <canvas id="chartFacturacionArca"></canvas>
+                </div>
+            </div>
+            {% else %}
+                <div class="empty-state">
+                    <p>Todavía no emitiste ningún comprobante con ARCA en este período — revisá Configuración → Facturación Electrónica si esperabas ver datos acá.</p>
+                </div>
+            {% endif %}
+        {% else %}
+            <div class="empty-state">
+                <p>Todavía no hay ventas confirmadas en este período.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
 <!-- ══════════ EMPLEADOS + PRODUCTOS ══════════ -->
 <div class="est-row-2">
     <div class="card">
@@ -236,6 +316,10 @@
         initChartDonut('chartMedioPago', {{ por_medio_pago_ars_json|safe }}, {
             'Efectivo': '#10B981', 'Transferencia': '#1E6FA8',
             'Débito': '#F26A1B', 'Crédito': '#8B5CF6', 'QR': '#F59E0B',
+        }, { valueKey: 'total', formatValue: (v) => '$' + v.toLocaleString('es-AR') });
+        initChartDonut('chartFacturacionArca', {{ facturacion_arca_json|safe }}, {
+            'Factura A': '#1E6FA8', 'Factura B': '#10B981',
+            'Factura C': '#F59E0B', 'Sin facturar': '#8A9BB0',
         }, { valueKey: 'total', formatValue: (v) => '$' + v.toLocaleString('es-AR') });
     });
 </script>

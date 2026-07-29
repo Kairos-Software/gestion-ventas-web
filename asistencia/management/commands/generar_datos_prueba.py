@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from caja.models import CuentaCaja, TipoCaja, TipoCuenta, Cheque, TipoCheque, EstadoCheque
 from compras.models import Compra, ItemCompra, MedioPagoCompra
-from core.models import Usuario
+from core.models import Usuario, Cliente
 from productos.models import (
     CategoriaProducto, Producto, Oferta, TipoOferta, AplicacionOferta, Moneda,
 )
@@ -86,6 +86,22 @@ class Command(BaseCommand):
         if primera_cuota:
             primera_cuota.confirmar(cuenta_pk=cuenta_efectivo.pk, usuario=admin)
         self.stdout.write(self.style.SUCCESS('Cuota vieja marcada como pagada hoy.'))
+
+        # ── Venta en cuotas (financiación propia, no confundir con la
+        #    Deuda de arriba) con su primera cuota ya cobrada hoy →
+        #    dispara el mail de "cobro de cuota confirmado".
+        cliente_cuotas, _ = Cliente.objects.get_or_create(
+            nombre=f'{PREFIJO}Cliente', apellido='Cuotas',
+            defaults={'tipo': 'persona', 'estado': 'activo'},
+        )
+        cxc_vieja = self._crear_venta_cuotas(
+            admin, cliente_cuotas, hoy - timedelta(days=50),
+            gaseosa, Decimal('5'), cantidad_cuotas=2, dias_inicio_cobro=-48,
+        )
+        primera_cuota_cobro = cxc_vieja.cuotas.order_by('numero').first() if cxc_vieja else None
+        if primera_cuota_cobro:
+            primera_cuota_cobro.confirmar(cuenta_pk=cuenta_efectivo.pk, usuario=admin)
+        self.stdout.write(self.style.SUCCESS('Cuota de venta en cuotas marcada como cobrada hoy.'))
 
         # ── Cheques de prueba ──
         Cheque.objects.get_or_create(
@@ -171,6 +187,23 @@ class Command(BaseCommand):
 
         from caja.models import Deuda
         return Deuda.objects.filter(pago_compra__compra=compra).first()
+
+    def _crear_venta_cuotas(self, admin, cliente, fecha, producto, cantidad, cantidad_cuotas, dias_inicio_cobro):
+        """Venta financiada en cuotas propias (MedioPago.CUOTAS) — devuelve la CuentaPorCobrar generada."""
+        venta = Venta.objects.create(fecha=fecha, creado_por=admin)
+        ItemVenta.objects.create(
+            venta=venta, producto=producto, cliente=cliente, cantidad=cantidad,
+            precio_unitario=producto.precio_venta,
+        )
+        total = cantidad * producto.precio_venta
+        venta.confirmar(confirmado_por=admin, medio_pago=MedioPago.CUOTAS, pagos=[{
+            'medio': MedioPago.CUOTAS, 'monto': total,
+            'cuotas': cantidad_cuotas, 'interes_pct': 0,
+            'fecha_inicio_cobro': (self.hoy + timedelta(days=dias_inicio_cobro)).isoformat(),
+        }])
+
+        from caja.models import CuentaPorCobrar
+        return CuentaPorCobrar.objects.filter(pago_venta__venta=venta).first()
 
     def _crear_venta_confirmada(self, admin, fecha, producto, cantidad, medio, cuenta_pk):
         venta = Venta.objects.create(fecha=fecha, creado_por=admin)

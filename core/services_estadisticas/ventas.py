@@ -15,7 +15,10 @@ from decimal import Decimal
 from django.db.models import F, Sum, Count, ExpressionWrapper
 from django.db.models.functions import TruncMonth, ExtractWeekDay
 
-from ventas.models import ItemVenta, Venta, EstadoVenta, ConsumoLoteVenta, PagoVenta, MedioPago
+from ventas.models import (
+    ItemVenta, Venta, EstadoVenta, ConsumoLoteVenta, PagoVenta, MedioPago,
+    ComprobanteArca, TipoComprobante,
+)
 from caja.models import Gasto, TipoMovimientoCaja
 
 from . import MONEY, _periodo_anterior
@@ -405,3 +408,57 @@ def ranking_productos(desde, hasta, top=10):
 
     ranking.sort(key=lambda r: r['ganancia'], reverse=True)
     return ranking[:top]
+
+
+# ══════════════════════════════════════════════════════════════════
+#  FACTURACIÓN ELECTRÓNICA (ARCA) — cuánto de lo vendido salió con
+#  comprobante fiscal real (CAE) vs. como venta interna sin facturar.
+#  Se compara sobre Venta.total (lo que el comprobante declara) y no
+#  sobre el ingreso por ítem de resumen_ganancia, para que el desglose
+#  cierre exacto con lo que ComprobanteArca.importe_total registró.
+# ══════════════════════════════════════════════════════════════════
+
+def facturacion_arca(desde, hasta):
+    ventas_periodo = Venta.objects.filter(estado=EstadoVenta.CONFIRMADA, fecha__range=(desde, hasta))
+    total_ventas = ventas_periodo.aggregate(total=Sum('total'))['total'] or Decimal('0')
+    cantidad_ventas = ventas_periodo.count()
+
+    labels_tipo = dict(TipoComprobante.choices)
+    por_tipo = list(
+        ComprobanteArca.objects
+        .filter(venta__in=ventas_periodo)
+        .values('tipo_comprobante')
+        .annotate(total=Sum('importe_total'), iva=Sum('importe_iva'), cantidad=Count('id'))
+        .order_by('-total')
+    )
+    por_tipo = [
+        {
+            'tipo': f['tipo_comprobante'],
+            'label': labels_tipo.get(f['tipo_comprobante'], f['tipo_comprobante']),
+            'total': f['total'] or Decimal('0'),
+            'iva': f['iva'] or Decimal('0'),
+            'cantidad': f['cantidad'],
+        }
+        for f in por_tipo
+    ]
+
+    total_facturado = sum((f['total'] for f in por_tipo), Decimal('0'))
+    iva_total = sum((f['iva'] for f in por_tipo), Decimal('0'))
+    cantidad_facturada = sum(f['cantidad'] for f in por_tipo)
+
+    total_sin_facturar = total_ventas - total_facturado
+    cantidad_sin_facturar = cantidad_ventas - cantidad_facturada
+
+    pct_facturado = round((total_facturado / total_ventas * 100), 2) if total_ventas else Decimal('0')
+
+    return {
+        'total_ventas': total_ventas,
+        'cantidad_ventas': cantidad_ventas,
+        'por_tipo': por_tipo,
+        'total_facturado': total_facturado,
+        'cantidad_facturada': cantidad_facturada,
+        'iva_total': iva_total,
+        'total_sin_facturar': total_sin_facturar,
+        'cantidad_sin_facturar': cantidad_sin_facturar,
+        'pct_facturado': pct_facturado,
+    }

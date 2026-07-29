@@ -6,7 +6,12 @@ FECompUltimoAutorizado y FECAESolicitar. Namespace
 (http://ar.gov.afip.dif.FEV1/) y el campo obligatorio
 CondicionIVAReceptorId (RG 5616) verificados a mano contra homologación el
 2026-07-20 — ver secrets/arca/wsfe_cae_request.xml para el pedido que
-efectivamente aprobó ARCA (CAE 86290614276501).
+efectivamente aprobó ARCA (CAE 86290614276501). OJO: esa prueba fue con
+Factura C (sin desglose de <Iva>, ver arca_probar.py) — CondicionIVAReceptorId
+va DESPUÉS de <Iva> en FECAEDetRequest (RG 5616 lo agregó al final de la
+secuencia ya existente, no antes); con Factura A/B, que sí llevan <Iva>,
+mandarlo antes de <Iva> hacía que ARCA rechazara con error 10243
+("Condicion IVA receptor no es valido para la clase de comprobante").
 """
 import re
 from datetime import date
@@ -96,13 +101,34 @@ def comp_ultimo_autorizado(config, cuit, pto_vta, cbte_tipo):
     return int(match.group(1))
 
 
+def _iva_xml(iva_detalle):
+    """Nodo <ar:Iva> (array de alícuotas) — obligatorio cuando ImpIVA > 0
+    (Factura A/B). Factura C no lo manda (iva_detalle=None), igual que
+    siempre se hizo hasta ahora."""
+    if not iva_detalle:
+        return ''
+    filas = ''.join(
+        '\n                     <ar:AlicIva>'
+        f'<ar:Id>{d["id"]}</ar:Id>'
+        f'<ar:BaseImp>{d["base_imp"]:.2f}</ar:BaseImp>'
+        f'<ar:Importe>{d["importe"]:.2f}</ar:Importe>'
+        '</ar:AlicIva>'
+        for d in iva_detalle
+    )
+    return f'\n                  <ar:Iva>{filas}\n                  </ar:Iva>'
+
+
 def solicitar_cae(config, *, cuit, tipo_comprobante, doc_tipo, doc_nro,
                    condicion_iva_receptor_id, importe_total, importe_neto=None,
-                   importe_iva=0, concepto=1, moneda='PES', cotizacion=1):
+                   importe_iva=0, iva_detalle=None, concepto=1, moneda='PES',
+                   cotizacion=1):
     """
     Pide un CAE para el próximo número disponible del punto de venta
     configurado. Devuelve dict con numero/cae/cae_vencimiento/respuesta_cruda.
     Levanta ArcaError (con el motivo que informó ARCA) si lo rechaza.
+
+    iva_detalle: lista opcional de {'id', 'base_imp', 'importe'} — una
+    entrada por alícuota (Factura A/B). None/vacío para Factura C.
     """
     if importe_neto is None:
         importe_neto = importe_total - importe_iva
@@ -135,7 +161,8 @@ def solicitar_cae(config, *, cuit, tipo_comprobante, doc_tipo, doc_nro,
         f'                  <ar:ImpIVA>{importe_iva:.2f}</ar:ImpIVA>\n'
         '                  <ar:ImpTrib>0</ar:ImpTrib>\n'
         f'                  <ar:MonId>{moneda}</ar:MonId>\n'
-        f'                  <ar:MonCotiz>{cotizacion}</ar:MonCotiz>\n'
+        f'                  <ar:MonCotiz>{cotizacion}</ar:MonCotiz>'
+        f'{_iva_xml(iva_detalle)}\n'
         f'                  <ar:CondicionIVAReceptorId>{condicion_iva_receptor_id}</ar:CondicionIVAReceptorId>\n'
         '               </ar:FECAEDetRequest>\n'
         '            </ar:FeDetReq>\n'

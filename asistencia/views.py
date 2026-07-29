@@ -54,6 +54,7 @@ class PreferenciaAsistenciaGuardarAjax(LoginRequiredMixin, View):
         pref.recibir_alerta_deuda = bool(body.get('recibir_alerta_deuda'))
         pref.dias_aviso_deuda = _dia(body.get('dias_aviso_deuda'), 1, 30, pref.dias_aviso_deuda)
         pref.recibir_deuda_pagada = bool(body.get('recibir_deuda_pagada'))
+        pref.recibir_cuota_cobro_confirmada = bool(body.get('recibir_cuota_cobro_confirmada'))
         pref.recibir_stock_estancado = bool(body.get('recibir_stock_estancado'))
         pref.dias_stock_estancado = _dia(body.get('dias_stock_estancado'), 1, 365, pref.dias_stock_estancado)
         pref.recibir_alerta_cheques = bool(body.get('recibir_alerta_cheques'))

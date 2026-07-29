@@ -354,6 +354,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     recibir_alerta_deuda:         document.getElementById('idRecibirAlertaDeuda').checked,
                     dias_aviso_deuda:             document.getElementById('idDiasDeuda').value,
                     recibir_deuda_pagada:         document.getElementById('idRecibirDeudaPagada').checked,
+                    recibir_cuota_cobro_confirmada: document.getElementById('idRecibirCuotaCobroConfirmada').checked,
                     recibir_stock_estancado:      document.getElementById('idRecibirStockEstancado').checked,
                     dias_stock_estancado:         document.getElementById('idDiasStock').value,
                     recibir_alerta_cheques:       document.getElementById('idRecibirAlertaCheques').checked,

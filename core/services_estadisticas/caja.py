@@ -13,6 +13,7 @@ from productos.models import Moneda
 from caja.models import (
     Gasto, MovimientoCaja, TipoCaja, TipoMovimientoCaja,
     CuotaDeuda, EstadoCuota, EstadoDeuda,
+    CuotaCobro,
     Cheque, TipoCheque, EstadoCheque,
     TurnoCaja, EstadoTurno,
 )
@@ -82,6 +83,19 @@ def situacion_financiera():
         {'moneda': f['deuda__moneda'], 'total': f['total']} for f in deudas
     ])
 
+    # — Cuentas por cobrar pendientes (ventas en cuotas — lo que te
+    # deben LOS CLIENTES, contracara de "deudas_pendientes" de arriba,
+    # que es lo que VOS debés) —
+    cxc = (
+        CuotaCobro.objects
+        .filter(estado=EstadoCuota.PENDIENTE, cuenta_por_cobrar__estado=EstadoDeuda.ACTIVA)
+        .values('cuenta_por_cobrar__moneda')
+        .annotate(total=Sum('monto'))
+    )
+    cxc_pendientes = _por_moneda([
+        {'moneda': f['cuenta_por_cobrar__moneda'], 'total': f['total']} for f in cxc
+    ])
+
     # — Cheques pendientes: a cobrar (a favor) vs a pagar (en contra) —
     cheques = (
         Cheque.objects
@@ -101,6 +115,7 @@ def situacion_financiera():
     return {
         'saldo_cuentas': saldo_cuentas,
         'deudas_pendientes': deudas_pendientes,
+        'cxc_pendientes': cxc_pendientes,
         'cheques_a_cobrar': cheques_a_cobrar,
         'cheques_a_pagar': cheques_a_pagar,
     }

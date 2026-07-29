@@ -11,10 +11,11 @@ from django.views.generic import DetailView, TemplateView
 
 from core.models import DatosEmpresa
 from productos.models import (
-    AplicacionOferta, CategoriaProducto, EstadoProducto, Producto, TipoOferta, ofertas_vigentes_hoy,
+    AplicacionOferta, CategoriaProducto, EstadoProducto, Producto, TipoOferta, TipoProducto, ofertas_vigentes_hoy,
 )
 
 from .models import ConfiguracionCatalogo, PlantillaCatalogo
+from .utils import google_maps_link, wa_link_ar
 
 # Estados de producto que se muestran en el catálogo público. INACTIVO y
 # DISCONTINUADO quedan afuera aunque alguien se olvide de despublicarlos:
@@ -46,13 +47,34 @@ def _productos_publicados_base():
     )
 
 
-def _categorias_footer():
-    """Categorías con al menos un producto publicado — para el pie de página, en todas las vistas."""
-    return list(
-        CategoriaProducto.objects
-        .filter(activo=True, productos__publicado=True, productos__estado__in=ESTADOS_VISIBLES_CATALOGO)
-        .distinct()[:8]
-    )
+def _contexto_base(request):
+    """
+    Contexto común a las 3 vistas públicas del catálogo (home, detalle,
+    institucional) — todo lo que necesita el header/footer compartidos de
+    base_catalogo.html (marca, nav, color) más lo que necesita el carrito
+    (ofertas vigentes). Devuelve (ctx, ofertas): casi todos los callers
+    también necesitan `ofertas` para su propia lógica, así se calcula
+    una sola vez.
+    """
+    empresa = DatosEmpresa.get_solo()
+    config = ConfiguracionCatalogo.get_solo()
+    ofertas = ofertas_vigentes_hoy()
+    ctx = {
+        'empresa': empresa,
+        'config_catalogo': config,
+        'whatsapp_url': wa_link_ar(empresa.telefono) if empresa.telefono else '',
+        'default_hero_subtitulo': ConfiguracionCatalogo.DEFAULT_HERO_SUBTITULO,
+        'default_sobre_nosotros': ConfiguracionCatalogo.DEFAULT_SOBRE_NOSOTROS,
+        'default_color_marca': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA,
+        'default_color_marca_secundario': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO,
+        'default_nav_catalogo': ConfiguracionCatalogo.DEFAULT_NAV_CATALOGO,
+        'default_nav_ofertas': ConfiguracionCatalogo.DEFAULT_NAV_OFERTAS,
+        'default_nav_combos': ConfiguracionCatalogo.DEFAULT_NAV_COMBOS,
+        'default_nav_tienda': ConfiguracionCatalogo.DEFAULT_NAV_TIENDA,
+        'ofertas_umbral_json': _ofertas_umbral_automaticas_json(ofertas),
+        'ofertas_nxm_json': _ofertas_nxm_automaticas_json(ofertas),
+    }
+    return ctx, ofertas
 
 
 def _fmt_pct(pct):
@@ -177,6 +199,71 @@ def _es_nuevo(producto):
     return producto.fecha_alta >= limite
 
 
+def _productos_relacionados(producto, ofertas, limite=8):
+    """
+    Candidatos para "También te puede interesar" en el detalle: misma
+    categoría primero, completa con misma marca y, si todavía falta,
+    con destacados — en cascada y sin duplicados.
+    """
+    base = _productos_publicados_base().filter(es_paquete=False).exclude(pk=producto.pk)
+    vistos = {producto.pk}
+    resultado = []
+
+    if producto.categoria_id:
+        extra = [
+            p for p in base.filter(categoria_id=producto.categoria_id).order_by('-destacado', 'nombre')[:limite]
+            if p.pk not in vistos
+        ]
+        resultado += extra
+        vistos |= {p.pk for p in extra}
+
+    if len(resultado) < limite and producto.marca:
+        faltan = limite - len(resultado)
+        extra = list(
+            base.filter(marca=producto.marca).exclude(pk__in=vistos).order_by('-destacado', 'nombre')[:faltan]
+        )
+        resultado += extra
+        vistos |= {p.pk for p in extra}
+
+    if len(resultado) < limite:
+        faltan = limite - len(resultado)
+        resultado += list(
+            base.filter(destacado=True).exclude(pk__in=vistos).order_by('-fecha_alta')[:faltan]
+        )
+
+    resultado = resultado[:limite]
+    for p in resultado:
+        p.oferta_info = _info_oferta(p, ofertas)
+        p.es_nuevo = _es_nuevo(p)
+        p.disponible_compra = _disponible_compra(p)
+    return resultado
+
+
+def _hero_producto(ofertas, config):
+    """
+    Producto (o combo) destacado en la tarjeta del hero de la home. Si el
+    negocio eligió uno a mano (config.hero_producto, ver Configuración →
+    Catálogo online → Apariencia) y sigue publicado, se respeta esa
+    elección. Si no, mismo criterio automático de siempre ("lo más
+    representativo"): primero algo marcado destacado=True, si no hay, lo
+    último cargado — sin esto la tarjeta del hero quedaría vacía/
+    decorativa sin aportar nada real; con esto es un producto/combo de
+    verdad, con su precio y botón de agregar reales.
+    """
+    base = _productos_publicados_base().exclude(precio_venta=None)
+    candidato = None
+    if config.hero_producto_id:
+        candidato = base.filter(pk=config.hero_producto_id).first()
+    if not candidato:
+        candidato = base.filter(destacado=True).order_by('-fecha_alta').first()
+    if not candidato:
+        candidato = base.order_by('-fecha_alta').first()
+    if candidato:
+        candidato.oferta_info = _info_oferta(candidato, ofertas)
+        candidato.disponible_compra = _disponible_compra(candidato)
+    return candidato
+
+
 def _disponible_compra(producto):
     """Tiene precio y no está sin stock — condición para mostrar 'Agregar' en vez de nada."""
     if producto.precio_venta is None or producto.estado == EstadoProducto.AGOTADO:
@@ -243,18 +330,19 @@ class CatalogoHomeView(TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         get = self.request.GET
+        base_ctx, ofertas = _contexto_base(self.request)
 
         seccion = get.get('seccion', 'todos').strip()
         if seccion not in SECCIONES_VALIDAS:
             seccion = 'todos'
         categoria_slug = get.get('categoria', '').strip()
+        tipo_slug = get.get('tipo', '').strip()
         marca = get.get('marca', '').strip()
         q = get.get('q', '').strip()
         orden = get.get('orden', '').strip()
         precio_min = _decimal_o_none(get.get('precio_min', '').strip())
         precio_max = _decimal_o_none(get.get('precio_max', '').strip())
 
-        ofertas = ofertas_vigentes_hoy()
         ofertas_umbral = [o for o in ofertas if o.tipo == TipoOferta.UMBRAL]
 
         def _con_oferta_y_nuevo(qs):
@@ -276,12 +364,13 @@ class CatalogoHomeView(TemplateView):
         # muestra una selección fija que no depende de lo que se está
         # filtrando en la grilla de abajo.
         mostrar_vidriera = (
-            seccion == 'todos' and not categoria_slug and not marca and not q
+            seccion == 'todos' and not categoria_slug and not tipo_slug and not marca and not q
             and precio_min is None and precio_max is None
             and get.get('pagina', '1').strip() in ('', '1')
         )
         destacados = []
         ofertas_destacadas = []
+        paquetes_destacados = []
         if mostrar_vidriera:
             destacados = _con_oferta_y_nuevo(
                 _productos_publicados_base().filter(es_paquete=False, destacado=True).order_by('-fecha_alta')[:4]
@@ -290,10 +379,16 @@ class CatalogoHomeView(TemplateView):
                 _productos_publicados_base().filter(es_paquete=False).exclude(precio_venta=None)
             )
             ofertas_destacadas = [p for p in candidatos_oferta if p.oferta_info][:4]
+            # Vidriera de combos: solo un adelanto — la lista completa (`paquetes`)
+            # se muestra más abajo, en la grilla, así no se repite el mismo
+            # contenido dos veces en la misma vista sin filtros.
+            paquetes_destacados = paquetes[:4]
 
         productos_qs = _productos_publicados_base().filter(es_paquete=False)
         if categoria_slug:
             productos_qs = productos_qs.filter(categoria__slug=categoria_slug)
+        if tipo_slug:
+            productos_qs = productos_qs.filter(tipo__slug=tipo_slug)
         if marca:
             productos_qs = productos_qs.filter(marca=marca)
         if q:
@@ -332,14 +427,14 @@ class CatalogoHomeView(TemplateView):
                 productos = _con_oferta_y_nuevo(pagina.object_list)
                 total_productos = paginator.count
                 paginas = [
-                    {'numero': n, 'url': '?' + _url_con(get, pagina=str(n)), 'activa': n == pagina.number}
+                    {'numero': n, 'url': '?' + _url_con(get, pagina=str(n)) + '#kcCatalogo', 'activa': n == pagina.number}
                     for n in paginator.page_range
                 ]
                 url_pagina_anterior = (
-                    '?' + _url_con(get, pagina=str(pagina.previous_page_number())) if pagina.has_previous() else ''
+                    '?' + _url_con(get, pagina=str(pagina.previous_page_number())) + '#kcCatalogo' if pagina.has_previous() else ''
                 )
                 url_pagina_siguiente = (
-                    '?' + _url_con(get, pagina=str(pagina.next_page_number())) if pagina.has_next() else ''
+                    '?' + _url_con(get, pagina=str(pagina.next_page_number())) + '#kcCatalogo' if pagina.has_next() else ''
                 )
 
         if mostrar_paquetes:
@@ -359,6 +454,16 @@ class CatalogoHomeView(TemplateView):
             ))
             .distinct()
         )
+        tipos_qs = (
+            TipoProducto.objects
+            .filter(activo=True, productos__publicado=True, productos__estado__in=ESTADOS_VISIBLES_CATALOGO)
+            .annotate(num_productos=Count(
+                'productos',
+                filter=Q(productos__publicado=True, productos__estado__in=ESTADOS_VISIBLES_CATALOGO, productos__es_paquete=False),
+                distinct=True,
+            ))
+            .distinct()
+        )
         marcas_qs = (
             _productos_publicados_base().filter(es_paquete=False)
             .exclude(marca='').values_list('marca', flat=True).distinct().order_by('marca')
@@ -366,17 +471,22 @@ class CatalogoHomeView(TemplateView):
 
         categorias = [
             {'nombre': c.nombre, 'slug': c.slug, 'activa': c.slug == categoria_slug,
-             'url': '?' + _url_con(get, categoria=c.slug), 'cantidad': c.num_productos}
+             'url': '?' + _url_con(get, categoria=c.slug) + '#kcCatalogo', 'cantidad': c.num_productos}
             for c in categorias_qs
+        ]
+        tipos = [
+            {'nombre': t.nombre, 'slug': t.slug, 'activa': t.slug == tipo_slug,
+             'url': '?' + _url_con(get, tipo=t.slug) + '#kcCatalogo', 'cantidad': t.num_productos}
+            for t in tipos_qs
         ]
         total_catalogo = _productos_publicados_base().filter(es_paquete=False).count()
         marcas = [
-            {'nombre': m, 'activa': m == marca, 'url': '?' + _url_con(get, marca=None if m == marca else m)}
+            {'nombre': m, 'activa': m == marca, 'url': '?' + _url_con(get, marca=None if m == marca else m) + '#kcCatalogo'}
             for m in marcas_qs
         ]
 
         secciones = [
-            {'id': s, 'nombre': n, 'url': '?' + _url_con(get, seccion=None if s == 'todos' else s), 'activa': s == seccion}
+            {'id': s, 'nombre': n, 'url': '?' + _url_con(get, seccion=None if s == 'todos' else s) + '#kcCatalogo', 'activa': s == seccion}
             for s, n in [('todos', 'Todos'), ('productos', 'Productos'), ('ofertas', 'Ofertas'), ('paquetes', 'Paquetes')]
         ]
 
@@ -384,21 +494,22 @@ class CatalogoHomeView(TemplateView):
         filtros_activos = []
         if categoria_slug:
             cat = next((c for c in categorias_qs if c.slug == categoria_slug), None)
-            filtros_activos.append({'etiqueta': cat.nombre if cat else categoria_slug, 'quitar': _url_sin(get, 'categoria')})
+            filtros_activos.append({'etiqueta': cat.nombre if cat else categoria_slug, 'quitar': _url_sin(get, 'categoria') + '#kcCatalogo'})
+        if tipo_slug:
+            tip = next((t for t in tipos_qs if t.slug == tipo_slug), None)
+            filtros_activos.append({'etiqueta': tip.nombre if tip else tipo_slug, 'quitar': _url_sin(get, 'tipo') + '#kcCatalogo'})
         if marca:
-            filtros_activos.append({'etiqueta': marca, 'quitar': _url_sin(get, 'marca')})
+            filtros_activos.append({'etiqueta': marca, 'quitar': _url_sin(get, 'marca') + '#kcCatalogo'})
         if q:
-            filtros_activos.append({'etiqueta': f'"{q}"', 'quitar': _url_sin(get, 'q')})
+            filtros_activos.append({'etiqueta': f'"{q}"', 'quitar': _url_sin(get, 'q') + '#kcCatalogo'})
         if precio_min is not None or precio_max is not None:
             desde = f'${precio_min:.0f}' if precio_min is not None else ''
             hasta = f'${precio_max:.0f}' if precio_max is not None else ''
             etiqueta = f'{desde} - {hasta}'.strip(' -') if (desde or hasta) else ''
-            filtros_activos.append({'etiqueta': f'Precio {etiqueta}', 'quitar': _url_sin(get, 'precio_min', 'precio_max')})
+            filtros_activos.append({'etiqueta': f'Precio {etiqueta}', 'quitar': _url_sin(get, 'precio_min', 'precio_max') + '#kcCatalogo'})
 
-        ctx['empresa'] = DatosEmpresa.get_solo()
-        ctx['config_catalogo'] = ConfiguracionCatalogo.get_solo()
-        ctx['default_hero_subtitulo'] = ConfiguracionCatalogo.DEFAULT_HERO_SUBTITULO
-        ctx['default_sobre_nosotros'] = ConfiguracionCatalogo.DEFAULT_SOBRE_NOSOTROS
+        ctx.update(base_ctx)
+        ctx['hero_producto'] = _hero_producto(ofertas, base_ctx['config_catalogo'])
         # Exclude(imagen='') defensivo: un slide creado sin llegar a subirle
         # imagen (ej. el usuario cerró el modal a mitad de camino, ver
         # catalogo/views_config.py) no debe aparecer roto en el carrusel.
@@ -410,19 +521,20 @@ class CatalogoHomeView(TemplateView):
         ctx['productos'] = productos
         ctx['paquetes'] = paquetes
         ctx['categorias'] = categorias
-        ctx['categorias_footer'] = list(categorias_qs)[:8]
+        ctx['tipos'] = tipos
         ctx['marcas'] = list(marcas)
-        ctx['url_todas_categorias'] = '?' + _url_con(get, categoria=None)
+        ctx['url_todas_categorias'] = '?' + _url_con(get, categoria=None) + '#kcCatalogo'
+        ctx['url_todos_tipos'] = '?' + _url_con(get, tipo=None) + '#kcCatalogo'
         ctx['categoria_activa'] = categoria_slug
+        ctx['tipo_activo'] = tipo_slug
         ctx['marca_activa'] = marca
         ctx['precio_min'] = precio_min
         ctx['precio_max'] = precio_max
         ctx['ofertas_umbral'] = ofertas_umbral
-        ctx['ofertas_umbral_json'] = _ofertas_umbral_automaticas_json(ofertas)
-        ctx['ofertas_nxm_json'] = _ofertas_nxm_automaticas_json(ofertas)
         ctx['mostrar_vidriera'] = mostrar_vidriera
         ctx['destacados'] = destacados
         ctx['ofertas_destacadas'] = ofertas_destacadas
+        ctx['paquetes_destacados'] = paquetes_destacados
         ctx['total_catalogo'] = total_catalogo
         ctx['orden_activo'] = orden
         ctx['filtros_activos'] = filtros_activos
@@ -451,20 +563,55 @@ class ProductoDetalleView(DetailView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ofertas = ofertas_vigentes_hoy()
-        ctx['empresa'] = DatosEmpresa.get_solo()
-        ctx['config_catalogo'] = ConfiguracionCatalogo.get_solo()
-        ctx['default_hero_subtitulo'] = ConfiguracionCatalogo.DEFAULT_HERO_SUBTITULO
-        ctx['default_sobre_nosotros'] = ConfiguracionCatalogo.DEFAULT_SOBRE_NOSOTROS
-        ctx['categorias_footer'] = _categorias_footer()
+        base_ctx, ofertas = _contexto_base(self.request)
+        ctx.update(base_ctx)
         ctx['oferta_info'] = _info_oferta(self.object, ofertas)
-        ctx['ofertas_umbral_json'] = _ofertas_umbral_automaticas_json(ofertas)
-        ctx['ofertas_nxm_json'] = _ofertas_nxm_automaticas_json(ofertas)
+        precio_final = ctx['oferta_info']['precio_final'] if ctx['oferta_info'] else None
+        if precio_final and self.object.precio_venta:
+            ahorro = self.object.precio_venta - precio_final
+            ctx['ahorro_pct'] = round(ahorro / self.object.precio_venta * 100)
         ctx['imagenes'] = list(self.object.imagenes.all())
         ctx['es_nuevo'] = _es_nuevo(self.object)
         ctx['disponible_compra'] = _disponible_compra(self.object)
+        ctx['tags_producto'] = [t.strip() for t in self.object.tags.split(',') if t.strip()]
         if self.object.es_paquete:
             ctx['componentes'] = list(
                 self.object.componentes.select_related('producto', 'combinacion')
             )
+        else:
+            ctx['relacionados'] = _productos_relacionados(self.object, ofertas)
+        return ctx
+
+
+@method_decorator(ensure_csrf_cookie, name='dispatch')
+# Mismo motivo que en CatalogoHomeView: permitir same-origin para la vista
+# previa en vivo del panel "Catálogo online" (tab "La tienda").
+@method_decorator(xframe_options_sameorigin, name='dispatch')
+class TiendaInstitucionalView(TemplateView):
+    """
+    Página institucional del catálogo (/la-tienda/) — la "página web" del
+    negocio (historia, destacados, galería, horarios, ubicación, redes),
+    separada a propósito del catálogo de productos: quien entra a comprar
+    (la home) no ve nada de esto, pero está a un click vía el nav.
+    Por ahora es la misma página para cualquier plantilla activa (todavía
+    no existe una versión "bento" de esta página).
+    """
+    template_name = 'catalogo/institucional.html'
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        base_ctx, _ofertas = _contexto_base(self.request)
+        ctx.update(base_ctx)
+        empresa = base_ctx['empresa']
+        config = base_ctx['config_catalogo']
+        ctx['maps_url'] = google_maps_link(empresa.domicilio)
+        ctx['galeria'] = config.galeria.exclude(imagen='')
+        ctx['default_institucional_titulo'] = ConfiguracionCatalogo.DEFAULT_INSTITUCIONAL_TITULO
+        ctx['default_institucional_bajada'] = ConfiguracionCatalogo.DEFAULT_INSTITUCIONAL_BAJADA
+        ctx['default_destacado1_titulo'] = ConfiguracionCatalogo.DEFAULT_DESTACADO1_TITULO
+        ctx['default_destacado1_texto'] = ConfiguracionCatalogo.DEFAULT_DESTACADO1_TEXTO
+        ctx['default_destacado2_titulo'] = ConfiguracionCatalogo.DEFAULT_DESTACADO2_TITULO
+        ctx['default_destacado2_texto'] = ConfiguracionCatalogo.DEFAULT_DESTACADO2_TEXTO
+        ctx['default_destacado3_titulo'] = ConfiguracionCatalogo.DEFAULT_DESTACADO3_TITULO
+        ctx['default_destacado3_texto'] = ConfiguracionCatalogo.DEFAULT_DESTACADO3_TEXTO
         return ctx

@@ -5,6 +5,8 @@
  */
 'use strict';
 
+const MAX_IMAGENES_PRODUCTO = 3; // debe coincidir con MAX_IMAGENES_POR_PRODUCTO en productos/models.py
+
 let _cachePaquetes = [];
 let _pqComponentesSeleccionados = []; // [{producto_pk, nombre, codigo, cantidad}, ...]
 
@@ -230,6 +232,13 @@ function _actualizarBadgeImagenesPaquete() {
     const badge = document.getElementById('tabPqImagenCount');
     badge.textContent   = items;
     badge.style.display = items > 0 ? '' : 'none';
+
+    const limite = items >= MAX_IMAGENES_PRODUCTO;
+    pqImgUploadZone.classList.toggle('prd-img-upload-zone--full', limite);
+    pqImgFileInput.disabled = limite;
+    pqImgUploadZone.querySelector('.prd-img-upload-hint').textContent = limite
+        ? `Límite de ${MAX_IMAGENES_PRODUCTO} imágenes alcanzado — eliminá una para subir otra.`
+        : 'JPG, PNG o WEBP · Máx. 5 MB por imagen · hasta ' + MAX_IMAGENES_PRODUCTO + ' imágenes';
 }
 
 function _imagenPaqueteHtml(pk, url, esPortada) {
@@ -281,6 +290,10 @@ async function _subirImagenesPaquete(files) {
     const pk = document.getElementById('pqPk').value;
     if (!pk) { KaiToast.show('Guardá el paquete primero.', 'warning'); return; }
     for (const file of files) {
+        if (document.querySelectorAll('#pqImgGrid .prd-img-item').length >= MAX_IMAGENES_PRODUCTO) {
+            KaiToast.show(`Límite de ${MAX_IMAGENES_PRODUCTO} imágenes alcanzado.`, 'danger');
+            break;
+        }
         if (!file.type.startsWith('image/')) continue;
         if (file.size > 5 * 1024 * 1024) { KaiToast.show(`"${file.name}" supera 5 MB.`, 'danger'); continue; }
         const fd = new FormData();

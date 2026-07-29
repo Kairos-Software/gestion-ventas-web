@@ -11,7 +11,7 @@ from .services_estadisticas.ventas import resumen_ganancia
 
 from caja.models import CuentaCaja, TipoCaja, CUENTA_EFECTIVO_DEFAULT_NOMBRE, TurnoCaja
 from compras.models import LoteCompra
-from productos.models import Moneda, Producto
+from productos.models import EstadoProducto, Moneda, Producto
 from asistencia.models import CanalNotificacion, PreferenciaAsistencia
 from asistencia.services.alertas import productos_por_vencer
 from catalogo.models import ConfiguracionCatalogo, PlantillaCatalogo
@@ -138,16 +138,42 @@ def configuracion(request):
 
 
 @login_required
+def manual_usuario(request):
+    return render(request, 'core/manual.html')
+
+
+@login_required
 def catalogo_online(request):
     """Pantalla dedicada al catálogo público — plantilla, textos y slides.
     Antes vivía como una sección más dentro de Configuración; se sacó a su
     propio ítem del menú para tener más espacio (ver core/templates/core/
     base.html) y una vista previa en vivo más grande."""
+    productos_para_hero = (
+        Producto.objects
+        .filter(publicado=True, estado__in=[EstadoProducto.ACTIVO, EstadoProducto.AGOTADO])
+        .exclude(precio_venta=None)
+        .order_by('es_paquete', 'nombre')
+    )
     return render(request, 'core/catalogo_online.html', {
         'datos_empresa':          DatosEmpresa.get_solo(),
         'configuracion_catalogo': ConfiguracionCatalogo.get_solo(),
         'plantillas_catalogo':    PlantillaCatalogo.choices,
         'puede_editar_catalogo':  chequear_permiso(request.user, 'editar_catalogo'),
+        'productos_para_hero':    productos_para_hero,
         'default_hero_subtitulo': ConfiguracionCatalogo.DEFAULT_HERO_SUBTITULO,
         'default_sobre_nosotros': ConfiguracionCatalogo.DEFAULT_SOBRE_NOSOTROS,
+        'default_color_marca':    ConfiguracionCatalogo.DEFAULT_COLOR_MARCA,
+        'default_color_marca_secundario': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO,
+        'default_nav_catalogo':   ConfiguracionCatalogo.DEFAULT_NAV_CATALOGO,
+        'default_nav_ofertas':    ConfiguracionCatalogo.DEFAULT_NAV_OFERTAS,
+        'default_nav_combos':     ConfiguracionCatalogo.DEFAULT_NAV_COMBOS,
+        'default_nav_tienda':     ConfiguracionCatalogo.DEFAULT_NAV_TIENDA,
+        'default_institucional_titulo': ConfiguracionCatalogo.DEFAULT_INSTITUCIONAL_TITULO,
+        'default_institucional_bajada': ConfiguracionCatalogo.DEFAULT_INSTITUCIONAL_BAJADA,
+        'default_destacado1_titulo': ConfiguracionCatalogo.DEFAULT_DESTACADO1_TITULO,
+        'default_destacado1_texto':  ConfiguracionCatalogo.DEFAULT_DESTACADO1_TEXTO,
+        'default_destacado2_titulo': ConfiguracionCatalogo.DEFAULT_DESTACADO2_TITULO,
+        'default_destacado2_texto':  ConfiguracionCatalogo.DEFAULT_DESTACADO2_TEXTO,
+        'default_destacado3_titulo': ConfiguracionCatalogo.DEFAULT_DESTACADO3_TITULO,
+        'default_destacado3_texto':  ConfiguracionCatalogo.DEFAULT_DESTACADO3_TEXTO,
     })

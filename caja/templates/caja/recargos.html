@@ -1,0 +1,258 @@
+{% extends 'core/base.html' %}
+
+{% load static %}
+
+{% block title %}Recargos{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'caja/css/recargos.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="rec-container">
+    {% if sin_permiso %}
+    <div class="rec-sin-permiso">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M12 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="12" cy="16.2" r="0.9" fill="currentColor"/>
+        </svg>
+        <p>No tenés permiso para ver los recargos por medio de pago.</p>
+    </div>
+    {% else %}
+    <header class="rec-header">
+        <div>
+            <h1 class="rec-title kai-label-help">
+                Recargos por medio de pago
+                <button type="button" class="kai-help-btn" data-help-target="ayuda_recargos" aria-label="Ayuda">?</button>
+            </h1>
+            <div class="kai-help-popover" id="ayuda_recargos">
+                Lo que le cobrás a un cliente por pagarte con cada tarjeta/billetera (débito, crédito, QR o
+                transferencia) — esto es aparte de a cuál de TUS cuentas entra la plata (eso se elige al cobrar
+                la venta). En crédito podés cargar varios planes de pago (1, 3, 6 pagos... o un nombre comercial
+                como "Plan Z"), cada uno con su propio recargo.
+            </div>
+        </div>
+        {% if puede_editar %}
+        <div class="rec-header-btns">
+            <button type="button" class="btn btn-ghost" id="btnNuevaTarjeta">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                Nueva tarjeta
+            </button>
+            <button type="button" class="btn btn-primary" id="btnNuevoRecargo">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                Nuevo recargo
+            </button>
+        </div>
+        {% endif %}
+    </header>
+
+    {% if not tarjetas %}
+    <div class="rec-vacio">
+        <p>Todavía no cargaste ninguna tarjeta/billetera.</p>
+        <p class="rec-vacio-sub">Con "+ Nueva tarjeta" cargás cualquiera con la que te pueda pagar un cliente (Visa, Mercado Pago, Naranja X, Personal Pay...) — no hace falta que tengas una cuenta propia con ese nombre.</p>
+    </div>
+    {% else %}
+    <div class="rec-grid">
+        {% for fila in tarjetas %}
+        <section class="rec-card" data-tarjeta-pk="{{ fila.tarjeta.pk }}">
+            <div class="rec-card-header">
+                <h2 class="rec-card-title">{{ fila.tarjeta.nombre }}</h2>
+                {% if puede_editar %}
+                <button type="button" class="btn btn--sm btn-ghost rec-btn-agregar" data-tarjeta-pk="{{ fila.tarjeta.pk }}">
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                        <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                    </svg>
+                    Recargo
+                </button>
+                {% endif %}
+            </div>
+
+            <div class="rec-medios-aceptados">
+                <span class="rec-medios-label">Acepta</span>
+                <div class="rec-medios-pills">
+                    {% for valor, label in medios_con_recargo %}
+                    <button type="button"
+                            class="rec-medio-pill rec-medio-pill--{{ valor }} {% if valor == 'debito' and fila.tarjeta.acepta_debito %}rec-medio-pill--on{% elif valor == 'credito' and fila.tarjeta.acepta_credito %}rec-medio-pill--on{% elif valor == 'qr' and fila.tarjeta.acepta_qr %}rec-medio-pill--on{% elif valor == 'transferencia' and fila.tarjeta.acepta_transferencia %}rec-medio-pill--on{% endif %}"
+                            data-tarjeta-pk="{{ fila.tarjeta.pk }}"
+                            data-medio="{{ valor }}"
+                            {% if not puede_editar %}disabled{% endif %}
+                            title="{% if not puede_editar %}{{ label }}{% else %}Click para activar/desactivar {{ label }} en esta tarjeta{% endif %}">
+                        {{ label }}
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+
+            {% if not fila.recargos %}
+            <p class="rec-card-vacio">Todavía no cargaste ningún recargo para esta tarjeta.</p>
+            {% else %}
+            <table class="rec-tabla">
+                <thead>
+                    <tr>
+                        <th>Medio</th>
+                        <th>Plan</th>
+                        <th>Recargo</th>
+                        <th>Estado</th>
+                        {% if puede_editar %}<th class="th-acciones">Acciones</th>{% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in fila.recargos %}
+                    <tr class="{% if not r.activo %}rec-fila-inactiva{% endif %}"
+                        data-pk="{{ r.pk }}" data-tarjeta-pk="{{ fila.tarjeta.pk }}" data-medio="{{ r.medio }}"
+                        data-cantidad-pagos="{{ r.cantidad_pagos }}" data-nombre-plan="{{ r.nombre_plan }}"
+                        data-recargo-pct="{{ r.recargo_pct }}"
+                        data-activo="{{ r.activo|yesno:'1,0' }}">
+                        <td><span class="rec-badge-medio rec-badge-medio--{{ r.medio }}">{{ r.get_medio_display }}</span></td>
+                        <td>{% if r.medio == medio_credito %}{{ r.etiqueta_plan }}{% else %}—{% endif %}</td>
+                        <td class="rec-pct">{{ r.recargo_pct }}%</td>
+                        <td>
+                            <span class="rec-badge-estado {% if r.activo %}rec-badge-estado--activo{% else %}rec-badge-estado--inactivo{% endif %}">
+                                {{ r.activo|yesno:'Activo,Inactivo' }}
+                            </span>
+                        </td>
+                        {% if puede_editar %}
+                        <td class="rec-tabla-acciones">
+                            <button type="button" class="icon-btn rec-btn-editar" title="Editar">
+                                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                                    <path d="M11.3 2.3a1.5 1.5 0 0 1 2.1 2.1L5.6 12.2l-2.9.7.7-2.9 7.9-7.7Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+                                </svg>
+                            </button>
+                            <button type="button" class="icon-btn {% if r.activo %}icon-btn--danger{% else %}icon-btn--success{% endif %} rec-btn-toggle" title="{% if r.activo %}Desactivar{% else %}Activar{% endif %}">
+                                {% if r.activo %}
+                                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2.5V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M4.8 3.8A5 5 0 1 0 11.2 3.8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+                                {% else %}
+                                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4.5 3L12.5 8L4.5 13V3Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+                                {% endif %}
+                            </button>
+                            <button type="button" class="icon-btn icon-btn--danger rec-btn-eliminar" title="Eliminar">
+                                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                                    <path d="M3 4.5h10M6.5 4.5V3a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1.5M6 7.5v4M10 7.5v4M4 4.5l.6 8.1a1 1 0 0 0 1 .9h4.8a1 1 0 0 0 1-.9l.6-8.1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </button>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+        </section>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+{% if puede_editar %}
+<div class="modal" id="modalTarjeta" hidden>
+    <div class="modal-backdrop" id="modalTarjetaBackdrop"></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title">Nueva tarjeta/billetera</h2>
+            <button type="button" class="modal-close" id="btnCerrarModalTarjeta" aria-label="Cerrar">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M5 5L15 15M5 15L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
+        <form id="formTarjeta" class="modal-body">
+            <div class="form-campo">
+                <label for="t_nombre">Nombre *</label>
+                <input type="text" id="t_nombre" placeholder='Ej: "Personal Pay", "Naranja X", "Visa"' required maxlength="100">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-ghost" id="btnCancelarModalTarjeta">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Crear</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal" id="modalRecargo" hidden>
+    <div class="modal-backdrop" id="modalBackdrop"></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title" id="modalRecargoTitulo">Nuevo recargo</h2>
+            <button type="button" class="modal-close" id="btnCerrarModal" aria-label="Cerrar">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M5 5L15 15M5 15L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
+        <form id="formRecargo" class="modal-body">
+            <input type="hidden" id="r_pk">
+
+            <div class="form-campo">
+                <label for="r_tarjeta">Tarjeta/billetera *</label>
+                <select id="r_tarjeta" required>
+                    <option value="">— Elegí una tarjeta —</option>
+                    {% for fila in tarjetas %}
+                    <option value="{{ fila.tarjeta.pk }}">{{ fila.tarjeta.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-campo">
+                <label for="r_medio">Medio de pago *</label>
+                <select id="r_medio" required>
+                    <option value="">— Elegí un medio —</option>
+                    {% for valor, label in medios_con_recargo %}
+                    <option value="{{ valor }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <p class="form-hint" id="r_medio_hint" hidden>Esta tarjeta no acepta ese medio — activalo primero con los botones "Acepta" de la tarjeta.</p>
+            </div>
+
+            <div class="rec-form-grid" id="campoCredito" hidden>
+                <div class="form-campo">
+                    <label for="r_cantidad_pagos">Cantidad de pagos *</label>
+                    <input type="number" id="r_cantidad_pagos" min="1" step="1" value="1">
+                </div>
+                <div class="form-campo">
+                    <label for="r_nombre_plan">Nombre del plan</label>
+                    <input type="text" id="r_nombre_plan" placeholder='Opcional, ej. "Plan Z"' maxlength="60">
+                </div>
+            </div>
+
+            <div class="form-campo">
+                <label for="r_recargo_pct">Recargo % *</label>
+                <input type="number" id="r_recargo_pct" min="0" step="0.01" required>
+            </div>
+
+            <div class="form-campo form-campo--checkbox" id="campoActivo" hidden>
+                <label><input type="checkbox" id="r_activo" checked> Activo</label>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-ghost" id="btnCancelarModal">Cancelar</button>
+                <button type="submit" class="btn btn-primary" id="btnGuardarRecargo">Guardar</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script id="tarjetas-data" type="application/json">{{ tarjetas_json|safe }}</script>
+<script>
+    window.recargosUrls = {
+        guardar: '{{ url_guardar }}',
+        baja: '{{ url_baja }}',
+        eliminar: '{{ url_eliminar }}',
+        tarjetaGuardar: '{{ url_tarjeta_guardar }}',
+        tarjetaMedios: '{{ url_tarjeta_medios }}',
+        tarjetaBaja: '{{ url_tarjeta_baja }}',
+    };
+    window.recargosMedioCredito = '{{ medio_credito }}';
+    window.recargosTarjetas = JSON.parse(document.getElementById('tarjetas-data').textContent);
+</script>
+<script src="{% static 'caja/js/recargos.js' %}"></script>
+{% endblock %}

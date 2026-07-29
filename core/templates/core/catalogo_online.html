@@ -17,9 +17,12 @@
     <div class="co-page-header">
         <div>
             <h1>Catálogo online</h1>
-            <p>Portada, textos, plantilla y carrusel del catálogo que ven tus clientes</p>
+            <p>Plantilla, catálogo y página institucional del sitio que ven tus clientes</p>
         </div>
-        <a href="{% url 'catalogo:home' %}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">Ver catálogo ↗</a>
+        <div style="display:flex; gap:0.5rem;">
+            <a href="{% url 'catalogo:institucional' %}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">Ver "La tienda" ↗</a>
+            <a href="{% url 'catalogo:home' %}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">Ver catálogo ↗</a>
+        </div>
     </div>
 
     {% if puede_editar_catalogo %}
@@ -30,143 +33,322 @@
         <div class="co-layout">
             <div class="co-col-izq">
 
-                <!-- ── Plantilla — tarjetas con mini vista previa real ── -->
-                <div class="config-section">
-                    <div class="config-section-header">
-                        <div>
-                            <h2>Plantilla</h2>
-                            <p>Elegí un diseño para tu catálogo</p>
+                <!-- ── Panel: Plantilla — tarjetas con mini vista previa real ── -->
+                <div class="co-panel" data-panel="plantillas">
+                    <div class="config-section">
+                        <div class="config-section-header">
+                            <div>
+                                <h2>Plantilla</h2>
+                                <p>Elegí un diseño para tu catálogo</p>
+                            </div>
+                        </div>
+                        <div class="co-cards-plantilla" id="coCardsPlantilla">
+                            {% for valor, etiqueta in plantillas_catalogo %}
+                            <div class="co-card-plantilla {% if configuracion_catalogo.plantilla == valor %}co-card-plantilla--activa{% endif %}" data-plantilla-valor="{{ valor }}">
+                                <div class="co-card-check">
+                                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 8.5L6 12.5L14 3.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                </div>
+                                <div class="co-card-preview-wrap">
+                                    <iframe class="co-card-preview-frame" src="{% url 'catalogo:home' %}?preview_plantilla={{ valor }}" tabindex="-1" title="Vista previa — {{ etiqueta }}"></iframe>
+                                </div>
+                                <div class="co-card-nombre">{{ etiqueta }}</div>
+                            </div>
+                            {% endfor %}
                         </div>
                     </div>
-                    <div class="co-cards-plantilla" id="coCardsPlantilla">
-                        {% for valor, etiqueta in plantillas_catalogo %}
-                        <div class="co-card-plantilla {% if configuracion_catalogo.plantilla == valor %}co-card-plantilla--activa{% endif %}" data-plantilla-valor="{{ valor }}">
-                            <div class="co-card-check">
-                                <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 8.5L6 12.5L14 3.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+
+                <!-- ── Panel: Hero — propio de la plantilla "Almacén" ── -->
+                <div class="co-panel" data-panel="hero" data-plantilla="almacen" style="display:none;">
+                    <div class="config-section">
+                        <div class="config-section-header">
+                            <div>
+                                <h2>Hero del catálogo</h2>
+                                <p>Título, bajada e imagen de la home</p>
                             </div>
-                            <div class="co-card-preview-wrap">
-                                <iframe class="co-card-preview-frame" src="{% url 'catalogo:home' %}?preview_plantilla={{ valor }}" tabindex="-1" title="Vista previa — {{ etiqueta }}"></iframe>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start; gap:0.6rem;">
+                            <span class="config-row-label">Imagen del hero</span>
+                            <div style="display:flex; align-items:center; gap:1rem;">
+                                <div class="config-logo-box" id="catalogoHeroPreviewBox">
+                                    {% if configuracion_catalogo.hero_imagen %}
+                                        <img src="{{ configuracion_catalogo.hero_imagen.url }}" alt="Hero">
+                                    {% else %}
+                                        <span style="font-size:0.7rem; color:var(--text-muted);">Sin imagen</span>
+                                    {% endif %}
+                                </div>
+                                <input type="file" id="inputCatalogoHero" accept=".jpg,.jpeg,.png,.webp" style="display:none;">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('inputCatalogoHero').click()">Subir / cambiar</button>
+                                <button type="button" id="btnEliminarCatalogoHero" class="btn btn-sm btn-outline-danger" {% if not configuracion_catalogo.hero_imagen %}style="display:none;"{% endif %}>Eliminar</button>
                             </div>
-                            <div class="co-card-nombre">{{ etiqueta }}</div>
+                            <span class="config-row-desc">Opcional — si no se carga, el hero se muestra sin foto.</span>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                            <label class="config-row-label" for="idCatalogoHeroTitulo">Título principal</label>
+                            <input class="form-control" id="idCatalogoHeroTitulo" value="{{ configuracion_catalogo.hero_titulo }}" placeholder="Vacío = usa el nombre comercial de la empresa">
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                            <label class="config-row-label" for="idCatalogoHeroSubtitulo">Bajada / subtítulo</label>
+                            <textarea class="form-control" id="idCatalogoHeroSubtitulo" rows="2" placeholder="Vacío = usa un texto genérico">{{ configuracion_catalogo.hero_subtitulo }}</textarea>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                            <label class="config-row-label" for="idCatalogoHeroProducto">Producto destacado en el hero</label>
+                            <select class="form-control" id="idCatalogoHeroProducto">
+                                <option value="">Automático (el destacado más reciente)</option>
+                                {% for p in productos_para_hero %}
+                                <option value="{{ p.pk }}" {% if configuracion_catalogo.hero_producto_id == p.pk %}selected{% endif %}>{{ p.nombre }}{% if p.es_paquete %} (combo){% endif %}</option>
+                                {% endfor %}
+                            </select>
+                            <span class="config-row-desc">La tarjeta con precio y botón de compra que aparece junto al título.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── Panel: La tienda — página institucional (/la-tienda/) ── -->
+                <div class="co-panel" data-panel="tienda" style="display:none;">
+                    <div class="config-section">
+                        <div class="config-section-header">
+                            <div>
+                                <h2>Portada</h2>
+                                <p>Lo primero que se ve al entrar a "La tienda"</p>
+                            </div>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start; gap:0.6rem;">
+                            <span class="config-row-label">Imagen de portada</span>
+                            <div style="display:flex; align-items:center; gap:1rem;">
+                                <div class="config-logo-box" id="catalogoInstImagenPreviewBox">
+                                    {% if configuracion_catalogo.institucional_imagen %}
+                                        <img src="{{ configuracion_catalogo.institucional_imagen.url }}" alt="Portada">
+                                    {% else %}
+                                        <span style="font-size:0.7rem; color:var(--text-muted);">Sin imagen</span>
+                                    {% endif %}
+                                </div>
+                                <input type="file" id="inputCatalogoInstImagen" accept=".jpg,.jpeg,.png,.webp" style="display:none;">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('inputCatalogoInstImagen').click()">Subir / cambiar</button>
+                                <button type="button" id="btnEliminarCatalogoInstImagen" class="btn btn-sm btn-outline-danger" {% if not configuracion_catalogo.institucional_imagen %}style="display:none;"{% endif %}>Eliminar</button>
+                            </div>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                            <label class="config-row-label" for="idCatalogoInstTitulo">Título</label>
+                            <input class="form-control" id="idCatalogoInstTitulo" value="{{ configuracion_catalogo.institucional_titulo }}" placeholder="Vacío = usa un título genérico">
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                            <label class="config-row-label" for="idCatalogoInstBajada">Bajada</label>
+                            <textarea class="form-control" id="idCatalogoInstBajada" rows="2" placeholder="Vacío = usa un texto genérico">{{ configuracion_catalogo.institucional_bajada }}</textarea>
+                        </div>
+                    </div>
+
+                    <div class="config-section">
+                        <div class="config-section-header">
+                            <div>
+                                <h2>Nuestra historia</h2>
+                                <p>El texto principal de la página</p>
+                            </div>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                            <label class="config-row-label" for="idCatalogoSobreNosotros">Sobre nosotros</label>
+                            <textarea class="form-control" id="idCatalogoSobreNosotros" rows="4" placeholder="Vacío = usa un texto genérico">{{ configuracion_catalogo.sobre_nosotros }}</textarea>
+                        </div>
+                    </div>
+
+                    <div class="config-section">
+                        <div class="config-section-header">
+                            <div>
+                                <h2>3 destacados</h2>
+                                <p>Lo que quieras resaltar de tu negocio</p>
+                            </div>
+                        </div>
+                        {% for n in "123" %}
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start; gap:0.5rem; padding-bottom:0.9rem; {% if n != "3" %}border-bottom:1px solid var(--line); margin-bottom:0.5rem;{% endif %}">
+                            <label class="config-row-label">Destacado {{ n }}</label>
+                            <input class="form-control" id="idCatalogoDestacado{{ n }}Titulo" placeholder="Título" maxlength="80"
+                                value="{% if n == '1' %}{{ configuracion_catalogo.destacado1_titulo }}{% elif n == '2' %}{{ configuracion_catalogo.destacado2_titulo }}{% else %}{{ configuracion_catalogo.destacado3_titulo }}{% endif %}">
+                            <input class="form-control" id="idCatalogoDestacado{{ n }}Texto" placeholder="Texto corto" maxlength="200"
+                                value="{% if n == '1' %}{{ configuracion_catalogo.destacado1_texto }}{% elif n == '2' %}{{ configuracion_catalogo.destacado2_texto }}{% else %}{{ configuracion_catalogo.destacado3_texto }}{% endif %}">
                         </div>
                         {% endfor %}
                     </div>
-                </div>
 
-                <!-- ── Datos que vienen de "Datos de la empresa" ── -->
-                <div class="config-section">
-                    <div class="config-preview-empresa-card" style="margin:1.375rem;">
-                        <div class="config-logo-box">
-                            {% if datos_empresa.logo %}
-                                <img src="{{ datos_empresa.logo.url }}" alt="Logo">
-                            {% else %}
-                                <span style="font-size:0.6rem; color:var(--text-muted);">Sin logo</span>
-                            {% endif %}
-                        </div>
-                        <div style="flex:1; min-width:0;">
-                            <div class="config-row-label" style="margin-bottom:0.15rem;">{{ datos_empresa.nombre_comercial|default:"Sin nombre cargado" }}</div>
-                            <div class="config-row-desc">
-                                {{ datos_empresa.domicilio|default:"Sin domicilio" }}{% if datos_empresa.telefono %} · {{ datos_empresa.telefono }}{% endif %}{% if datos_empresa.email %} · {{ datos_empresa.email }}{% endif %}
+                    <div class="config-section">
+                        <div class="config-section-header">
+                            <div>
+                                <h2>Horarios de atención</h2>
                             </div>
-                            <div class="config-row-desc" style="margin-top:0.3rem;">Logo, nombre, domicilio, teléfono y email se muestran en el encabezado y pie del catálogo, pero se editan en <a href="{% url 'core:configuracion' %}#seccion-empresa">"Datos de la empresa"</a>.</div>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                            <textarea class="form-control" id="idCatalogoHorarios" rows="2" placeholder="Ej: Lun a Vie 9 a 18 hs · Sáb 9 a 13 hs">{{ configuracion_catalogo.horarios_texto }}</textarea>
+                        </div>
+                    </div>
+
+                    <div class="config-section">
+                        <div class="config-section-header">
+                            <div>
+                                <h2>Galería de fotos</h2>
+                                <p>Hasta 8 fotos del local, el equipo o los productos</p>
+                            </div>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:stretch;">
+                            <div id="listaGaleria" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(84px,1fr)); gap:0.6rem; margin-bottom:0.75rem;">
+                                {% for foto in configuracion_catalogo.galeria.all %}
+                                <div class="galeria-item-admin" data-pk="{{ foto.pk }}" style="position:relative;">
+                                    <div class="config-logo-box" style="width:100%; aspect-ratio:1; height:auto;">
+                                        {% if foto.imagen %}<img src="{{ foto.imagen.url }}" alt=""> {% else %}<span style="font-size:0.6rem;color:var(--text-muted);">Sin imagen</span>{% endif %}
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-danger btn-eliminar-galeria" style="position:absolute; top:2px; right:2px; padding:0.05rem 0.4rem; line-height:1.3;">×</button>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <input type="file" id="inputGaleriaImagen" accept=".jpg,.jpeg,.png,.webp" style="display:none;">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnAgregarFotoGaleria" style="width:fit-content;" onclick="document.getElementById('inputGaleriaImagen').click()">+ Agregar foto</button>
+                            <span id="galeriaMsg" class="config-empresa-msg" style="padding:0.4rem 0 0;"></span>
                         </div>
                     </div>
                 </div>
 
-                <!-- ── Textos compartidos entre plantillas ── -->
-                <div class="config-section">
-                    <div class="config-section-header">
-                        <div>
-                            <h2>Textos</h2>
-                            <p>Se usan en cualquier plantilla</p>
+                <!-- ── Panel: Carrusel — propio de la plantilla "Bento" ── -->
+                <div class="co-panel" data-panel="carrusel" data-plantilla="bento" style="display:none;">
+                    <div class="config-section">
+                        <div class="config-section-header">
+                            <div>
+                                <h2>Slides — Bento</h2>
+                                <p>Carrusel de hero con varias imágenes</p>
+                            </div>
+                            <button type="button" class="btn btn-sm" style="background:var(--brand-orange); color:white; margin-left:auto;" data-bs-toggle="modal" data-bs-target="#slideModal" id="btnNuevoSlide">+ Nuevo slide</button>
                         </div>
-                    </div>
-                    <div class="config-row" style="flex-direction:column; align-items:flex-start;">
-                        <label class="config-row-label" for="idCatalogoSobreNosotros">Sobre nosotros</label>
-                        <textarea class="form-control" id="idCatalogoSobreNosotros" rows="3" placeholder="Vacío = usa un texto genérico">{{ configuracion_catalogo.sobre_nosotros }}</textarea>
-                    </div>
-                    <div class="config-row" style="flex-direction:column; align-items:flex-start;">
-                        <label class="config-row-label" for="idCatalogoContactoTexto">Texto de contacto</label>
-                        <textarea class="form-control" id="idCatalogoContactoTexto" rows="2">{{ configuracion_catalogo.contacto_texto }}</textarea>
-                        <span class="config-row-desc">Se muestra junto a los datos de contacto en el pie de página.</span>
+                        <div class="config-row" style="flex-direction:column; align-items:stretch;">
+                            <span class="config-row-desc" style="margin-bottom:0.6rem;">Hasta 6 slides. Cada uno necesita una imagen para mostrarse en el catálogo.</span>
+                            <div id="listaSlides">
+                                {% for slide in configuracion_catalogo.slides.all %}
+                                <div class="config-row slide-row"
+                                     data-pk="{{ slide.pk }}"
+                                     data-eyebrow="{{ slide.eyebrow }}"
+                                     data-titulo="{{ slide.titulo }}"
+                                     data-descripcion="{{ slide.descripcion }}"
+                                     data-cta-texto="{{ slide.cta_texto }}">
+                                    <div style="display:flex; align-items:center; gap:0.75rem; flex:1; min-width:0;">
+                                        <div class="config-logo-box" style="width:44px; height:44px;">
+                                            {% if slide.imagen %}<img src="{{ slide.imagen.url }}" alt="">{% else %}<span style="font-size:0.6rem; color:var(--text-muted);">Sin imagen</span>{% endif %}
+                                        </div>
+                                        <div class="config-row-info">
+                                            <div class="config-row-label">{{ slide.titulo }}</div>
+                                            {% if not slide.imagen %}<div class="config-row-desc" style="color:#e11d48;">Sin imagen — no se muestra en el catálogo todavía</div>{% endif %}
+                                        </div>
+                                    </div>
+                                    <div style="display:flex; gap:0.4rem;">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary btn-editar-slide">Editar</button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger btn-eliminar-slide">Eliminar</button>
+                                    </div>
+                                </div>
+                                {% empty %}
+                                <div class="config-row">
+                                    <div class="config-row-info">
+                                        <div class="config-row-label">Sin slides cargados</div>
+                                        <div class="config-row-desc">El catálogo muestra un hero simple con el nombre de la empresa hasta que cargues al menos uno.</div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- ── Campos propios de la plantilla "Almacén" ── -->
-                <div class="config-section" data-plantilla="almacen">
-                    <div class="config-section-header">
-                        <div>
-                            <h2>Hero — Almacén</h2>
-                            <p>Título, bajada e imagen fija del hero</p>
+                <!-- ── Panel: Apariencia — color de marca + menú superior (todas las plantillas) ── -->
+                <div class="co-panel" data-panel="apariencia" style="display:none;">
+                    <div class="config-section">
+                        <div class="config-section-header">
+                            <div>
+                                <h2>Colores de marca</h2>
+                                <p>Los dos colores que arman la paleta del catálogo</p>
+                            </div>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start; gap:0.4rem;">
+                            <label class="config-row-label">Color principal</label>
+                            <span class="config-row-desc" style="margin:0 0 0.3rem;">Botones, precios y detalles</span>
+                            <div style="display:flex; align-items:center;">
+                                <input type="color" id="idCatalogoColorMarca" value="{{ configuracion_catalogo.color_marca|default:'#ff9343' }}" style="width:44px; height:36px; padding:0; border:1px solid var(--line); border-radius:0.4rem;">
+                                <button type="button" id="btnResetColorMarca" class="btn btn-sm btn-outline-secondary" style="margin-left:0.75rem;">Restablecer</button>
+                            </div>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start; gap:0.4rem;">
+                            <label class="config-row-label">Color secundario</label>
+                            <span class="config-row-desc" style="margin:0 0 0.3rem;">Encabezado, hero y pie de página</span>
+                            <div style="display:flex; align-items:center;">
+                                <input type="color" id="idCatalogoColorMarcaSecundario" value="{{ configuracion_catalogo.color_marca_secundario|default:'#111e2f' }}" style="width:44px; height:36px; padding:0; border:1px solid var(--line); border-radius:0.4rem;">
+                                <button type="button" id="btnResetColorMarcaSecundario" class="btn btn-sm btn-outline-secondary" style="margin-left:0.75rem;">Restablecer</button>
+                            </div>
                         </div>
                     </div>
-                    <div class="config-row" style="flex-direction:column; align-items:flex-start; gap:0.6rem;">
-                        <span class="config-row-label">Imagen del hero</span>
-                        <div style="display:flex; align-items:center; gap:1rem;">
-                            <div class="config-logo-box" id="catalogoHeroPreviewBox">
-                                {% if configuracion_catalogo.hero_imagen %}
-                                    <img src="{{ configuracion_catalogo.hero_imagen.url }}" alt="Hero">
+
+                    <div class="config-section">
+                        <div class="config-section-header">
+                            <div>
+                                <h2>Menú superior</h2>
+                                <p>Textos de los links del encabezado</p>
+                            </div>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                            <label class="config-row-label" for="idCatalogoNavCatalogo">Link "Catálogo"</label>
+                            <input class="form-control" id="idCatalogoNavCatalogo" value="{{ configuracion_catalogo.nav_catalogo_label }}" placeholder="Catálogo" maxlength="30">
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                            <label class="config-row-label" for="idCatalogoNavOfertas">Link "Ofertas"</label>
+                            <input class="form-control" id="idCatalogoNavOfertas" value="{{ configuracion_catalogo.nav_ofertas_label }}" placeholder="Ofertas" maxlength="30">
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                            <label class="config-row-label" for="idCatalogoNavCombos">Link "Combos"</label>
+                            <input class="form-control" id="idCatalogoNavCombos" value="{{ configuracion_catalogo.nav_combos_label }}" placeholder="Combos" maxlength="30">
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                            <label class="config-row-label" for="idCatalogoNavTienda">Link "La tienda"</label>
+                            <input class="form-control" id="idCatalogoNavTienda" value="{{ configuracion_catalogo.nav_tienda_label }}" placeholder="La tienda" maxlength="30">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── Panel: Contacto — datos de empresa (solo lectura) + texto de contacto + redes ── -->
+                <div class="co-panel" data-panel="contacto" style="display:none;">
+                    <div class="config-section">
+                        <div class="config-preview-empresa-card" style="margin:1.375rem;">
+                            <div class="config-logo-box">
+                                {% if datos_empresa.logo %}
+                                    <img src="{{ datos_empresa.logo.url }}" alt="Logo">
                                 {% else %}
-                                    <span style="font-size:0.7rem; color:var(--text-muted);">Sin imagen</span>
+                                    <span style="font-size:0.6rem; color:var(--text-muted);">Sin logo</span>
                                 {% endif %}
                             </div>
-                            <input type="file" id="inputCatalogoHero" accept=".jpg,.jpeg,.png,.webp" style="display:none;">
-                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('inputCatalogoHero').click()">Subir / cambiar</button>
-                            <button type="button" id="btnEliminarCatalogoHero" class="btn btn-sm btn-outline-danger" {% if not configuracion_catalogo.hero_imagen %}style="display:none;"{% endif %}>Eliminar</button>
+                            <div style="flex:1; min-width:0;">
+                                <div class="config-row-label" style="margin-bottom:0.15rem;">{{ datos_empresa.nombre_comercial|default:"Sin nombre cargado" }}</div>
+                                <div class="config-row-desc">
+                                    {{ datos_empresa.domicilio|default:"Sin domicilio" }}{% if datos_empresa.telefono %} · {{ datos_empresa.telefono }}{% endif %}{% if datos_empresa.email %} · {{ datos_empresa.email }}{% endif %}
+                                </div>
+                                <div class="config-row-desc" style="margin-top:0.3rem;">Logo, nombre, domicilio, teléfono y email se muestran en el catálogo y en "La tienda", pero se editan en <a href="{% url 'core:configuracion' %}#seccion-empresa">"Datos de la empresa"</a>.</div>
+                            </div>
                         </div>
-                        <span class="config-row-desc">Opcional — si no se carga, el hero se muestra sin foto.</span>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                            <label class="config-row-label" for="idCatalogoContactoTexto">Texto de contacto</label>
+                            <textarea class="form-control" id="idCatalogoContactoTexto" rows="2">{{ configuracion_catalogo.contacto_texto }}</textarea>
+                            <span class="config-row-desc">Se muestra en la sección de contacto de "La tienda".</span>
+                        </div>
                     </div>
-                    <div class="config-row" style="flex-direction:column; align-items:flex-start;">
-                        <label class="config-row-label" for="idCatalogoHeroTitulo">Título principal</label>
-                        <input class="form-control" id="idCatalogoHeroTitulo" value="{{ configuracion_catalogo.hero_titulo }}" placeholder="Vacío = usa el nombre comercial de la empresa">
-                    </div>
-                    <div class="config-row" style="flex-direction:column; align-items:flex-start;">
-                        <label class="config-row-label" for="idCatalogoHeroSubtitulo">Bajada / subtítulo</label>
-                        <textarea class="form-control" id="idCatalogoHeroSubtitulo" rows="2" placeholder="Vacío = usa un texto genérico">{{ configuracion_catalogo.hero_subtitulo }}</textarea>
-                    </div>
-                </div>
 
-                <!-- ── Campos propios de la plantilla "Bento" ── -->
-                <div class="config-section" data-plantilla="bento">
-                    <div class="config-section-header">
-                        <div>
-                            <h2>Slides — Bento</h2>
-                            <p>Carrusel de hero con varias imágenes</p>
+                    <div class="config-section">
+                        <div class="config-section-header">
+                            <div>
+                                <h2>Redes sociales</h2>
+                                <p>Vacío = no se muestra el ícono</p>
+                            </div>
                         </div>
-                        <button type="button" class="btn btn-sm" style="background:var(--brand-orange); color:white; margin-left:auto;" data-bs-toggle="modal" data-bs-target="#slideModal" id="btnNuevoSlide">+ Nuevo slide</button>
-                    </div>
-                    <div class="config-row" style="flex-direction:column; align-items:stretch;">
-                        <span class="config-row-desc" style="margin-bottom:0.6rem;">Hasta 6 slides. Cada uno necesita una imagen para mostrarse en el catálogo.</span>
-                        <div id="listaSlides">
-                            {% for slide in configuracion_catalogo.slides.all %}
-                            <div class="config-row slide-row"
-                                 data-pk="{{ slide.pk }}"
-                                 data-eyebrow="{{ slide.eyebrow }}"
-                                 data-titulo="{{ slide.titulo }}"
-                                 data-descripcion="{{ slide.descripcion }}"
-                                 data-cta-texto="{{ slide.cta_texto }}">
-                                <div style="display:flex; align-items:center; gap:0.75rem; flex:1; min-width:0;">
-                                    <div class="config-logo-box" style="width:44px; height:44px;">
-                                        {% if slide.imagen %}<img src="{{ slide.imagen.url }}" alt="">{% else %}<span style="font-size:0.6rem; color:var(--text-muted);">Sin imagen</span>{% endif %}
-                                    </div>
-                                    <div class="config-row-info">
-                                        <div class="config-row-label">{{ slide.titulo }}</div>
-                                        {% if not slide.imagen %}<div class="config-row-desc" style="color:#e11d48;">Sin imagen — no se muestra en el catálogo todavía</div>{% endif %}
-                                    </div>
-                                </div>
-                                <div style="display:flex; gap:0.4rem;">
-                                    <button type="button" class="btn btn-sm btn-outline-secondary btn-editar-slide">Editar</button>
-                                    <button type="button" class="btn btn-sm btn-outline-danger btn-eliminar-slide">Eliminar</button>
-                                </div>
-                            </div>
-                            {% empty %}
-                            <div class="config-row">
-                                <div class="config-row-info">
-                                    <div class="config-row-label">Sin slides cargados</div>
-                                    <div class="config-row-desc">El catálogo muestra un hero simple con el nombre de la empresa hasta que cargues al menos uno.</div>
-                                </div>
-                            </div>
-                            {% endfor %}
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                            <label class="config-row-label" for="idCatalogoInstagram">Instagram</label>
+                            <input class="form-control" id="idCatalogoInstagram" value="{{ configuracion_catalogo.instagram_url }}" placeholder="https://instagram.com/tu-negocio">
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                            <label class="config-row-label" for="idCatalogoFacebook">Facebook</label>
+                            <input class="form-control" id="idCatalogoFacebook" value="{{ configuracion_catalogo.facebook_url }}" placeholder="https://facebook.com/tu-negocio">
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                            <label class="config-row-label" for="idCatalogoTiktok">TikTok</label>
+                            <input class="form-control" id="idCatalogoTiktok" value="{{ configuracion_catalogo.tiktok_url }}" placeholder="https://tiktok.com/@tu-negocio">
                         </div>
                     </div>
                 </div>
@@ -179,11 +361,19 @@
 
             <div class="co-col-der">
                 <div class="co-preview-sticky">
+                    <div class="co-tabs" id="coTabs">
+                        <button type="button" class="co-tab co-tab--activa" data-tab="plantillas" data-preview="home">Plantillas</button>
+                        <button type="button" class="co-tab" data-tab="hero" data-plantilla-tab="almacen" data-preview="home">Hero</button>
+                        <button type="button" class="co-tab" data-tab="tienda" data-preview="institucional">La tienda</button>
+                        <button type="button" class="co-tab" data-tab="carrusel" data-plantilla-tab="bento" data-preview="home">Carrusel</button>
+                        <button type="button" class="co-tab" data-tab="apariencia" data-preview="home">Apariencia</button>
+                        <button type="button" class="co-tab" data-tab="contacto" data-preview="institucional">Contacto</button>
+                    </div>
                     <span class="config-row-label">Vista previa en vivo</span>
-                    <div class="config-preview-wrap" id="catalogoPreviewWrap">
+                    <div class="config-preview-wrap co-preview-viewport" id="catalogoPreviewWrap">
                         <iframe id="catalogoPreviewFrame" src="{% url 'catalogo:home' %}?preview_plantilla={{ configuracion_catalogo.plantilla }}" title="Vista previa del catálogo público"></iframe>
                     </div>
-                    <span class="config-row-desc">Los productos y precios son los reales — es una vista de solo lectura. Se actualiza mientras escribís y al cambiar de plantilla, antes de guardar.</span>
+                    <span class="config-row-desc">Los productos y precios son los reales — es una vista de solo lectura. Se actualiza mientras escribís.</span>
                 </div>
             </div>
         </div>
@@ -258,23 +448,43 @@
 {% block extra_js %}
 <script>
     window.CONFIG_CATALOGO_URLS = {
-        guardar:    "{% url 'catalogo:config_guardar' %}",
-        heroImagen: "{% url 'catalogo:config_hero_imagen' %}",
+        guardar:           "{% url 'catalogo:config_guardar' %}",
+        heroImagen:        "{% url 'catalogo:config_hero_imagen' %}",
+        institucionalImagen: "{% url 'catalogo:config_institucional_imagen' %}",
     };
     // Mismos textos de fallback que usa el template público (ConfiguracionCatalogo.
-    // DEFAULT_HERO_SUBTITULO / DEFAULT_SOBRE_NOSOTROS) — para que la vista previa en
-    // vivo muestre exactamente lo mismo que vería un visitante cuando el campo está vacío.
+    // DEFAULT_*) — para que la vista previa en vivo muestre exactamente lo mismo
+    // que vería un visitante cuando el campo está vacío.
     window.CONFIG_CATALOGO_DEFAULTS = {
-        heroTitulo:    "{{ datos_empresa.nombre_comercial|escapejs }}",
-        heroSubtitulo: "{{ default_hero_subtitulo|escapejs }}",
-        sobreNosotros: "{{ default_sobre_nosotros|escapejs }}",
+        heroTitulo:      "{{ datos_empresa.nombre_comercial|escapejs }}",
+        heroSubtitulo:   "{{ default_hero_subtitulo|escapejs }}",
+        sobreNosotros:   "{{ default_sobre_nosotros|escapejs }}",
+        colorMarca:      "{{ default_color_marca|escapejs }}",
+        colorMarcaSecundario: "{{ default_color_marca_secundario|escapejs }}",
+        navCatalogo:     "{{ default_nav_catalogo|escapejs }}",
+        navOfertas:      "{{ default_nav_ofertas|escapejs }}",
+        navCombos:       "{{ default_nav_combos|escapejs }}",
+        navTienda:       "{{ default_nav_tienda|escapejs }}",
+        instTitulo:      "{{ default_institucional_titulo|escapejs }}",
+        instBajada:      "{{ default_institucional_bajada|escapejs }}",
+        destacado1Titulo: "{{ default_destacado1_titulo|escapejs }}",
+        destacado1Texto:  "{{ default_destacado1_texto|escapejs }}",
+        destacado2Titulo: "{{ default_destacado2_titulo|escapejs }}",
+        destacado2Texto:  "{{ default_destacado2_texto|escapejs }}",
+        destacado3Titulo: "{{ default_destacado3_titulo|escapejs }}",
+        destacado3Texto:  "{{ default_destacado3_texto|escapejs }}",
     };
     window.CONFIG_SLIDES_URLS = {
         guardar:  "{% url 'catalogo:config_slide_guardar' %}",
         imagen:   "{% url 'catalogo:config_slide_imagen' %}",
         eliminar: "{% url 'catalogo:config_slide_eliminar' %}",
     };
+    window.CONFIG_GALERIA_URLS = {
+        imagen:   "{% url 'catalogo:config_galeria_imagen' %}",
+        eliminar: "{% url 'catalogo:config_galeria_eliminar' %}",
+    };
     window.CATALOGO_HOME_URL = "{% url 'catalogo:home' %}";
+    window.CATALOGO_INSTITUCIONAL_URL = "{% url 'catalogo:institucional' %}";
 </script>
 <script src="{% static 'core/js/catalogo_online.js' %}"></script>
 {% endblock %}

@@ -58,6 +58,17 @@
         </div>
 
         <div class="est-finanzas-grupo">
+            <span class="est-finanzas-grupo-titulo">Te deben (ventas en cuotas)</span>
+            {% if situacion_financiera.cxc_pendientes %}
+                {% for c in situacion_financiera.cxc_pendientes %}
+                <div class="est-finanzas-monto positivo">${{ c.total|floatformat:0|intcomma }} <span>{{ c.moneda }}</span></div>
+                {% endfor %}
+            {% else %}
+                <div class="est-finanzas-monto neutro">$0</div>
+            {% endif %}
+        </div>
+
+        <div class="est-finanzas-grupo">
             <span class="est-finanzas-grupo-titulo">Cheques a cobrar</span>
             {% if situacion_financiera.cheques_a_cobrar %}
                 {% for c in situacion_financiera.cheques_a_cobrar %}

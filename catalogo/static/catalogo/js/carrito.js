@@ -14,9 +14,14 @@
         return null;
     }
 
+    /* sessionStorage (no localStorage): sin login, el carrito debe
+       arrancar vacío en cada sesión nueva del navegador — si no, dos
+       personas distintas usando el mismo navegador/equipo heredarían el
+       pedido de la visita anterior. Dentro de la misma sesión (misma
+       pestaña, navegando entre páginas) sigue persistiendo con normalidad. */
     function leer() {
         try {
-            var datos = JSON.parse(localStorage.getItem(CLAVE) || '{}');
+            var datos = JSON.parse(sessionStorage.getItem(CLAVE) || '{}');
             return (datos && typeof datos === 'object') ? datos : {};
         } catch (e) {
             return {};
@@ -24,7 +29,7 @@
     }
 
     function guardar(carrito) {
-        try { localStorage.setItem(CLAVE, JSON.stringify(carrito)); } catch (e) { /* modo privado, etc. */ }
+        try { sessionStorage.setItem(CLAVE, JSON.stringify(carrito)); } catch (e) { /* modo privado, etc. */ }
     }
 
     function fmt(n) {

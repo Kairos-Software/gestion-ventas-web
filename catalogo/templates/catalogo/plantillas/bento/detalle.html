@@ -93,10 +93,35 @@
             {% endif %}
 
             <div class="kc-detalle-specs">
+                {% if producto.marca %}<div><span>Marca</span><strong>{{ producto.marca }}</strong></div>{% endif %}
+                {% if producto.modelo %}<div><span>Modelo</span><strong>{{ producto.modelo }}</strong></div>{% endif %}
                 {% if producto.contenido_neto %}<div><span>Contenido</span><strong>{{ producto.contenido_neto }} {{ producto.get_unidad_medida_display }}</strong></div>{% endif %}
+                {% if producto.peso_kg %}<div><span>Peso</span><strong>{{ producto.peso_kg }} kg</strong></div>{% endif %}
+                {% if producto.alto_cm or producto.ancho_cm or producto.profundidad_cm %}
+                <div><span>Dimensiones (A×An×P)</span><strong>{{ producto.alto_cm|default:"—" }} × {{ producto.ancho_cm|default:"—" }} × {{ producto.profundidad_cm|default:"—" }} cm</strong></div>
+                {% endif %}
                 {% if producto.pais_origen %}<div><span>Origen</span><strong>{{ producto.pais_origen }}</strong></div>{% endif %}
                 {% if producto.sku %}<div><span>SKU</span><strong>{{ producto.sku }}</strong></div>{% endif %}
             </div>
+
+            {% if producto.es_fragil or producto.requiere_refrigeracion or producto.es_peligroso %}
+            <div class="kc-detalle-badges">
+                {% if producto.es_fragil %}<span class="kc-detalle-badge kc-detalle-badge--fragil">Frágil</span>{% endif %}
+                {% if producto.requiere_refrigeracion %}<span class="kc-detalle-badge kc-detalle-badge--frio">Requiere refrigeración</span>{% endif %}
+                {% if producto.es_peligroso %}<span class="kc-detalle-badge kc-detalle-badge--peligro">Peligroso / Hazmat</span>{% endif %}
+            </div>
+            {% endif %}
+
+            {% if producto.caracteristicas.all %}
+            <div class="kc-detalle-caracteristicas">
+                <h2>Características</h2>
+                <ul>
+                    {% for c in producto.caracteristicas.all %}
+                    <li>{{ c.texto }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
         </div>
     </section>
 </div>

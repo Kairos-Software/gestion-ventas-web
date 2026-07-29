@@ -64,6 +64,7 @@
       {% if mostrar_productos and productos %}
       <form method="get" id="formOrdenBento">
         {% if categoria_activa %}<input type="hidden" name="categoria" value="{{ categoria_activa }}">{% endif %}
+        {% if tipo_activo %}<input type="hidden" name="tipo" value="{{ tipo_activo }}">{% endif %}
         {% if marca_activa %}<input type="hidden" name="marca" value="{{ marca_activa }}">{% endif %}
         {% if seccion_activa != 'todos' %}<input type="hidden" name="seccion" value="{{ seccion_activa }}">{% endif %}
         {% if request.GET.q %}<input type="hidden" name="q" value="{{ request.GET.q }}">{% endif %}

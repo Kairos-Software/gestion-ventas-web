@@ -128,6 +128,60 @@
     </div>
 </div>
 
+{% if cuentas_por_cobrar %}
+<!-- ══════════ CUENTAS POR COBRAR (ventas en cuotas) ══════════ -->
+<div class="card mb-4">
+    <div class="card-header">
+        <div>
+            <p class="card-title">¿Quién te debe plata?</p>
+            <p class="text-muted" style="font-size:.8125rem;">Ventas financiadas en cuotas propias — tiempo real, salvo "cobrado" que respeta el filtro de arriba</p>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="est-mini-stat-grid mb-3">
+            <div class="est-mini-stat">
+                <div class="est-mini-stat-valor">${{ cuentas_por_cobrar.total_pendiente|floatformat:0|intcomma }}</div>
+                <div class="est-mini-stat-label">Pendiente de cobro ({{ cuentas_por_cobrar.cantidad_pendiente }} cuota{{ cuentas_por_cobrar.cantidad_pendiente|pluralize }})</div>
+            </div>
+            <div class="est-mini-stat">
+                <div class="est-mini-stat-valor" style="color:var(--danger);">${{ cuentas_por_cobrar.total_vencido|floatformat:0|intcomma }}</div>
+                <div class="est-mini-stat-label">Vencido sin cobrar ({{ cuentas_por_cobrar.cantidad_vencidas }} cuota{{ cuentas_por_cobrar.cantidad_vencidas|pluralize }})</div>
+            </div>
+            <div class="est-mini-stat">
+                <div class="est-mini-stat-valor" style="color:var(--warning);">${{ cuentas_por_cobrar.total_proximo|floatformat:0|intcomma }}</div>
+                <div class="est-mini-stat-label">Vence en 15 días ({{ cuentas_por_cobrar.cantidad_proximas }} cuota{{ cuentas_por_cobrar.cantidad_proximas|pluralize }})</div>
+            </div>
+            <div class="est-mini-stat">
+                <div class="est-mini-stat-valor" style="color:var(--success);">${{ cuentas_por_cobrar.cobrado_periodo|floatformat:0|intcomma }}</div>
+                <div class="est-mini-stat-label">Cobrado en el período</div>
+            </div>
+        </div>
+
+        {% if cuentas_por_cobrar.ranking_deudores %}
+            <p class="text-muted" style="font-size:.8125rem;margin-bottom:.5rem;">Clientes con más deuda pendiente</p>
+            {% for d in cuentas_por_cobrar.ranking_deudores %}
+            <div class="est-ranking-row">
+                <div class="est-ranking-left">
+                    <span class="est-ranking-pos">{{ forloop.counter }}</span>
+                    <div>
+                        <div class="est-ranking-nombre">{{ d.nombre }}</div>
+                        <div class="est-ranking-detalle">{{ d.cantidad_cuotas }} cuota{{ d.cantidad_cuotas|pluralize }} pendiente{{ d.cantidad_cuotas|pluralize }}</div>
+                    </div>
+                </div>
+                <div class="est-ranking-right">
+                    <div class="est-ranking-ganancia">${{ d.total|floatformat:0|intcomma }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state">
+                <p>No hay ninguna cuenta por cobrar activa por el momento.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
 <!-- ══════════ CLIENTES INACTIVOS ══════════ -->
 <div class="card">
     <div class="card-header">

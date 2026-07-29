@@ -604,7 +604,8 @@ class Producto(models.Model):
     # (ver análisis de "ofertas" — packs se resolvió aparte, no acá).
     precio_venta = models.DecimalField('Precio de venta', max_digits=12, decimal_places=2,
                        null=True, blank=True,
-                       help_text='Precio final de venta al público (IVA incluido).')
+                       help_text='Precio final de venta al público (siempre con IVA ya sumado, '
+                                  'ver precio_incluye_iva para cómo se llega a este número).')
 
     # — Precio automático (costo + % de ganancia) —
     # MANUAL (default): precio_venta se carga a mano, como siempre.
@@ -623,10 +624,26 @@ class Producto(models.Model):
 
     # — Impuestos —
     # Se guarda la alícuota porque es un dato del producto (varía según rubro).
-    # El precio siempre es con IVA incluido; la alícuota permite desdoblar
-    # neto e impuesto en facturas, reportes y cálculos de rentabilidad.
     alicuota_iva = models.CharField('Alícuota IVA', max_length=5,
                        choices=AlicuotaIVA.choices, default=AlicuotaIVA.GENERAL)
+
+    # precio_venta guarda SIEMPRE el precio final (con IVA), sin importar
+    # este toggle — así ningún otro lugar del sistema (carrito, ofertas,
+    # tickets, reportes) necesita saber que existe. Este campo solo decide
+    # CÓMO se llega a ese número al cargar/calcular el precio:
+    #   True (default, comportamiento de siempre): lo que se carga (a mano,
+    #     o el resultado de costo × % ganancia) YA ES el precio final.
+    #   False: lo que se carga es el precio SIN IVA (la ganancia real,
+    #     sin que la alícuota se la coma) — el sistema le suma el IVA de
+    #     esta alícuota para obtener el precio final que se guarda en
+    #     precio_venta. Ver Producto.calcular_precio_final() y
+    #     actualizar_costo_y_precio(). Aplica igual seas Monotributista o
+    #     Responsable Inscripto — es una decisión de precio, no de
+    #     facturación (a un Monotributista no le exige nada ARCA, pero
+    #     puede preferir cotizar así igual).
+    precio_incluye_iva = models.BooleanField('El precio ya incluye IVA', default=True,
+                       help_text='Si lo destildás, cargás el precio SIN IVA (tu ganancia real) '
+                                  'y el sistema calcula solo el precio final sumándole el IVA.')
 
     # — Stock —
     # stock_actual: unidades disponibles en este momento.
@@ -738,6 +755,21 @@ class Producto(models.Model):
         Producto.objects.filter(pk=self.pk).update(stock_actual=total)
         self.stock_actual = total
 
+    def calcular_precio_final(self, base):
+        """
+        `base` es el número que se cargó/calculó como punto de partida —
+        con precio_incluye_iva=True, base YA ES el precio final. Con
+        False, base es el precio SIN IVA (la ganancia real, sin que la
+        alícuota se la coma) y acá se le suma el IVA de esta alícuota
+        para obtener el precio final que efectivamente se guarda/cobra.
+        """
+        if base is None:
+            return None
+        if self.precio_incluye_iva:
+            return base
+        alicuota = Decimal(self.alicuota_iva)
+        return (base * (Decimal('1') + alicuota / Decimal('100'))).quantize(Decimal('0.01'))
+
     def actualizar_costo_y_precio(self):
         """
         Recalcula costo_actual desde el lote ACTIVO más reciente del
@@ -761,7 +793,8 @@ class Producto(models.Model):
 
         if self.modo_precio == ModoPrecio.AUTOMATICO and self.costo_actual is not None:
             margen = self.porcentaje_ganancia or Decimal('0')
-            nuevo_precio = (self.costo_actual * (Decimal('1') + margen / Decimal('100'))).quantize(Decimal('0.01'))
+            precio_base = (self.costo_actual * (Decimal('1') + margen / Decimal('100'))).quantize(Decimal('0.01'))
+            nuevo_precio = self.calcular_precio_final(precio_base)
             if nuevo_precio != self.precio_venta:
                 self.precio_venta = nuevo_precio
                 update_fields.append('precio_venta')
@@ -1049,7 +1082,14 @@ class CombinacionVarianteOpcion(models.Model):
 
 # ══════════════════════════════════════════════════════════════════
 #  IMÁGENES DEL PRODUCTO
+#  MAX_IMAGENES_POR_PRODUCTO: tope de fotos por producto/paquete — ver
+#  ProductoImagenSubirAjax (productos/views_productos.py), que es quien
+#  lo hace cumplir al subir (acá no se valida para no romper registros
+#  viejos que ya lo excedan).
 # ══════════════════════════════════════════════════════════════════
+
+MAX_IMAGENES_POR_PRODUCTO = 3
+
 
 class ProductoImagen(models.Model):
     producto    = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name='imagenes')
@@ -1068,11 +1108,41 @@ class ProductoImagen(models.Model):
         return f'Imagen de {self.producto}{" [PORTADA]" if self.es_portada else ""}'
 
     def save(self, *args, **kwargs):
+        # _committed=False = archivo recién asignado (subida nueva) y
+        # todavía no escrito a storage — es el momento de comprimirlo.
+        # En saves posteriores (ej: marcar portada) el archivo ya está en
+        # disco y no hay que volver a procesarlo.
+        if self.imagen and not self.imagen._committed:
+            from productos.utils_imagenes import comprimir_imagen_subida
+            self.imagen = comprimir_imagen_subida(self.imagen)
+
         if self.es_portada:
             ProductoImagen.objects.filter(
                 producto=self.producto, es_portada=True
             ).exclude(pk=self.pk).update(es_portada=False)
         super().save(*args, **kwargs)
+
+
+# ══════════════════════════════════════════════════════════════════
+#  CARACTERÍSTICAS DEL PRODUCTO
+#  Texto libre, una por fila (ej: "8 GB RAM", "500 GB SSD") — sin
+#  catálogo reutilizable entre productos (decisión explícita: cada
+#  producto escribe las suyas de cero). Se muestran en el detalle del
+#  catálogo público, además del formulario interno de carga.
+# ══════════════════════════════════════════════════════════════════
+
+class CaracteristicaProducto(models.Model):
+    producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name='caracteristicas')
+    texto    = models.CharField(max_length=200)
+    orden    = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering            = ['orden', 'id']
+        verbose_name        = 'Característica de producto'
+        verbose_name_plural = 'Características de producto'
+
+    def __str__(self):
+        return f'{self.texto} ({self.producto})'
 
 
 # ══════════════════════════════════════════════════════════════════

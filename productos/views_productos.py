@@ -7,12 +7,14 @@ from django.views import View
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator
+from django.db.models import Max
 
 from .models import (
-    Producto, ProductoImagen,
+    Producto, ProductoImagen, CaracteristicaProducto,
     Variante, OpcionVariante, CombinacionVariante,
     CategoriaProducto, TipoProducto, ListaDescuento,
-    cantidad_valida_para_unidad,
+    cantidad_valida_para_unidad, ModoPrecio,
+    MAX_IMAGENES_POR_PRODUCTO,
 )
 from .forms import (
     ProductoForm, ProductoImagenForm,
@@ -27,7 +29,12 @@ from core.permisos import chequear_permiso
 # ══════════════════════════════════════════════════════════════════
 
 def _serializar_producto(p):
-    """Serializa un Producto para respuestas JSON."""
+    """Serializa un Producto para respuestas JSON — usado para precargar el
+    modal de edición. precio_venta manda el precio SIN IVA (p.precio_neto)
+    si precio_incluye_iva=False, para que el campo muestre exactamente lo
+    mismo que se tipeó (precio_venta en la base siempre es el precio final,
+    ver Producto.calcular_precio_final)."""
+    precio_a_mostrar = p.precio_venta if p.precio_incluye_iva else p.precio_neto
     return {
         'pk':                    p.pk,
         'codigo':                p.codigo,
@@ -51,11 +58,12 @@ def _serializar_producto(p):
         'alto_cm':               str(p.alto_cm) if p.alto_cm else '',
         'ancho_cm':              str(p.ancho_cm) if p.ancho_cm else '',
         'profundidad_cm':        str(p.profundidad_cm) if p.profundidad_cm else '',
-        'precio_venta':          str(p.precio_venta) if p.precio_venta else '',
+        'precio_venta':          str(precio_a_mostrar) if precio_a_mostrar else '',
         'modo_precio':           p.modo_precio,
         'porcentaje_ganancia':   str(p.porcentaje_ganancia) if p.porcentaje_ganancia is not None else '',
         'costo_actual':          str(p.costo_actual) if p.costo_actual is not None else '',
-        # alicuota_iva: se guarda siempre como '21' (general). No se expone al frontend.
+        'alicuota_iva':          p.alicuota_iva,
+        'precio_incluye_iva':    p.precio_incluye_iva,
         'stock_actual':          str(p.stock_actual),
         'stock_minimo':          str(p.stock_minimo),
         'stock_maximo':          str(p.stock_maximo) if p.stock_maximo else '',
@@ -72,6 +80,11 @@ def _serializar_producto(p):
         'posicion_deposito':     p.posicion_deposito,
         'notas':                 p.notas,
         'tags':                  p.tags,
+        'caracteristicas':       [{'pk': c.pk, 'texto': c.texto} for c in p.caracteristicas.all()],
+        'imagenes':              [
+            {'pk': i.pk, 'url': i.imagen.url, 'es_portada': i.es_portada}
+            for i in p.imagenes.all()
+        ],
         # Indicadores útiles para el frontend
         'tiene_movimientos':     p.movimientos_stock.exists(),
         'total_combinaciones':   p.combinaciones.filter(activo=True).count() if p.gestiona_variantes else 0,
@@ -360,7 +373,7 @@ class ProductoCrearEditarAjax(LoginRequiredMixin, View):
             'publicado', 'destacado',
             'requiere_refrigeracion', 'es_fragil', 'es_peligroso', 'es_perecedero',
             'gestiona_stock', 'permite_stock_negativo',
-            'gestiona_variantes',
+            'gestiona_variantes', 'precio_incluye_iva',
         ]
         form_data = dict(body)
         for f in BOOL_FIELDS:
@@ -374,13 +387,22 @@ class ProductoCrearEditarAjax(LoginRequiredMixin, View):
                 # cualquier guardado desde el modal lo hubiera despublicado solo.
                 form_data[f] = 'on' if getattr(inst, f) else ''
 
-        # alicuota_iva no se captura del frontend — se fuerza siempre a General (21%)
-        form_data['alicuota_iva'] = '21'
-
         form = ProductoForm(form_data, instance=inst)
 
         if form.is_valid():
             producto = form.save()
+
+            # Modo manual + "no incluye IVA": lo que se guardó recién arriba
+            # es el número CRUDO que se tipeó (el precio SIN IVA, la
+            # ganancia real) — hay que convertirlo al precio final ahora,
+            # antes de que cualquier otra parte del sistema lo use (el
+            # resto siempre asume que precio_venta ya es el precio final).
+            if producto.modo_precio == ModoPrecio.MANUAL:
+                base = form.cleaned_data.get('precio_venta')
+                precio_final = producto.calcular_precio_final(base)
+                if precio_final != producto.precio_venta:
+                    producto.precio_venta = precio_final
+                    producto.save(update_fields=['precio_venta'])
 
             # Si es precio automático, recalcular ahora — no solo esperar a la
             # próxima compra. Si el producto ya tiene costo (se compró antes)
@@ -913,6 +935,16 @@ class ProductoImagenSubirAjax(LoginRequiredMixin, View):
             return JsonResponse({'error': 'No se recibió ninguna imagen.'}, status=400)
 
         producto  = get_object_or_404(Producto, pk=pk)
+
+        if producto.imagenes.count() >= MAX_IMAGENES_POR_PRODUCTO:
+            return JsonResponse({
+                'ok': False,
+                'errors': {'imagen': [
+                    f'Máximo {MAX_IMAGENES_POR_PRODUCTO} imágenes por producto. '
+                    f'Eliminá una para poder subir otra.',
+                ]},
+            }, status=400)
+
         es_portada = not producto.imagenes.exists()
 
         img = ProductoImagen(
@@ -970,6 +1002,54 @@ class ProductoImagenPortadaAjax(LoginRequiredMixin, View):
         img = get_object_or_404(ProductoImagen, pk=pk)
         img.es_portada = True
         img.save()
+        return JsonResponse({'ok': True})
+
+
+# ══════════════════════════════════════════════════════════════════
+#  CARACTERÍSTICAS — AJAX
+# ══════════════════════════════════════════════════════════════════
+
+class CaracteristicaAgregarAjax(LoginRequiredMixin, View):
+    """POST → agrega una característica (texto libre) al producto."""
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_productos'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        pk    = body.get('producto_pk')
+        texto = body.get('texto', '').strip()
+        if not pk:
+            return JsonResponse({'ok': False, 'error': 'producto_pk requerido.'}, status=400)
+        if not texto:
+            return JsonResponse({'ok': False, 'error': 'La característica no puede estar vacía.'}, status=400)
+
+        producto = get_object_or_404(Producto, pk=pk)
+        ultimo_orden = producto.caracteristicas.aggregate(m=Max('orden'))['m'] or 0
+        car = CaracteristicaProducto.objects.create(producto=producto, texto=texto, orden=ultimo_orden + 1)
+
+        return JsonResponse({'ok': True, 'pk': car.pk, 'texto': car.texto})
+
+
+class CaracteristicaEliminarAjax(LoginRequiredMixin, View):
+    """POST → elimina una característica."""
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_productos'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        pk  = body.get('pk')
+        car = get_object_or_404(CaracteristicaProducto, pk=pk)
+        car.delete()
         return JsonResponse({'ok': True})
 
 

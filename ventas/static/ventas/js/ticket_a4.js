@@ -11,8 +11,9 @@
  * {
  *   empresa: { nombre, razon_social, domicilio, telefono,
  *              email, cuit, condicion_iva, logo_url },
- *   venta:   { numero, fecha, notas, total,
+ *   venta:   { numero, fecha, fecha_hora, notas, total,
  *              confirmado_por, medio_pago_display },
+ *   cliente: { nombre, documento, telefono, direccion } | null,
  *   pagos:   [ { medio_display, monto }, ... ],
  *   items:   [ { nombre, codigo, color, cliente,
  *                cantidad, moneda, precio_unitario,
@@ -35,11 +36,12 @@
  * @returns {string}     HTML completo listo para abrir en ventana nueva
  */
 function ticketHtmlA4(data) {
-    const emp   = data.empresa || {};
-    const venta = data.venta   || {};
-    const items = data.items   || [];
-    const pagos = data.pagos   || [];
-    const cbte  = data.comprobante_arca || null;
+    const emp     = data.empresa || {};
+    const venta   = data.venta   || {};
+    const items   = data.items   || [];
+    const pagos   = data.pagos   || [];
+    const cbte    = data.comprobante_arca || null;
+    const cliente = data.cliente || null;
 
     return `<!DOCTYPE html>
 <html lang="es">
@@ -61,87 +63,74 @@ function ticketHtmlA4(data) {
         body { padding: 0 22mm 20mm; }
 
         /* ── Barra superior de marca ── */
-        .a4-topbar { height: 6pt; background: #F26A1B; margin: 0 -22mm 16pt; }
+        .a4-topbar { height: 5pt; background: #F26A1B; margin: 0 -22mm 18pt; }
 
-        /* ── Cabecera empresa ── */
+        /* ── Cabecera: empresa (izq) + tipo de comprobante (der) ── */
         .a4-header {
             display: flex;
             align-items: flex-start;
             justify-content: space-between;
-            gap: 1rem;
-            padding-bottom: 12pt;
-            border-bottom: 1.5px solid #0D1B2A;
-            margin-bottom: 14pt;
+            gap: 1.5rem;
+            margin-bottom: 18pt;
         }
-        .a4-logo { max-height: 55px; max-width: 160px; object-fit: contain; margin-bottom: 4pt; display: block; }
-        .a4-empresa-nombre { font-size: 15pt; font-weight: 700; margin-bottom: 4pt; letter-spacing: -.01em; }
+        .a4-logo { max-height: 50px; max-width: 150px; object-fit: contain; margin-bottom: 6pt; display: block; }
+        .a4-empresa-nombre { font-size: 14pt; font-weight: 700; margin-bottom: 3pt; letter-spacing: -.01em; }
         .a4-empresa-dato   { font-size: 8.5pt; color: #4A5568; margin: 1pt 0; }
 
-        .a4-titulo-box { text-align: right; }
+        .a4-titulo-box { text-align: right; flex: 0 0 auto; }
         .a4-ticket-titulo {
-            display: inline-block;
-            font-size: 11pt;
-            font-weight: 700;
-            letter-spacing: .02em;
-            color: #fff;
-            background: #1E6FA8;
-            padding: 4pt 12pt;
-            border-radius: 3pt;
-        }
-        .a4-titulo-box .a4-ticket-titulo.a4-titulo-simple {
-            color: #4A5568;
-            background: #F4F6F9;
-        }
-        .a4-ticket-numero {
-            font-size: 12pt;
-            font-weight: 700;
-            font-variant-numeric: tabular-nums;
-            margin-top: 6pt;
+            font-size: 20pt;
+            font-weight: 800;
+            letter-spacing: -.01em;
             color: #0D1B2A;
         }
-        .a4-ticket-interno { font-size: 8pt; color: #8A9BB0; margin-top: 1pt; }
+        .a4-ticket-titulo.a4-titulo-simple { color: #4A5568; }
+        .a4-ticket-numero {
+            font-size: 11pt;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            color: #F26A1B;
+            margin-top: 3pt;
+        }
+        .a4-ticket-interno { font-size: 8pt; color: #8A9BB0; margin-top: 2pt; }
+        .a4-ticket-fecha   { font-size: 8.5pt; color: #4A5568; margin-top: 6pt; }
 
-        /* ── Info de venta ── */
-        .a4-venta-info {
+        /* ── Bloques de info (cliente / meta) ── */
+        .a4-info-grid {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 1rem;
-            margin-bottom: 12pt;
-            padding: 8pt 10pt;
+            gap: 12pt;
+            margin-bottom: 16pt;
+        }
+        .a4-info-box {
+            flex: 1 1 0;
             background: #F4F6F9;
-            border-radius: 4pt;
-            font-size: 9pt;
+            border-radius: 5pt;
+            padding: 9pt 12pt;
         }
-        .a4-venta-info span { color: #8A9BB0; }
-        .a4-venta-info strong { color: #0D1B2A; font-weight: 600; }
-
-        /* ── Medios de pago ── */
-        .a4-pagos { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 14pt; }
-        .a4-pago-badge {
-            display: inline-block;
-            padding: 3pt 10pt;
-            background: #E8F4FD;
+        .a4-info-label {
+            font-size: 7.5pt;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .06em;
             color: #1E6FA8;
-            border-radius: 20pt;
-            font-size: 8.5pt;
-            font-weight: 600;
+            margin-bottom: 5pt;
         }
+        .a4-info-nombre { font-size: 10pt; font-weight: 700; margin-bottom: 2pt; }
+        .a4-info-dato   { font-size: 8.5pt; color: #4A5568; line-height: 1.5; }
+        .a4-info-cf     { font-size: 10pt; font-weight: 700; letter-spacing: .02em; }
 
         /* ── Tabla de ítems ── */
         .a4-table { width: 100%; border-collapse: collapse; margin-bottom: 14pt; font-size: 9.5pt; }
         .a4-table thead th {
             text-align: left;
-            padding: 7pt 8pt;
-            background: #1E6FA8;
-            color: #fff;
+            padding: 6pt 8pt;
+            border-bottom: 1.5px solid #0D1B2A;
+            color: #0D1B2A;
             font-size: 7.5pt;
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: .05em;
         }
-        .a4-table thead th:first-child { border-radius: 3pt 0 0 0; }
-        .a4-table thead th:last-child  { border-radius: 0 3pt 0 0; text-align: right; }
         .a4-table th:not(:first-child) { text-align: right; }
         .a4-table td {
             padding: 7pt 8pt;
@@ -149,8 +138,8 @@ function ticketHtmlA4(data) {
             vertical-align: top;
         }
         .a4-table td:not(:first-child) { text-align: right; }
-        .a4-table tbody tr:nth-child(even) { background: #FAFAFA; }
-        .a4-table tbody tr:last-child td   { border-bottom: 1px solid #0D1B2A; }
+        .a4-table tbody tr:nth-child(even) { background: #FAFBFC; }
+        .a4-table tbody tr:last-child td   { border-bottom: 1.5px solid #0D1B2A; }
 
         .a4-prod-nombre  { font-weight: 600; }
         .a4-prod-detalle { font-size: 8pt; color: #8A9BB0; margin-top: 2pt; }
@@ -158,17 +147,41 @@ function ticketHtmlA4(data) {
 
         /* ── Totales ── */
         .a4-totales { display: flex; justify-content: flex-end; margin-bottom: 16pt; }
-        .a4-totales-tabla { width: 230pt; font-size: 9.5pt; }
-        .a4-totales-tabla td { padding: 3pt 0; color: #4A5568; }
-        .a4-totales-tabla td:last-child { text-align: right; font-weight: 600; color: #0D1B2A; }
-        .a4-total-final td {
+        .a4-total-final-box {
+            width: 230pt;
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
             border-top: 1.5px solid #0D1B2A;
             padding-top: 8pt;
             font-size: 15pt;
             font-weight: 800;
-            color: #0D1B2A !important;
+            color: #0D1B2A;
         }
-        .a4-total-final td:last-child { color: #F26A1B !important; }
+        .a4-total-final-box span:last-child { color: #F26A1B; }
+        .a4-desglose-iva-row {
+            display: flex; justify-content: space-between;
+            font-size: 9pt; color: #5B6B82; padding: 1.5pt 0;
+        }
+
+        /* ── Forma de pago ── */
+        .a4-pago-box {
+            margin-bottom: 14pt;
+            padding: 9pt 12pt;
+            background: #F4F6F9;
+            border-radius: 5pt;
+        }
+        .a4-pagos { display: flex; gap: .5rem; flex-wrap: wrap; }
+        .a4-pago-badge {
+            display: inline-block;
+            padding: 3pt 10pt;
+            background: #fff;
+            border: 1px solid #D8E0EA;
+            color: #1E6FA8;
+            border-radius: 20pt;
+            font-size: 8.5pt;
+            font-weight: 600;
+        }
 
         /* ── Comprobante ARCA (CAE + QR) ── */
         .a4-comprobante {
@@ -218,7 +231,7 @@ function ticketHtmlA4(data) {
         @media print {
             html, body { width: auto; }
             body { padding: 0 22mm 20mm; }
-            .a4-topbar { margin: 0 -22mm 16pt; }
+            .a4-topbar { margin: 0 -22mm 18pt; }
             @page { size: A4; margin: 14mm 0; }
         }
     </style>
@@ -227,7 +240,7 @@ function ticketHtmlA4(data) {
 
     <div class="a4-topbar"></div>
 
-    <!-- Cabecera empresa -->
+    <!-- Cabecera: empresa + tipo de comprobante -->
     <div class="a4-header">
         <div>
             ${emp.logo_url ? `<img class="a4-logo" src="${_esc(emp.logo_url)}" alt="Logo">` : ''}
@@ -240,20 +253,26 @@ function ticketHtmlA4(data) {
             ${emp.condicion_iva? `<div class="a4-empresa-dato">IVA: ${_esc(emp.condicion_iva)}</div>` : ''}
         </div>
         <div class="a4-titulo-box">
-            <span class="a4-ticket-titulo${cbte ? '' : ' a4-titulo-simple'}">${cbte ? _esc(cbte.tipo_display) : 'Ticket de Venta'}</span>
+            <div class="a4-ticket-titulo${cbte ? '' : ' a4-titulo-simple'}">${cbte ? _esc(cbte.tipo_display) : 'Ticket de Venta'}</div>
             <div class="a4-ticket-numero">${cbte ? _esc(cbte.numero_display) : _esc(venta.numero)}</div>
             ${cbte ? `<div class="a4-ticket-interno">Venta interna ${_esc(venta.numero)}</div>` : ''}
+            <div class="a4-ticket-fecha">${_esc(venta.fecha_hora || venta.fecha)}</div>
         </div>
     </div>
 
-    <!-- Info de venta -->
-    <div class="a4-venta-info">
-        <span>Fecha: <strong>${_esc(venta.fecha)}</strong></span>
-        ${venta.confirmado_por ? `<span>Operador: <strong>${_esc(venta.confirmado_por)}</strong></span>` : '<span></span>'}
+    <!-- Datos del cliente + datos de la operación -->
+    <div class="a4-info-grid">
+        <div class="a4-info-box">
+            <div class="a4-info-label">Datos del cliente</div>
+            ${_a4Cliente(cliente)}
+        </div>
+        <div class="a4-info-box">
+            <div class="a4-info-label">Datos de la operación</div>
+            <div class="a4-info-dato">Fecha y hora: <strong style="color:#0D1B2A">${_esc(venta.fecha_hora || venta.fecha)}</strong></div>
+            ${venta.confirmado_por ? `<div class="a4-info-dato">Atendido por: <strong style="color:#0D1B2A">${_esc(venta.confirmado_por)}</strong></div>` : ''}
+            <div class="a4-info-dato">Líneas: <strong style="color:#0D1B2A">${items.length}</strong></div>
+        </div>
     </div>
-
-    <!-- Medios de pago -->
-    ${_a4Pagos(pagos, venta)}
 
     <!-- Tabla de ítems -->
     <table class="a4-table">
@@ -273,17 +292,17 @@ function ticketHtmlA4(data) {
 
     <!-- Totales -->
     <div class="a4-totales">
-        <table class="a4-totales-tabla">
-            <tr>
-                <td>Líneas</td>
-                <td>${items.length}</td>
-            </tr>
-            <tr class="a4-total-final">
-                <td>Total</td>
-                <td>$${_fmtNum(venta.total)}</td>
-            </tr>
-        </table>
+        <div style="width:230pt;">
+            ${_a4DesgloseIva(cbte)}
+            <div class="a4-total-final-box">
+                <span>Total</span>
+                <span>$${_fmtNum(venta.total)}</span>
+            </div>
+        </div>
     </div>
+
+    <!-- Forma de pago -->
+    ${_a4Pagos(pagos, venta)}
 
     <!-- Comprobante ARCA (CAE + QR) -->
     ${_a4Comprobante(cbte)}
@@ -311,6 +330,18 @@ function ticketHtmlA4(data) {
 
 /* ── Helpers internos ─────────────────────────────────────────── */
 
+function _a4Cliente(cliente) {
+    if (!cliente) {
+        return `<div class="a4-info-cf">Consumidor Final</div>`;
+    }
+    return `
+        <div class="a4-info-nombre">${_esc(cliente.nombre)}</div>
+        ${cliente.documento ? `<div class="a4-info-dato">${_esc(cliente.documento)}</div>` : ''}
+        ${cliente.direccion ? `<div class="a4-info-dato">${_esc(cliente.direccion)}</div>` : ''}
+        ${cliente.telefono  ? `<div class="a4-info-dato">Tel: ${_esc(cliente.telefono)}</div>` : ''}
+    `;
+}
+
 function _a4FilaItem(item) {
     const detalle = [
         item.marca   ? _esc(item.marca) : '',
@@ -334,6 +365,17 @@ function _a4FilaItem(item) {
     </tr>`;
 }
 
+// Factura A/B discrimina IVA (el receptor Responsable Inscripto lo necesita
+// para tomarse crédito fiscal) — Factura C nunca lo hizo y sigue igual.
+// tipo_comprobante: 1=A, 6=B, 11=C (core/services_arca/tipos.py / ventas/models.py TipoComprobante).
+function _a4DesgloseIva(cbte) {
+    if (!cbte || (cbte.tipo_comprobante !== 1 && cbte.tipo_comprobante !== 6)) return '';
+    return `
+        <div class="a4-desglose-iva-row"><span>Neto gravado</span><span>$${_fmtNum(cbte.importe_neto)}</span></div>
+        <div class="a4-desglose-iva-row"><span>IVA</span><span>$${_fmtNum(cbte.importe_iva)}</span></div>
+    `;
+}
+
 function _a4Comprobante(cbte) {
     if (!cbte) return '';
     return `<div class="a4-comprobante">
@@ -346,16 +388,28 @@ function _a4Comprobante(cbte) {
     </div>`;
 }
 
+function _a4PagoDetalle(p) {
+    const partes = [];
+    if (p.etiqueta_plan && Number(p.cantidad_pagos) > 1) partes.push(p.etiqueta_plan);
+    if (p.recargo_monto && parseFloat(p.recargo_monto) > 0) partes.push(`recargo ${p.recargo_pct}% ($${_fmtNum(p.recargo_monto)})`);
+    return partes.length ? ` (${partes.join(' — ')})` : '';
+}
+
 function _a4Pagos(pagos, venta) {
     if (pagos && pagos.length) {
-        const badges = pagos.map(p =>
-            `<span class="a4-pago-badge">${_esc(p.medio_display)}: $${_fmtNum(p.monto)}</span>`
-        ).join('');
-        return `<div class="a4-pagos">${badges}</div>`;
+        const badges = pagos.map(p => {
+            const tarjeta = p.tarjeta_nombre ? ` · ${_esc(p.tarjeta_nombre)}` : '';
+            return `<span class="a4-pago-badge">${_esc(p.medio_display)}${tarjeta}${_a4PagoDetalle(p)}: $${_fmtNum(p.monto)}</span>`;
+        }).join('');
+        return `<div class="a4-pago-box">
+            <div class="a4-info-label">Forma de pago</div>
+            <div class="a4-pagos">${badges}</div>
+        </div>`;
     }
     if (venta.medio_pago_display) {
-        return `<div class="a4-pagos">
-            <span class="a4-pago-badge">${_esc(venta.medio_pago_display)}</span>
+        return `<div class="a4-pago-box">
+            <div class="a4-info-label">Forma de pago</div>
+            <div class="a4-pagos"><span class="a4-pago-badge">${_esc(venta.medio_pago_display)}</span></div>
         </div>`;
     }
     return '';

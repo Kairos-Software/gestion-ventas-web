@@ -1,0 +1,448 @@
+<!-- core/templates/core/manual.html -->
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Manual de usuario{% endblock %}
+
+{% block breadcrumb %}<strong>Manual de usuario</strong>{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/manual.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="manual-page-header">
+    <h1>Manual de usuario</h1>
+    <p>Cómo usar cada herramienta del sistema paso a paso — con las advertencias que corresponden antes de hacer algo que no se puede deshacer.</p>
+</div>
+
+<div class="manual-shell">
+
+    <nav class="manual-toc" id="manualToc">
+        <a href="#seccion-primeros-pasos"><svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M2 8L10 2L18 8V17C18 17.55 17.55 18 17 18H13V13H7V18H3C2.45 18 2 17.55 2 17V8Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg> Primeros pasos</a>
+        <a href="#seccion-mi-perfil"><svg width="16" height="16" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="6" r="3.5" stroke="currentColor" stroke-width="1.4"/><path d="M2 16C2 12.69 5.13 10 9 10C12.87 10 16 12.69 16 16" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> Mi perfil</a>
+        <a href="#seccion-configuracion"><svg width="16" height="16" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="2.5" stroke="currentColor" stroke-width="1.4"/><path d="M9 1.5V3M9 15V16.5M1.5 9H3M15 9H16.5M3.4 3.4L4.5 4.5M13.5 13.5L14.6 14.6M3.4 14.6L4.5 13.5M13.5 4.5L14.6 3.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> Configuración</a>
+        <a href="#seccion-usuarios"><svg width="16" height="16" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="4.5" r="2.5" stroke="currentColor" stroke-width="1.3"/><path d="M2 13C2 10.24 4.69 8 8 8C11.31 8 14 10.24 14 13" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg> Usuarios y permisos</a>
+        <a href="#seccion-clientes"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="2.5" stroke="currentColor" stroke-width="1.3"/><path d="M2 14C2 11.24 4.69 9 8 9C11.31 9 14 11.24 14 14" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg> Clientes</a>
+        <a href="#seccion-catalogo"><svg width="16" height="16" viewBox="0 0 20 20" fill="none"><rect x="2" y="2" width="7" height="7" rx="1.2" stroke="currentColor" stroke-width="1.4"/><rect x="11" y="2" width="7" height="7" rx="1.2" stroke="currentColor" stroke-width="1.4"/><rect x="2" y="11" width="7" height="7" rx="1.2" stroke="currentColor" stroke-width="1.4"/><rect x="11" y="11" width="7" height="7" rx="1.2" stroke="currentColor" stroke-width="1.4"/></svg> Catálogo y productos</a>
+        <a href="#seccion-ventas"><svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M3 3H5L6.5 11.5C6.6 12 7.05 12.36 7.56 12.36H15.5C16 12.36 16.44 12 16.54 11.5L18 5H5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg> Ventas</a>
+        <a href="#seccion-compras"><svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M4 4H6L7.2 10.6C7.3 11.1 7.75 11.46 8.26 11.46H15C15.5 11.46 15.94 11.1 16.04 10.6L17.5 4H6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg> Compras</a>
+        <a href="#seccion-caja"><svg width="16" height="16" viewBox="0 0 20 20" fill="none"><rect x="2" y="5" width="16" height="11" rx="1.5" stroke="currentColor" stroke-width="1.4"/><circle cx="10" cy="10.5" r="2" stroke="currentColor" stroke-width="1.3"/></svg> Caja y finanzas</a>
+        <a href="#seccion-herramientas"><svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M12.8 2.7L17.3 7.2L7.8 16.7L3.3 17.2L3.8 12.7L12.8 2.7Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg> Herramientas rápidas</a>
+        <a href="#seccion-recomendaciones"><svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M10 2L18 16H2L10 2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M10 8V11.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="10" cy="13.8" r="0.6" fill="currentColor"/></svg> Recomendaciones</a>
+    </nav>
+
+    <div class="manual-content">
+
+        <!-- ═══════════ PRIMEROS PASOS ═══════════ -->
+        <section class="manual-section" id="seccion-primeros-pasos">
+            <div class="manual-section-header">
+                <div class="manual-section-icon" style="background:rgba(30,111,168,0.1); color:var(--brand-blue);">
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M2 8L10 2L18 8V17C18 17.55 17.55 18 17 18H13V13H7V18H3C2.45 18 2 17.55 2 17V8Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+                </div>
+                <div>
+                    <h2>Primeros pasos</h2>
+                    <p>Cómo está organizado el sistema</p>
+                </div>
+            </div>
+            <div class="manual-body">
+                <p>Todo se maneja desde el menú de la izquierda, agrupado por tema (Catálogo, Ventas, Compras, Finanzas, Personas). Tocá el nombre de un grupo para desplegarlo. El botón <span class="manual-ui">☰</span> arriba a la izquierda contrae el menú para ganar espacio; queda guardado para la próxima vez que entres.</p>
+
+                <details class="manual-accordion" open>
+                    <summary>Atajos de teclado</summary>
+                    <table class="manual-table">
+                        <tbody>
+                            <tr><td><span class="manual-kbd">CTRL + ALT + B</span></td><td>Contador de billetes</td></tr>
+                            <tr><td><span class="manual-kbd">CTRL + ALT + U</span></td><td>Calculadora de vuelto</td></tr>
+                        </tbody>
+                    </table>
+                    <p class="manual-tip">Estas herramientas son flotantes: no bloquean la pantalla, se pueden mover arrastrando el título y quedar abiertas mientras seguís trabajando en otra cosa.</p>
+                </details>
+
+                <details class="manual-accordion">
+                    <summary>Buscar productos con lector de código de barras</summary>
+                    <p>En Nueva Venta y Nueva Compra el buscador acepta tanto texto (nombre, código, SKU) como lectura directa de un lector de código de barras. Si hay un único resultado, apretar <span class="manual-ui">Enter</span> lo agrega directo al carrito sin necesidad de hacer clic — pensado para trabajar con lector en mano. <span class="manual-ui">Escape</span> cierra el desplegable de resultados.</p>
+                </details>
+            </div>
+        </section>
+
+        <!-- ═══════════ MI PERFIL ═══════════ -->
+        <section class="manual-section" id="seccion-mi-perfil">
+            <div class="manual-section-header">
+                <div class="manual-section-icon" style="background:rgba(30,111,168,0.1); color:var(--brand-blue);">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="6" r="3.5" stroke="currentColor" stroke-width="1.4"/><path d="M2 16C2 12.69 5.13 10 9 10C12.87 10 16 12.69 16 16" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+                </div>
+                <div>
+                    <h2>Mi perfil</h2>
+                    <p>Cambiar tu usuario o tu contraseña</p>
+                </div>
+            </div>
+            <div class="manual-body">
+                <p>Se accede desde tu avatar (arriba a la derecha) → <span class="manual-ui">Mi perfil</span>.</p>
+
+                <h3>Cambiar tu nombre de usuario</h3>
+                <ol class="manual-steps">
+                    <li><div>En la tarjeta <strong>"Cambiar nombre de usuario"</strong>, escribí el nuevo valor en el campo <strong>Nuevo nombre de usuario</strong>.</div></li>
+                    <li><div>Tocá <span class="manual-ui">Guardar</span>. Es el único campo, no hace falta reingresar tu contraseña.</div></li>
+                </ol>
+                <p class="manual-tip">La próxima vez que inicies sesión vas a tener que usar el nombre de usuario nuevo, no el viejo — anotalo si lo cambiás vos mismo a un usuario de otra persona.</p>
+
+                <h3>Cambiar tu contraseña</h3>
+                <ol class="manual-steps">
+                    <li><div>En la tarjeta <strong>"Cambiar contraseña"</strong>, completá <strong>Contraseña actual</strong> (te la va a pedir siempre, aunque seas superusuario).</div></li>
+                    <li><div>Completá <strong>Contraseña nueva</strong> (mínimo 8 caracteres) y repetila en <strong>Confirmá la contraseña</strong>. El ícono del ojo en cada campo permite mostrarla mientras la escribís para revisar que no haya errores de tipeo.</div></li>
+                    <li><div>Tocá <span class="manual-ui">Actualizar contraseña</span>.</div></li>
+                </ol>
+
+                <p class="manual-tip">Esta pantalla es para cambiar <strong>tu propia</strong> contraseña. Si necesitás resetear la contraseña de otro empleado porque la olvidó, eso se hace desde <a href="#seccion-usuarios">Usuarios y permisos</a>, no acá.</p>
+            </div>
+        </section>
+
+        <!-- ═══════════ CONFIGURACIÓN ═══════════ -->
+        <section class="manual-section" id="seccion-configuracion">
+            <div class="manual-section-header">
+                <div class="manual-section-icon" style="background:rgba(16,185,129,0.1); color:var(--success);">
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="2.5" stroke="currentColor" stroke-width="1.4"/><path d="M9 1.5V3M9 15V16.5M1.5 9H3M15 9H16.5M3.4 3.4L4.5 4.5M13.5 13.5L14.6 14.6M3.4 14.6L4.5 13.5M13.5 4.5L14.6 3.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+                </div>
+                <div>
+                    <h2>Configuración</h2>
+                    <p>Empresa, facturación electrónica y cuentas de caja</p>
+                </div>
+            </div>
+            <div class="manual-body">
+                <p>Se accede desde tu avatar → <span class="manual-ui">Configuración</span>. Solo quien tiene el permiso correspondiente puede editar cada sección; el resto la ve en modo lectura.</p>
+
+                <h3>Datos de la empresa</h3>
+                <p>Se usan en el ticket de venta. Campos: <strong>Nombre comercial</strong> (obligatorio), Razón social, CUIT, Condición frente al IVA, Domicilio comercial, Teléfono, Email, y el Logo (JPG/PNG/WEBP, máximo 5&nbsp;MB). Tocá <span class="manual-ui">Guardar cambios</span> al terminar.</p>
+                <p class="manual-tip">Cargá el CUIT acá antes de tocar Facturación Electrónica — lo necesita para generar el certificado, y si falta el sistema te lo va a pedir igual.</p>
+
+                <h3>Facturación electrónica (ARCA)</h3>
+                <p>Es la sección más delicada de Configuración. Sirve para emitir comprobantes con CAE (factura electrónica válida). Hasta que la actives, el sistema sigue funcionando normalmente con tickets internos — no es un requisito para vender.</p>
+                <p class="manual-tip">Empezá siempre probando en <strong>Testing</strong> (Homologación) y pasá a <strong>Producción</strong> recién cuando una venta de prueba te haya funcionado bien de punta a punta.</p>
+
+                <p><strong>Paso 1 — Generar la clave y el CSR</strong> (botón <span class="manual-ui">Generar CSR</span>, en la tarjeta "Generar clave y CSR — recomendado, sin terminal"):</p>
+                <ol class="manual-steps">
+                    <li><div>Necesitás tener el CUIT cargado en "Datos de la empresa"; si falta, el sistema te va a avisar: <span class="manual-quote">"Cargá primero el CUIT en 'Datos de la empresa' — el CSR lo necesita."</span></div></li>
+                    <li><div>El sistema te va a pedir escribir <strong>GENERAR</strong> (en mayúsculas) para confirmar — no alcanza con un botón de "Aceptar". Si ya tenías un certificado cargado, te avisa antes: <span class="manual-quote">"Ya tenés un certificado cargado. Generar uno nuevo lo invalida de inmediato — vas a tener que rehacer el trámite en ARCA para volver a usarlo."</span></div></li>
+                    <li><div>Con el CSR generado, descargalo con <span class="manual-ui">Descargar archivo .csr</span> — es lo que vas a subir en el sitio de ARCA más adelante.</div></li>
+                </ol>
+                <p class="manual-warning"><strong>Guardá la clave privada en ese momento.</strong> El sistema la muestra <strong>una única vez</strong>, justo después de generarla, y nunca se vuelve a ver. Usá el botón <span class="manual-ui">Descargar copia de respaldo (CSR + clave)</span> y guardá ese archivo en un lugar seguro (por ejemplo un gestor de contraseñas). Si generás un CSR nuevo más adelante, la clave anterior se pierde para siempre.</p>
+
+                <p><strong>Paso 2 — Trámite en ARCA (sitio externo, fuera de este sistema)</strong>:</p>
+                <ol class="manual-steps">
+                    <li><div>Entrá a <strong>arca.gob.ar</strong> con tu Clave Fiscal (nivel 3) → <strong>Administrador de Relaciones de Clave Fiscal</strong> → "Adherir Servicio" → ARCA → "Servicios Interactivos" → confirmá <strong>WSASS</strong>.</div></li>
+                    <li><div>Cerrá sesión y volvé a entrar. Andá a <strong>WSASS</strong> → <strong>"Nuevo Certificado"</strong> → pegá el contenido del archivo .csr que descargaste. ARCA te devuelve un certificado (.crt) — copialo.</div></li>
+                    <li><div>En WSASS: <strong>"Crear autorización a servicio"</strong> → elegí un alias → CUIT representado propio → servicio <strong>"wsfe"</strong> → confirmar.</div></li>
+                </ol>
+
+                <p><strong>Paso 3 — Cargar el certificado en el sistema</strong>:</p>
+                <ol class="manual-steps">
+                    <li><div>Pegá el certificado que te dio ARCA en el campo <strong>Certificado (.crt)</strong>. Dejá el campo <strong>Clave privada — solo para uso avanzado</strong> vacío: la clave ya quedó guardada cuando generaste el CSR desde acá.</div></li>
+                    <li><div>Elegí Ambiente <strong>Testing</strong>, activá el toggle <strong>Habilitada</strong> y tocá <span class="manual-ui">Guardar cambios</span>.</div></li>
+                    <li><div>Tocá <span class="manual-ui">Probar conexión</span> — tiene que responder algo como <em>"Conexión OK (Testing) — AppServer: OK, DbServer: OK, AuthServer: OK"</em>. Si no hay certificado cargado te va a avisar: <span class="manual-quote">"Todavía no cargaste un certificado."</span></div></li>
+                    <li><div>Hacé una venta de prueba y facturala — en Testing el CAE que te da es válido solo para probar, no tiene valor fiscal real.</div></li>
+                </ol>
+
+                <p><strong>Paso 4 — Pasar a Producción</strong> (recién cuando el Testing funcionó): repetí el trámite en ARCA pero en <strong>Administrador de Certificados Digitales</strong> (podés reusar el mismo .csr, no hace falta generar uno nuevo), autorizá el certificado nuevo para Facturación Electrónica desde <strong>Administrador de Relaciones de Clave Fiscal</strong>, y si el punto de venta no está habilitado como "Web Service" activalo desde <strong>Comprobantes en línea</strong>. Volvé acá, pegá el certificado de Producción y cambiá el Ambiente a <strong>Producción</strong>.</p>
+                <p class="manual-warning">En Producción, cada comprobante que emitas es real y queda registrado en ARCA — no se puede "probar" ahí. Verificá el Punto de venta (tiene que ser mayor a 0 y coincidir con el que habilitaste en ARCA) antes de facturar la primera venta real.</p>
+
+                <h3>Cuentas de caja</h3>
+                <p>Tarjetas, billeteras virtuales y cuentas bancarias, además del efectivo (que se gestiona solo y no aparece acá). Cada cuenta que agregués queda disponible como forma de pago en Ventas y Compras.</p>
+                <ol class="manual-steps">
+                    <li><div>Tocá <span class="manual-ui">+ Nueva cuenta</span>.</div></li>
+                    <li><div>Completá <strong>Nombre</strong> (ej: "Mercado Pago", "Banco Galicia"), <strong>Moneda</strong>, y opcionalmente Titular y los últimos dígitos/alias.</div></li>
+                    <li><div>Si es una tarjeta de crédito, tildá <strong>"Es tarjeta de crédito"</strong> — aparecen los campos <strong>Día de cierre</strong> y <strong>Día de vencimiento</strong>.</div></li>
+                    <li><div>Tocá <span class="manual-ui">Guardar</span>.</div></li>
+                </ol>
+                <p>No hay forma de borrar una cuenta definitivamente: si ya no la usás, tocá <span class="manual-ui">Dar de baja</span> en su fila — queda oculta como opción de pago pero conserva todo su historial. Se puede <span class="manual-ui">Reactivar</span> en cualquier momento.</p>
+            </div>
+        </section>
+
+        <!-- ═══════════ USUARIOS Y PERMISOS ═══════════ -->
+        <section class="manual-section" id="seccion-usuarios">
+            <div class="manual-section-header">
+                <div class="manual-section-icon" style="background:rgba(30,111,168,0.1); color:var(--brand-blue);">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="4.5" r="2.5" stroke="currentColor" stroke-width="1.3"/><path d="M2 13C2 10.24 4.69 8 8 8C11.31 8 14 10.24 14 13" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                </div>
+                <div>
+                    <h2>Usuarios y permisos</h2>
+                    <p>Quién entra al sistema y qué puede tocar cada uno</p>
+                </div>
+            </div>
+            <div class="manual-body">
+                <p>Se accede desde Personas → <strong>Usuarios del sistema</strong>.</p>
+
+                <h3>Crear un usuario nuevo</h3>
+                <ol class="manual-steps">
+                    <li><div>Tocá <span class="manual-ui">+ Nuevo usuario</span>. Se abre un formulario con varias pestañas de datos (personales, laborales, contacto), pero al crear <strong>solo son obligatorios Usuario y Contraseña</strong> — el resto lo podés completar después.</div></li>
+                    <li><div>Completá <strong>Usuario</strong>, <strong>Contraseña</strong> y <strong>Confirmar contraseña</strong>, y asignale un <strong>Rol del sistema</strong> (define sus permisos por defecto).</div></li>
+                    <li><div>Guardá. El nuevo usuario ya puede iniciar sesión con esas credenciales.</div></li>
+                </ol>
+
+                <h3>Editar, resetear contraseña o dar de baja</h3>
+                <p>Cada fila de la lista tiene botones <span class="manual-ui">Editar</span>, <span class="manual-ui">Permisos</span> y <span class="manual-ui">Eliminar</span> (según tus propios permisos). Para resetear la contraseña de alguien que la olvidó, entrá en <span class="manual-ui">Editar</span> y cargá una nueva ahí — no hace falta saber la anterior, a diferencia de cuando cada usuario cambia la suya propia desde Mi perfil.</p>
+                <p class="manual-warning"><span class="manual-ui">Eliminar</span> borra el usuario del sistema; esa persona deja de poder iniciar sesión de inmediato. Si solo querés que no pueda entrar por un tiempo (vacaciones, licencia) sin perder su historial, marcalo como inactivo desde Editar en vez de eliminarlo.</p>
+
+                <h3>Permisos por usuario</h3>
+                <p>Desde <span class="manual-ui">Permisos</span> en la fila de un usuario entrás a una pantalla con un interruptor por cada permiso, agrupados por módulo. Cada permiso tiene una etiqueta que indica de dónde viene:</p>
+                <ul class="manual-list">
+                    <li><strong>ROL</strong>: lo tiene porque su rol lo incluye.</li>
+                    <li><strong>OVERRIDE ✓ / OVERRIDE ✗</strong>: es una excepción individual para ese usuario puntual, distinta de lo que dice su rol.</li>
+                    <li>Un candado 🔒 en el permiso significa que vos no se lo podés dar: o es un permiso restringido a superusuarios, o vos mismo no lo tenés (no se puede otorgar lo que uno no tiene).</li>
+                </ul>
+                <p>Tocá los interruptores que necesites cambiar y confirmá con <span class="manual-ui">Guardar permisos</span>. Los botones <span class="manual-ui">Seleccionar todo</span> / <span class="manual-ui">Deseleccionar todo</span> son atajos, pero conviene revisar antes de usarlos.</p>
+                <p class="manual-warning">Dale a cada usuario solo lo que necesita para su tarea. Los permisos para editar la empresa o las cuentas de caja son especialmente sensibles: quien los tiene puede cambiar datos que afectan la facturación y el dinero de todo el negocio.</p>
+            </div>
+        </section>
+
+        <!-- ═══════════ CLIENTES ═══════════ -->
+        <section class="manual-section" id="seccion-clientes">
+            <div class="manual-section-header">
+                <div class="manual-section-icon" style="background:rgba(30,111,168,0.1); color:var(--brand-blue);">
+                    <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="2.5" stroke="currentColor" stroke-width="1.3"/><path d="M2 14C2 11.24 4.69 9 8 9C11.31 9 14 11.24 14 14" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                </div>
+                <div>
+                    <h2>Clientes</h2>
+                    <p>Tu base de contactos, la que después buscás al vender</p>
+                </div>
+            </div>
+            <div class="manual-body">
+                <ol class="manual-steps">
+                    <li><div>En Personas → Clientes, tocá <span class="manual-ui">+ Nuevo cliente</span>.</div></li>
+                    <li><div>Completá los datos que tengas — nombre, teléfonos, dirección. Nada es obligatorio salvo lo básico para identificarlo.</div></li>
+                    <li><div>Si convive con otros clientes ya cargados (mismo grupo familiar o dirección), buscalo en <strong>Grupo familiar</strong> y vinculalo, o creá uno nuevo con <span class="manual-ui">+ Crear nuevo grupo familiar</span>.</div></li>
+                    <li><div>Tocá <span class="manual-ui">Guardar cliente</span>.</div></li>
+                </ol>
+                <p class="manual-warning">Eliminar un cliente <span class="manual-quote">"no se puede deshacer"</span> — es el texto exacto que muestra el sistema al confirmar. Si tiene ventas en cuotas asociadas, mejor no lo elimines: se pierde la trazabilidad de esa deuda.</p>
+                <p class="manual-tip">Cargá bien el DNI o teléfono de tus clientes habituales — es lo que usás para encontrarlos rápido en el buscador de Nueva Venta cuando vendas en cuotas.</p>
+            </div>
+        </section>
+
+        <!-- ═══════════ CATÁLOGO Y PRODUCTOS ═══════════ -->
+        <section class="manual-section" id="seccion-catalogo">
+            <div class="manual-section-header">
+                <div class="manual-section-icon" style="background:rgba(242,106,27,0.1); color:var(--brand-orange);">
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="2" y="2" width="7" height="7" rx="1.2" stroke="currentColor" stroke-width="1.4"/><rect x="11" y="2" width="7" height="7" rx="1.2" stroke="currentColor" stroke-width="1.4"/><rect x="2" y="11" width="7" height="7" rx="1.2" stroke="currentColor" stroke-width="1.4"/><rect x="11" y="11" width="7" height="7" rx="1.2" stroke="currentColor" stroke-width="1.4"/></svg>
+                </div>
+                <div>
+                    <h2>Catálogo y productos</h2>
+                    <p>Productos, stock, ofertas y el catálogo público</p>
+                </div>
+            </div>
+            <div class="manual-body">
+
+                <h3>Dar de alta un producto</h3>
+                <ol class="manual-steps">
+                    <li><div>En Catálogo → Productos, tocá <span class="manual-ui">Nuevo producto</span>. El único campo realmente obligatorio es el <strong>Nombre del producto</strong>; el resto está organizado en pestañas (Identificación, Clasificación, Precios, Logística, Variantes, Imágenes, Características, Notas) para completar con calma.</div></li>
+                    <li><div>En <strong>Identificación</strong>, elegí bien la <strong>Unidad de medida</strong> (Unidad, Kilogramo, Gramo, Litro...) — es lo que define cómo se cuenta el stock en todo el sistema y si el producto puede venderse por peso en la Balanza.</div></li>
+                    <li><div>En <strong>Precios</strong>, elegí <strong>Manual</strong> (vos cargás el precio) o <strong>Automático (costo + % ganancia)</strong>.</div></li>
+                    <li><div>En <strong>Logística</strong>, cargá el <strong>Stock mínimo</strong> — es el número que dispara la alerta de "stock bajo" en el Dashboard y en la pantalla de Stock.</div></li>
+                    <li><div>Tocá <span class="manual-ui">Guardar producto</span>. Recién después de guardar podés subir imágenes o cargar combinaciones de variantes — el sistema te lo va a recordar si intentás antes.</div></li>
+                </ol>
+                <p class="manual-warning">Eliminar un producto borra también todas sus imágenes y <span class="manual-quote">"no se puede deshacer"</span>. Si el producto dejó de venderse pero tiene historial de ventas o stock, marcalo como <strong>Inactivo</strong> o <strong>Discontinuado</strong> en vez de eliminarlo.</p>
+
+                <h3>Variantes (color, talle, sabor…)</h3>
+                <p>Tildá <strong>"Gestionar variantes"</strong> en la pestaña Variantes. El stock pasa a llevarse por separado para cada combinación (por ejemplo, "Remera roja talle M" y "Remera roja talle L" tienen cada una su propio stock).</p>
+                <p class="manual-warning">Si el producto ya tenía movimientos de stock antes de activar variantes, el sistema avisa: <span class="manual-quote">"Este producto ya tiene movimientos de stock registrados. Al activar variantes, el stock actual quedará en el producto y deberás asignarlo manualmente a las combinaciones."</span> Hacelo con el producto recién creado, antes de vender, para evitar tener que repartir stock a mano.</p>
+
+                <h3>Ajustar stock</h3>
+                <p>En Catálogo → Stock, tocá <span class="manual-ui">Ajustar</span> en la fila del producto. Primero elegís qué querés hacer:</p>
+                <ul class="manual-list">
+                    <li><strong>Sumar unidades</strong>: encontraste más stock del registrado (conteo físico, error previo).</li>
+                    <li><strong>Restar unidades</strong>: hay menos stock del registrado (rotura, pérdida, merma).</li>
+                </ul>
+                <p class="manual-warning">El campo <strong>Cantidad a ajustar</strong> pide la <strong>diferencia</strong>, no el stock total. El sistema lo aclara textualmente: <span class="manual-quote">"Ingresá la diferencia, no el stock total. Ej: si tenés 8 y el sistema dice 5, ponés 3."</span> Poner el total ahí por error duplica o vacía el stock.</p>
+
+                <h3>Paquetes</h3>
+                <p>Un paquete combina varios productos y se vende como una unidad, pero no tiene stock propio: al venderlo, descuenta en el momento el stock real de cada componente. Se crean desde <span class="manual-ui">Nuevo paquete</span>, eligiendo nombre, precio y buscando los productos componentes; el código de barras se genera solo al guardar.</p>
+
+                <h3>Ofertas</h3>
+                <p>Desde <span class="manual-ui">Nueva oferta</span>, elegís uno de tres tipos:</p>
+                <ul class="manual-list">
+                    <li><strong>Descuento %</strong>: un porcentaje fijo sobre el precio.</li>
+                    <li><strong>Llevá X, pagá Y</strong>: el clásico 2x1, 3x2.</li>
+                    <li><strong>Gastá $X o más</strong>: descuento sobre el total de toda la venta a partir de un monto mínimo.</li>
+                </ul>
+                <p>Con <strong>Aplicación: Automática</strong> se aplica sola al armar el carrito; con <strong>Manual</strong> el vendedor la elige a mano en Nueva Venta. Podés limitarla a ciertos días de la semana, categorías o productos puntuales.</p>
+
+                <h3>Proveedores</h3>
+                <p>Desde <span class="manual-ui">+ Nuevo proveedor</span>: solo el <strong>Nombre/Razón social</strong> es obligatorio; el resto (CUIT, contacto, dirección, condición de pago) es opcional. Eliminar un proveedor también avisa que <span class="manual-quote">"no se puede deshacer"</span>.</p>
+
+                <h3>Catálogo online (lo que ven tus clientes)</h3>
+                <p>Desde Catálogo online podés elegir la <strong>Plantilla</strong> visual (con vista previa en vivo), editar los <strong>Textos</strong> ("Sobre nosotros"), el <strong>Hero</strong> (imagen y título principal de portada) y, según la plantilla, un <strong>Carrusel</strong> de hasta 6 slides. La vista previa de la derecha usa tus productos y precios reales — es de solo lectura, se actualiza mientras escribís. No olvides <span class="manual-ui">Guardar cambios</span> al terminar: nada se publica automáticamente mientras editás.</p>
+
+                <h3>Inventario: lotes, pérdidas y fraccionamiento</h3>
+                <p>En Catálogo → Inventario tenés el estado de tus lotes (vigentes, por vencer, vencidos). <span class="manual-ui">Registrar pérdida</span> descuenta stock por rotura o daño con motivo. <span class="manual-ui">Fraccionar producto</span> convierte stock de un producto a granel en unidades empaquetadas de otro producto — el sistema aclara: <span class="manual-quote">"La compra original no se toca — esto es una transformación aparte, con su propio historial."</span></p>
+            </div>
+        </section>
+
+        <!-- ═══════════ VENTAS ═══════════ -->
+        <section class="manual-section" id="seccion-ventas">
+            <div class="manual-section-header">
+                <div class="manual-section-icon" style="background:rgba(16,185,129,0.1); color:var(--success);">
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M3 3H5L6.5 11.5C6.6 12 7.05 12.36 7.56 12.36H15.5C16 12.36 16.44 12 16.54 11.5L18 5H5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <div>
+                    <h2>Ventas</h2>
+                    <p>Cómo cobrar una venta paso a paso, y qué hacer si algo salió mal</p>
+                </div>
+            </div>
+            <div class="manual-body">
+
+                <h3>Hacer una venta</h3>
+                <ol class="manual-steps">
+                    <li><div>En Ventas → Nueva Venta, buscá cada producto en el campo <em>"Escaneá un producto o un código de lote, o buscá por nombre/código…"</em> y agregalo a la tabla. Si escaneás una etiqueta de <a href="#seccion-herramientas-balanza">Balanza</a>, la cantidad y el precio quedan fijos, no se pueden editar a mano.</div></li>
+                    <li><div>Si el producto tiene una lista de descuento o una oferta vigente, elegilas en las columnas <strong>Lista</strong> u <strong>Oferta</strong> de esa fila (son excluyentes entre sí: elegir una reemplaza a la otra).</div></li>
+                    <li><div>Si la venta es para un cliente puntual (sobre todo si va a ser en cuotas), buscalo en el campo <strong>Cliente</strong>. Si no cargás ninguno, la venta queda a nombre de <strong>Consumidor Final</strong> automáticamente.</div></li>
+                    <li><div>Tocá <span class="manual-ui">Continuar al detalle</span> (aparece habilitado recién con al menos un ítem cargado).</div></li>
+                    <li><div>En el Detalle de venta, elegí el <strong>medio de pago</strong>. Si usás más de uno (por ejemplo mitad efectivo, mitad tarjeta), tocá <span class="manual-ui">+ Agregar otro medio</span> — el sistema te muestra cuánto falta cubrir hasta llegar al total.</div></li>
+                    <li><div>Tocá <span class="manual-ui">Confirmar venta</span>. Recién ahí se descuenta el stock de verdad.</div></li>
+                </ol>
+
+                <p class="manual-warning"><strong>No se puede vender en cuotas a Consumidor Final.</strong> Si no vinculaste un cliente real y único a la venta, la opción "Cuotas" directamente no aparece como medio de pago — el sistema lo explica así: <span class="manual-quote">"Para vender en cuotas la venta necesita un único cliente vinculado (no se le puede vender en cuotas a Consumidor Final)."</span> Elegí el cliente <strong>antes</strong> de llegar al detalle de pago.</p>
+                <p>Vender en cuotas genera automáticamente una <strong>Cuenta por Cobrar</strong> (ver <a href="#seccion-caja">Caja y finanzas</a>) — ninguna cuota impacta la caja hasta que la vayas confirmando cobrada.</p>
+
+                <h3>Si te equivocaste antes de confirmar</h3>
+                <p>Mientras la venta es un <strong>borrador</strong> (todavía no la confirmaste), <span class="manual-ui">Cancelar venta</span> la borra por completo. El sistema pide confirmación con este texto exacto: <span class="manual-quote">"¿Cancelar esta venta? El borrador y sus ítems se van a borrar."</span> Es distinto de <strong>Anular</strong>, que se explica abajo.</p>
+
+                <h3>Anular o eliminar una venta ya confirmada</h3>
+                <p>Desde Ventas → Historial, cada venta confirmada tiene botones <span class="manual-ui">Anular</span> y (según permisos) <span class="manual-ui">Eliminar</span>. Son cosas distintas:</p>
+                <ul class="manual-list">
+                    <li><strong>Anular</strong>: revierte el stock de todos los ítems y deja la venta marcada como anulada, pero <strong>se puede volver a editar y confirmar después</strong>. Texto exacto de confirmación: <span class="manual-quote">"Esta venta está confirmada. Al anularla se revertirá el stock de todos sus ítems. Luego podrás editarla y volver a confirmarla."</span></li>
+                    <li><strong>Eliminar</strong>: la borra directamente del historial, sin dejar rastro. Es irreversible: <span class="manual-quote">"¿Estás seguro? Esta acción no se puede deshacer."</span> Si estaba confirmada, también revierte el stock antes de borrarla.</li>
+                </ul>
+                <p class="manual-tip">Ante un error en una venta confirmada, preferí <strong>Anular</strong> a <strong>Eliminar</strong>: mantiene el registro de que existió y te deja corregirla y volver a confirmarla.</p>
+
+                <h3 id="seccion-herramientas-balanza">Balanza (productos que se venden por peso)</h3>
+                <p>En Ventas → Balanza: elegí el producto (tiene que estar configurado con una unidad de peso/volumen fraccionable, ver <a href="#seccion-catalogo">Catálogo</a>), cargá la <strong>Cantidad pesada / medida</strong> y tocá <span class="manual-ui">Generar etiqueta</span>. Se genera un código de barras único — imprimilo y pegalo en la bolsa; en caja alcanza con escanearlo en Nueva Venta y la cantidad/precio se cargan solos.</p>
+                <p>Si pesaste mal, no se edita: tocá <span class="manual-ui">Anular</span> en el historial de etiquetas y volvé a pesar. El sistema avisa: <span class="manual-quote">"¿Anular la etiqueta &lt;código&gt;? Vas a tener que pesar el producto de nuevo si te equivocaste."</span></p>
+            </div>
+        </section>
+
+        <!-- ═══════════ COMPRAS ═══════════ -->
+        <section class="manual-section" id="seccion-compras">
+            <div class="manual-section-header">
+                <div class="manual-section-icon" style="background:rgba(59,130,246,0.1); color:var(--info);">
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M4 4H6L7.2 10.6C7.3 11.1 7.75 11.46 8.26 11.46H15C15.5 11.46 15.94 11.1 16.04 10.6L17.5 4H6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <div>
+                    <h2>Compras</h2>
+                    <p>Registrar mercadería que entra al negocio</p>
+                </div>
+            </div>
+            <div class="manual-body">
+                <ol class="manual-steps">
+                    <li><div>En Compras → Nueva Compra, buscá cada producto y agregalo al carrito. A diferencia de Ventas, acá el <strong>Proveedor</strong> se elige por cada línea, no una sola vez para todo el carrito.</div></li>
+                    <li><div>Cargá costo, cantidad y — si el producto lo requiere — la fecha de <strong>Vencimiento</strong> del lote.</div></li>
+                    <li><div>Tocá <span class="manual-ui">Continuar al detalle</span>, elegí el medio de pago (si es con tarjeta de crédito, vas a tener que indicar cuotas, interés e inicio de débito) y tocá <span class="manual-ui">Confirmar compra</span>. Ahí se suma el stock de verdad.</div></li>
+                </ol>
+                <p class="manual-warning"><span class="manual-ui">Cancelar compra</span> (mientras es borrador) borra todo lo cargado: <span class="manual-quote">"¿Cancelar esta compra? El borrador y todos los productos cargados se van a perder."</span> Igual que en Ventas, una vez confirmada usá <span class="manual-ui">Anular</span> (revierte el stock, se puede corregir y reconfirmar) en vez de <span class="manual-ui">Eliminar</span> (irreversible) si fue un error.</p>
+            </div>
+        </section>
+
+        <!-- ═══════════ CAJA Y FINANZAS ═══════════ -->
+        <section class="manual-section" id="seccion-caja">
+            <div class="manual-section-header">
+                <div class="manual-section-icon" style="background:rgba(242,106,27,0.1); color:var(--brand-orange);">
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="2" y="5" width="16" height="11" rx="1.5" stroke="currentColor" stroke-width="1.4"/><circle cx="10" cy="10.5" r="2" stroke="currentColor" stroke-width="1.3"/></svg>
+                </div>
+                <div>
+                    <h2>Caja y finanzas</h2>
+                    <p>Abrir/cerrar el turno, cobrar cuotas y manejar cheques</p>
+                </div>
+            </div>
+            <div class="manual-body">
+
+                <h3>Abrir el turno de caja</h3>
+                <ol class="manual-steps">
+                    <li><div>En Finanzas → Caja diaria, si no hay turno abierto vas a ver <span class="manual-ui">Abrir Turno</span>.</div></li>
+                    <li><div>Cargá el <strong>Efectivo inicial</strong> de cada caja registradora física que tengas abierta. Si tenés más de una, tocá <span class="manual-ui">Agregar otra caja</span> — siempre tiene que quedar al menos una fila.</div></li>
+                    <li><div>Confirmá con <span class="manual-ui">Abrir Turno</span>. A partir de ahí ya podés vender.</div></li>
+                </ol>
+
+                <h3>Cerrar el turno</h3>
+                <ol class="manual-steps">
+                    <li><div>Tocá <span class="manual-ui">Cerrar Turno</span>. Contá el efectivo real que hay en cada caja física y cargalo en <strong>Efectivo final por caja</strong> (una fila por cada caja que declaraste al abrir).</div></li>
+                    <li><div>El sistema te muestra en vivo el <strong>Efectivo esperado</strong> (ventas + inicial) contra lo que declaraste, y la diferencia.</div></li>
+                    <li><div>Anotá cualquier observación en <strong>Notas</strong> y confirmá con <span class="manual-ui">Cerrar Turno</span>.</div></li>
+                </ol>
+                <p class="manual-warning">El sistema <strong>nunca bloquea el cierre</strong> aunque el efectivo contado no coincida con lo esperado — se puede cerrar igual con diferencia. Si hay una diferencia de $0.01 o más, vas a ver un aviso como: <span class="manual-quote">"¡Atención! En el turno #&lt;n&gt; {sobra/falta} &lt;monto&gt; en efectivo respecto de lo esperado. Revisar con urgencia."</span> Esa diferencia queda registrada en el Historial de Turnos — no la ignores, revisala apenas puedas.</p>
+                <p>El efectivo es el único medio que hay que contar a mano al cerrar: transferencias, tarjetas y demás ya impactaron la cuenta correspondiente al confirmarse cada venta.</p>
+
+                <h3>Cobrar una cuota (Cuentas por cobrar)</h3>
+                <p>Esta pantalla no tiene alta manual: las cuentas por cobrar nacen solas cuando confirmás una venta en cuotas (ver <a href="#seccion-ventas">Ventas</a>).</p>
+                <ol class="manual-steps">
+                    <li><div>En Finanzas → Cuentas por cobrar, tocá <span class="manual-ui">Ver cuotas</span> en la fila del cliente.</div></li>
+                    <li><div>Buscá la cuota que te está pagando, elegí en qué <strong>cuenta</strong> entra ese dinero (efectivo, transferencia, etc. — si no elegís cuenta, el sistema avisa: <span class="manual-quote">"Elegí la cuenta a la que entra el cobro."</span>) y tocá <span class="manual-ui">Confirmar</span>.</div></li>
+                    <li><div>Si el cliente te paga una cuota antes de su fecha de vencimiento, el botón dice <span class="manual-ui">Adelantar cobro</span> en vez de Confirmar — funciona igual.</div></li>
+                </ol>
+                <p class="manual-tip">Ninguna cuota impacta la caja hasta que la confirmás cobrada acá — si el cliente pagó pero no lo cargás, tu caja va a estar "esperando" ese dinero que en la realidad ya recibiste.</p>
+
+                <h3>Ingresos y egresos</h3>
+                <p>Para movimientos manuales que no son venta ni compra (sueldos, alquiler, retiros). Tocá <span class="manual-ui">Nuevo movimiento</span>, elegí <strong>Ingreso</strong> o <strong>Egreso</strong>, la cuenta y el monto.</p>
+
+                <h3>Transacciones entre cuentas</h3>
+                <p>Para mover dinero entre tus propias cuentas: depósito bancario, extracción, transferencia entre cuentas, o compra/venta de divisa (con su precio por unidad y costo extra si aplica). <span class="manual-ui">Anular transacción</span> es irreversible: <span class="manual-quote">"Se eliminarán todos los movimientos de caja generados. Esta acción no se puede deshacer."</span></p>
+
+                <h3>Créditos y préstamos</h3>
+                <p>Para compras con tarjeta o préstamos con su propio plan de cuotas — igual que las Cuentas por cobrar, pero en la dirección contraria (es plata que el negocio debe, no que le deben). Ninguna cuota impacta la caja hasta que la confirmás.</p>
+                <p class="manual-warning"><span class="manual-ui">Eliminar deuda</span> se bloquea automáticamente si ya confirmaste al menos una cuota, para no perder ese historial.</p>
+
+                <h3>Cheques</h3>
+                <p><strong>A cobrar</strong> (de terceros) o <strong>a pagar</strong> (propios). Ningún cheque impacta la caja hasta confirmarlo. Al confirmar uno a cobrar, elegís en qué cuenta propia lo depositás.</p>
+                <p class="manual-warning"><span class="manual-ui">Rechazar</span> un cheque revierte el movimiento de caja si ya estaba confirmado — el sistema avisa: <span class="manual-quote">"¿Marcar este cheque como rechazado? Si ya estaba confirmado, se revierte el movimiento de caja."</span> Solo se puede <span class="manual-ui">Eliminar</span> un cheque que todavía no fue confirmado.</p>
+            </div>
+        </section>
+
+        <!-- ═══════════ HERRAMIENTAS RÁPIDAS ═══════════ -->
+        <section class="manual-section" id="seccion-herramientas">
+            <div class="manual-section-header">
+                <div class="manual-section-icon" style="background:rgba(139,92,246,0.1); color:#8B5CF6;">
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M12.8 2.7L17.3 7.2L7.8 16.7L3.3 17.2L3.8 12.7L12.8 2.7Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+                </div>
+                <div>
+                    <h2>Herramientas rápidas</h2>
+                    <p>No navegan a ninguna pantalla: flotan encima de lo que estés haciendo</p>
+                </div>
+            </div>
+            <div class="manual-body">
+                <ul class="manual-list">
+                    <li><strong>Contar billetes</strong> (<span class="manual-kbd">CTRL+ALT+B</span>): suma rápida por denominación, útil al abrir o cerrar el turno de caja.</li>
+                    <li><strong>Calculadora de vuelto</strong> (<span class="manual-kbd">CTRL+ALT+U</span>): total a cobrar vs. lo que entrega el cliente.</li>
+                    <li><strong>Anotador</strong> (en Herramientas del menú): notas rápidas que quedan guardadas entre sesiones.</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- ═══════════ RECOMENDACIONES ═══════════ -->
+        <section class="manual-section" id="seccion-recomendaciones">
+            <div class="manual-section-header">
+                <div class="manual-section-icon" style="background:rgba(239,68,68,0.1); color:var(--danger);">
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M10 2L18 16H2L10 2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M10 8V11.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="10" cy="13.8" r="0.6" fill="currentColor"/></svg>
+                </div>
+                <div>
+                    <h2>Recomendaciones generales</h2>
+                    <p>Los errores más comunes, resumidos</p>
+                </div>
+            </div>
+            <div class="manual-body">
+                <ol class="manual-list manual-list--numbered">
+                    <li>Cargá primero <strong>Datos de la empresa</strong> y <strong>Cuentas de caja</strong> en Configuración antes de empezar a vender.</li>
+                    <li>Si vas a usar Facturación Electrónica, probala siempre en <strong>Testing</strong> primero, y guardá la clave privada del ARCA la única vez que se muestra.</li>
+                    <li>Abrí y cerrá el turno de <strong>Caja diaria</strong> todos los días — el sistema no bloquea el cierre con diferencias, así que si no revisás vos, nadie lo va a hacer por vos.</li>
+                    <li>Vinculá siempre un cliente real antes de vender en cuotas — a Consumidor Final no se le puede financiar.</li>
+                    <li>Ante un error en una venta o compra ya confirmada, usá <strong>Anular</strong> en vez de <strong>Eliminar</strong>: revierte el stock pero conserva el historial y te deja corregir y reconfirmar.</li>
+                    <li>En Stock, el campo de ajuste pide la <strong>diferencia</strong>, no el total — confundirlo duplica o vacía el stock de un producto.</li>
+                    <li>Dale a cada usuario solo los permisos que necesita, sobre todo los de editar empresa o cuentas de caja.</li>
+                    <li>Registrá el cobro de cada cuota (Cuentas por cobrar) en cuanto el cliente te pague — si no, tu caja no va a reflejar la realidad.</li>
+                </ol>
+            </div>
+        </section>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'core/js/manual.js' %}"></script>
+{% endblock %}
