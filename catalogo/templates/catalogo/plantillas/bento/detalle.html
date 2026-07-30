@@ -16,18 +16,25 @@
     </nav>
 
     <section class="kc-detalle">
-        <div>
+        <div class="kc-galeria-col">
             <div class="kc-galeria-principal" id="kcGaleriaPrincipal">
                 {% if imagenes %}
                     <img src="{{ imagenes.0.imagen.url }}" alt="{{ producto.nombre }}" id="kcGaleriaImgActual">
                 {% else %}
-                    <svg width="56" height="56" viewBox="0 0 24 24" fill="none"><path d="M3 8L12 3.5L21 8V16L12 20.5L3 16V8Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+                    <svg width="56" height="56" viewBox="0 0 24 24" fill="none"><path d="M3 8L12 3.5L21 8V16L12 20.5L3 16V8Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M3 8L12 12.5L21 8" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M12 12.5V20.5" stroke="currentColor" stroke-width="1.3"/></svg>
                 {% endif %}
-                <div style="position:absolute; top:12px; left:12px; display:flex; gap:6px;">
-                    {% if producto.destacado %}<span class="tile-tag tag-featured" style="position:static;">Destacado</span>{% endif %}
-                    {% if es_nuevo %}<span class="tile-tag tag-new" style="position:static;">Nuevo</span>{% endif %}
+                {% if oferta_info or producto.destacado or es_nuevo %}
+                <div class="kc-galeria-badges">
+                    {% if oferta_info %}<span class="tile-tag tag-offer">{{ oferta_info.badge }}</span>{% endif %}
+                    {% if producto.destacado %}<span class="tile-tag tag-featured">Destacado</span>{% endif %}
+                    {% if es_nuevo %}<span class="tile-tag tag-new">Nuevo</span>{% endif %}
                 </div>
-                {% if oferta_info %}<span class="tile-tag tag-offer" style="position:absolute; top:12px; right:12px;">{{ oferta_info.badge }}</span>{% endif %}
+                {% endif %}
+                {% if imagenes %}
+                <button type="button" class="kc-galeria-expandir" id="kcGaleriaExpandir" aria-label="Ver imagen completa">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>
+                </button>
+                {% endif %}
             </div>
             {% if imagenes|length > 1 %}
             <div class="kc-galeria-thumbs">
@@ -41,23 +48,54 @@
         </div>
 
         <div>
-            {% if producto.categoria %}<span class="tile-cat">{{ producto.categoria.nombre }}</span>{% endif %}
-            <h1 class="kc-detalle-nombre">{{ producto.nombre }}</h1>
-            {% if producto.marca %}<p class="kc-detalle-marca">{{ producto.marca }}{% if producto.modelo %} · {{ producto.modelo }}{% endif %}</p>{% endif %}
-
-            <div class="kc-detalle-precio">
-                {% if oferta_info and oferta_info.precio_final != producto.precio_venta %}
-                    <span class="kc-precio-final--grande">${{ oferta_info.precio_final }}</span>
-                    <span class="tile-price-old">${{ producto.precio_venta }}</span>
-                {% elif producto.precio_venta %}
-                    <span class="kc-precio-final--grande">${{ producto.precio_venta }}</span>
-                {% else %}
-                    <span class="tile-consultar">Precio a consultar</span>
+            <div class="kc-detalle-topmeta">
+                {% if producto.categoria %}<span class="tile-cat">{{ producto.categoria.nombre }}</span>{% endif %}
+                {% if producto.categoria and producto.gestiona_stock %}<span class="kc-meta-sep">•</span>{% endif %}
+                {% if producto.gestiona_stock %}
+                    {% if producto.stock_actual > 0 %}
+                        <span class="kc-stock-indicador kc-stock-indicador--ok"><span class="kc-stock-dot"></span>Stock disponible</span>
+                    {% else %}
+                        <span class="kc-stock-indicador kc-stock-indicador--no">Sin stock por el momento</span>
+                    {% endif %}
                 {% endif %}
             </div>
 
-            {% if producto.estado == 'agotado' or producto.stock_actual <= 0 and producto.gestiona_stock %}
-                <span class="tile-tag tag-offer" style="position:static; display:inline-block;">Sin stock por el momento</span>
+            <h1 class="kc-detalle-nombre">{{ producto.nombre }}</h1>
+            {% if producto.marca %}<p class="kc-detalle-marca">{{ producto.marca }}{% if producto.modelo %} · {{ producto.modelo }}{% endif %}</p>{% endif %}
+
+            <div class="kc-detalle-precio-card">
+                <div class="kc-detalle-precio">
+                    {% if oferta_info and oferta_info.precio_final != producto.precio_venta %}
+                        <span class="kc-precio-final--grande">${{ oferta_info.precio_final }}</span>
+                        <span class="tile-price-old">${{ producto.precio_venta }}</span>
+                    {% elif producto.precio_venta %}
+                        <span class="kc-precio-final--grande">${{ producto.precio_venta }}</span>
+                        {% if not producto.es_paquete %}<span class="kc-detalle-unidad">/ {{ producto.get_unidad_medida_display|lower }}</span>{% endif %}
+                    {% else %}
+                        <span class="tile-consultar">Precio a consultar</span>
+                    {% endif %}
+                </div>
+                {% if ahorro_pct %}
+                <p class="kc-detalle-ahorro">
+                    <svg width="12" height="12" viewBox="0 0 20 20" fill="none"><path d="M8.5 1.5L14.5 7.5L7.5 14.5L1.5 8.5V2.5C1.5 1.95 1.95 1.5 2.5 1.5H8.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><circle cx="5" cy="5" r="0.9" fill="currentColor"/></svg>
+                    Ahorrás {{ ahorro_pct }}% en esta compra
+                </p>
+                {% endif %}
+            </div>
+
+            {% if producto.descripcion_publica or producto.descripcion %}
+            <p class="kc-detalle-desc-plain">{{ producto.descripcion_publica|default:producto.descripcion|linebreaksbr }}</p>
+            {% endif %}
+
+            {% if producto.es_paquete and componentes %}
+            <div class="kc-detalle-descripcion">
+                <h2>Este combo incluye</h2>
+                <ul class="kc-detalle-incluye">
+                    {% for c in componentes %}
+                        <li>{{ c.cantidad|floatformat:"-2" }}× {{ c.producto.nombre }}{% if c.combinacion %} — {{ c.combinacion.descripcion_legible }}{% endif %}</li>
+                    {% endfor %}
+                </ul>
+            </div>
             {% endif %}
 
             {% if disponible_compra %}
@@ -74,43 +112,11 @@
             </div>
             {% endif %}
 
-            {% if producto.es_paquete and componentes %}
-            <div class="kc-detalle-descripcion">
-                <h2>Este combo incluye</h2>
-                <ul class="kc-detalle-incluye">
-                    {% for c in componentes %}
-                        <li>{{ c.cantidad|floatformat:"-2" }}× {{ c.producto.nombre }}{% if c.combinacion %} — {{ c.combinacion.descripcion_legible }}{% endif %}</li>
-                    {% endfor %}
-                </ul>
+            <div class="kc-detalle-trust">
+                <div class="kc-detalle-trust-item"><span class="kc-detalle-trust-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.3"/><circle cx="18.5" cy="18.5" r="2.3"/></svg></span><span><strong>Coordinamos el envío</strong><small>Lo acordamos por WhatsApp al confirmar</small></span></div>
+                <div class="kc-detalle-trust-item"><span class="kc-detalle-trust-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></span><span><strong>Pago a coordinar</strong><small>Sin registros ni cuentas — hablás directo</small></span></div>
+                <div class="kc-detalle-trust-item"><span class="kc-detalle-trust-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span><span><strong>Atención personalizada</strong><small>Te acompañamos antes y después de comprar</small></span></div>
             </div>
-            {% endif %}
-
-            {% if producto.descripcion_publica or producto.descripcion %}
-            <div class="kc-detalle-descripcion">
-                <h2>Descripción</h2>
-                <p>{{ producto.descripcion_publica|default:producto.descripcion|linebreaksbr }}</p>
-            </div>
-            {% endif %}
-
-            <div class="kc-detalle-specs">
-                {% if producto.marca %}<div><span>Marca</span><strong>{{ producto.marca }}</strong></div>{% endif %}
-                {% if producto.modelo %}<div><span>Modelo</span><strong>{{ producto.modelo }}</strong></div>{% endif %}
-                {% if producto.contenido_neto %}<div><span>Contenido</span><strong>{{ producto.contenido_neto }} {{ producto.get_unidad_medida_display }}</strong></div>{% endif %}
-                {% if producto.peso_kg %}<div><span>Peso</span><strong>{{ producto.peso_kg }} kg</strong></div>{% endif %}
-                {% if producto.alto_cm or producto.ancho_cm or producto.profundidad_cm %}
-                <div><span>Dimensiones (A×An×P)</span><strong>{{ producto.alto_cm|default:"—" }} × {{ producto.ancho_cm|default:"—" }} × {{ producto.profundidad_cm|default:"—" }} cm</strong></div>
-                {% endif %}
-                {% if producto.pais_origen %}<div><span>Origen</span><strong>{{ producto.pais_origen }}</strong></div>{% endif %}
-                {% if producto.sku %}<div><span>SKU</span><strong>{{ producto.sku }}</strong></div>{% endif %}
-            </div>
-
-            {% if producto.es_fragil or producto.requiere_refrigeracion or producto.es_peligroso %}
-            <div class="kc-detalle-badges">
-                {% if producto.es_fragil %}<span class="kc-detalle-badge kc-detalle-badge--fragil">Frágil</span>{% endif %}
-                {% if producto.requiere_refrigeracion %}<span class="kc-detalle-badge kc-detalle-badge--frio">Requiere refrigeración</span>{% endif %}
-                {% if producto.es_peligroso %}<span class="kc-detalle-badge kc-detalle-badge--peligro">Peligroso / Hazmat</span>{% endif %}
-            </div>
-            {% endif %}
 
             {% if producto.caracteristicas.all %}
             <div class="kc-detalle-caracteristicas">
@@ -122,8 +128,66 @@
                 </ul>
             </div>
             {% endif %}
+
+            {% if tags_producto %}
+            <div class="kc-detalle-tags">
+                {% for tag in tags_producto %}<span class="kc-tag-chip">{{ tag }}</span>{% endfor %}
+            </div>
+            {% endif %}
+
+            <div class="kc-detalle-ficha">
+                <h3>Especificaciones</h3>
+                <div class="kc-detalle-specs">
+                    <div><span>Marca</span><strong>{{ producto.marca|default:"—" }}</strong></div>
+                    <div><span>Modelo</span><strong>{{ producto.modelo|default:"—" }}</strong></div>
+                    <div><span>Fabricante</span><strong>{{ producto.fabricante|default:"—" }}</strong></div>
+                    <div><span>Origen</span><strong>{{ producto.pais_origen|default:"—" }}</strong></div>
+                    <div><span>Tipo</span><strong>{{ producto.tipo.nombre|default:"—" }}</strong></div>
+                    <div><span>SKU</span><strong>{{ producto.sku|default:"—" }}</strong></div>
+                    <div><span>Código de barras</span><strong>{{ producto.codigo_barras|default:"—" }}</strong></div>
+                    {% if not producto.es_paquete %}<div><span>Unidad</span><strong>{{ producto.get_unidad_medida_display }}</strong></div>{% endif %}
+                    <div><span>Contenido neto</span><strong>{% if producto.contenido_neto %}{{ producto.contenido_neto|floatformat:"-2" }}{% else %}—{% endif %}</strong></div>
+                    <div><span>Unidades por presentación</span><strong>{{ producto.unidades_por_presentacion|default:"—" }}</strong></div>
+                    <div><span>Peso</span><strong>{% if producto.peso_kg %}{{ producto.peso_kg|floatformat:"-2" }} kg{% else %}—{% endif %}</strong></div>
+                    <div><span>Alto</span><strong>{% if producto.alto_cm %}{{ producto.alto_cm|floatformat:"-2" }} cm{% else %}—{% endif %}</strong></div>
+                    <div><span>Ancho</span><strong>{% if producto.ancho_cm %}{{ producto.ancho_cm|floatformat:"-2" }} cm{% else %}—{% endif %}</strong></div>
+                    <div><span>Profundidad</span><strong>{% if producto.profundidad_cm %}{{ producto.profundidad_cm|floatformat:"-2" }} cm{% else %}—{% endif %}</strong></div>
+                    <div><span>Frágil</span><strong class="{% if producto.es_fragil %}kc-spec-si{% else %}kc-spec-no{% endif %}">{% if producto.es_fragil %}Sí{% else %}No{% endif %}</strong></div>
+                    <div><span>Requiere refrigeración</span><strong class="{% if producto.requiere_refrigeracion %}kc-spec-si{% else %}kc-spec-no{% endif %}">{% if producto.requiere_refrigeracion %}Sí{% else %}No{% endif %}</strong></div>
+                    <div><span>Peligroso / Hazmat</span><strong class="{% if producto.es_peligroso %}kc-spec-si{% else %}kc-spec-no{% endif %}">{% if producto.es_peligroso %}Sí{% else %}No{% endif %}</strong></div>
+                    <div><span>Perecedero</span><strong class="{% if producto.es_perecedero %}kc-spec-si{% else %}kc-spec-no{% endif %}">{% if producto.es_perecedero %}Sí{% else %}No{% endif %}</strong></div>
+                </div>
+            </div>
         </div>
     </section>
+</div>
+
+{% if not producto.es_paquete and relacionados %}
+<div class="shell rail-section">
+  <div class="rail-head">
+    <div class="rail-title">También te puede interesar</div>
+  </div>
+  <div class="rail-track hide-scrollbar">
+    {% for p in relacionados %}
+    <a href="{% url 'catalogo:producto_detalle' p.pk %}" class="rail-card">
+      {% with portada=p.imagenes.first %}
+        {% if portada %}<img src="{{ portada.imagen.url }}" alt="{{ p.nombre }}">{% endif %}
+      {% endwith %}
+      <div class="rail-card-body">
+        <div class="rail-card-name">{{ p.nombre }}</div>
+        <div class="rail-card-price">${{ p.oferta_info.precio_final|default:p.precio_venta }}</div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="kc-lightbox" id="kcLightbox">
+    <button type="button" class="kc-lightbox-cerrar" id="kcLightboxCerrar" aria-label="Cerrar">
+        <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M1 1L13 13M13 1L1 13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </button>
+    <img src="" alt="" id="kcLightboxImg">
 </div>
 
 {% endblock %}

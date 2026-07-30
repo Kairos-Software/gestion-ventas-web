@@ -154,9 +154,23 @@ def catalogo_online(request):
         .exclude(precio_venta=None)
         .order_by('es_paquete', 'nombre')
     )
+    config_catalogo = ConfiguracionCatalogo.get_solo()
+    # El color por default depende de la plantilla ACTIVA — si no, el
+    # selector de color arranca mostrando naranja/navy (los de "almacen")
+    # aunque el catálogo real esté en "bento" (verde lima/índigo), y el
+    # preview en vivo termina repintando mal apenas carga.
+    es_bento = config_catalogo.plantilla == PlantillaCatalogo.BENTO
+    default_color_marca_actual = (
+        ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_BENTO if es_bento
+        else ConfiguracionCatalogo.DEFAULT_COLOR_MARCA
+    )
+    default_color_marca_secundario_actual = (
+        ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_BENTO if es_bento
+        else ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO
+    )
     return render(request, 'core/catalogo_online.html', {
         'datos_empresa':          DatosEmpresa.get_solo(),
-        'configuracion_catalogo': ConfiguracionCatalogo.get_solo(),
+        'configuracion_catalogo': config_catalogo,
         'plantillas_catalogo':    PlantillaCatalogo.choices,
         'puede_editar_catalogo':  chequear_permiso(request.user, 'editar_catalogo'),
         'productos_para_hero':    productos_para_hero,
@@ -164,6 +178,10 @@ def catalogo_online(request):
         'default_sobre_nosotros': ConfiguracionCatalogo.DEFAULT_SOBRE_NOSOTROS,
         'default_color_marca':    ConfiguracionCatalogo.DEFAULT_COLOR_MARCA,
         'default_color_marca_secundario': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO,
+        'default_color_marca_bento': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_BENTO,
+        'default_color_marca_secundario_bento': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_BENTO,
+        'default_color_marca_actual': default_color_marca_actual,
+        'default_color_marca_secundario_actual': default_color_marca_secundario_actual,
         'default_nav_catalogo':   ConfiguracionCatalogo.DEFAULT_NAV_CATALOGO,
         'default_nav_ofertas':    ConfiguracionCatalogo.DEFAULT_NAV_OFERTAS,
         'default_nav_combos':     ConfiguracionCatalogo.DEFAULT_NAV_COMBOS,

@@ -12,6 +12,20 @@ document.addEventListener('DOMContentLoaded', function () {
     const catalogoHomeUrl = window.CATALOGO_HOME_URL || '/';
     const catalogoInstitucionalUrl = window.CATALOGO_INSTITUCIONAL_URL || '/la-tienda/';
 
+    // ── Default de color según la plantilla ACTIVA en el selector — cada
+    //    plantilla tiene su propia identidad (naranja/navy en "almacen",
+    //    verde lima/índigo en "bento"); sin esto, cambiar de plantilla sin
+    //    haber tocado el color todavía dejaba pintado el color de la otra. ──
+    function colorDefaultActual(campo) {
+        const valorPlantilla = document.getElementById('idCatalogoPlantilla')?.value || 'almacen';
+        if (valorPlantilla === 'bento') {
+            return campo === 'marca' ? (defaults.colorMarcaBento || '#6fa525') : (defaults.colorMarcaSecundarioBento || '#262b52');
+        }
+        return campo === 'marca' ? (defaults.colorMarca || '#ff9343') : (defaults.colorMarcaSecundario || '#111e2f');
+    }
+    let colorMarcaTocado = false;
+    let colorMarcaSecundarioTocado = false;
+
     // ── Escalado de iframes de vista previa (mismo truco "device preview" para
     //    el preview grande y las mini-cards de plantilla — una sola implementación) ──
     // opts.alturaFija: si viene, la card se recorta a esa altura sin medir el
@@ -124,14 +138,21 @@ document.addEventListener('DOMContentLoaded', function () {
             const inputTexto = document.getElementById('idCatalogoDestacado' + n + 'Texto');
             if (textoEl && inputTexto) textoEl.textContent = inputTexto.value || defaults['destacado' + n + 'Texto'] || '';
         });
-        const color = document.getElementById('idCatalogoColorMarca').value || defaults.colorMarca || '#ff9343';
-        const colorSecundario = document.getElementById('idCatalogoColorMarcaSecundario')?.value || defaults.colorMarcaSecundario || '#111e2f';
+        const color = document.getElementById('idCatalogoColorMarca').value || colorDefaultActual('marca');
+        const colorSecundario = document.getElementById('idCatalogoColorMarcaSecundario')?.value || colorDefaultActual('secundario');
         if (doc.documentElement) {
             doc.documentElement.style.setProperty('--primary', color);
             doc.documentElement.style.setProperty('--primary-dark', `color-mix(in srgb, ${color} 80%, black)`);
             doc.documentElement.style.setProperty('--primary-soft', `color-mix(in srgb, ${color} 12%, white)`);
             doc.documentElement.style.setProperty('--navy', colorSecundario);
             doc.documentElement.style.setProperty('--navy-2', `color-mix(in srgb, ${colorSecundario} 82%, black)`);
+            // Mismos 2 colores, variables de Bento — si el iframe cargado es
+            // Almacén estas simplemente no se usan en ningún selector, no hacen nada.
+            doc.documentElement.style.setProperty('--lime', color);
+            doc.documentElement.style.setProperty('--lime-dark', `color-mix(in srgb, ${color} 80%, black)`);
+            doc.documentElement.style.setProperty('--lime-soft', `color-mix(in srgb, ${color} 12%, white)`);
+            doc.documentElement.style.setProperty('--indigo', colorSecundario);
+            doc.documentElement.style.setProperty('--indigo-2', `color-mix(in srgb, ${colorSecundario} 82%, black)`);
         }
     }
 
@@ -155,13 +176,18 @@ document.addEventListener('DOMContentLoaded', function () {
         if (el) el.addEventListener('input', aplicarValoresAlPreview);
     });
 
+    document.getElementById('idCatalogoColorMarca')?.addEventListener('input', function () { colorMarcaTocado = true; });
+    document.getElementById('idCatalogoColorMarcaSecundario')?.addEventListener('input', function () { colorMarcaSecundarioTocado = true; });
+
     document.getElementById('btnResetColorMarca')?.addEventListener('click', function () {
-        document.getElementById('idCatalogoColorMarca').value = defaults.colorMarca || '#ff9343';
+        document.getElementById('idCatalogoColorMarca').value = colorDefaultActual('marca');
+        colorMarcaTocado = false;
         aplicarValoresAlPreview();
     });
 
     document.getElementById('btnResetColorMarcaSecundario')?.addEventListener('click', function () {
-        document.getElementById('idCatalogoColorMarcaSecundario').value = defaults.colorMarcaSecundario || '#111e2f';
+        document.getElementById('idCatalogoColorMarcaSecundario').value = colorDefaultActual('secundario');
+        colorMarcaSecundarioTocado = false;
         aplicarValoresAlPreview();
     });
 
@@ -200,9 +226,11 @@ document.addEventListener('DOMContentLoaded', function () {
             const paginaDestino = btn.dataset.preview || 'home';
             if (paginaDestino !== previewPagina && previewFrame) {
                 previewPagina = paginaDestino;
-                previewFrame.src = paginaDestino === 'institucional'
-                    ? catalogoInstitucionalUrl
-                    : catalogoHomeUrl + '?preview_plantilla=' + encodeURIComponent(inputPlantilla.value);
+                const base = paginaDestino === 'institucional' ? catalogoInstitucionalUrl : catalogoHomeUrl;
+                // ?preview_plantilla= también aplica acá — antes solo la home
+                // lo llevaba, así que cambiar de plantilla estando en "La
+                // tienda" no actualizaba ese preview.
+                previewFrame.src = base + '?preview_plantilla=' + encodeURIComponent(inputPlantilla.value);
             }
         });
     });
@@ -235,10 +263,18 @@ document.addEventListener('DOMContentLoaded', function () {
             });
             aplicarToggleDataPlantilla();
 
+            // Si el color todavía no fue tocado a mano, seguir mostrando el
+            // default de la plantilla nueva (no el de la que se dejó atrás) —
+            // el preview en sí se actualiza solo al recargar el iframe abajo.
+            if (!colorMarcaTocado) document.getElementById('idCatalogoColorMarca').value = colorDefaultActual('marca');
+            if (!colorMarcaSecundarioTocado) document.getElementById('idCatalogoColorMarcaSecundario').value = colorDefaultActual('secundario');
+
             // El preview grande cambia al instante (sin guardar) gracias a
-            // ?preview_plantilla= en CatalogoHomeView.get_template_names().
+            // ?preview_plantilla= en get_template_names() — respeta la página
+            // que se esté previsualizando (home o "La tienda"), no siempre home.
             if (previewFrame) {
-                previewFrame.src = catalogoHomeUrl + '?preview_plantilla=' + encodeURIComponent(valor);
+                const base = previewPagina === 'institucional' ? catalogoInstitucionalUrl : catalogoHomeUrl;
+                previewFrame.src = base + '?preview_plantilla=' + encodeURIComponent(valor);
             }
         });
     });

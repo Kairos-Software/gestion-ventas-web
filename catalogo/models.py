@@ -27,8 +27,11 @@ class ConfiguracionCatalogo(models.Model):
     sobre nosotros, contacto). Editable desde Configuración → Catálogo
     público (ver core/views.py:configuracion), con vista previa en vivo.
     Mismo patrón singleton que DatosEmpresa (ver core/models.py).
-    hero_titulo/hero_subtitulo/hero_imagen son exclusivos de la plantilla
-    "almacen" — la plantilla "bento" usa SlideHeroCatalogo en su lugar.
+    hero_titulo/hero_imagen son exclusivos de la plantilla "almacen" (esa
+    no tiene carrusel). hero_subtitulo y hero_producto los usan las DOS
+    plantillas — en "bento", hero_subtitulo es el texto de respaldo hasta
+    que se carga el primer slide (ver SlideHeroCatalogo) y hero_producto
+    arma la tarjeta lateral del hero, con o sin carrusel.
     """
     plantilla = models.CharField(
         'Plantilla activa', max_length=20,
@@ -113,6 +116,11 @@ class ConfiguracionCatalogo(models.Model):
     )
     DEFAULT_COLOR_MARCA = '#ff9343'
     DEFAULT_COLOR_MARCA_SECUNDARIO = '#111e2f'
+    # Default propio de "bento" — si color_marca/color_marca_secundario están
+    # vacíos, cada plantilla tiene que caer en SU propia identidad (naranja/
+    # navy para almacén, verde lima/índigo para bento), no en la del otro.
+    DEFAULT_COLOR_MARCA_BENTO = '#6fa525'
+    DEFAULT_COLOR_MARCA_SECUNDARIO_BENTO = '#262b52'
     DEFAULT_NAV_CATALOGO = 'Catálogo'
     DEFAULT_NAV_OFERTAS  = 'Ofertas'
     DEFAULT_NAV_COMBOS   = 'Combos'

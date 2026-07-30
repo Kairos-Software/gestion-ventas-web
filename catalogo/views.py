@@ -67,6 +67,8 @@ def _contexto_base(request):
         'default_sobre_nosotros': ConfiguracionCatalogo.DEFAULT_SOBRE_NOSOTROS,
         'default_color_marca': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA,
         'default_color_marca_secundario': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO,
+        'default_color_marca_bento': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_BENTO,
+        'default_color_marca_secundario_bento': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_BENTO,
         'default_nav_catalogo': ConfiguracionCatalogo.DEFAULT_NAV_CATALOGO,
         'default_nav_ofertas': ConfiguracionCatalogo.DEFAULT_NAV_OFERTAS,
         'default_nav_combos': ConfiguracionCatalogo.DEFAULT_NAV_COMBOS,
@@ -593,10 +595,18 @@ class TiendaInstitucionalView(TemplateView):
     negocio (historia, destacados, galería, horarios, ubicación, redes),
     separada a propósito del catálogo de productos: quien entra a comprar
     (la home) no ve nada de esto, pero está a un click vía el nav.
-    Por ahora es la misma página para cualquier plantilla activa (todavía
-    no existe una versión "bento" de esta página).
     """
-    template_name = 'catalogo/institucional.html'
+
+    def get_template_names(self):
+        # Mismo criterio que CatalogoHomeView/ProductoDetalleView: ?preview_plantilla=
+        # fuerza una plantilla puntual para el preview en vivo de /catalogo-online/,
+        # sin tocar la guardada.
+        plantilla = self.request.GET.get('preview_plantilla')
+        if plantilla not in PlantillaCatalogo.values:
+            plantilla = ConfiguracionCatalogo.get_solo().plantilla
+        if plantilla == PlantillaCatalogo.BENTO:
+            return ['catalogo/plantillas/bento/institucional.html']
+        return ['catalogo/institucional.html']
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)

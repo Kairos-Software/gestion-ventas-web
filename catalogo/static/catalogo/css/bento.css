@@ -22,6 +22,10 @@
   --f-display:'Space Grotesk', sans-serif;
   --f-body:'Inter', sans-serif;
   --f-mono:'JetBrains Mono', monospace;
+  /* Solo para título y precio del detalle de producto — pedido puntual de
+     replicar la tipografía exacta de la referencia (sans-serif del sistema,
+     no Space Grotesk/JetBrains Mono como el resto de Bento). */
+  --f-system:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
 }
 html[data-theme="dark"]{
   --ink:#f1f1f5; --ink-soft:#b3b5c4; --ink-faint:#7a7d90;
@@ -55,16 +59,31 @@ html[data-theme="dark"]{
 .kc-bento .topbar.shrink .topbar-inner{ padding:10px 0; }
 
 .kc-bento .brand{ display:flex; align-items:center; gap:10px; flex-shrink:0; }
-.kc-bento .brand-mark{ width:36px; height:36px; border-radius:var(--r-sm); background:var(--indigo); display:flex; align-items:center; justify-content:center; font-family:var(--f-display); font-weight:700; font-size:14px; color:#fff; flex-shrink:0; overflow:hidden; }
+/* Sin fondo de color — antes era necesario para las iniciales de texto (ya
+   no existen, siempre hay una imagen: el logo real o el ícono de Kai-Cart de
+   respaldo) y con un logo de fondo transparente un cuadro de color detrás
+   sobra. */
+.kc-bento .brand-mark{ width:36px; height:36px; display:flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden; }
 .kc-bento .brand-mark img{ width:100%; height:100%; object-fit:contain; }
 .kc-bento .brand-name{ font-family:var(--f-display); font-weight:700; font-size:16.5px; letter-spacing:-.01em; }
 
-.kc-bento .search-wrap{ flex:1; max-width:420px; position:relative; }
+.kc-bento .search-wrap{ flex:1; max-width:360px; position:relative; }
 .kc-bento .search-input{ width:100%; background:var(--surface-2); border:1.5px solid transparent; border-radius:var(--r-pill); padding:9px 14px 9px 38px; font-size:13.5px; color:var(--ink); transition:.15s; }
 .kc-bento .search-input:focus{ border-color:var(--lime); background:var(--surface); }
 .kc-bento .search-icon{ position:absolute; left:13px; top:50%; transform:translateY(-50%); width:15px; height:15px; color:var(--ink-faint); pointer-events:none; }
 
+/* Navegación principal (Catálogo/Ofertas/Combos/La tienda) — antes no existía en el
+   header de Bento, la única forma de llegar a "La tienda" era scrollear al pie. */
+.kc-bento .main-nav{ display:flex; align-items:center; gap:22px; flex-shrink:0; }
+.kc-bento .main-nav a{ font-family:var(--f-display); font-weight:600; font-size:13px; color:var(--ink-soft); padding:6px 1px; position:relative; white-space:nowrap; transition:color .15s; }
+.kc-bento .main-nav a:hover{ color:var(--ink); }
+.kc-bento .main-nav a.active{ color:var(--ink); }
+.kc-bento .main-nav a.active::after{ content:''; position:absolute; left:1px; right:1px; bottom:-2px; height:2px; border-radius:2px; background:var(--lime); }
+
 .kc-bento .top-actions{ display:flex; align-items:center; gap:6px; margin-left:auto; flex-shrink:0; }
+/* .icon-btn.search-toggle (no solo .search-toggle) para ganarle en especificidad
+   a ".icon-btn{display:flex}" sin importar el orden en la hoja de estilos. */
+.kc-bento .icon-btn.search-toggle{ display:none; }
 .kc-bento .theme-switch{ width:42px; height:24px; border-radius:var(--r-pill); background:var(--surface-2); position:relative; flex-shrink:0; transition:.15s; }
 .kc-bento .theme-switch i{ position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:var(--indigo); transition:.2s; display:flex; align-items:center; justify-content:center; font-size:11px; }
 html[data-theme="dark"] .kc-bento .theme-switch i{ left:20px; background:var(--lime); }
@@ -78,18 +97,51 @@ html[data-theme="dark"] .kc-bento .theme-switch i{ left:20px; background:var(--l
 .kc-bento .btn-login svg{ width:14px; height:14px; }
 
 /* ================= Hero carousel ================= */
-.kc-bento .carousel{ position:relative; margin:20px auto 0; max-width:1320px; padding:0 26px; }
-.kc-bento .carousel-track-wrap{ position:relative; border-radius:var(--r-lg); overflow:hidden; box-shadow:var(--shadow-md); aspect-ratio:16/6.6; background:var(--indigo); }
+/* Fila bento del hero: tarjeta principal (carrusel o fallback) + columna
+   lateral con 2 tarjetas apiladas (stat real de catálogo + combo/producto
+   destacado). display:grid con align-items:stretch (default) hace que
+   .hero-side se estire al alto real de .hero-main-col para que sus 2
+   .side-card puedan repartirse ese alto con flex — mismo mecanismo que
+   ya se usó para el sticky de /catalogo-online/ (ver catalogo_online.css). */
+.kc-bento .hero-row{ display:grid; grid-template-columns:1.7fr 1fr; gap:14px; margin-top:20px; }
+@media (max-width:900px){ .kc-bento .hero-row{ grid-template-columns:1fr; } }
+.kc-bento .hero-main-col{ min-width:0; }
+/* width:100% explícito — sin esto, aspect-ratio:16/9 + height:100% deriva el ancho
+   del contenido intrínseco (la imagen del slide) en vez del ancho real de la columna
+   del grid, provocando scroll horizontal en toda la home en mobile (confirmado: sin
+   esto el documento medía 532px de ancho con viewport de 375px). */
+.kc-bento .carousel-track-wrap{ position:relative; width:100%; height:100%; min-height:280px; border-radius:var(--r-lg); overflow:hidden; box-shadow:var(--shadow-md); aspect-ratio:16/9; background:var(--indigo); }
 .kc-bento .carousel-track{ display:flex; height:100%; transition:transform .5s cubic-bezier(.65,0,.35,1); }
 .kc-bento .c-slide{ min-width:100%; height:100%; position:relative; }
 .kc-bento .c-slide img{ width:100%; height:100%; object-fit:cover; }
-.kc-bento .c-overlay{ position:absolute; inset:0; background:linear-gradient(90deg, rgba(23,25,39,.78) 0%, rgba(23,25,39,.35) 48%, rgba(23,25,39,0) 75%); display:flex; flex-direction:column; justify-content:center; padding:0 52px; max-width:60%; }
+.kc-bento .c-overlay{ position:absolute; inset:0; background:linear-gradient(90deg, rgba(23,25,39,.78) 0%, rgba(23,25,39,.35) 48%, rgba(23,25,39,0) 75%); display:flex; flex-direction:column; justify-content:center; padding:0 44px; max-width:70%; }
 .kc-bento .c-eyebrow{ font-family:var(--f-mono); font-size:11.5px; color:var(--lime); letter-spacing:.06em; text-transform:uppercase; margin-bottom:10px; }
 .kc-bento .c-title{ font-family:var(--f-display); font-weight:700; font-size:clamp(24px,3vw,36px); color:#fff; line-height:1.12; letter-spacing:-.01em; margin-bottom:10px; }
 .kc-bento .c-desc{ font-size:14px; color:rgba(255,255,255,.78); max-width:380px; margin-bottom:18px; }
-.kc-bento .c-cta{ display:inline-flex; align-items:center; gap:8px; background:var(--lime); color:#fff; font-weight:700; font-size:13px; padding:11px 20px; border-radius:var(--r-pill); width:max-content; }
+.kc-bento .c-cta{ display:inline-flex; align-items:center; gap:8px; background:var(--lime); color:#fff; font-weight:700; font-size:13px; padding:11px 20px; border-radius:var(--r-pill); width:max-content; transition:.15s; }
 .kc-bento .c-cta:hover{ background:var(--lime-dark); }
-.kc-bento .hero-simple{ position:relative; border-radius:var(--r-lg); overflow:hidden; box-shadow:var(--shadow-md); background:var(--indigo); padding:44px 52px; min-height:180px; display:flex; flex-direction:column; justify-content:center; }
+.kc-bento .hero-cta{ display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
+.kc-bento .btn-ghost{ color:#fff; font-weight:600; font-size:13px; opacity:.85; transition:opacity .15s; }
+.kc-bento .btn-ghost:hover{ opacity:1; }
+.kc-bento .hero-simple{ position:relative; height:100%; min-height:280px; border-radius:var(--r-lg); overflow:hidden; box-shadow:var(--shadow-md); background:var(--indigo); padding:44px 52px; display:flex; flex-direction:column; justify-content:center; }
+
+/* ---- columna lateral del hero ---- */
+.kc-bento .hero-side{ display:flex; flex-direction:column; gap:14px; }
+.kc-bento .side-card{ flex:1; border-radius:var(--r-lg); background:var(--surface); border:1px solid var(--line); box-shadow:var(--shadow-sm); padding:20px; display:flex; flex-direction:column; justify-content:center; transition:transform .2s, box-shadow .2s; }
+.kc-bento .side-card:hover{ transform:translateY(-2px); box-shadow:var(--shadow-md); }
+.kc-bento .side-stat-n{ font-family:var(--f-mono); font-weight:700; font-size:26px; color:var(--indigo); letter-spacing:-.02em; }
+html[data-theme="dark"] .kc-bento .side-stat-n{ color:#9aa3ff; }
+.kc-bento .side-stat-l{ font-size:12.5px; color:var(--ink-soft); margin-top:2px; }
+/* Fila horizontal (miniatura + texto) — antes era solo texto, la única
+   tarjeta del sitio sin ninguna imagen real. Sin imagen cargada, .side-combo-
+   body queda como único hijo y se ve exactamente igual que antes. */
+.kc-bento .side-combo{ background:var(--amber-soft); border-color:transparent; flex-direction:row; align-items:center; justify-content:flex-start; gap:14px; padding:16px; }
+.kc-bento .side-combo-img{ width:68px; height:68px; border-radius:var(--r-md); overflow:hidden; flex-shrink:0; background:var(--surface); }
+.kc-bento .side-combo-img img{ width:100%; height:100%; object-fit:cover; }
+.kc-bento .side-combo-body{ min-width:0; }
+.kc-bento .side-combo .tag{ display:inline-block; background:var(--amber); color:#fff; font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:var(--r-pill); margin-bottom:10px; width:max-content; }
+.kc-bento .side-combo h3{ font-family:var(--f-display); font-size:14.5px; font-weight:700; margin:0 0 4px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.kc-bento .side-combo .price{ font-family:var(--f-mono); font-weight:700; font-size:15px; color:var(--amber-dark); }
 
 .kc-bento .c-arrow{ position:absolute; top:50%; transform:translateY(-50%); width:40px; height:40px; border-radius:50%; background:rgba(255,255,255,.9); color:var(--ink); display:flex; align-items:center; justify-content:center; box-shadow:var(--shadow-sm); z-index:5; transition:.15s; }
 .kc-bento .c-arrow:hover{ background:#fff; }
@@ -113,9 +165,6 @@ html[data-theme="dark"] .kc-bento .theme-switch i{ left:20px; background:var(--l
 /* ================= Sub toolbar ================= */
 .kc-bento .subbar{ position:sticky; top:0; z-index:60; background:var(--paper); }
 .kc-bento .subbar-inner{ display:flex; align-items:center; gap:12px; padding:16px 0; flex-wrap:wrap; border-bottom:1px solid var(--line); }
-.kc-bento .segmented{ display:flex; background:var(--surface-2); border-radius:var(--r-pill); padding:3px; gap:2px; }
-.kc-bento .segmented a{ padding:8px 15px; border-radius:var(--r-pill); font-size:12.5px; font-weight:600; color:var(--ink-soft); transition:.15s; white-space:nowrap; }
-.kc-bento .segmented a.active{ background:var(--surface); color:var(--ink); box-shadow:var(--shadow-sm); }
 .kc-bento .subbar-right{ display:flex; align-items:center; gap:8px; margin-left:auto; }
 .kc-bento .result-count{ font-size:12.5px; color:var(--ink-faint); margin-right:4px; }
 .kc-bento .sort-select{ border:1.5px solid var(--line); background:var(--surface); border-radius:var(--r-sm); padding:8px 10px; font-size:12.5px; font-weight:600; color:var(--ink-soft); }
@@ -124,21 +173,24 @@ html[data-theme="dark"] .kc-bento .theme-switch i{ left:20px; background:var(--l
 .kc-bento .filter-fab .n{ background:var(--lime); color:#fff; font-family:var(--f-mono); font-size:10px; border-radius:var(--r-pill); padding:1px 6px; }
 
 /* ================= Bento grid ================= */
-.kc-bento .bento{ display:grid; grid-template-columns:repeat(auto-fill, minmax(160px,1fr)); grid-auto-rows:96px; gap:14px; padding:24px 0 60px; grid-auto-flow:dense; }
+/* Tarjetas de tamaño UNIFORME (antes cada tile tenía un span de grilla
+   distinto según oferta/destacado — un mismo diseño "bento" con dense
+   packing, pero cada fila terminaba con una cantidad distinta de columnas
+   ocupadas y la última fila de cada página casi nunca cerraba pareja,
+   dejando huecos en blanco grandes y una sensación de desorden). Con
+   auto-fill + minmax, cada tarjeta mide lo mismo y la grilla nunca deja un
+   hueco a mitad de fila — la única variación visual entre destacado/oferta
+   ahora es la etiqueta (.tile-tag), no el tamaño de la tarjeta. */
+.kc-bento .bento{ display:grid; grid-template-columns:repeat(auto-fill, minmax(190px,1fr)); gap:16px; padding:24px 0 60px; }
 .kc-bento .tile{
   position:relative; background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg); overflow:hidden;
   display:flex; flex-direction:column; transition:transform .18s, box-shadow .18s; cursor:pointer;
 }
 .kc-bento .tile:hover{ transform:translateY(-2px); box-shadow:var(--shadow-md); }
-.kc-bento .tile.sz-normal{ grid-column:span 2; grid-row:span 2; }
-.kc-bento .tile.sz-featured{ grid-column:span 4; grid-row:span 4; }
-.kc-bento .tile.sz-offer{ grid-column:span 2; grid-row:span 3; }
-.kc-bento .tile.sz-bundle{ grid-column:span 4; grid-row:span 2; flex-direction:row; }
 
-.kc-bento .tile-media{ position:relative; flex:1; overflow:hidden; background:var(--surface-2); }
+.kc-bento .tile-media{ position:relative; aspect-ratio:1/1; overflow:hidden; background:var(--surface-2); }
 .kc-bento .tile-media img{ width:100%; height:100%; object-fit:cover; transition:transform .3s; }
 .kc-bento .tile:hover .tile-media img{ transform:scale(1.04); }
-.kc-bento .tile.sz-bundle .tile-media{ flex:0 0 42%; display:flex; }
 .kc-bento .tile-collage{ display:flex; width:100%; height:100%; }
 .kc-bento .tile-collage span{ flex:1; display:flex; align-items:center; justify-content:center; background:var(--surface-2); border-left:1px solid var(--line-soft); color:var(--ink-faint); }
 .kc-bento .tile-collage span:first-child{ border-left:none; }
@@ -151,16 +203,14 @@ html[data-theme="dark"] .kc-bento .theme-switch i{ left:20px; background:var(--l
 .kc-bento .tag-new{ background:var(--lime); color:#fff; }
 .kc-bento .tile-tag + .tile-tag{ top:38px; }
 
-.kc-bento .tile-body{ padding:12px 13px 13px; display:flex; flex-direction:column; gap:5px; }
-.kc-bento .tile.sz-bundle .tile-body{ flex:1; justify-content:center; }
+.kc-bento .tile-body{ padding:12px 13px 13px; display:flex; flex-direction:column; gap:5px; flex:1; }
 .kc-bento .tile-cat{ font-size:9.5px; font-weight:700; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.05em; }
-.kc-bento .tile-name{ font-size:13px; font-weight:600; line-height:1.3; }
-.kc-bento .tile.sz-featured .tile-name{ font-size:19px; font-family:var(--f-display); font-weight:700; }
-.kc-bento .tile.sz-bundle .tile-name{ font-size:15px; font-family:var(--f-display); font-weight:700; }
+/* min-height de 2 líneas — sin esto, nombres cortos vs. largos hacían que
+   el precio/botón quedaran a distinta altura entre tarjetas de la misma fila. */
+.kc-bento .tile-name{ font-size:13px; font-weight:600; line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; min-height:2.6em; }
 .kc-bento .tile-includes{ font-size:11px; color:var(--ink-soft); margin-top:1px; }
 .kc-bento .tile-price-row{ display:flex; align-items:baseline; gap:7px; margin-top:auto; flex-wrap:wrap; }
 .kc-bento .tile-price{ font-family:var(--f-mono); font-weight:600; font-size:14.5px; }
-.kc-bento .tile.sz-featured .tile-price{ font-size:18px; }
 .kc-bento .tile-price-old{ font-family:var(--f-mono); font-size:11px; color:var(--ink-faint); text-decoration:line-through; }
 .kc-bento .tile-price-off{ font-family:var(--f-mono); font-weight:600; font-size:14.5px; color:var(--red); }
 .kc-bento .tile-consultar{ font-family:var(--f-mono); font-size:12.5px; color:var(--ink-faint); }
@@ -169,10 +219,59 @@ html[data-theme="dark"] .kc-bento .theme-switch i{ left:20px; background:var(--l
 .kc-bento .tile-agregar button:hover{ background:var(--lime-dark); }
 .kc-bento .kc-en-pedido{ display:block; font-size:10.5px; font-weight:700; color:var(--lime-dark); margin-top:4px; }
 
+/* ================= Franja de confianza ================= */
+.kc-bento .trust{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; padding:22px 0 8px; }
+.kc-bento .trust-item{ display:flex; align-items:center; gap:13px; padding:12px; border-radius:var(--r-md); transition:background .15s; }
+.kc-bento .trust-item:hover{ background:var(--surface-2); }
+.kc-bento .trust-ic{ width:42px; height:42px; border-radius:12px; background:var(--indigo-soft); color:var(--indigo); flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+html[data-theme="dark"] .kc-bento .trust-ic{ color:#9aa3ff; }
+.kc-bento .trust-item strong{ display:block; font-size:13.5px; margin-bottom:2px; }
+.kc-bento .trust-item small{ font-size:12px; color:var(--ink-soft); }
+@media (max-width:760px){ .kc-bento .trust{ grid-template-columns:1fr; } }
+
+/* ================= Franja "Ofertas de la semana" ================= */
+.kc-bento .flash{ background:var(--indigo); border-radius:var(--r-lg); padding:24px 24px 20px; margin-top:24px; }
+.kc-bento .flash .rail-title{ color:#fff; }
+.kc-bento .flash .rail-eyebrow{ color:#d7ff8f; }
+.kc-bento .flash .rail-link{ color:rgba(255,255,255,.7); }
+.kc-bento .flash .rail-link:hover{ color:#fff; }
+.kc-bento .flash-row{ display:flex; gap:14px; overflow-x:auto; padding-bottom:2px; }
+.kc-bento .flash-card{ flex:0 0 164px; background:var(--surface); border-radius:var(--r-md); overflow:hidden; transition:transform .18s; }
+.kc-bento .flash-card:hover{ transform:translateY(-3px); }
+.kc-bento .flash-media{ position:relative; aspect-ratio:1; background:var(--surface-2); }
+.kc-bento .flash-media img{ width:100%; height:100%; object-fit:cover; }
+.kc-bento .flash-pct{ position:absolute; top:8px; left:8px; z-index:2; background:var(--red); color:#fff; font-family:var(--f-mono); font-weight:700; font-size:10.5px; padding:3px 8px; border-radius:var(--r-pill); }
+.kc-bento .flash-body{ padding:10px 11px 12px; }
+.kc-bento .flash-name{ font-size:12px; font-weight:600; line-height:1.3; display:block; margin-bottom:6px; min-height:2.4em; }
+.kc-bento .flash-prices{ display:flex; align-items:baseline; gap:6px; flex-wrap:wrap; }
+.kc-bento .flash-new{ font-family:var(--f-mono); font-weight:700; font-size:13.5px; color:var(--red); }
+.kc-bento .flash-old{ font-family:var(--f-mono); font-size:10.5px; color:var(--ink-faint); text-decoration:line-through; }
+
+/* ================= Combos armados (spotlight) ================= */
+.kc-bento .combos-section{ padding:38px 0 10px; margin-top:14px; border-top:1px solid var(--line); }
+/* auto-fill con un ancho de tarjeta chico (antes 3 columnas fijas hacían tarjetas
+   enormes en pantallas anchas) — se acomodan solas según el espacio disponible. */
+.kc-bento .combos-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(200px,1fr)); gap:12px; }
+@media (max-width:600px){ .kc-bento .combos-grid{ grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); } }
+.kc-bento .combo-spot{ background:var(--surface); border:1px solid var(--line); border-radius:var(--r-md); overflow:hidden; transition:transform .2s, box-shadow .2s; }
+.kc-bento .combo-spot:hover{ transform:translateY(-3px); box-shadow:var(--shadow-md); }
+.kc-bento .combo-spot-media{ position:relative; display:block; aspect-ratio:4/3; background:var(--amber-soft); overflow:hidden; }
+.kc-bento .combo-spot-media img{ width:100%; height:100%; object-fit:cover; }
+.kc-bento .combo-spot-body{ padding:12px 13px 13px; display:flex; flex-direction:column; }
+.kc-bento .combo-spot-body .tile-name{ font-family:var(--f-display); font-size:13.5px; font-weight:700; display:block; margin-bottom:4px; }
+.kc-bento .combo-spot-body .tile-includes{ margin-bottom:9px; font-size:11px; }
+.kc-bento .combo-spot-priceblock{ display:flex; align-items:baseline; gap:7px; flex-wrap:wrap; }
+.kc-bento .combo-sum{ font-family:var(--f-mono); font-size:11px; color:var(--ink-faint); text-decoration:line-through; }
+.kc-bento .combo-final{ font-family:var(--f-mono); font-weight:700; font-size:15px; color:var(--amber-dark); }
+.kc-bento .combo-save-lg{ display:block; font-size:11px; font-weight:600; color:var(--lime-dark); margin-top:2px; margin-bottom:10px; }
+
 /* ================= Secondary rail (destacados) ================= */
-.kc-bento .rail-section{ padding:20px 0 56px; }
-.kc-bento .rail-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+.kc-bento .rail-section{ padding:38px 0 56px; margin-top:14px; border-top:1px solid var(--line); }
+.kc-bento .rail-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:16px; }
+.kc-bento .rail-eyebrow{ display:block; font-family:var(--f-mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:5px; }
 .kc-bento .rail-title{ font-family:var(--f-display); font-weight:700; font-size:19px; letter-spacing:-.005em; }
+.kc-bento .rail-link{ font-size:12.5px; font-weight:600; color:var(--ink-soft); white-space:nowrap; padding-bottom:3px; transition:color .15s; }
+.kc-bento .rail-link:hover{ color:var(--ink); }
 .kc-bento .rail-track{ display:flex; gap:14px; overflow-x:auto; scroll-behavior:smooth; padding-bottom:4px; }
 .kc-bento .rail-card{ flex:0 0 168px; background:var(--surface); border:1px solid var(--line); border-radius:var(--r-md); overflow:hidden; cursor:pointer; transition:.15s; }
 .kc-bento .rail-card:hover{ box-shadow:var(--shadow-sm); transform:translateY(-2px); }
@@ -259,26 +358,88 @@ html[data-theme="dark"] .kc-bento .theme-switch i{ left:20px; background:var(--l
 /* ================= Detalle de producto ================= */
 .kc-bento .kc-breadcrumb{ padding:18px 0 4px; font-size:12.5px; color:var(--ink-faint); display:flex; gap:6px; flex-wrap:wrap; }
 .kc-bento .kc-breadcrumb a:hover{ color:var(--ink); }
-.kc-bento .kc-detalle{ display:grid; grid-template-columns:1fr 1fr; gap:40px; padding:20px 0 60px; }
-.kc-bento .kc-galeria-principal{ position:relative; aspect-ratio:1/1; border-radius:var(--r-lg); overflow:hidden; background:var(--surface-2); display:flex; align-items:center; justify-content:center; color:var(--ink-faint); }
-.kc-bento .kc-galeria-principal img{ width:100%; height:100%; object-fit:cover; }
+/* align-items:start (no stretch) — la columna de info es siempre más larga
+   (ficha técnica completa con "—" en los campos vacíos), así que sin esto la
+   galería se estiraba dejando un hueco vacío debajo de las miniaturas. Con
+   sticky, la galería acompaña el scroll de la info en vez de quedar estática
+   con espacio de sobra (mismo patrón ya usado en Almacén). */
+/* Toda la sección (galería+info) vive en UNA sola tarjeta — antes era un grid
+   pelado sin fondo/sombra, se sentía desconectado del resto de Bento (que usa
+   tarjeta+sombra en todo). Inspirado en una referencia que trajo el usuario. */
+.kc-bento .kc-detalle{ display:grid; grid-template-columns:1fr 1fr; gap:40px; align-items:start; margin:20px 0 40px; padding:32px; background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg); box-shadow:var(--shadow-md); }
+.kc-bento .kc-galeria-col{ position:sticky; top:76px; }
+
+/* Alto fijo (no aspect-ratio:1/1) — la imagen cuadrada quedaba mucho más
+   grande de lo que mostraba la referencia; con alto fijo el ancho de la
+   columna ya no infla la altura de la imagen. */
+.kc-bento .kc-galeria-principal{ position:relative; height:420px; border-radius:var(--r-lg); overflow:hidden; background:var(--surface-2); display:flex; align-items:center; justify-content:center; color:var(--ink-faint); }
+.kc-bento .kc-galeria-principal img{ width:100%; height:100%; object-fit:cover; cursor:zoom-in; }
+.kc-bento .kc-galeria-badges{ position:absolute; top:12px; left:12px; z-index:2; display:flex; gap:6px; flex-wrap:wrap; }
+.kc-bento .kc-galeria-badges .tile-tag{ position:static; }
+.kc-bento .kc-galeria-expandir{
+  position:absolute; bottom:12px; right:12px; z-index:2; width:36px; height:36px; border-radius:50%;
+  background:color-mix(in srgb, var(--surface) 85%, transparent); backdrop-filter:blur(6px);
+  display:flex; align-items:center; justify-content:center; color:var(--ink); box-shadow:var(--shadow-sm); transition:.15s;
+}
+.kc-bento .kc-galeria-expandir:hover{ background:var(--surface); }
 .kc-bento .kc-galeria-thumbs{ display:flex; gap:10px; margin-top:12px; }
 .kc-bento .kc-thumb{ width:64px; height:64px; border-radius:var(--r-sm); overflow:hidden; border:1.5px solid var(--line); opacity:.7; }
 .kc-bento .kc-thumb--activo{ opacity:1; border-color:var(--lime); }
 .kc-bento .kc-thumb img{ width:100%; height:100%; object-fit:cover; }
-.kc-bento .kc-detalle-nombre{ font-family:var(--f-display); font-weight:700; font-size:26px; letter-spacing:-.01em; margin:8px 0 4px; }
+
+/* Lightbox del zoom — overlay simple, sin librería (ver bento.js) */
+.kc-bento .kc-lightbox{ position:fixed; inset:0; z-index:200; background:rgba(15,16,26,.92); display:flex; align-items:center; justify-content:center; padding:5vh 5vw; opacity:0; pointer-events:none; transition:opacity .18s; }
+.kc-bento .kc-lightbox.open{ opacity:1; pointer-events:auto; }
+.kc-bento .kc-lightbox img{ max-width:100%; max-height:90vh; width:auto; border-radius:var(--r-md); box-shadow:var(--shadow-lg); }
+.kc-bento .kc-lightbox-cerrar{ position:absolute; top:20px; right:24px; width:40px; height:40px; border-radius:50%; background:rgba(255,255,255,.12); color:#fff; display:flex; align-items:center; justify-content:center; }
+.kc-bento .kc-lightbox-cerrar:hover{ background:rgba(255,255,255,.22); }
+
+.kc-bento .kc-detalle-topmeta{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px; }
+.kc-bento .kc-meta-sep{ color:var(--ink-faint); font-size:11px; }
+.kc-bento .kc-stock-indicador{ display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; padding:3px 10px 3px 8px; border-radius:var(--r-pill); }
+.kc-bento .kc-stock-indicador--ok{ color:var(--lime-dark); background:var(--lime-soft); }
+.kc-bento .kc-stock-indicador--no{ color:var(--ink-faint); background:var(--surface-2); }
+.kc-bento .kc-stock-dot{ width:7px; height:7px; border-radius:50%; background:var(--lime); }
+
+.kc-bento .kc-detalle-nombre{ font-family:var(--f-system); font-weight:800; font-size:29.5px; line-height:1.25; letter-spacing:normal; margin:8px 0 4px; }
 .kc-bento .kc-detalle-marca{ font-size:13px; color:var(--ink-soft); margin-bottom:14px; }
-.kc-bento .kc-detalle-precio{ display:flex; align-items:baseline; gap:10px; margin-bottom:14px; }
-.kc-bento .kc-precio-final--grande{ font-family:var(--f-mono); font-weight:700; font-size:28px; }
-.kc-bento .kc-detalle-agregar{ margin:18px 0; }
-.kc-bento .kc-detalle-agregar button{ padding:14px 28px; border-radius:var(--r-sm); background:var(--lime); color:#fff; font-weight:700; font-size:14px; }
-.kc-bento .kc-detalle-agregar button:hover{ background:var(--lime-dark); }
-.kc-bento .kc-detalle-descripcion{ margin-top:18px; padding-top:18px; border-top:1px solid var(--line); }
+
+.kc-bento .kc-detalle-precio-card{ background:var(--surface-2); border-radius:var(--r-md); padding:16px 18px; margin-bottom:14px; }
+.kc-bento .kc-detalle-precio{ display:flex; align-items:baseline; gap:10px; }
+.kc-bento .kc-precio-final--grande{ font-family:var(--f-system); font-weight:800; font-size:35px; letter-spacing:-.5px; }
+.kc-bento .kc-detalle-unidad{ font-size:13px; color:var(--ink-faint); }
+.kc-bento .kc-detalle-ahorro{ display:flex; align-items:center; gap:6px; font-size:12.5px; font-weight:600; color:var(--lime-dark); margin:8px 0 0; }
+
+/* Descripción simple, sin título — va justo debajo del precio, separada del
+   resto por un borde inferior (antes tenía un <h2>"Descripción" y vivía más
+   abajo, después del botón; el orden nuevo deja leer antes de decidir comprar). */
+.kc-bento .kc-detalle-desc-plain{ font-size:13.5px; line-height:1.6; color:var(--ink-soft); margin-bottom:18px; padding-bottom:18px; border-bottom:1px solid var(--line); }
+
+.kc-bento .kc-detalle-descripcion{ margin-bottom:18px; }
 .kc-bento .kc-detalle-descripcion h2{ font-family:var(--f-display); font-size:15px; font-weight:700; margin-bottom:8px; }
 .kc-bento .kc-detalle-incluye li{ font-size:13.5px; padding:4px 0; color:var(--ink-soft); }
-.kc-bento .kc-detalle-specs{ display:flex; gap:22px; margin-top:18px; flex-wrap:wrap; }
-.kc-bento .kc-detalle-specs div{ font-size:12px; }
-.kc-bento .kc-detalle-specs span{ display:block; color:var(--ink-faint); margin-bottom:2px; }
+
+.kc-bento .kc-detalle-agregar{ margin:0 0 18px; }
+.kc-bento .kc-detalle-agregar button{ width:100%; padding:14px 28px; border-radius:var(--r-sm); background:var(--lime); color:#fff; font-weight:700; font-size:14px; }
+.kc-bento .kc-detalle-agregar button:hover{ background:var(--lime-dark); }
+
+.kc-bento .kc-detalle-tags{ display:flex; gap:7px; flex-wrap:wrap; margin-top:18px; }
+.kc-bento .kc-tag-chip{ font-size:11.5px; font-weight:600; color:var(--ink-soft); background:var(--surface-2); border:1px solid var(--line); border-radius:var(--r-pill); padding:4px 11px; }
+
+/* Ficha técnica: grid único de specs con dato real (los campos vacíos no
+   generan fila — antes se mostraban todos con "—", muy cargado). Las 4
+   banderas de seguridad (frágil/refrigeración/peligroso/perecedero) son la
+   excepción: se muestran siempre en Sí/No, porque un "No" real es información
+   útil y omitirla perdería esa garantía. */
+.kc-bento .kc-detalle-ficha{ margin-top:22px; padding-top:18px; border-top:1px solid var(--line); }
+.kc-bento .kc-detalle-ficha h3{ font-family:var(--f-display); font-size:12.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-faint); margin-bottom:12px; }
+.kc-bento .kc-detalle-specs{ display:grid; grid-template-columns:1fr 1fr; gap:6px 20px; }
+@media (max-width:560px){ .kc-bento .kc-detalle-specs{ grid-template-columns:1fr; } }
+.kc-bento .kc-detalle-specs div{ display:flex; justify-content:space-between; gap:10px; font-size:12.5px; padding-bottom:6px; border-bottom:1px dashed var(--line); }
+.kc-bento .kc-detalle-specs span{ color:var(--ink-soft); }
+.kc-bento .kc-detalle-specs strong{ font-weight:600; text-align:right; }
+.kc-bento .kc-spec-si{ color:var(--red); }
+.kc-bento .kc-spec-no{ color:var(--ink-faint); font-weight:500; }
 
 .kc-bento .kc-detalle-badges{ margin-top:14px; display:flex; gap:8px; flex-wrap:wrap; }
 .kc-bento .kc-detalle-badge{
@@ -297,24 +458,103 @@ html[data-theme="dark"] .kc-bento .theme-switch i{ left:20px; background:var(--l
     content:''; position:absolute; left:0; top:.55em; width:5px; height:5px; border-radius:50%; background:var(--lime);
 }
 
-footer.kc-bento-footer{ background:var(--indigo); color:rgba(255,255,255,.6); padding:30px 0 90px; }
-footer.kc-bento-footer .shell{ display:flex; flex-wrap:wrap; gap:20px; justify-content:space-between; align-items:flex-start; }
+/* Franja de confianza en caja propia (fondo suave) — antes era una lista
+   suelta sin agrupar, se perdía entre el resto de secciones. Mismo copy que
+   la franja de la home (.trust-item), reusado tal cual, no inventado de nuevo. */
+.kc-bento .kc-detalle-trust{ display:flex; flex-direction:column; gap:12px; margin-bottom:18px; padding:14px 16px; background:var(--surface-2); border-radius:var(--r-md); }
+.kc-bento .kc-detalle-trust-item{ display:flex; align-items:center; gap:11px; }
+.kc-bento .kc-detalle-trust-ic{ width:32px; height:32px; border-radius:9px; background:var(--indigo-soft); color:var(--indigo); flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+html[data-theme="dark"] .kc-bento .kc-detalle-trust-ic{ color:#9aa3ff; }
+.kc-bento .kc-detalle-trust-item strong{ display:block; font-size:12.5px; }
+.kc-bento .kc-detalle-trust-item small{ display:block; font-size:11.5px; color:var(--ink-soft); margin-top:1px; }
+
+/* ================= "La tienda" — página institucional ================= */
+.kc-bento .inst-portada{ position:relative; background:var(--indigo); overflow:hidden; margin-top:0; }
+.kc-bento .inst-portada-img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:.4; }
+.kc-bento .inst-portada::after{ content:''; position:absolute; inset:0; background:linear-gradient(180deg, rgba(23,25,39,.25), rgba(23,25,39,.75)); }
+.kc-bento .inst-portada--sin-imagen::after{ background:none; }
+.kc-bento .inst-portada-inner{ position:relative; z-index:2; padding:64px 26px; text-align:center; max-width:640px; margin:0 auto; }
+.kc-bento .inst-portada-inner h1{ font-family:var(--f-display); font-weight:700; font-size:clamp(26px,3.6vw,38px); color:#fff; letter-spacing:-.015em; margin-bottom:12px; }
+.kc-bento .inst-portada-inner p{ color:rgba(255,255,255,.78); font-size:14.5px; line-height:1.6; }
+
+.kc-bento .inst-historia{ padding:44px 26px; max-width:720px; text-align:center; }
+.kc-bento .inst-historia .rail-eyebrow{ display:block; margin-bottom:10px; }
+.kc-bento .inst-historia p{ font-size:16px; line-height:1.7; color:var(--ink-soft); }
+
+.kc-bento .inst-destacados{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; padding-bottom:14px; }
+@media (max-width:760px){ .kc-bento .inst-destacados{ grid-template-columns:1fr; } }
+.kc-bento .inst-destacado-card{ background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg); box-shadow:var(--shadow-sm); padding:22px; transition:transform .2s, box-shadow .2s; }
+.kc-bento .inst-destacado-card:hover{ transform:translateY(-3px); box-shadow:var(--shadow-md); }
+.kc-bento .inst-destacado-card h3{ font-family:var(--f-display); font-size:15.5px; font-weight:700; margin-bottom:6px; }
+.kc-bento .inst-destacado-card p{ font-size:13px; color:var(--ink-soft); line-height:1.55; }
+
+.kc-bento .inst-galeria{ padding:20px 0 8px; }
+.kc-bento .inst-galeria-grid{ display:grid; grid-template-columns:repeat(4,1fr); grid-auto-rows:150px; gap:12px; }
+@media (max-width:700px){ .kc-bento .inst-galeria-grid{ grid-template-columns:repeat(2,1fr); } }
+.kc-bento .inst-galeria-item{ position:relative; border-radius:var(--r-md); overflow:hidden; background:var(--surface-2); }
+.kc-bento .inst-galeria-item--grande{ grid-column:span 2; grid-row:span 2; }
+.kc-bento .inst-galeria-item img{ width:100%; height:100%; object-fit:cover; transition:transform .3s; }
+.kc-bento .inst-galeria-item:hover img{ transform:scale(1.05); }
+.kc-bento .inst-galeria-caption{ position:absolute; left:0; right:0; bottom:0; padding:8px 10px; font-size:11.5px; color:#fff; background:linear-gradient(0deg, rgba(23,25,39,.75), transparent); }
+
+.kc-bento .inst-info{ display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:24px 0; }
+@media (max-width:760px){ .kc-bento .inst-info{ grid-template-columns:1fr; } }
+.kc-bento .inst-info-card{ background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg); box-shadow:var(--shadow-sm); padding:20px 22px; }
+.kc-bento .inst-info-card h3{ display:flex; align-items:center; gap:9px; font-family:var(--f-display); font-size:13.5px; font-weight:700; color:var(--indigo); margin-bottom:10px; }
+html[data-theme="dark"] .kc-bento .inst-info-card h3{ color:#9aa3ff; }
+.kc-bento .inst-info-card p{ font-size:13.5px; color:var(--ink-soft); line-height:1.6; }
+.kc-bento .inst-info-vacio{ color:var(--ink-faint); font-style:italic; }
+
+.kc-bento .inst-contacto{ padding:14px 0 56px; }
+.kc-bento .inst-contacto-card{ background:var(--indigo); border-radius:var(--r-lg); padding:34px 36px; display:flex; align-items:center; justify-content:space-between; gap:24px; flex-wrap:wrap; }
+.kc-bento .inst-contacto-texto h2{ font-family:var(--f-display); font-size:20px; font-weight:700; color:#fff; margin-bottom:8px; }
+.kc-bento .inst-contacto-texto p{ font-size:13.5px; color:rgba(255,255,255,.75); max-width:420px; margin-bottom:10px; }
+.kc-bento .inst-contacto-datos{ display:flex; gap:16px; flex-wrap:wrap; font-size:13px; color:rgba(255,255,255,.85); margin-bottom:10px; }
+.kc-bento .inst-contacto-card .foot-redes a{ background:rgba(255,255,255,.1); }
+.kc-bento .inst-contacto-card .foot-redes a:hover{ background:rgba(255,255,255,.2); }
+.kc-bento .inst-whatsapp-btn{ margin-top:0; flex-shrink:0; }
+
+/* padding-bottom era 100px — quedaba una franja vacía enorme debajo de la
+   línea de copyright, mucho más alto que cualquier otro pie del sitio. */
+footer.kc-bento-footer{ background:var(--indigo); color:rgba(255,255,255,.65); padding:38px 0 0; }
+footer.kc-bento-footer .foot-grid{ display:grid; grid-template-columns:1.6fr 1fr 1fr; gap:28px; }
+@media (max-width:760px){ footer.kc-bento-footer .foot-grid{ grid-template-columns:1fr; gap:22px; } }
 footer.kc-bento-footer b{ color:#fff; }
-footer.kc-bento-footer .foot-col{ font-size:12.5px; max-width:420px; }
-footer.kc-bento-footer .foot-contacto{ font-size:12px; text-align:right; }
+footer.kc-bento-footer h4{ color:#fff; font-family:var(--f-display); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; margin:0 0 12px; }
+footer.kc-bento-footer .foot-col{ font-size:12.5px; line-height:1.6; }
+footer.kc-bento-footer .foot-col--brand{ max-width:360px; }
+footer.kc-bento-footer .foot-links{ display:flex; flex-direction:column; gap:8px; }
+footer.kc-bento-footer .foot-links a:hover{ color:#fff; }
+/* fila de íconos de redes — reusada también en la página institucional */
+.kc-bento .foot-redes{ display:flex; gap:10px; margin-top:14px; }
+.kc-bento .foot-redes a{ width:32px; height:32px; border-radius:50%; background:rgba(255,255,255,.08); display:flex; align-items:center; justify-content:center; transition:background .15s; }
+.kc-bento .foot-redes a:hover{ background:rgba(255,255,255,.18); color:#fff; }
+/* botón CTA de WhatsApp — reusado también en la página institucional (.inst-contacto-card), no es exclusivo del footer */
+.kc-bento .footer-wa{ display:inline-flex; align-items:center; gap:8px; background:var(--lime); color:#fff; font-weight:700; font-size:12.5px; padding:10px 16px; border-radius:var(--r-pill); margin-top:14px; width:max-content; transition:background .15s; }
+.kc-bento .footer-wa:hover{ background:var(--lime-dark); }
+footer.kc-bento-footer .foot-contacto{ font-size:12px; }
+footer.kc-bento-footer .foot-contacto div{ margin-bottom:4px; }
+footer.kc-bento-footer .foot-bottom{ max-width:1320px; margin:32px auto 0; padding:18px 26px 26px; border-top:1px solid rgba(255,255,255,.12); font-size:11.5px; color:rgba(255,255,255,.45); text-align:center; }
 #kcFooterContacto:empty{ display:none; }
+
+/* Nav principal envuelve a una segunda fila scrolleable en pantallas angostas
+   (mismo lenguaje visual que .stories-rail/.subbar-inner) en vez de desaparecer —
+   Ofertas/Combos/La tienda tienen que seguir siendo alcanzables en mobile. */
+@media (max-width:980px){
+  .kc-bento .topbar-inner{ flex-wrap:wrap; row-gap:8px; }
+  .kc-bento .main-nav{ order:5; flex-basis:100%; overflow-x:auto; gap:18px; padding-bottom:2px; }
+}
 
 @media (max-width:860px){
   .kc-bento .search-wrap{ display:none; }
+  .kc-bento .icon-btn.search-toggle{ display:flex; }
+  .kc-bento .topbar.search-open .search-wrap{ display:flex; order:6; flex-basis:100%; max-width:none; margin-top:2px; }
   .kc-bento .c-overlay{ max-width:80%; padding:0 26px; }
 }
 
-/* Bento en mobile: los tiles grandes ocupan todo el ancho disponible en
-   vez de span:4 (que en un grid de 2 columnas rompería el layout) — el
-   diseño original solo se probó en desktop. */
 @media (max-width:700px){
-  .kc-bento .bento{ grid-template-columns:repeat(2, 1fr); }
-  .kc-bento .tile.sz-featured{ grid-column:1 / -1; grid-row:span 3; }
-  .kc-bento .tile.sz-bundle{ grid-column:1 / -1; grid-row:span 2; }
-  .kc-bento .kc-detalle{ grid-template-columns:1fr; gap:24px; }
+  .kc-bento .bento{ grid-template-columns:repeat(2, 1fr); gap:12px; }
+  .kc-bento .kc-detalle{ grid-template-columns:1fr; gap:24px; padding:20px; margin:14px 0 28px; }
+  .kc-bento .kc-galeria-col{ position:static; }
+  .kc-bento .kc-galeria-principal{ height:300px; }
 }

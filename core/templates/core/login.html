@@ -12,80 +12,253 @@
 </head>
 <body>
 
-    <div class="login-container">
-        <div class="login-card">
+    <!-- Lienzo vivo — fixed a nivel de <body>, no scrollea con el contenido.
+         Orbes que respiran + spotlight que sigue el cursor + grano, para que
+         todo el recorrido (login + secciones de abajo) se sienta UN mismo
+         fondo continuo, no bloques cortados. -->
+    <div class="page-backdrop" id="pageBackdrop">
+        <div class="login-page-aura"></div>
+        <div class="login-page-orbs" id="loginOrbs">
+            <div class="login-page-orb login-page-orb--a"></div>
+            <div class="login-page-orb login-page-orb--b"></div>
+            <div class="login-page-orb login-page-orb--c"></div>
+            <div class="login-page-orb login-page-orb--accent" id="orbAccent"></div>
+        </div>
+        <div class="login-page-particles" id="loginParticles"></div>
+        <div class="login-page-grain"></div>
+        <div class="login-page-spotlight" id="loginSpotlight"></div>
+    </div>
 
-            <!-- Brand: solo imagen, el logo ya trae el texto "Kai-Cart" adentro -->
-            <div class="login-brand">
-                <img src="{% static 'core/img/kai-cart-logo-completo.png' %}" alt="Kai-Cart" class="login-logo-img">
-                <div class="login-brand-text">
-                    <span class="login-logo-sub">Management System</span>
-                </div>
-            </div>
+    <div class="login-page" id="loginPage">
 
-            <!-- Heading -->
-            <div class="login-header">
-                <h2>Bienvenido de nuevo</h2>
-                <p>Ingresá tus credenciales para acceder al sistema</p>
-            </div>
+        <!-- Tarjeta flotante partida en 2 — mismo navy/logo/animación reales
+             del sidebar, para que se note la transición del catálogo público
+             al sistema. -->
+        <div class="login-card" id="loginCard">
 
-            <!-- Error -->
-            {% if form.errors %}
-            <div class="alert-error">
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
-                    <circle cx="10" cy="10" r="9" stroke="currentColor" stroke-width="1.5"/>
-                    <path d="M10 6V10M10 14H10.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                </svg>
-                <span>Usuario o contraseña incorrectos</span>
-            </div>
-            {% endif %}
-
-            <!-- Form -->
-            <form method="post" class="login-form">
-                {% csrf_token %}
-
-                <div class="form-group">
-                    <label for="id_username">Usuario</label>
-                    <div class="input-wrapper">
-                        <svg class="input-icon" width="17" height="17" viewBox="0 0 18 18" fill="none">
-                            <circle cx="9" cy="6" r="3" stroke="currentColor" stroke-width="1.5"/>
-                            <path d="M3 15C3 12.24 5.69 10 9 10C12.31 10 15 12.24 15 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                        </svg>
-                        <input type="text" id="id_username" name="username" placeholder="nombre.usuario" autofocus autocomplete="username">
+            <aside class="login-brand-panel">
+                <div class="login-brand-content">
+                    <div class="login-brand-lockup">
+                        <div class="logo">
+                            <img src="{% static 'core/img/kai-cart-logo-completo.png' %}" alt="Kai-Cart" class="logo-img">
+                        </div>
                     </div>
+
+                    <span class="login-brand-pill">Sistema de Gestión</span>
+
+                    <h1 class="login-brand-tagline">Gestioná todo tu negocio en un solo lugar.</h1>
+                    <p class="login-brand-sub">Ventas, stock, clientes y catálogo online — todo sincronizado en tiempo real.</p>
+
+                    <ul class="login-brand-features">
+                        <li>
+                            <span class="login-feature-ic">
+                                <svg width="17" height="17" viewBox="0 0 20 20" fill="none"><path d="M2 15L7 10L11 13L18 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M13 5H18V10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            </span>
+                            <div>
+                                <strong>Ventas y facturación</strong>
+                                <span>Caja, ventas y comprobantes centralizados.</span>
+                            </div>
+                        </li>
+                        <li>
+                            <span class="login-feature-ic">
+                                <svg width="17" height="17" viewBox="0 0 20 20" fill="none"><path d="M2 6L10 2L18 6V14L10 18L2 14V6Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M2 6L10 10L18 6M10 10V18" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+                            </span>
+                            <div>
+                                <strong>Stock y compras</strong>
+                                <span>Inventario y compras siempre al día.</span>
+                            </div>
+                        </li>
+                        <li>
+                            <span class="login-feature-ic">
+                                <svg width="17" height="17" viewBox="0 0 20 20" fill="none"><rect x="2" y="4" width="16" height="12" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M2 8H18" stroke="currentColor" stroke-width="1.6"/></svg>
+                            </span>
+                            <div>
+                                <strong>Catálogo online</strong>
+                                <span>Tu tienda pública conectada en tiempo real.</span>
+                            </div>
+                        </li>
+                    </ul>
                 </div>
 
-                <div class="form-group">
-                    <label for="id_password">Contraseña</label>
-                    <div class="input-wrapper">
-                        <svg class="input-icon" width="17" height="17" viewBox="0 0 18 18" fill="none">
-                            <rect x="3" y="7" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
-                            <path d="M6 7V4.5C6 2.84 7.34 1.5 9 1.5C10.66 1.5 12 2.84 12 4.5V7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                <div class="login-brand-footer">© {% now "Y" %} Kai-Cart · Todos los derechos reservados</div>
+            </aside>
+
+            <main class="login-form-panel">
+                <div class="login-form-wrap">
+
+                    <div class="login-header">
+                        <h2>Bienvenido de nuevo</h2>
+                        <p>Ingresá tus credenciales para acceder al sistema</p>
+                    </div>
+
+                    {% if form.errors %}
+                    <div class="alert-error">
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+                            <circle cx="10" cy="10" r="9" stroke="currentColor" stroke-width="1.5"/>
+                            <path d="M10 6V10M10 14H10.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                         </svg>
-                        <input type="password" id="id_password" name="password" placeholder="••••••••" autocomplete="current-password">
-                        <button type="button" class="toggle-password" aria-label="Mostrar contraseña">
+                        <span>Usuario o contraseña incorrectos</span>
+                    </div>
+                    {% endif %}
+
+                    <form method="post" class="login-form">
+                        {% csrf_token %}
+
+                        <div class="form-group">
+                            <label for="id_username">Usuario</label>
+                            <div class="input-wrapper">
+                                <svg class="input-icon" width="17" height="17" viewBox="0 0 18 18" fill="none">
+                                    <circle cx="9" cy="6" r="3" stroke="currentColor" stroke-width="1.5"/>
+                                    <path d="M3 15C3 12.24 5.69 10 9 10C12.31 10 15 12.24 15 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                                </svg>
+                                <input type="text" id="id_username" name="username" placeholder="nombre.usuario" autofocus autocomplete="username">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="id_password">Contraseña</label>
+                            <div class="input-wrapper">
+                                <svg class="input-icon" width="17" height="17" viewBox="0 0 18 18" fill="none">
+                                    <rect x="3" y="7" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+                                    <path d="M6 7V4.5C6 2.84 7.34 1.5 9 1.5C10.66 1.5 12 2.84 12 4.5V7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                                </svg>
+                                <input type="password" id="id_password" name="password" placeholder="••••••••" autocomplete="current-password">
+                                <button type="button" class="toggle-password" aria-label="Mostrar contraseña">
+                                    <svg width="17" height="17" viewBox="0 0 18 18" fill="none">
+                                        <path d="M9 4C5 4 2.5 7 1 9C2.5 11 5 14 9 14C13 14 15.5 11 17 9C15.5 7 13 4 9 4Z" stroke="currentColor" stroke-width="1.5"/>
+                                        <circle cx="9" cy="9" r="2.5" stroke="currentColor" stroke-width="1.5"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn-login">
+                            <span>Ingresar al sistema</span>
                             <svg width="17" height="17" viewBox="0 0 18 18" fill="none">
-                                <path d="M9 4C5 4 2.5 7 1 9C2.5 11 5 14 9 14C13 14 15.5 11 17 9C15.5 7 13 4 9 4Z" stroke="currentColor" stroke-width="1.5"/>
-                                <circle cx="9" cy="9" r="2.5" stroke="currentColor" stroke-width="1.5"/>
+                                <path d="M1 9H15M15 9L10 4M15 9L10 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                             </svg>
                         </button>
-                    </div>
+                    </form>
+
+                    <div class="login-footer">Sistema de Gestión Kai-Cart</div>
                 </div>
-
-                <button type="submit" class="btn-login">
-                    <span>Ingresar al sistema</span>
-                    <svg width="17" height="17" viewBox="0 0 18 18" fill="none">
-                        <path d="M1 9H15M15 9L10 4M15 9L10 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                </button>
-            </form>
-
-            <div class="login-footer">
-                © {% now "Y" %} Kai-Cart · Todos los derechos reservados
-            </div>
+            </main>
 
         </div>
+
+        <button type="button" class="scroll-cue" id="scrollCue" aria-label="Ver más sobre el sistema">
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+                <path d="M4 7L10 13L16 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>
     </div>
+
+    <!-- Debajo del login — el mismo lienzo navy sigue detrás (page-backdrop
+         fixed), acá solo "flota" el contenido que cuenta qué hace el
+         sistema, con capturas reales de las pantallas internas. -->
+    <main class="showcase" id="showcase">
+
+        <section class="showcase-intro js-reveal reveal">
+            <span class="showcase-kicker">Sobre el sistema</span>
+            <h2 class="showcase-heading">Un sistema pensado para manejar todo tu negocio desde un solo lugar.</h2>
+            <p class="showcase-sub">Ventas, caja, stock y catálogo online — conectados en tiempo real, sin planillas sueltas ni sistemas separados.</p>
+        </section>
+
+        <section class="showcase-row js-reveal" id="row-0" data-accent="orange">
+            <div class="showcase-text">
+                <span class="showcase-row-kicker">01 · Pantalla principal</span>
+                <h3>Todo tu negocio, de un vistazo.</h3>
+                <p>Apenas entrás, ves lo que importa: ventas del día, estado de caja y alertas — sin bucear entre menús para encontrar algo urgente.</p>
+                <ul class="showcase-bullets">
+                    <li><span class="showcase-bullet-ic"><svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M2 7L5.5 10.5L12 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Resumen del día siempre a mano.</li>
+                    <li><span class="showcase-bullet-ic"><svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M2 7L5.5 10.5L12 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Accesos directos a lo que usás todos los días.</li>
+                </ul>
+            </div>
+            <div class="showcase-media">
+                <div class="device-frame">
+                    <div class="device-frame-bar">
+                        <span></span><span></span><span></span>
+                        <span class="device-frame-url">kai-cart · Panel principal</span>
+                    </div>
+                    <img src="{% static 'core/img/showcase/home.png' %}" alt="Pantalla principal del sistema Kai-Cart" loading="lazy">
+                </div>
+            </div>
+        </section>
+
+        <section class="showcase-row showcase-row--reverse js-reveal" id="row-1" data-accent="blue">
+            <div class="showcase-media">
+                <div class="device-frame">
+                    <div class="device-frame-bar">
+                        <span></span><span></span><span></span>
+                        <span class="device-frame-url">kai-cart · Caja grande</span>
+                    </div>
+                    <img src="{% static 'core/img/showcase/caja.png' %}" alt="Pantalla de Caja grande del sistema Kai-Cart" loading="lazy">
+                </div>
+            </div>
+            <div class="showcase-text">
+                <span class="showcase-row-kicker">02 · Caja grande</span>
+                <h3>El balance real de tu negocio, siempre a la vista.</h3>
+                <p>Efectivo, cuentas bancarias, tarjetas y créditos en un solo lugar, por moneda — con cada movimiento registrado, sin planillas paralelas.</p>
+                <ul class="showcase-bullets">
+                    <li><span class="showcase-bullet-ic"><svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M2 7L5.5 10.5L12 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Balance general en ARS, USD y EUR.</li>
+                    <li><span class="showcase-bullet-ic"><svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M2 7L5.5 10.5L12 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Desglose por cuenta y últimos movimientos.</li>
+                </ul>
+            </div>
+        </section>
+
+        <section class="showcase-row js-reveal" id="row-2" data-accent="orange">
+            <div class="showcase-text">
+                <span class="showcase-row-kicker">03 · Stock</span>
+                <h3>Mercadería bajo control, siempre al día.</h3>
+                <p>Cada compra y cada venta actualiza el stock en tiempo real — niveles por producto, alertas de stock bajo y sin unidades, todo de un vistazo.</p>
+                <ul class="showcase-bullets">
+                    <li><span class="showcase-bullet-ic"><svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M2 7L5.5 10.5L12 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Niveles de stock siempre actualizados.</li>
+                    <li><span class="showcase-bullet-ic"><svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M2 7L5.5 10.5L12 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Alertas de stock bajo y sin stock.</li>
+                </ul>
+            </div>
+            <div class="showcase-media">
+                <div class="device-frame">
+                    <div class="device-frame-bar">
+                        <span></span><span></span><span></span>
+                        <span class="device-frame-url">kai-cart · Stock</span>
+                    </div>
+                    <img src="{% static 'core/img/showcase/stock.png' %}" alt="Pantalla de stock del sistema Kai-Cart" loading="lazy">
+                </div>
+            </div>
+        </section>
+
+        <section class="showcase-close js-reveal reveal" id="showcaseClose">
+            <h2>Todo listo. Entrá y probalo.</h2>
+            <p>Volvé arriba e ingresá con tu usuario para empezar a gestionar tu negocio desde acá.</p>
+            <button type="button" class="btn-login btn-login--cta" id="closeCta">
+                <span>Ingresar al sistema</span>
+                <svg width="17" height="17" viewBox="0 0 18 18" fill="none">
+                    <path d="M1 9H15M15 9L10 4M15 9L10 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+            <div class="showcase-footer">© {% now "Y" %} Kai-Cart · Todos los derechos reservados</div>
+        </section>
+
+    </main>
+
+    <button type="button" class="scroll-fab" id="scrollFab">
+        <span>Ingresar</span>
+        <svg width="14" height="14" viewBox="0 0 18 18" fill="none">
+            <path d="M1 9H15M15 9L10 4M15 9L10 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+    </button>
+
+    <!-- Riel de progreso — refuerza la sensación de "recorrido" mientras se
+         scrollea (como los puntos de sección de antigravity.google), y
+         funciona como navegación rápida entre bloques. Solo desktop ancho. -->
+    <nav class="scroll-rail" id="scrollRail" aria-label="Progreso de la página">
+        <span class="scroll-rail-line"><span class="scroll-rail-fill" id="scrollRailFill"></span></span>
+        <button type="button" class="scroll-rail-dot" data-target="loginPage" aria-label="Ir al inicio"><span></span></button>
+        <button type="button" class="scroll-rail-dot" data-target="row-0" aria-label="Ir a Pantalla principal"><span></span></button>
+        <button type="button" class="scroll-rail-dot" data-target="row-1" aria-label="Ir a Caja grande"><span></span></button>
+        <button type="button" class="scroll-rail-dot" data-target="row-2" aria-label="Ir a Stock"><span></span></button>
+        <button type="button" class="scroll-rail-dot" data-target="showcaseClose" aria-label="Ir al cierre"><span></span></button>
+    </nav>
 
     <script src="{% static 'core/js/login.js' %}"></script>
 </body>

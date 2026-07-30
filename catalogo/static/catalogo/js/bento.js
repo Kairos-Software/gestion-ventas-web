@@ -74,6 +74,25 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    /* ---------------- Buscador mobile (icono que expande el form) ---------------- */
+    var searchToggle = document.getElementById('kcSearchToggle');
+    var searchInput = document.querySelector('#kcSearchForm .search-input');
+    if (searchToggle && topbar) {
+        searchToggle.addEventListener('click', function (e) {
+            e.stopPropagation();
+            var abierto = topbar.classList.toggle('search-open');
+            if (abierto && searchInput) searchInput.focus();
+        });
+        document.addEventListener('click', function (e) {
+            if (topbar.classList.contains('search-open') && !topbar.contains(e.target)) {
+                topbar.classList.remove('search-open');
+            }
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') topbar.classList.remove('search-open');
+        });
+    }
+
     /* ---------------- Galería de imágenes (detalle de producto) ---------------- */
     var imgActual = document.getElementById('kcGaleriaImgActual');
     var thumbs = document.querySelectorAll('.kc-thumb');
@@ -85,4 +104,23 @@ document.addEventListener('DOMContentLoaded', function () {
             thumb.classList.add('kc-thumb--activo');
         });
     });
+
+    /* ---------------- Zoom de la imagen principal (lightbox simple) ---------------- */
+    var lightbox = document.getElementById('kcLightbox');
+    var lightboxImg = document.getElementById('kcLightboxImg');
+    var btnExpandir = document.getElementById('kcGaleriaExpandir');
+    var btnCerrarLightbox = document.getElementById('kcLightboxCerrar');
+    function abrirLightbox() {
+        if (!lightbox || !imgActual) return;
+        lightboxImg.src = imgActual.src;
+        lightbox.classList.add('open');
+    }
+    function cerrarLightbox() {
+        if (lightbox) lightbox.classList.remove('open');
+    }
+    if (btnExpandir) btnExpandir.addEventListener('click', abrirLightbox);
+    if (imgActual) imgActual.addEventListener('click', abrirLightbox);
+    if (btnCerrarLightbox) btnCerrarLightbox.addEventListener('click', cerrarLightbox);
+    if (lightbox) lightbox.addEventListener('click', function (e) { if (e.target === lightbox) cerrarLightbox(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') cerrarLightbox(); });
 });

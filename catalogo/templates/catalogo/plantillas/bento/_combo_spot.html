@@ -1,0 +1,46 @@
+{% comment %}
+Tarjeta de combo para la sección "Combos armados" de home.html — partial
+aparte porque se recorre desde 2 loops distintos (paquetes_destacados en
+modo vidriera, paquetes completo en modo filtrado) y así no se duplica el
+markup. Espera `pq` en el contexto (viene del {% for %} del caller).
+{% endcomment %}
+<div class="combo-spot">
+  <a href="{% url 'catalogo:producto_detalle' pq.pk %}" class="combo-spot-media">
+    {% if pq.oferta_info %}<span class="tile-tag tag-offer">{{ pq.oferta_info.badge }}</span>{% else %}<span class="tile-tag tag-bundle">Combo</span>{% endif %}
+    {% with portada=pq.imagenes.first %}
+      {% if portada %}
+        <img src="{{ portada.imagen.url }}" alt="{{ pq.nombre }}" loading="lazy">
+      {% else %}
+        <div class="tile-collage">
+          {% for c in pq.componentes.all|slice:":3" %}
+            <span>
+              {% with img=c.producto.imagen_principal %}
+                {% if img %}<img src="{{ img.imagen.url }}" alt="">{% else %}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 8L12 3.5L21 8V16L12 20.5L3 16V8Z"/></svg>{% endif %}
+              {% endwith %}
+            </span>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+  </a>
+  <div class="combo-spot-body">
+    <a href="{% url 'catalogo:producto_detalle' pq.pk %}"><span class="tile-name">{{ pq.nombre }}</span></a>
+    <div class="tile-includes">{% for c in pq.componentes.all %}{{ c.cantidad|floatformat:"-2" }}× {{ c.producto.nombre }}{% if not forloop.last %} · {% endif %}{% endfor %}</div>
+    <div class="combo-spot-priceblock">
+      {% if pq.ahorro %}<span class="combo-sum">${{ pq.ahorro.suma|floatformat:2 }}</span>{% endif %}
+      {% if pq.precio_venta %}<span class="combo-final">${{ pq.precio_venta }}</span>{% else %}<span class="tile-consultar">A consultar</span>{% endif %}
+    </div>
+    {% if pq.ahorro %}<span class="combo-save-lg">Ahorrás ${{ pq.ahorro.ahorro|floatformat:2 }}</span>{% endif %}
+    {% if pq.disponible_compra %}
+    <div class="tile-agregar" data-carrito-slot>
+      <button type="button" data-carrito-agregar="paq-{{ pq.pk }}"
+        data-nombre="{{ pq.nombre }}" data-precio="{{ pq.precio_venta }}"
+        data-precio-lista="{{ pq.precio_venta }}"
+        data-categoria-id="{{ pq.categoria.pk|default:'' }}"
+        data-imagen="{% if pq.imagenes.first %}{{ pq.imagenes.first.imagen.url }}{% endif %}">
+        Agregar combo
+      </button>
+    </div>
+    {% endif %}
+  </div>
+</div>

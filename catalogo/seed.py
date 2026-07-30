@@ -29,7 +29,7 @@ from productos.models import (
     AplicacionOferta, CategoriaProducto, EstadoProducto, ModoPrecio,
     Oferta, PaqueteComponente, Producto, ProductoImagen, TipoOferta,
 )
-from .models import DatoDemo
+from .models import ConfiguracionCatalogo, DatoDemo, SlideHeroCatalogo
 
 logger = logging.getLogger(__name__)
 
@@ -193,6 +193,29 @@ def cargar_datos_demo():
             _registrar(img)
             resumen['imagenes'] += 1
 
+    # Slides del carrusel de hero — solo los usa la plantilla "bento" (ver
+    # SlideHeroCatalogo.__doc__), pero se cargan siempre: así quien prueba
+    # esa plantilla ve el carrusel andando de entrada, sin tener que crear
+    # slides a mano antes de poder evaluar el diseño.
+    config = ConfiguracionCatalogo.get_solo()
+    for orden, (seed, eyebrow, titulo, descripcion, cta_texto) in enumerate([
+        ('kai-cart-slide-0', 'Ofertas de la semana', f'{PREFIJO_DEMO}Hasta 20% en snacks y bebidas',
+         'Descuentos automáticos en productos seleccionados, todo el finde.', 'Ver ofertas'),
+        ('kai-cart-slide-1', 'Combo del mes', f'{PREFIJO_DEMO}Combo Asado',
+         'Todo lo que necesitás para el asado del finde, en un solo pedido.', 'Ver combo'),
+        ('kai-cart-slide-2', 'Catálogo online', f'{PREFIJO_DEMO}Pedí sin salir de casa',
+         'Elegís del catálogo, coordinamos por WhatsApp y te lo llevamos.', 'Ver catálogo completo'),
+    ]):
+        slide = SlideHeroCatalogo.objects.create(
+            configuracion=config, eyebrow=eyebrow, titulo=titulo,
+            descripcion=descripcion, cta_texto=cta_texto, orden=orden,
+        )
+        # Igual que con ProductoImagen: el ImageField necesita el pk de la
+        # fila para armar la ruta (_catalogo_slide_path), por eso se sube
+        # en un segundo paso — mismo patrón que CatalogoSlideImagenAjax.
+        slide.imagen.save(f'demo-slide-{orden}.jpg', ContentFile(_imagen_demo(seed, lado=1200)), save=True)
+        _registrar(slide)
+
     hasta = hoy + timedelta(days=30)
 
     oferta_pct = Oferta.objects.create(
@@ -232,8 +255,17 @@ def eliminar_datos_demo():
         img = ProductoImagen.objects.filter(pk=pk).first()
         if img and img.imagen and os.path.isfile(img.imagen.path):
             os.remove(img.imagen.path)
+    for pk in por_modelo.get('slideherocatalogo', []):
+        slide = SlideHeroCatalogo.objects.filter(pk=pk).first()
+        if slide and slide.imagen and os.path.isfile(slide.imagen.path):
+            os.remove(slide.imagen.path)
 
     eliminados = 0
+    # Los slides no cuelgan de Producto/Categoría (van contra el singleton
+    # ConfiguracionCatalogo, que no es dato demo), así que hay que borrarlos
+    # a mano — si no, quedan filas y carpetas de imagen huérfanas después
+    # de "eliminar datos demo".
+    eliminados += SlideHeroCatalogo.objects.filter(pk__in=por_modelo.get('slideherocatalogo', [])).delete()[0]
     # LoteCompra.producto es SET_NULL (no CASCADE) — si no se borra
     # explícitamente acá, borrar el Producto de abajo lo dejaría huérfano
     # (producto=None) para siempre, en vez de desaparecer con el resto
