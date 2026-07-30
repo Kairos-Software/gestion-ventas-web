@@ -43,6 +43,87 @@ body {
 }
 
 /* ═══════════════════════════
+   CURSOR A MEDIDA — login.js lo activa solo en desktop con mouse real y
+   sin reduced-motion (agrega .custom-cursor-on en <body>). El panel del
+   formulario queda afuera a propósito: ahí el cursor sigue siendo nativo
+   (I-beam en los inputs, etc.) para no restarle previsibilidad a la
+   parte funcional del login — el cursor a medida es para el resto,
+   la parte "showroom" de la página.
+   ═══════════════════════════ */
+body.custom-cursor-on { cursor: none; }
+body.custom-cursor-on .login-form-panel,
+body.custom-cursor-on .login-form-panel * {
+    cursor: auto;
+}
+body.custom-cursor-on .login-form-panel button,
+body.custom-cursor-on .login-form-panel .toggle-password {
+    cursor: pointer;
+}
+
+.cursor-dot,
+.cursor-ring {
+    position: fixed;
+    top: 0; left: 0;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 60;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+body.custom-cursor-on .cursor-dot,
+body.custom-cursor-on .cursor-ring {
+    opacity: 1;
+}
+
+.cursor-dot {
+    width: 6px;
+    height: 6px;
+    margin: -3px 0 0 -3px;
+    background: #fff;
+    will-change: transform;
+}
+
+.cursor-ring {
+    width: 34px;
+    height: 34px;
+    margin: -17px 0 0 -17px;
+    border: 1px solid rgba(242,106,27,0.45);
+    transition: opacity 0.3s ease, transform 0.2s cubic-bezier(0.23,1,0.32,1), border-color 0.2s, background 0.2s;
+    will-change: transform;
+}
+.cursor-ring.is-active {
+    border-color: rgba(242,106,27,0.75);
+    background: rgba(242,106,27,0.1);
+}
+
+/* Cuando el panel del formulario está bajo el cursor, ocultamos también
+   el cursor a medida (además de restaurar el nativo vía body.*) para que
+   no queden dos cursores superpuestos. */
+body.custom-cursor-on.cursor-over-form .cursor-dot,
+body.custom-cursor-on.cursor-over-form .cursor-ring {
+    opacity: 0;
+}
+
+/* ─── Botones con barrido de brillo (shimmer) — mismo mecanismo que el
+   brillo del logo, aplicado a los CTA principales para que se sientan
+   "vivos" incluso sin interacción. ─── */
+.shimmer { position: relative; overflow: hidden; }
+.shimmer::after {
+    content: '';
+    position: absolute;
+    top: -50%; left: -50%;
+    width: 200%; height: 200%;
+    background: linear-gradient(45deg, transparent, rgba(255,255,255,0.16), transparent);
+    transform: rotate(45deg) translateX(-100%);
+    animation: shimmerSweep 5s ease-in-out infinite;
+    pointer-events: none;
+}
+@keyframes shimmerSweep {
+    0%, 40%   { transform: rotate(45deg) translateX(-120%); }
+    60%, 100% { transform: rotate(45deg) translateX(120%); }
+}
+
+/* ═══════════════════════════
    LIENZO VIVO GLOBAL — fixed a nivel de body, cubre siempre el viewport
    completo sin moverse con el scroll (el contenido "flota" sobre él). Es
    lo que hace que login + secciones de abajo se sientan una sola pieza
@@ -58,6 +139,28 @@ body {
     z-index: 0;
     overflow: hidden;
     pointer-events: none;
+}
+
+/* Shader WebGL — base del lienzo (ruido fluido tipo "aurora", glow de
+   mouse y acento de color por sección, todo animado por login.js). Si
+   login.js confirma que WebGL inicializó bien, agrega .shader-active en
+   .page-backdrop y esta capa pasa a ser la única de fondo; si no, se
+   queda en opacity:0 y la capa de respaldo (orbes/aura/partículas/
+   spotlight de abajo) sigue siendo el fondo, como ya funcionaba antes. */
+.page-shader {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    transition: opacity 1.2s ease;
+}
+.page-backdrop.shader-active .page-shader { opacity: 1; }
+.page-backdrop.shader-active .login-page-orbs,
+.page-backdrop.shader-active .login-page-aura,
+.page-backdrop.shader-active .login-page-particles,
+.page-backdrop.shader-active .login-page-spotlight {
+    display: none;
 }
 
 .login-page-orbs {
@@ -1014,34 +1117,8 @@ body {
     .login-form-wrap { max-width: none; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-    .login-page-orb,
-    .login-page-aura,
-    .login-page-particles,
-    .login-card,
-    .login-brand-content > *,
-    .login-brand-features li,
-    .login-brand-footer,
-    .login-form-wrap,
-    .scroll-cue,
-    .reveal,
-    .showcase-text,
-    .showcase-heading .word-inner,
-    .showcase-text h3 .word-inner,
-    .device-frame,
-    .showcase-media,
-    .scroll-fab,
-    .scroll-rail-fill {
-        animation: none !important;
-        transition: none !important;
-        opacity: 1 !important;
-        transform: none !important;
-    }
-    .login-page-particles,
-    .login-page-aura,
-    .login-page-orb--accent {
-        display: none;
-    }
-    .scroll-fab { transform: none !important; }
-    .scroll-fab:not(.is-visible) { opacity: 0 !important; }
-}
+/* Nota: esta página no tiene un bloque @media (prefers-reduced-motion)
+   a propósito — es una decisión consciente del dueño del producto (ver
+   comentario al inicio de login.js). El movimiento nunca es brusco ni
+   parpadeante (nada de flashes ni parallax violento de scroll-jacking),
+   así que el riesgo real para usuarios sensibles es bajo. */

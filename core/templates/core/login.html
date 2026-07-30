@@ -12,11 +12,19 @@
 </head>
 <body>
 
+    <!-- Cursor a medida — solo se activa por JS en desktop con mouse real
+         y sin reduced-motion; si no, queda oculto y el cursor nativo sigue
+         funcionando normalmente (ver login.css / login.js). -->
+    <div class="cursor-dot" id="cursorDot"></div>
+    <div class="cursor-ring" id="cursorRing"></div>
+
     <!-- Lienzo vivo — fixed a nivel de <body>, no scrollea con el contenido.
-         Orbes que respiran + spotlight que sigue el cursor + grano, para que
-         todo el recorrido (login + secciones de abajo) se sienta UN mismo
-         fondo continuo, no bloques cortados. -->
+         Base: shader WebGL (ruido fluido + glow de mouse + acento de color
+         por sección, todo por login.js). Si WebGL no está disponible, la
+         capa de respaldo (orbes CSS + grano + spotlight, ya probada) queda
+         visible tal cual — progressive enhancement, nunca pantalla vacía. -->
     <div class="page-backdrop" id="pageBackdrop">
+        <canvas class="page-shader" id="bgShader"></canvas>
         <div class="login-page-aura"></div>
         <div class="login-page-orbs" id="loginOrbs">
             <div class="login-page-orb login-page-orb--a"></div>
@@ -132,7 +140,7 @@
                             </div>
                         </div>
 
-                        <button type="submit" class="btn-login">
+                        <button type="submit" class="btn-login shimmer">
                             <span>Ingresar al sistema</span>
                             <svg width="17" height="17" viewBox="0 0 18 18" fill="none">
                                 <path d="M1 9H15M15 9L10 4M15 9L10 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -230,7 +238,7 @@
         <section class="showcase-close js-reveal reveal" id="showcaseClose">
             <h2>Todo listo. Entrá y probalo.</h2>
             <p>Volvé arriba e ingresá con tu usuario para empezar a gestionar tu negocio desde acá.</p>
-            <button type="button" class="btn-login btn-login--cta" id="closeCta">
+            <button type="button" class="btn-login btn-login--cta shimmer" id="closeCta">
                 <span>Ingresar al sistema</span>
                 <svg width="17" height="17" viewBox="0 0 18 18" fill="none">
                     <path d="M1 9H15M15 9L10 4M15 9L10 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
