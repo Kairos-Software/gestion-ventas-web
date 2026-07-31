@@ -58,22 +58,44 @@ function ticketHtmlTermica58(data) {
         body { padding: 2mm 1.5mm 8mm 1.5mm; }
 
         /* ── Utilidades ── */
+        /* Igual criterio que en el ticket de 80mm (ver ese archivo para
+           el detalle): la térmica no tiene escala de grises real, así
+           que ningún texto va en gris — todo negro puro, con más peso
+           en el texto secundario para que el cabezal tenga suficiente
+           densidad de tinta por carácter. Acá los tamaños se mantienen
+           más chicos que en 80mm a propósito (ancho útil de solo 48mm),
+           pero ninguno queda tan chico como para perder densidad. */
         .t58-center { text-align: center; }
         .t58-right  { text-align: right; }
         .t58-bold   { font-weight: bold; }
-        .t58-peq    { font-size: 6.2pt; color: #333; line-height: 1.4; }
+        .t58-peq    { font-size: 6.5pt; font-weight: 600; line-height: 1.4; }
 
         .t58-sep-doble  { border: none; border-top: 2px solid #000; margin: 3pt 0; }
         .t58-sep-simple { border: none; border-top: 1px dashed #000; margin: 2pt 0; }
 
         /* ── Cabecera empresa ── */
-        .t58-logo { max-width: 110px; max-height: 34px; display: block; margin: 0 auto 3pt; }
+        .t58-logo {
+            max-width: 130px;
+            max-height: 46px;
+            display: block;
+            margin: 0 auto 3pt;
+            filter: grayscale(1) contrast(1.6) brightness(1.05);
+        }
         .t58-empresa-nombre { font-size: 9pt; font-weight: bold; text-align: center; }
-        .t58-empresa-dato   { font-size: 6.2pt; text-align: center; line-height: 1.45; }
+        .t58-empresa-dato   { font-size: 6.5pt; font-weight: 600; text-align: center; line-height: 1.45; }
+        .t58-empresa-datos-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1pt 3pt;
+            font-size: 6.5pt;
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 1pt;
+        }
 
         /* ── Número de venta ── */
         .t58-venta-num  { font-size: 8pt; font-weight: bold; text-align: center; margin: 2pt 0 1pt; }
-        .t58-venta-meta { font-size: 6.2pt; text-align: center; color: #333; }
+        .t58-venta-meta { font-size: 6.5pt; font-weight: 600; text-align: center; }
 
         /* ── Cliente ── */
         .t58-cliente-cf {
@@ -92,11 +114,12 @@ function ticketHtmlTermica58(data) {
             word-break: break-word;
             line-height: 1.3;
         }
-        .t58-item-detalle { font-size: 5.8pt; color: #555; }
+        .t58-item-detalle { font-size: 6.2pt; font-weight: 600; }
         .t58-item-nums {
             display: flex;
             justify-content: space-between;
             font-size: 7pt;
+            font-weight: 600;
             margin-top: 1pt;
             gap: 3pt;
         }
@@ -106,6 +129,7 @@ function ticketHtmlTermica58(data) {
             display: flex;
             justify-content: space-between;
             font-size: 7pt;
+            font-weight: 600;
             line-height: 1.7;
         }
         .t58-total-final {
@@ -121,6 +145,7 @@ function ticketHtmlTermica58(data) {
             display: flex;
             justify-content: space-between;
             font-size: 6.5pt;
+            font-weight: 600;
             line-height: 1.6;
         }
 
@@ -133,7 +158,7 @@ function ticketHtmlTermica58(data) {
             margin: 3pt 0;
         }
         .t58-comprobante-label {
-            font-size: 5.8pt;
+            font-size: 6.2pt;
             font-weight: bold;
             letter-spacing: .04em;
             text-transform: uppercase;
@@ -143,8 +168,8 @@ function ticketHtmlTermica58(data) {
         /* ── Pie ── */
         .t58-footer {
             text-align: center;
-            font-size: 6.2pt;
-            color: #555;
+            font-size: 6.5pt;
+            font-weight: 600;
             margin-top: 4pt;
             line-height: 1.6;
         }
@@ -167,9 +192,13 @@ function ticketHtmlTermica58(data) {
 
     <!-- Empresa -->
     <div class="t58-empresa-nombre">${_esc(emp.nombre)}</div>
-    ${emp.domicilio ? `<div class="t58-empresa-dato">${_esc(emp.domicilio)}</div>` : ''}
-    ${emp.telefono  ? `<div class="t58-empresa-dato">Tel: ${_esc(emp.telefono)}</div>` : ''}
-    ${emp.cuit      ? `<div class="t58-empresa-dato">CUIT: ${_esc(emp.cuit)}</div>`  : ''}
+    ${emp.razon_social ? `<div class="t58-empresa-dato">${_esc(emp.razon_social)}</div>` : ''}
+    ${_t58EmpresaDatosGrid([
+        emp.telefono      ? `Tel: ${emp.telefono}`      : null,
+        emp.cuit          ? `CUIT: ${emp.cuit}`         : null,
+        emp.condicion_iva ? `IVA: ${emp.condicion_iva}` : null,
+        emp.domicilio     ? `Dom: ${emp.domicilio}`     : null,
+    ])}
 
     <hr class="t58-sep-doble">
 
@@ -234,14 +263,43 @@ function ticketHtmlTermica58(data) {
 
 /* ── Helpers internos ─────────────────────────────────────────── */
 
+// Igual idea que en 80mm (2 datos por línea), pero acá el ancho útil es
+// de solo 48mm — un teléfono y un CUIT completos (con guiones) casi
+// nunca entran juntos sin que uno se corte a la mitad. En vez de forzar
+// el emparejado siempre, se intenta de a 2 y solo se arma la fila doble
+// si el largo combinado entra en el ancho disponible a este tamaño de
+// letra; si no entra, ese dato queda solo en su propia línea completa.
+// Así, cuando los valores son cortos SÍ se ven 2 por línea (como en
+// 80mm), y cuando no entran (el caso típico de teléfono+CUIT argentino)
+// no se rompe ningún número.
+const T58_GRID_MAX_CHARS = 34; // ajustado para 48mm de ancho a 6.5pt
+
+function _t58EmpresaDatosGrid(campos) {
+    const valores = campos.filter(Boolean);
+    let html = '';
+    let i = 0;
+    while (i < valores.length) {
+        const actual = valores[i];
+        const siguiente = valores[i + 1];
+        if (siguiente && (actual.length + siguiente.length) <= T58_GRID_MAX_CHARS) {
+            html += `<div class="t58-empresa-datos-grid"><span>${_esc(actual)}</span><span>${_esc(siguiente)}</span></div>`;
+            i += 2;
+        } else {
+            html += `<div class="t58-empresa-dato">${_esc(actual)}</div>`;
+            i += 1;
+        }
+    }
+    return html;
+}
+
 function _t58Cliente(cliente) {
     if (!cliente) {
         return `<div class="t58-cliente-cf">CONSUMIDOR FINAL</div>`;
     }
     return `<div class="t58-cliente">
-        <div class="t58-cliente-nombre">${_esc(cliente.nombre)}</div>
+        <div class="t58-cliente-nombre">Cliente: ${_esc(cliente.nombre)}</div>
         ${cliente.documento ? `<div class="t58-peq">${_esc(cliente.documento)}</div>` : ''}
-        ${cliente.direccion ? `<div class="t58-peq">${_esc(cliente.direccion)}</div>` : ''}
+        ${cliente.direccion ? `<div class="t58-peq">Dir: ${_esc(cliente.direccion)}</div>` : ''}
         ${cliente.telefono  ? `<div class="t58-peq">Tel: ${_esc(cliente.telefono)}</div>` : ''}
     </div>`;
 }
@@ -250,15 +308,19 @@ function _t58Item(item) {
     const desc = item.descuento_pct && item.descuento_pct !== '0.00'
         ? ` -${item.descuento_pct}%`
         : '';
+    // Código en la línea chica (no en el título) — hace falta para
+    // identificar el producto ante una devolución, sin volver a cargar
+    // de largo el nombre principal.
     const detalle = [
-        item.marca ? _esc(item.marca) : '',
-        item.color ? _esc(item.color) : '',
+        item.codigo ? _esc(`Cód: ${item.codigo}`) : '',
+        item.marca  ? _esc(item.marca)            : '',
+        item.color  ? _esc(item.color)            : '',
     ].filter(Boolean).join(' · ');
     return `<div class="t58-item">
         <div class="t58-item-nombre">${_esc(item.nombre)}</div>
         ${detalle ? `<div class="t58-item-detalle">${detalle}</div>` : ''}
         <div class="t58-item-nums">
-            <span>${_esc(String(item.cantidad))}x ${_fmtNum(item.precio_unitario)}${desc}</span>
+            <span class="t58-item-cant">${_esc(String(item.cantidad))}x ${_fmtNum(item.precio_unitario)}${desc}</span>
             <span><strong>${_fmtNum(item.subtotal)}</strong></span>
         </div>
     </div>`;

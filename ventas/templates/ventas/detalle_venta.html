@@ -1227,7 +1227,7 @@
             email: "{{ datos_empresa.email|escapejs }}",
             cuit: "{{ datos_empresa.cuit|escapejs }}",
             condicion_iva: "{{ datos_empresa.get_condicion_iva_display|escapejs }}",
-            logo_url: "{% if datos_empresa.logo %}{{ datos_empresa.logo.url }}{% endif %}",
+            logo_url: "{% if datos_empresa.logo %}{{ request.scheme }}://{{ request.get_host }}{{ datos_empresa.logo.url }}{% endif %}",
         },
         venta: {
             numero: "{{ venta.numero|escapejs }}",
@@ -1240,7 +1240,7 @@
         },
         cliente: {% if cliente_unico_venta %}{
             nombre: "{{ cliente_unico_venta.get_nombre_display|escapejs }}",
-            documento: "{% if cliente_unico_venta.tipo == 'empresa' %}{% if cliente_unico_venta.cuit %}CUIT {{ cliente_unico_venta.cuit|escapejs }}{% endif %}{% else %}{% if cliente_unico_venta.dni %}DNI {{ cliente_unico_venta.dni|escapejs }}{% elif cliente_unico_venta.cuil %}CUIL {{ cliente_unico_venta.cuil|escapejs }}{% endif %}{% endif %}",
+            documento: "{% if cliente_unico_venta.tipo == 'empresa' %}{% if cliente_unico_venta.cuit %}CUIT: {{ cliente_unico_venta.cuit|escapejs }}{% endif %}{% else %}{% if cliente_unico_venta.dni %}DNI: {{ cliente_unico_venta.dni|escapejs }}{% elif cliente_unico_venta.cuil %}CUIL: {{ cliente_unico_venta.cuil|escapejs }}{% endif %}{% endif %}",
             telefono: "{{ cliente_unico_venta.telefonos.first.numero|default:''|escapejs }}",
             direccion: "{{ cliente_unico_venta.get_direccion_completa|escapejs }}",
         }{% else %}null{% endif %},
@@ -1287,7 +1287,7 @@
     items: [
         {% for item in items %}
     {
-        nombre: "{{ item.nombre_producto_display|escapejs }}",
+        nombre: "{{ item.nombre_ticket_display|escapejs }}",
             marca: "{% if item.producto %}{{ item.producto.marca|escapejs }}{% endif %}",
             codigo: "{{ item.producto_codigo|escapejs }}",
                 color: "{{ item.nombre_combinacion_display|escapejs }}",

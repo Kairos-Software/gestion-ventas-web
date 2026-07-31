@@ -999,6 +999,19 @@ class ItemVenta(models.Model):
         return '(producto eliminado)'
 
     @property
+    def nombre_ticket_display(self):
+        """Nombre para tickets/comprobantes — pensado para el cliente final,
+        no para uso interno: sin el [código] (útil en pantalla para el
+        personal, pero ruido en un ticket) y usando `nombre_corto` del
+        producto si está cargado (existe justamente para esto). Con
+        fallback automático al nombre completo si no hay nombre corto."""
+        if self.producto:
+            return self.producto.nombre_corto or self.producto.nombre
+        if self.producto_nombre:
+            return self.producto_nombre
+        return '(producto eliminado)'
+
+    @property
     def nombre_cliente_display(self):
         if self.cliente:
             return self.cliente.get_nombre_display()

@@ -58,19 +58,50 @@ function ticketHtmlTermica80(data) {
         .t80-right  { text-align: right; }
         .t80-bold   { font-weight: bold; }
         .t80-grande { font-size: 13pt; font-weight: bold; }
-        .t80-peq    { font-size: 7.5pt; color: #333; }
+        /* Las térmicas no manejan grises reales (no hay escala de grises
+           en el cabezal, solo punto quemado o no) — cualquier texto en
+           gris claro sale como puntos salteados, ilegible en tamaños
+           chicos. Todo el texto del ticket va en negro puro (#000, ya
+           sea heredado del body o explícito) y ningún tamaño baja de
+           8pt, así el cabezal siempre tiene suficiente densidad de tinta
+           por carácter para no "cortar" letras. */
+        .t80-peq    { font-size: 8pt; font-weight: 600; }
 
         .t80-sep-doble  { border: none; border-top: 2px solid #000; margin: 4pt 0; }
         .t80-sep-simple { border: none; border-top: 1px dashed #000; margin: 3pt 0; }
 
         /* ── Cabecera ── */
-        .t80-logo { max-width: 200px; max-height: 50px; display: block; margin: 0 auto 4pt; }
+        /* Igual que con el texto: la térmica no tiene escala de grises
+           real, así que cualquier zona intermedia del logo (antialiasing,
+           semitonos) sale como puntos salteados = "borroso". El filtro
+           empuja todo a blanco/negro puro (sin grises intermedios) y el
+           tamaño más grande le da más superficie física por detalle para
+           que el punteado del cabezal térmico lo resuelva mejor. Si el
+           archivo de origen es de muy baja resolución esto ayuda pero no
+           hace milagros — en ese caso conviene subir un logo más grande
+           en Configuración. */
+        .t80-logo {
+            max-width: 260px;
+            max-height: 90px;
+            display: block;
+            margin: 0 auto 4pt;
+            filter: grayscale(1) contrast(1.6) brightness(1.05);
+        }
         .t80-empresa-nombre { font-size: 11pt; font-weight: bold; text-align: center; margin-bottom: 2pt; }
-        .t80-empresa-dato   { font-size: 7.5pt; text-align: center; line-height: 1.5; }
+        .t80-empresa-dato   { font-size: 8pt; font-weight: 600; text-align: center; line-height: 1.5; }
+        .t80-empresa-datos-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1pt 4pt;
+            font-size: 8pt;
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 1pt;
+        }
 
         /* ── Info de venta ── */
         .t80-venta-num  { font-size: 9.5pt; font-weight: bold; text-align: center; margin: 3pt 0 1pt; }
-        .t80-venta-meta { font-size: 7.5pt; text-align: center; color: #333; margin-bottom: 2pt; }
+        .t80-venta-meta { font-size: 8pt; font-weight: 600; text-align: center; margin-bottom: 2pt; }
 
         /* ── Cliente ── */
         .t80-cliente-cf {
@@ -79,20 +110,20 @@ function ticketHtmlTermica80(data) {
         }
         .t80-cliente { text-align: center; margin: 3pt 0; }
         .t80-cliente-nombre { font-weight: bold; font-size: 8.5pt; }
-        .t80-cliente-dato   { font-size: 7pt; color: #444; line-height: 1.5; }
+        .t80-cliente-dato   { font-size: 8pt; font-weight: 600; line-height: 1.5; }
 
         /* ── Tabla de ítems (sin <table>, usa divs para control exacto de ancho) ── */
         .t80-items { width: 100%; margin: 3pt 0; }
         .t80-item  { margin-bottom: 4pt; }
         .t80-item-nombre  { font-weight: bold; font-size: 8.5pt; word-break: break-word; }
-        .t80-item-detalle { font-size: 7pt; color: #444; }
+        .t80-item-detalle { font-size: 8pt; font-weight: 600; }
         .t80-item-nums {
             display: flex;
             justify-content: space-between;
             font-size: 8.5pt;
             margin-top: 1pt;
         }
-        .t80-item-cant  { flex: 0 0 auto; }
+        .t80-item-cant  { flex: 0 0 auto; font-weight: 600; }
         .t80-item-sub   { flex: 0 0 auto; font-weight: bold; }
 
         /* ── Totales ── */
@@ -101,6 +132,7 @@ function ticketHtmlTermica80(data) {
             display: flex;
             justify-content: space-between;
             font-size: 8.5pt;
+            font-weight: 600;
             line-height: 1.7;
         }
         .t80-total-final {
@@ -116,6 +148,7 @@ function ticketHtmlTermica80(data) {
             display: flex;
             justify-content: space-between;
             font-size: 8pt;
+            font-weight: 600;
             line-height: 1.6;
         }
 
@@ -128,7 +161,7 @@ function ticketHtmlTermica80(data) {
             margin: 4pt 0;
         }
         .t80-comprobante-label {
-            font-size: 7pt;
+            font-size: 8pt;
             font-weight: bold;
             letter-spacing: .06em;
             text-transform: uppercase;
@@ -138,8 +171,8 @@ function ticketHtmlTermica80(data) {
         /* ── Pie ── */
         .t80-footer {
             text-align: center;
-            font-size: 7.5pt;
-            color: #444;
+            font-size: 8pt;
+            font-weight: 600;
             margin-top: 5pt;
             line-height: 1.6;
         }
@@ -163,10 +196,12 @@ function ticketHtmlTermica80(data) {
     <!-- Empresa -->
     <div class="t80-empresa-nombre">${_esc(emp.nombre)}</div>
     ${emp.razon_social ? `<div class="t80-empresa-dato">${_esc(emp.razon_social)}</div>` : ''}
-    ${emp.domicilio    ? `<div class="t80-empresa-dato">${_esc(emp.domicilio)}</div>`    : ''}
-    ${emp.telefono     ? `<div class="t80-empresa-dato">Tel: ${_esc(emp.telefono)}</div>` : ''}
-    ${emp.cuit         ? `<div class="t80-empresa-dato">CUIT: ${_esc(emp.cuit)}</div>`  : ''}
-    ${emp.condicion_iva? `<div class="t80-empresa-dato">IVA: ${_esc(emp.condicion_iva)}</div>` : ''}
+    ${_t80EmpresaDatosGrid([
+        emp.telefono      ? `Tel: ${emp.telefono}`       : null,
+        emp.cuit          ? `CUIT: ${emp.cuit}`          : null,
+        emp.condicion_iva ? `IVA: ${emp.condicion_iva}`  : null,
+        emp.domicilio     ? `Dom: ${emp.domicilio}`      : null,
+    ])}
 
     <hr class="t80-sep-doble">
 
@@ -239,23 +274,46 @@ function ticketHtmlTermica80(data) {
 
 /* ── Helpers internos ─────────────────────────────────────────── */
 
+// Arma los datos de la empresa de a pares por fila (Tel+CUIT, IVA+Dom.)
+// para ahorrar espacio vertical — si sobra uno solo (cantidad impar),
+// ese queda en su propia línea completa en vez de a la mitad vacío.
+function _t80EmpresaDatosGrid(campos) {
+    const valores = campos.filter(Boolean);
+    let html = '';
+    for (let i = 0; i < valores.length; i += 2) {
+        if (i + 1 < valores.length) {
+            html += `<div class="t80-empresa-datos-grid"><span>${_esc(valores[i])}</span><span>${_esc(valores[i + 1])}</span></div>`;
+        } else {
+            html += `<div class="t80-empresa-dato">${_esc(valores[i])}</div>`;
+        }
+    }
+    return html;
+}
+
+// El cliente se muestra UNA sola vez acá (con etiquetas claras) — los
+// ítems ya no repiten "Cli: X" en cada línea, no aporta nada si todo el
+// ticket es de un mismo cliente.
 function _t80Cliente(cliente) {
     if (!cliente) {
         return `<div class="t80-cliente-cf">CONSUMIDOR FINAL</div>`;
     }
     return `<div class="t80-cliente">
-        <div class="t80-cliente-nombre">${_esc(cliente.nombre)}</div>
+        <div class="t80-cliente-nombre">Cliente: ${_esc(cliente.nombre)}</div>
         ${cliente.documento ? `<div class="t80-cliente-dato">${_esc(cliente.documento)}</div>` : ''}
-        ${cliente.direccion ? `<div class="t80-cliente-dato">${_esc(cliente.direccion)}</div>` : ''}
+        ${cliente.direccion ? `<div class="t80-cliente-dato">Dirección: ${_esc(cliente.direccion)}</div>` : ''}
         ${cliente.telefono  ? `<div class="t80-cliente-dato">Tel: ${_esc(cliente.telefono)}</div>` : ''}
     </div>`;
 }
 
 function _t80Item(item) {
+    // El código va en la línea chica, no en el título del ítem — hace
+    // falta para identificar el producto exacto ante una devolución,
+    // pero mezclado en el nombre principal es lo que hacía la línea
+    // larga y confusa de leer.
     const detalle = [
-        item.marca   ? item.marca                  : '',
-        item.color   ? `Color: ${item.color}`     : '',
-        item.cliente ? `Cli: ${item.cliente}`      : '',
+        item.codigo ? `Cód: ${item.codigo}`    : '',
+        item.marca  ? item.marca               : '',
+        item.color  ? `Color: ${item.color}`   : '',
     ].filter(Boolean).join(' · ');
 
     const desc = item.descuento_pct && item.descuento_pct !== '0.00'
