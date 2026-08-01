@@ -26,14 +26,15 @@ function _fmtARS(v) {
     });
 }
 
-/** "Cuotas" (venta financiada por el propio comercio) requiere un
- *  único cliente vinculado a la venta — no tiene sentido financiar a
- *  un Consumidor Final anónimo que después no se puede ubicar para
- *  cobrarle. Si no hay cliente, esa opción ni se ofrece. */
+/** "Cuotas" (venta financiada por el propio comercio) y "Cheque"
+ *  requieren un único cliente vinculado a la venta — no tiene sentido
+ *  financiar, ni tampoco reclamar un cheque rebotado, a un Consumidor
+ *  Final anónimo que después no se puede ubicar. Si no hay cliente,
+ *  ninguna de las dos opciones se ofrece. */
 function _pagoMediosDisponibles() {
     const medios = VDT.mediosPago || [];
     if (VDT.clienteUnicoPk) return medios;
-    return medios.filter(m => m.value !== 'cuotas');
+    return medios.filter(m => m.value !== 'cuotas' && m.value !== 'cheque');
 }
 
 function _pagoMediosOpts(seleccionado) {
@@ -167,7 +168,7 @@ function _equivalenteArsHTML(l) {
 /** Equivalente en pesos de una línea de pago — igual criterio que
  *  PagoVenta.monto_ars en el backend. */
 function _montoArsLinea(l) {
-    if (l.medio === 'efectivo' || l.medio === 'cuotas') return l.monto || 0;
+    if (l.medio === 'efectivo' || l.medio === 'cuotas' || l.medio === 'cheque') return l.monto || 0;
     const cuenta = _cuentaPorId(l.cuenta);
     if (cuenta && cuenta.moneda !== 'ARS') {
         return (l.monto || 0) * (l.cotizacion || 0);
@@ -198,6 +199,39 @@ function _cuotasExtraHTML(l) {
             <input type="date" class="vdt-pago-select"
                    value="${l.fechaInicioCobro || ''}" data-campo="fechaInicioCobro" data-id="${l.id}">
         </div>
+    </div>`;
+}
+
+/** El monto de una línea "cheque" no se tipea: es la suma de los
+ *  cheques cargados en el modal — así nunca puede desincronizarse. */
+function _recalcularMontoCheque(l) {
+    l.monto = (l.cheques || []).reduce((s, c) => s + (parseFloat(c.monto) || 0), 0);
+}
+
+/** Cheques cargados para esta línea (pago dividido: puede haber más de
+ *  uno) + botón para agregar otro. Cada cheque se carga en un modal
+ *  aparte (mismos campos que "Nuevo cheque" en la pantalla de Cheques,
+ *  para A_COBRAR) y solo se crea de verdad cuando se confirma la venta
+ *  — acá solo queda guardado en memoria. */
+function _chequesExtraHTML(l) {
+    const cheques = l.cheques || [];
+    const filas = cheques.map((c, i) => `
+        <div class="vdt-cheque-fila">
+            <div class="vdt-cheque-fila-info">
+                <strong>${_fmtARS(c.monto)}</strong>
+                <span>${c.numero_cheque ? '#' + c.numero_cheque + ' · ' : ''}cobra ${c.fecha_cobro}${c.emisor ? ' · ' + c.emisor : ''}</span>
+            </div>
+            <button type="button" class="vdt-cheque-btn-editar" data-linea="${l.id}" data-index="${i}" title="Editar">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2.5 13.5L13.5 2.5M13.5 2.5V7.5M13.5 2.5H8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button type="button" class="vdt-cheque-btn-quitar" data-linea="${l.id}" data-index="${i}" title="Quitar">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 3L13 13M3 13L13 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </button>
+        </div>`).join('');
+    return `
+    <div class="vdt-pago-cheque-extra">
+        ${filas}
+        <button type="button" class="vdt-cheque-btn-agregar" data-linea="${l.id}">+ Cargar cheque</button>
     </div>`;
 }
 
@@ -271,6 +305,7 @@ function _renderLineas() {
             <input type="number" class="vdt-pago-monto" min="0" step="0.01"
                    placeholder="Monto"
                    value="${l.monto > 0 ? l.monto : ''}"
+                   ${l.medio === 'cheque' ? 'readonly title="Suma de los cheques cargados"' : ''}
                    data-campo="monto" data-id="${l.id}">
             <button class="vdt-pago-btn-quitar" data-id="${l.id}" title="Quitar">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -278,7 +313,8 @@ function _renderLineas() {
                 </svg>
             </button>
         </div>
-        ${l.medio !== 'efectivo' && l.medio !== 'cuotas' ? `
+        ${l.medio === 'cheque' ? _chequesExtraHTML(l) : ''}
+        ${l.medio !== 'efectivo' && l.medio !== 'cuotas' && l.medio !== 'cheque' ? `
         <div class="vdt-pago-linea-cuenta">
             <select class="vdt-pago-cuenta" data-campo="tarjeta" data-id="${l.id}">
                 ${_pagoTarjetaOpts(l.tarjeta, l.medio)}
@@ -310,6 +346,10 @@ function _renderLineas() {
                 linea.aplicaRecargo = true; // se sugiere aplicado; el vendedor lo destilda si no corresponde
                 if (linea.medio === 'cuotas' && !linea.fechaInicioCobro) {
                     linea.fechaInicioCobro = VDT.hoy || '';
+                }
+                if (linea.medio === 'cheque') {
+                    linea.cheques = linea.cheques || [];
+                    _recalcularMontoCheque(linea);
                 }
                 // Si solo hay UNA cuenta real posible para este medio (caso
                 // común: un solo banco/Mercado Pago propio), se preselecciona
@@ -380,6 +420,26 @@ function _renderLineas() {
         btn.addEventListener('click', () => {
             const id = parseInt(btn.dataset.id, 10);
             pagoState.lineas = pagoState.lineas.filter(l => l.id !== id);
+            _renderLineas();
+        });
+    });
+
+    contenedor.querySelectorAll('.vdt-cheque-btn-agregar').forEach(btn => {
+        btn.addEventListener('click', () => {
+            abrirModalCheque(parseInt(btn.dataset.linea, 10), null);
+        });
+    });
+    contenedor.querySelectorAll('.vdt-cheque-btn-editar').forEach(btn => {
+        btn.addEventListener('click', () => {
+            abrirModalCheque(parseInt(btn.dataset.linea, 10), parseInt(btn.dataset.index, 10));
+        });
+    });
+    contenedor.querySelectorAll('.vdt-cheque-btn-quitar').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const linea = pagoState.lineas.find(l => l.id === parseInt(btn.dataset.linea, 10));
+            if (!linea) return;
+            linea.cheques.splice(parseInt(btn.dataset.index, 10), 1);
+            _recalcularMontoCheque(linea);
             _renderLineas();
         });
     });
@@ -469,7 +529,7 @@ function _actualizarRecargoResumen() {
 function _actualizarEstadoConfirmar() {
     const btn = document.getElementById('vdtBtnConfirmar');
     const dot = document.getElementById('vdtTabPagoDot');
-    const pagoOk = _pagoEsCubierto() && !_pagoFaltanCuentas() && !_pagoFaltanDatosCuotas();
+    const pagoOk = _pagoEsCubierto() && !_pagoFaltanCuentas() && !_pagoFaltanDatosCuotas() && !_pagoFaltanDatosCheque();
 
     if (dot) dot.classList.toggle('cdt-tab-dot--ok', pagoOk);
 
@@ -500,7 +560,7 @@ function _pagoEsCubierto() {
  *  en pesos, también la cotización usada. */
 function _pagoFaltanCuentas() {
     return pagoState.lineas.some(l => {
-        if (l.medio === 'efectivo' || l.medio === 'cuotas') return false;
+        if (l.medio === 'efectivo' || l.medio === 'cuotas' || l.medio === 'cheque') return false;
         if (!l.cuenta) return true;
         const cuenta = _cuentaPorId(l.cuenta);
         return !!cuenta && cuenta.moneda !== 'ARS' && !(l.cotizacion > 0);
@@ -515,6 +575,11 @@ function _pagoFaltanDatosCuotas() {
     );
 }
 
+/** Toda línea "cheque" necesita al menos un cheque cargado. */
+function _pagoFaltanDatosCheque() {
+    return pagoState.lineas.some(l => l.medio === 'cheque' && !(l.cheques && l.cheques.length));
+}
+
 function _getPagoPayload() {
     const pagos = pagoState.lineas.map(l => {
         if (l.medio === 'cuotas') {
@@ -526,6 +591,25 @@ function _getPagoPayload() {
                 cuotas: l.cuotas,
                 interes_pct: l.interesPct != null ? l.interesPct : 0,
                 fecha_inicio_cobro: l.fechaInicioCobro || null,
+            };
+        }
+        if (l.medio === 'cheque') {
+            return {
+                medio: l.medio,
+                monto: l.monto,
+                cuenta_pk: null,
+                cotizacion: null,
+                cheques: (l.cheques || []).map(c => ({
+                    numero_cheque: c.numero_cheque || '',
+                    monto: c.monto,
+                    moneda: 'ARS',
+                    fecha_emision: c.fecha_emision,
+                    fecha_cobro: c.fecha_cobro,
+                    emisor: c.emisor || '',
+                    receptor: c.receptor || '',
+                    banco: c.banco || '',
+                    notas: c.notas || '',
+                })),
             };
         }
         return {
@@ -542,6 +626,79 @@ function _getPagoPayload() {
     const principal = pagos.length ? pagos[0].medio : 'efectivo';
     return { medio_pago: principal, pagos };
 }
+
+/* ════════════════════════════════════════════════════════════════
+   MODAL "Cargar cheque" — mismos campos que "Nuevo cheque" (A_COBRAR)
+   en la pantalla de Cheques, pero acá no crea nada todavía: solo
+   guarda el cheque en memoria dentro de la línea de pago. El/los
+   Cheque reales se crean recién al confirmar la venta.
+════════════════════════════════════════════════════════════════ */
+let _chequeModalLineaId = null;
+let _chequeModalIndex = null;
+
+function abrirModalCheque(lineaId, index) {
+    const linea = pagoState.lineas.find(l => l.id === lineaId);
+    if (!linea) return;
+    _chequeModalLineaId = lineaId;
+    _chequeModalIndex = index;
+
+    const existente = index != null ? (linea.cheques || [])[index] : null;
+    document.getElementById('vchTitulo').textContent = existente ? 'Editar cheque' : 'Cargar cheque';
+    document.getElementById('vchNumeroCheque').value = existente ? existente.numero_cheque : '';
+    document.getElementById('vchMonto').value = existente ? existente.monto : '';
+    document.getElementById('vchFechaEmision').value = existente ? existente.fecha_emision : (VDT.hoy || '');
+    document.getElementById('vchFechaCobro').value = existente ? existente.fecha_cobro : (VDT.hoy || '');
+    document.getElementById('vchEmisor').value = existente ? existente.emisor : '';
+    document.getElementById('vchReceptor').value = existente ? existente.receptor : '';
+    document.getElementById('vchBanco').value = existente ? existente.banco : '';
+    document.getElementById('vchNotas').value = existente ? existente.notas : '';
+    document.getElementById('vchMsg').textContent = '';
+
+    document.getElementById('vdtModalCheque').style.display = 'flex';
+}
+
+function cerrarModalCheque() {
+    document.getElementById('vdtModalCheque').style.display = 'none';
+    _chequeModalLineaId = null;
+    _chequeModalIndex = null;
+}
+
+function _guardarModalCheque() {
+    const msg = document.getElementById('vchMsg');
+    const monto = parseFloat(document.getElementById('vchMonto').value) || 0;
+    const fechaEmision = document.getElementById('vchFechaEmision').value;
+    const fechaCobro = document.getElementById('vchFechaCobro').value;
+    if (monto <= 0) { msg.textContent = 'El monto debe ser mayor a 0.'; return; }
+    if (!fechaEmision || !fechaCobro) { msg.textContent = 'Indicá fecha de emisión y de cobro.'; return; }
+
+    const linea = pagoState.lineas.find(l => l.id === _chequeModalLineaId);
+    if (!linea) return;
+    linea.cheques = linea.cheques || [];
+
+    const dato = {
+        numero_cheque: document.getElementById('vchNumeroCheque').value.trim(),
+        monto,
+        fecha_emision: fechaEmision,
+        fecha_cobro: fechaCobro,
+        emisor: document.getElementById('vchEmisor').value.trim(),
+        receptor: document.getElementById('vchReceptor').value.trim(),
+        banco: document.getElementById('vchBanco').value.trim(),
+        notas: document.getElementById('vchNotas').value.trim(),
+    };
+
+    if (_chequeModalIndex != null) {
+        linea.cheques[_chequeModalIndex] = dato;
+    } else {
+        linea.cheques.push(dato);
+    }
+    _recalcularMontoCheque(linea);
+    cerrarModalCheque();
+    _renderLineas();
+}
+
+document.getElementById('vchBtnCerrar')?.addEventListener('click', cerrarModalCheque);
+document.getElementById('vchBtnCancelar')?.addEventListener('click', cerrarModalCheque);
+document.getElementById('vchBtnGuardar')?.addEventListener('click', _guardarModalCheque);
 
 /* ════════════════════════════════════════════════════════════════
    INIT — agrega línea inicial con el total completo

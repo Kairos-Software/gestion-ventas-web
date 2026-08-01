@@ -703,6 +703,9 @@ class ConfirmarVentaAjax(LoginRequiredMixin, View):
                         'cuotas': p.get('cuotas'),
                         'interes_pct': p.get('interes_pct'),
                         'fecha_inicio_cobro': p.get('fecha_inicio_cobro'),
+                        # Solo se usa si medio_p == 'cheque' — lista de cheques
+                        # cargados en el modal, se valida y crea en Venta.confirmar().
+                        'cheques': p.get('cheques'),
                         # Recargo por medio de pago (débito/crédito/QR/transferencia) —
                         # se pasa tal cual, `monto_p`/`suma_ars` de arriba NO lo incluyen
                         # (siguen siendo la porción que cubre venta.total); el recargo se

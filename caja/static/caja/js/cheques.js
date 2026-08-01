@@ -13,8 +13,15 @@ document.addEventListener('DOMContentLoaded', function () {
         return CUENTAS.filter(c => c.moneda === moneda);
     }
 
-    function poblarSelect(select, opciones, seleccionarPk) {
-        select.innerHTML = '<option value="">— Elegí una cuenta —</option>' +
+    // La chequera de un cheque A_PAGAR solo puede ser una cuenta bancaria
+    // real (no efectivo) — si no, un cheque quedaría "emitido desde
+    // efectivo", que no existe en la realidad.
+    function cuentasBancariasPorMoneda(moneda) {
+        return CUENTAS.filter(c => c.moneda === moneda && c.tipo === 'banco');
+    }
+
+    function poblarSelect(select, opciones, seleccionarPk, placeholder) {
+        select.innerHTML = `<option value="">${placeholder || '— Elegí una cuenta —'}</option>` +
             opciones.map(c => `<option value="${c.pk}">${c.nombre}</option>`).join('');
         if (seleccionarPk) select.value = String(seleccionarPk);
     }
@@ -56,7 +63,12 @@ document.addEventListener('DOMContentLoaded', function () {
     const f_moneda = document.getElementById('f_moneda');
     const f_cuenta_origen = document.getElementById('f_cuenta_origen');
     const campoCuentaOrigen = document.getElementById('campoCuentaOrigen');
-    const camposLibrador = document.getElementById('camposLibrador');
+    const f_cuenta_financiadora = document.getElementById('f_cuenta_financiadora');
+    const campoFinanciadora = document.getElementById('campoFinanciadora');
+    const campoBanco = document.getElementById('campoBanco');
+    const f_banco = document.getElementById('f_banco');
+    const lbl_emisor = document.getElementById('lbl_emisor');
+    const lbl_receptor = document.getElementById('lbl_receptor');
     const botonesTipo = document.querySelectorAll('.chq-tipo-btn');
 
     // Modal confirmar cobro
@@ -74,15 +86,27 @@ document.addEventListener('DOMContentLoaded', function () {
             btn.classList.toggle('chq-tipo-btn--active', btn.dataset.tipo === tipo);
         });
         const esPagar = tipo === 'a_pagar';
+        const esNuevo = !document.getElementById('chqPk').value;
         campoCuentaOrigen.hidden = !esPagar;
-        camposLibrador.hidden = esPagar;
-        if (esPagar) poblarSelect(f_cuenta_origen, cuentasPorMoneda(f_moneda.value));
+        campoFinanciadora.hidden = !(esPagar && esNuevo);
+        campoBanco.hidden = esPagar;
+        if (esPagar) f_banco.value = '';
+        lbl_emisor.textContent = esPagar ? 'Emisor (opcional, firmante propio)' : 'Emisor (quién lo entregó)';
+        lbl_receptor.textContent = esPagar ? 'Receptor (a quién se le paga)' : 'Receptor (opcional)';
+        if (esPagar) {
+            poblarSelect(f_cuenta_origen, cuentasBancariasPorMoneda(f_moneda.value));
+            poblarSelect(f_cuenta_financiadora, cuentasPorMoneda(f_moneda.value), null, '— No hace falta, ya tiene fondos —');
+            f_cuenta_financiadora.value = '';
+        }
     }
     botonesTipo.forEach(btn => {
         btn.addEventListener('click', () => setTipo(btn.dataset.tipo));
     });
     f_moneda?.addEventListener('change', () => {
-        if (f_tipo.value === 'a_pagar') poblarSelect(f_cuenta_origen, cuentasPorMoneda(f_moneda.value));
+        if (f_tipo.value === 'a_pagar') {
+            poblarSelect(f_cuenta_origen, cuentasBancariasPorMoneda(f_moneda.value));
+            poblarSelect(f_cuenta_financiadora, cuentasPorMoneda(f_moneda.value), null, '— No hace falta, ya tiene fondos —');
+        }
     });
 
     // ── Cargar cheques ────────────────────────────────────────────
@@ -138,17 +162,23 @@ document.addEventListener('DOMContentLoaded', function () {
         const ICONO_RECHAZAR = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/><path d="M4.5 11.5L11.5 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`;
         const ICONO_EDITAR = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2.5 13.5L13.5 2.5M13.5 2.5V7.5M13.5 2.5H8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
         const ICONO_ELIMINAR = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 3L13 13M3 13L13 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+        const ICONO_VER = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M1 8C1 8 3.5 3 8 3C12.5 3 15 8 15 8C15 8 12.5 13 8 13C3.5 13 1 8 1 8Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/></svg>`;
 
         chequesBody.innerHTML = cheques.map(c => {
             const acciones = [];
             if (c.estado === 'pendiente' && puedeConfirmar) {
                 acciones.push(`<button type="button" class="icon-btn icon-btn--success" onclick="confirmarCheque(${c.pk})" title="Confirmar">${ICONO_CONFIRMAR}</button>`);
             }
-            if ((c.estado === 'pendiente' || c.estado === 'confirmado') && puedeConfirmar) {
+            if (c.estado === 'pendiente' && puedeConfirmar) {
                 acciones.push(`<button type="button" class="icon-btn icon-btn--danger" onclick="rechazarCheque(${c.pk})" title="Rechazar">${ICONO_RECHAZAR}</button>`);
             }
-            if (puedeEditar) {
+            if (c.estado === 'confirmado' && puedeConfirmar) {
+                acciones.push(`<button type="button" class="icon-btn icon-btn--danger" onclick="rechazarCheque(${c.pk})" title="Marcar como rebotado (sin fondos / no se pudo cobrar)">${ICONO_RECHAZAR}</button>`);
+            }
+            if (puedeEditar && c.estado === 'pendiente') {
                 acciones.push(`<button type="button" class="icon-btn" onclick="editarCheque(${c.pk})" title="Editar">${ICONO_EDITAR}</button>`);
+            } else {
+                acciones.push(`<button type="button" class="icon-btn" onclick="editarCheque(${c.pk})" title="Ver detalle">${ICONO_VER}</button>`);
             }
             if (puedeEliminar && c.estado !== 'confirmado') {
                 acciones.push(`<button type="button" class="icon-btn" onclick="eliminarCheque(${c.pk})" title="Eliminar">${ICONO_ELIMINAR}</button>`);
@@ -157,7 +187,7 @@ document.addEventListener('DOMContentLoaded', function () {
             <tr>
                 <td><span class="chq-badge-tipo chq-badge-tipo--${c.tipo}">${c.tipo_display}</span></td>
                 <td>${c.numero_cheque || '-'}</td>
-                <td>${c.contraparte || (c.tipo === 'a_cobrar' ? c.titular_librador : '') || '-'}</td>
+                <td>${(c.tipo === 'a_pagar' ? c.receptor : c.emisor) || '-'}</td>
                 <td class="chq-monto">${fmtMoneda(c.monto, c.moneda)}</td>
                 <td>${c.fecha_cobro}</td>
                 <td><span class="chq-badge-estado chq-badge-estado--${c.estado}">${c.estado_display}</span></td>
@@ -201,6 +231,9 @@ document.addEventListener('DOMContentLoaded', function () {
         modalCheque.hidden = true;
         document.body.style.overflow = '';
         formCheque.reset();
+        [...formCheque.querySelectorAll('input, select, button.chq-tipo-btn')].forEach(el => { el.disabled = false; });
+        btnGuardarCheque.hidden = false;
+        btnCancelarModal.textContent = 'Cancelar';
         document.getElementById('chqPk').value = '';
         document.getElementById('f_fecha_emision').value = today;
         document.getElementById('f_fecha_cobro').value = today;
@@ -209,6 +242,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     btnNuevoCheque?.addEventListener('click', () => {
         modalChequeTitulo.textContent = 'Nuevo cheque';
+        btnGuardarCheque.hidden = false;
+        btnCancelarModal.textContent = 'Cancelar';
         document.getElementById('f_fecha_emision').value = today;
         document.getElementById('f_fecha_cobro').value = today;
         setTipo('a_cobrar');
@@ -226,18 +261,21 @@ document.addEventListener('DOMContentLoaded', function () {
         const data = {
             tipo: f_tipo.value,
             numero_cheque: document.getElementById('f_numero_cheque').value,
+            numero_factura: document.getElementById('f_numero_factura').value,
             monto: document.getElementById('f_monto').value,
             moneda: f_moneda.value,
             fecha_emision: document.getElementById('f_fecha_emision').value,
             fecha_cobro: document.getElementById('f_fecha_cobro').value,
-            contraparte: document.getElementById('f_contraparte').value,
+            emisor: document.getElementById('f_emisor').value,
+            receptor: document.getElementById('f_receptor').value,
+            banco: document.getElementById('f_banco').value,
             notas: document.getElementById('f_notas').value,
         };
         if (f_tipo.value === 'a_pagar') {
             data.cuenta_origen_pk = f_cuenta_origen.value;
-        } else {
-            data.banco_librador = document.getElementById('f_banco_librador').value;
-            data.titular_librador = document.getElementById('f_titular_librador').value;
+            if (!pk && f_cuenta_financiadora.value) {
+                data.cuenta_financiadora_pk = f_cuenta_financiadora.value;
+            }
         }
 
         btnGuardarCheque.disabled = true;
@@ -269,30 +307,29 @@ document.addEventListener('DOMContentLoaded', function () {
         const cheque = CHEQUES_CACHE.find(c => c.pk === pk);
         if (!cheque) return;
 
-        modalChequeTitulo.textContent = 'Editar cheque';
+        const soloVer = cheque.estado !== 'pendiente';
+        modalChequeTitulo.textContent = soloVer ? 'Ver cheque' : 'Editar cheque';
+        btnGuardarCheque.hidden = soloVer;
+        btnCancelarModal.textContent = soloVer ? 'Cerrar' : 'Cancelar';
         document.getElementById('chqPk').value = cheque.pk;
         setTipo(cheque.tipo);
         document.getElementById('f_numero_cheque').value = cheque.numero_cheque || '';
+        document.getElementById('f_numero_factura').value = cheque.numero_factura || '';
         document.getElementById('f_monto').value = cheque.monto;
         f_moneda.value = cheque.moneda;
         document.getElementById('f_fecha_emision').value = cheque.fecha_emision;
         document.getElementById('f_fecha_cobro').value = cheque.fecha_cobro;
-        document.getElementById('f_contraparte').value = cheque.contraparte || '';
+        document.getElementById('f_emisor').value = cheque.emisor || '';
+        document.getElementById('f_receptor').value = cheque.receptor || '';
+        document.getElementById('f_banco').value = cheque.banco || '';
         document.getElementById('f_notas').value = cheque.notas || '';
         if (cheque.tipo === 'a_pagar') {
-            poblarSelect(f_cuenta_origen, cuentasPorMoneda(cheque.moneda), cheque.cuenta_origen_pk);
-        } else {
-            document.getElementById('f_banco_librador').value = cheque.banco_librador || '';
-            document.getElementById('f_titular_librador').value = cheque.titular_librador || '';
+            poblarSelect(f_cuenta_origen, cuentasBancariasPorMoneda(cheque.moneda), cheque.cuenta_origen_pk);
         }
 
-        if (cheque.estado !== 'pendiente') {
-            [...formCheque.querySelectorAll('input, select, button.chq-tipo-btn')].forEach(el => {
-                if (el.id !== 'f_notas') el.disabled = true;
-            });
-        } else {
-            [...formCheque.querySelectorAll('input, select, button.chq-tipo-btn')].forEach(el => { el.disabled = false; });
-        }
+        [...formCheque.querySelectorAll('input, select, button.chq-tipo-btn')].forEach(el => {
+            el.disabled = soloVer;
+        });
 
         abrirModal();
     };
@@ -331,7 +368,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // a_cobrar: pedir la cuenta de destino
         chequeConfirmarActual = pk;
-        poblarSelect(conf_cuenta_destino, cuentasPorMoneda(cheque.moneda));
+        poblarSelect(conf_cuenta_destino, cuentasBancariasPorMoneda(cheque.moneda));
         modalConfirmarCheque.hidden = false;
         document.body.style.overflow = 'hidden';
     };
@@ -377,7 +414,11 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     window.rechazarCheque = async function (pk) {
-        if (!await KaiConfirm('¿Marcar este cheque como rechazado? Si ya estaba confirmado, se revierte el movimiento de caja.', { danger: true, confirmText: 'Rechazar' })) return;
+        const cheque = CHEQUES_CACHE.find(c => c.pk === pk);
+        const mensaje = cheque && cheque.estado === 'confirmado'
+            ? '¿El cheque rebotó (no se pudo cobrar / no había fondos)? Se revierte el movimiento de caja que ya se había generado.'
+            : '¿Marcar este cheque como rechazado?';
+        if (!await KaiConfirm(mensaje, { danger: true, confirmText: 'Rechazar' })) return;
 
         try {
             const response = await fetch(urlRechazarCheque(pk), {

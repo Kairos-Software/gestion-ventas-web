@@ -108,7 +108,7 @@ class Command(BaseCommand):
             numero_cheque=f'{PREFIJO}0001', defaults={
                 'tipo': TipoCheque.A_COBRAR, 'monto': Decimal('50000'), 'moneda': Moneda.ARS,
                 'fecha_emision': hoy, 'fecha_cobro': hoy + timedelta(days=5),
-                'titular_librador': 'Cliente de prueba', 'estado': EstadoCheque.PENDIENTE,
+                'emisor': 'Cliente de prueba', 'estado': EstadoCheque.PENDIENTE,
             },
         )
         Cheque.objects.get_or_create(

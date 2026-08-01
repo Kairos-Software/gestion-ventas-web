@@ -290,6 +290,7 @@
              data-nombre="{{ cuenta.nombre }}"
              data-moneda="{{ cuenta.moneda }}"
              data-es-credito="{{ cuenta.es_credito|yesno:'1,0' }}"
+             data-tipo="{{ cuenta.tipo }}"
              data-titular="{{ cuenta.titular }}"
              data-terminada-en="{{ cuenta.terminada_en }}"
              data-dia-cierre="{{ cuenta.dia_cierre|default_if_none:'' }}"
@@ -298,6 +299,7 @@
             <div class="config-row-info">
                 <div class="config-row-label">
                     {{ cuenta.nombre }}
+                    {% if cuenta.tipo == 'banco' %}<span class="config-badge">Banco</span>{% endif %}
                     {% if cuenta.es_credito %}<span class="config-badge config-badge-credito">Crédito</span>{% endif %}
                     {% if not cuenta.activa %}<span class="config-badge">Inactiva</span>{% endif %}
                 </div>
@@ -609,6 +611,19 @@
                                 <label class="config-row-label" for="cuentaTitular">Titular</label>
                                 <input class="form-control" id="cuentaTitular" placeholder="Opcional">
                             </div>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start; padding:0 0 0.85rem;">
+                            <label class="config-row-label kai-label-help" for="cuentaTipo">
+                                Tipo
+                                <button type="button" class="kai-help-btn" data-help-target="ayuda_cuenta_tipo" aria-label="Ayuda">?</button>
+                            </label>
+                            <select class="form-select" id="cuentaTipo">
+                                <option value="otra">Billetera / tarjeta (Mercado Pago, Naranja X, Posnet, etc.)</option>
+                                <option value="banco">Cuenta bancaria (tiene chequera)</option>
+                            </select>
+                        </div>
+                        <div class="kai-help-popover" id="ayuda_cuenta_tipo" style="margin:-0.4rem 0 0.85rem;">
+                            Marcá "Cuenta bancaria" solo si es una cuenta de banco con chequera propia — es la que vas a poder elegir como origen al emitir un cheque. Billeteras y tarjetas no tienen chequera, así que no aparecen ahí.
                         </div>
                         <div class="config-row" style="gap:1rem; padding:0 0 0.85rem;">
                             <div style="flex:1;">

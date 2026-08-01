@@ -3,6 +3,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import transaction
 from django.views.generic import TemplateView
 from django.views import View
 from django.http import JsonResponse
@@ -13,7 +14,11 @@ from productos.models import Moneda
 from core.permisos import chequear_permiso
 
 from .models import (
-    Cheque, CuentaCaja, TipoCaja, TipoCheque, EstadoCheque,
+    Cheque, CuentaCaja, TipoCaja, TipoCuenta, TipoCheque, EstadoCheque,
+    cuenta_chequera_valida as _cuenta_chequera_valida,
+    cuenta_caja_valida as _cuenta_valida,
+    validar_cuenta_financiadora as _validar_financiadora,
+    fondear_chequera as _fondear_chequera,
 )
 
 
@@ -24,31 +29,24 @@ PERMISO_ELIMINAR  = 'eliminar_cheques'
 PERMISO_CONFIRMAR = 'confirmar_cheques'
 
 
-def _cuenta_valida(cuenta_pk, moneda):
-    if not cuenta_pk:
-        return None
-    return CuentaCaja.objects.filter(
-        pk=cuenta_pk, caja=TipoCaja.GRANDE, activa=True, es_credito=False, moneda=moneda,
-    ).first()
-
-
 def _serializar_cheque(c):
     return {
         'pk': c.pk,
         'tipo': c.tipo,
         'tipo_display': c.get_tipo_display(),
         'numero_cheque': c.numero_cheque,
+        'numero_factura': c.numero_factura,
         'monto': str(c.monto),
         'moneda': c.moneda,
         'fecha_emision': c.fecha_emision.isoformat(),
         'fecha_cobro': c.fecha_cobro.isoformat(),
         'cuenta_origen_pk': c.cuenta_origen_id,
         'cuenta_origen_nombre': c.cuenta_origen.nombre if c.cuenta_origen_id else '',
-        'banco_librador': c.banco_librador,
-        'titular_librador': c.titular_librador,
+        'banco': c.banco,
+        'emisor': c.emisor,
         'cuenta_destino_pk': c.cuenta_destino_id,
         'cuenta_destino_nombre': c.cuenta_destino.nombre if c.cuenta_destino_id else '',
-        'contraparte': c.contraparte,
+        'receptor': c.receptor,
         'estado': c.estado,
         'estado_display': c.get_estado_display(),
         'notas': c.notas,
@@ -87,7 +85,7 @@ class ChequesView(LoginRequiredMixin, TemplateView):
 
         cuentas = CuentaCaja.objects.filter(caja=TipoCaja.GRANDE, activa=True, es_credito=False).order_by('orden', 'nombre')
         ctx['cuentas_json'] = json.dumps([
-            {'pk': c.pk, 'nombre': c.nombre, 'moneda': c.moneda}
+            {'pk': c.pk, 'nombre': c.nombre, 'moneda': c.moneda, 'tipo': c.tipo}
             for c in cuentas
         ])
         ctx['today'] = timezone.now().date().isoformat()
@@ -126,7 +124,7 @@ class ListarChequesAjax(LoginRequiredMixin, View):
         if moneda:
             qs = qs.filter(moneda=moneda)
         if q:
-            qs = qs.filter(numero_cheque__icontains=q) | qs.filter(contraparte__icontains=q)
+            qs = qs.filter(numero_cheque__icontains=q) | qs.filter(receptor__icontains=q) | qs.filter(emisor__icontains=q)
 
         try:
             pagina = max(int(request.GET.get('pagina', 1)), 1)
@@ -184,25 +182,38 @@ class CrearChequeAjax(LoginRequiredMixin, View):
                 return JsonResponse({'error': 'Fechas inválidas.'}, status=400)
 
             cuenta_origen = None
+            financiadora = None
             if tipo == TipoCheque.A_PAGAR:
-                cuenta_origen = _cuenta_valida(data.get('cuenta_origen_pk'), moneda)
+                cuenta_origen = _cuenta_chequera_valida(data.get('cuenta_origen_pk'), moneda)
                 if not cuenta_origen:
-                    return JsonResponse({'error': 'Elegí la cuenta propia (chequera) de la que sale el cheque.'}, status=400)
+                    return JsonResponse({'error': 'Elegí la cuenta bancaria (chequera) de la que sale el cheque.'}, status=400)
 
-            cheque = Cheque.objects.create(
-                tipo=tipo,
-                numero_cheque=data.get('numero_cheque', '').strip(),
-                monto=monto,
-                moneda=moneda,
-                fecha_emision=fecha_emision,
-                fecha_cobro=fecha_cobro,
-                cuenta_origen=cuenta_origen,
-                banco_librador=data.get('banco_librador', '').strip(),
-                titular_librador=data.get('titular_librador', '').strip(),
-                contraparte=data.get('contraparte', '').strip(),
-                notas=data.get('notas', '').strip(),
-                creado_por=request.user,
-            )
+                if data.get('cuenta_financiadora_pk'):
+                    financiadora, error = _validar_financiadora(
+                        data.get('cuenta_financiadora_pk'), cuenta_origen, moneda, monto,
+                    )
+                    if error:
+                        return JsonResponse({'error': error}, status=400)
+
+            with transaction.atomic():
+                cheque = Cheque.objects.create(
+                    tipo=tipo,
+                    numero_cheque=data.get('numero_cheque', '').strip(),
+                    numero_factura=data.get('numero_factura', '').strip(),
+                    monto=monto,
+                    moneda=moneda,
+                    fecha_emision=fecha_emision,
+                    fecha_cobro=fecha_cobro,
+                    cuenta_origen=cuenta_origen,
+                    banco=data.get('banco', '').strip(),
+                    emisor=data.get('emisor', '').strip(),
+                    receptor=data.get('receptor', '').strip(),
+                    notas=data.get('notas', '').strip(),
+                    creado_por=request.user,
+                )
+
+                if financiadora:
+                    _fondear_chequera(financiadora, cuenta_origen, monto, fecha_emision, cheque, request.user)
 
             from asistencia.services.eventos import notificar_cheque_si_proximo, enviar_en_background
             enviar_en_background(notificar_cheque_si_proximo, cheque)
@@ -238,6 +249,8 @@ class EditarChequeAjax(LoginRequiredMixin, View):
 
             if 'numero_cheque' in data:
                 cheque.numero_cheque = data.get('numero_cheque', '').strip()
+            if 'numero_factura' in data:
+                cheque.numero_factura = data.get('numero_factura', '').strip()
             if 'monto' in data:
                 try:
                     monto = Decimal(str(data.get('monto')))
@@ -259,16 +272,16 @@ class EditarChequeAjax(LoginRequiredMixin, View):
                 except ValueError:
                     return JsonResponse({'error': 'Fecha de cobro inválida.'}, status=400)
             if cheque.tipo == TipoCheque.A_PAGAR and 'cuenta_origen_pk' in data:
-                cuenta_origen = _cuenta_valida(data.get('cuenta_origen_pk'), cheque.moneda)
+                cuenta_origen = _cuenta_chequera_valida(data.get('cuenta_origen_pk'), cheque.moneda)
                 if not cuenta_origen:
-                    return JsonResponse({'error': 'Elegí una cuenta válida.'}, status=400)
+                    return JsonResponse({'error': 'Elegí una cuenta bancaria válida.'}, status=400)
                 cheque.cuenta_origen = cuenta_origen
-            if 'banco_librador' in data:
-                cheque.banco_librador = data.get('banco_librador', '').strip()
-            if 'titular_librador' in data:
-                cheque.titular_librador = data.get('titular_librador', '').strip()
-            if 'contraparte' in data:
-                cheque.contraparte = data.get('contraparte', '').strip()
+            if 'banco' in data:
+                cheque.banco = data.get('banco', '').strip()
+            if 'emisor' in data:
+                cheque.emisor = data.get('emisor', '').strip()
+            if 'receptor' in data:
+                cheque.receptor = data.get('receptor', '').strip()
             if 'notas' in data:
                 cheque.notas = data.get('notas', '').strip()
 

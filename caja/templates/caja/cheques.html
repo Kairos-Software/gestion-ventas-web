@@ -152,12 +152,8 @@
                     <input type="text" id="f_numero_cheque" placeholder="Opcional">
                 </div>
                 <div class="form-campo">
-                    <label for="f_moneda">Moneda</label>
-                    <select id="f_moneda">
-                        {% for moneda, label in monedas %}
-                        <option value="{{ moneda }}">{{ label }}</option>
-                        {% endfor %}
-                    </select>
+                    <label for="f_numero_factura">N° de factura</label>
+                    <input type="text" id="f_numero_factura" placeholder="Opcional">
                 </div>
             </div>
 
@@ -167,8 +163,12 @@
                     <input type="number" id="f_monto" step="0.01" min="0.01" required>
                 </div>
                 <div class="form-campo">
-                    <label for="f_contraparte">Contraparte</label>
-                    <input type="text" id="f_contraparte" placeholder="A quién se le paga / quién lo entregó">
+                    <label for="f_moneda">Moneda</label>
+                    <select id="f_moneda">
+                        {% for moneda, label in monedas %}
+                        <option value="{{ moneda }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
             </div>
 
@@ -184,21 +184,33 @@
             </div>
 
             <div class="form-campo" id="campoCuentaOrigen">
-                <label for="f_cuenta_origen">Cuenta propia (chequera) *</label>
+                <label for="f_cuenta_origen">Cuenta bancaria propia (chequera) *</label>
                 <select id="f_cuenta_origen">
                     <option value="">— Elegí una cuenta —</option>
                 </select>
             </div>
 
-            <div class="chq-form-grid" id="camposLibrador" hidden>
+            <div class="form-campo" id="campoFinanciadora">
+                <label for="f_cuenta_financiadora">Fondear la chequera desde (opcional)</label>
+                <select id="f_cuenta_financiadora">
+                    <option value="">— No hace falta, ya tiene fondos —</option>
+                </select>
+            </div>
+
+            <div class="chq-form-grid">
                 <div class="form-campo">
-                    <label for="f_banco_librador">Banco del cheque</label>
-                    <input type="text" id="f_banco_librador" placeholder="Ej: Banco Galicia">
+                    <label for="f_emisor" id="lbl_emisor">Emisor</label>
+                    <input type="text" id="f_emisor" placeholder="Quién emite el cheque">
                 </div>
                 <div class="form-campo">
-                    <label for="f_titular_librador">Titular del cheque</label>
-                    <input type="text" id="f_titular_librador" placeholder="Quién lo entregó">
+                    <label for="f_receptor" id="lbl_receptor">Receptor</label>
+                    <input type="text" id="f_receptor" placeholder="Quién recibe el cheque">
                 </div>
+            </div>
+
+            <div class="form-campo" id="campoBanco">
+                <label for="f_banco">Banco</label>
+                <input type="text" id="f_banco" placeholder="Ej: Banco Galicia">
             </div>
 
             <div class="form-campo">
@@ -230,7 +242,7 @@
         </div>
         <div class="modal-body">
             <div class="form-campo">
-                <label for="conf_cuenta_destino">¿En qué cuenta propia lo depositás?</label>
+                <label for="conf_cuenta_destino">¿En qué cuenta bancaria propia lo depositás?</label>
                 <select id="conf_cuenta_destino">
                     <option value="">— Elegí una cuenta —</option>
                 </select>

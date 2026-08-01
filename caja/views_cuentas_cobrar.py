@@ -20,6 +20,7 @@ PERMISO_CONFIRMAR = 'confirmar_cuotas_cobro'
 
 
 def _serializar_cuota(c):
+    cheque = c.cheques.exclude(estado='anulado').order_by('-fecha_alta').first()
     return {
         'pk': c.pk,
         'numero': c.numero,
@@ -29,6 +30,9 @@ def _serializar_cuota(c):
         'habilitada': c.habilitada,
         'cuenta_cobro_pk': c.cuenta_cobro_id,
         'cuenta_cobro_nombre': c.cuenta_cobro.nombre if c.cuenta_cobro_id else '',
+        'cheque_pk': cheque.pk if cheque else None,
+        'cheque_numero': (cheque.numero_cheque or 's/n') if cheque else '',
+        'cheque_estado': cheque.estado if cheque else '',
         'fecha_confirmacion': c.fecha_confirmacion.isoformat() if c.fecha_confirmacion else '',
         'confirmado_por': str(c.confirmado_por) if c.confirmado_por else '',
     }
@@ -218,10 +222,12 @@ class ConfirmarCuotaCobroAjax(LoginRequiredMixin, View):
 
         try:
             data = json.loads(request.body)
-            cuenta_pk = data.get('cuenta_pk')
             adelantar = bool(data.get('adelantar', False))
 
-            cuota.confirmar(cuenta_pk, request.user, adelantar=adelantar)
+            if data.get('cheque'):
+                cuota.confirmar_con_cheque(data.get('cheque'), request.user, adelantar=adelantar)
+            else:
+                cuota.confirmar(data.get('cuenta_pk'), request.user, adelantar=adelantar)
 
             # En segundo plano: mismo criterio que ConfirmarCuotaAjax
             # (caja/views_deudas.py) para no colgar el pedido HTTP con

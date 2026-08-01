@@ -254,6 +254,66 @@
     </div>
 </div>
 
+<!-- ══════════════════════════════════
+     MODAL PAGAR CUOTA CON CHEQUE
+══════════════════════════════════ -->
+<div class="modal" id="modalChequeCuota" hidden>
+    <div class="modal-backdrop" id="modalChequeCuotaBackdrop"></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title">Pagar cuota con cheque</h2>
+            <button type="button" class="modal-close" id="btnCerrarChequeCuota" aria-label="Cerrar">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M5 5L15 15M5 15L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <p style="font-size:.8125rem; color:var(--text-muted); margin:0 0 .75rem;">
+                El cheque tiene que ser por el monto exacto de esta cuota: <strong id="cchcMontoLabel"></strong>.
+                La nota del cheque queda cargada sola con la cuota y la operación de origen.
+            </p>
+            <div class="form-campo">
+                <label for="cchc_numero_cheque">N° de cheque</label>
+                <input type="text" id="cchc_numero_cheque" placeholder="Opcional">
+            </div>
+            <div class="form-campo">
+                <label for="cchc_fecha_emision">Fecha de emisión *</label>
+                <input type="date" id="cchc_fecha_emision" required>
+            </div>
+            <div class="form-campo">
+                <label for="cchc_fecha_cobro">Fecha de cobro *</label>
+                <input type="date" id="cchc_fecha_cobro" required>
+            </div>
+            <div class="form-campo">
+                <label for="cchc_cuenta_origen">Cuenta bancaria propia (chequera) *</label>
+                <select id="cchc_cuenta_origen">
+                    <option value="">— Elegí una cuenta —</option>
+                </select>
+            </div>
+            <div class="form-campo">
+                <label for="cchc_financiadora">Fondear la chequera desde (opcional)</label>
+                <select id="cchc_financiadora">
+                    <option value="">— No hace falta, ya tiene fondos —</option>
+                </select>
+            </div>
+            <div class="form-campo">
+                <label for="cchc_receptor">Receptor (a quién se le paga)</label>
+                <input type="text" id="cchc_receptor" placeholder="Opcional">
+            </div>
+            <div class="form-campo">
+                <label for="cchc_emisor">Emisor (opcional, firmante propio)</label>
+                <input type="text" id="cchc_emisor" placeholder="Opcional">
+            </div>
+            <div id="cchcMsg" style="color:#dc2626; font-size:.8125rem; margin-bottom:.5rem;"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-ghost" id="btnCancelarChequeCuota">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnGuardarChequeCuota">Confirmar con cheque</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endif %}
 </div>
 

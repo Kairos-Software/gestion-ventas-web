@@ -38,6 +38,7 @@ class MedioPago(models.TextChoices):
     CREDITO       = 'credito',       'Crédito'
     QR            = 'qr',            'QR'
     CUOTAS        = 'cuotas',        'Cuotas'
+    CHEQUE        = 'cheque',        'Cheque'
 
 
 class TipoResolucionLote(models.TextChoices):
@@ -312,6 +313,24 @@ def _anular_cuentas_por_cobrar_de_venta(venta):
         cxc.anular()
 
 
+def _anular_cheques_de_venta(venta):
+    """
+    Anula los cheques PENDIENTES vinculados a las líneas de pago con
+    cheque de esta venta. Si alguno ya está CONFIRMADO (depositado), no
+    se puede anular la venta sin resolver eso antes — mismo criterio
+    fail-fast que _anular_cuentas_por_cobrar_de_venta.
+    """
+    from caja.models import Cheque, EstadoCheque
+    for cheque in Cheque.objects.filter(pago_venta__venta=venta).exclude(estado=EstadoCheque.ANULADO):
+        if cheque.estado == EstadoCheque.PENDIENTE:
+            cheque.anular()
+        elif cheque.estado == EstadoCheque.CONFIRMADO:
+            raise ValueError(
+                f'El cheque {cheque.numero_cheque or "s/n"} de esta venta ya está confirmado '
+                f'(depositado) — rechazalo desde Cheques antes de anular la venta.'
+            )
+
+
 # ══════════════════════════════════════════════════════════════════
 #  VENTA  (cabecera)
 # ══════════════════════════════════════════════════════════════════
@@ -456,6 +475,7 @@ class Venta(models.Model):
                 return
             # Falla rápido: bloquea el borrado si hay cuotas ya cobradas.
             _anular_cuentas_por_cobrar_de_venta(self)
+            _anular_cheques_de_venta(self)
             if estado_actual == EstadoVenta.CONFIRMADA:
                 # No permitir el borrado físico de una venta que pertenece a
                 # un turno ya cerrado: el turno guardó una foto congelada de
@@ -605,9 +625,62 @@ class Venta(models.Model):
                 medio = p.get('medio', MedioPago.EFECTIVO)
 
                 cuotas_info = None
+                cheques_info = None
                 if medio == MedioPago.EFECTIVO:
                     cuenta = _cuenta_default(moneda=Moneda.ARS, caja=TipoCaja.GRANDE)
                     cotizacion = None
+                elif medio == MedioPago.CHEQUE:
+                    # Igual que CUOTAS: sin cuenta ni cotización acá — no
+                    # entra plata a caja al confirmar la venta, cada
+                    # cheque se crea PENDIENTE y solo impacta caja cuando
+                    # se confirma individualmente (deposita) desde la
+                    # pantalla de Cheques.
+                    cuenta = None
+                    cotizacion = None
+                    cliente_venta = self.cliente_unico
+                    if cliente_venta is None:
+                        raise ValueError(
+                            'Para cobrar con cheque la venta necesita un único cliente vinculado '
+                            '(no se le puede cobrar con cheque a Consumidor Final).'
+                        )
+                    cheques_raw = p.get('cheques') or []
+                    if not cheques_raw:
+                        raise ValueError('Cargá al menos un cheque para esta línea de pago.')
+                    cheques_info = []
+                    for ch in cheques_raw:
+                        try:
+                            monto_cheque = Decimal(str(ch.get('monto')))
+                            if monto_cheque <= 0:
+                                raise ValueError
+                        except Exception:
+                            raise ValueError('Uno de los cheques cargados tiene un monto inválido.')
+                        if (ch.get('moneda') or Moneda.ARS) != Moneda.ARS:
+                            raise ValueError(
+                                'Por ahora los cheques de una venta deben ser en pesos.'
+                            )
+                        fecha_emision_raw = ch.get('fecha_emision')
+                        fecha_cobro_raw = ch.get('fecha_cobro')
+                        if not fecha_emision_raw or not fecha_cobro_raw:
+                            raise ValueError('Cada cheque necesita fecha de emisión y de cobro.')
+                        try:
+                            fecha_emision_ch = date.fromisoformat(str(fecha_emision_raw))
+                            fecha_cobro_ch = date.fromisoformat(str(fecha_cobro_raw))
+                        except ValueError:
+                            raise ValueError('Fecha de cheque inválida.')
+                        cheques_info.append({
+                            'numero_cheque': str(ch.get('numero_cheque', '') or '').strip(),
+                            'monto': monto_cheque,
+                            'fecha_emision': fecha_emision_ch,
+                            'fecha_cobro': fecha_cobro_ch,
+                            'emisor': str(ch.get('emisor', '') or '').strip(),
+                            'receptor': str(ch.get('receptor', '') or '').strip(),
+                            'banco': str(ch.get('banco', '') or '').strip(),
+                            'notas': str(ch.get('notas', '') or '').strip(),
+                        })
+                    # El monto de la línea es la suma de los cheques
+                    # cargados, no un valor tipeado aparte — así nunca
+                    # pueden desincronizarse.
+                    monto = sum(c['monto'] for c in cheques_info)
                 elif medio == MedioPago.CUOTAS:
                     # Sin cuenta ni cotización: no entra plata a caja
                     # todavía, solo se genera la CuentaPorCobrar (ver
@@ -704,7 +777,8 @@ class Venta(models.Model):
                 pagos_resueltos.append({
                     'medio': medio, 'monto': monto, 'cuenta': cuenta, 'tarjeta': tarjeta,
                     'cotizacion': cotizacion,
-                    'cuotas_info': cuotas_info, 'recargo_pct': recargo_pct,
+                    'cuotas_info': cuotas_info, 'cheques_info': cheques_info,
+                    'recargo_pct': recargo_pct,
                     'cantidad_pagos': cantidad_pagos, 'nombre_plan': nombre_plan,
                     'recargo_monto': recargo_monto,
                 })
@@ -775,6 +849,24 @@ class Venta(models.Model):
                         descripcion=f'Venta {self.numero}',
                         creado_por=confirmado_por,
                     )
+                if p['cheques_info'] is not None:
+                    from caja.models import Cheque, TipoCheque
+                    for ch in p['cheques_info']:
+                        Cheque.objects.create(
+                            tipo=TipoCheque.A_COBRAR,
+                            numero_cheque=ch['numero_cheque'],
+                            numero_factura=self.numero,
+                            monto=ch['monto'],
+                            moneda=Moneda.ARS,
+                            fecha_emision=ch['fecha_emision'],
+                            fecha_cobro=ch['fecha_cobro'],
+                            emisor=ch['emisor'],
+                            receptor=ch['receptor'],
+                            banco=ch['banco'],
+                            notas=ch['notas'],
+                            pago_venta=pago,
+                            creado_por=confirmado_por,
+                        )
 
         # Sincronizar movimiento de caja grande
         from caja.models import sincronizar_movimiento_venta
@@ -794,6 +886,7 @@ class Venta(models.Model):
         # Falla rápido: si alguna cuota de una venta en cuotas ya fue
         # cobrada, no se puede anular la venta sin antes resolver eso.
         _anular_cuentas_por_cobrar_de_venta(self)
+        _anular_cheques_de_venta(self)
 
         for item in self.items.select_related('producto', 'combinacion'):
             _revertir_stock_venta_item(item)

@@ -45,7 +45,19 @@ class CuentaCrearEditarAjax(LoginRequiredMixin, View):
         if moneda not in Moneda.values:
             return JsonResponse({'error': 'Moneda inválida.'}, status=400)
 
+        # Efectivo se gestiona solo (asegurar_cuentas_efectivo); acá solo
+        # se elige entre banco (habilita usarla como chequera) u otra
+        # (tarjetas, billeteras virtuales, etc).
+        tipo = body.get('tipo') or TipoCuenta.OTRA
+        if tipo not in (TipoCuenta.BANCO, TipoCuenta.OTRA):
+            tipo = TipoCuenta.OTRA
+
         es_credito = bool(body.get('es_credito'))
+        if tipo == TipoCuenta.BANCO and es_credito:
+            return JsonResponse(
+                {'error': 'Una cuenta bancaria no puede ser también tarjeta de crédito.'},
+                status=400,
+            )
 
         dia_cierre = body.get('dia_cierre') or None
         dia_vencimiento = body.get('dia_vencimiento') or None
@@ -78,7 +90,7 @@ class CuentaCrearEditarAjax(LoginRequiredMixin, View):
 
         cuenta.nombre = nombre
         cuenta.moneda = moneda
-        cuenta.tipo = TipoCuenta.OTRA
+        cuenta.tipo = tipo
         cuenta.es_credito = es_credito
         cuenta.titular = (body.get('titular') or '').strip()
         cuenta.terminada_en = (body.get('terminada_en') or '').strip()

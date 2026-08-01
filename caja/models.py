@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import timedelta, date
 from decimal import Decimal
 
 from django.db import models
@@ -424,11 +424,15 @@ def sincronizar_movimiento_compra(compra):
       (PagoCompra), cada una en su cuenta real. A diferencia de
       Ventas, acá no hay turno de por medio — toda línea (incluida
       efectivo) impacta caja grande de inmediato, como siempre lo
-      hizo Compras. Excepción: las líneas pagadas con tarjeta de
+      hizo Compras. Excepciones: las líneas pagadas con tarjeta de
       crédito (medio=CREDITO) NO generan egreso acá — esa plata no
       sale de la caja al confirmar la compra, sale de a poco cuando
       se confirma cada CuotaDeuda de la Deuda asociada (ver
-      sincronizar_movimiento_cuota).
+      sincronizar_movimiento_cuota). Tampoco las de cheque (medio=CHEQUE):
+      aunque sí tienen `cuenta` (la chequera), el egreso real recién
+      ocurre cuando se confirma cada Cheque por separado (ver
+      sincronizar_movimiento_cheque) — la compra solo deja el cheque
+      cargado como PENDIENTE.
     - ANULADA: no debe quedar movimiento (se revirtió, no hubo gasto neto).
 
     Se llama desde Compra.confirmar(), Compra.anular(), Compra.reactivar()
@@ -447,7 +451,7 @@ def sincronizar_movimiento_compra(compra):
     pagos_caja = (
         compra.pagos
         .exclude(cuenta__isnull=True)
-        .exclude(medio=MedioPagoCompra.CREDITO)
+        .exclude(medio__in=[MedioPagoCompra.CREDITO, MedioPagoCompra.CHEQUE])
         .select_related('cuenta')
     )
     for pago in pagos_caja:
@@ -1335,6 +1339,86 @@ class CuotaDeuda(models.Model):
         sincronizar_movimiento_cuota(self)
         sincronizar_movimiento_cuota_tarjeta(self)
 
+    @transaction.atomic
+    def confirmar_con_cheque(self, cheque_data, usuario, adelantar=False):
+        """
+        Alternativa a confirmar(): en vez de descontar de una cuenta al
+        toque, esta cuota se paga con un cheque propio (A_PAGAR) por su
+        monto exacto. La cuota queda CONFIRMADA de inmediato (el
+        compromiso de pago quedó saldado con el cheque), pero el egreso
+        real de caja recién ocurre cuando ESE cheque se confirma por
+        separado desde la pantalla de Cheques — mismo criterio que
+        compras/ventas pagadas con cheque. `cuenta_pago` queda vacío a
+        propósito (ver sincronizar_movimiento_cuota, que no genera
+        movimiento si no hay cuenta real todavía).
+        """
+        if CuotaDeuda.objects.select_for_update().get(pk=self.pk).estado != EstadoCuota.PENDIENTE:
+            raise ValueError('Solo se pueden confirmar cuotas pendientes.')
+        if not self.habilitada and not adelantar:
+            fecha_habilitacion = self.fecha_vencimiento - timedelta(days=DIAS_HABILITACION_CUOTA)
+            raise ValueError(
+                f'Esta cuota se habilita para pagar a partir del {fecha_habilitacion.strftime("%d/%m/%Y")}.'
+            )
+
+        cuenta_origen = cuenta_chequera_valida(cheque_data.get('cuenta_origen_pk'), self.deuda.moneda)
+        if not cuenta_origen:
+            raise ValueError('Elegí la cuenta bancaria (chequera) de la que sale el cheque.')
+
+        try:
+            monto_cheque = Decimal(str(cheque_data.get('monto')))
+        except Exception:
+            raise ValueError('Monto de cheque inválido.')
+        if abs(monto_cheque - self.monto) > Decimal('0.01'):
+            raise ValueError(f'El cheque tiene que ser por el monto exacto de la cuota: {self.monto}.')
+
+        fecha_emision_raw = cheque_data.get('fecha_emision')
+        fecha_cobro_raw = cheque_data.get('fecha_cobro')
+        if not fecha_emision_raw or not fecha_cobro_raw:
+            raise ValueError('Indicá fecha de emisión y de cobro del cheque.')
+        try:
+            fecha_emision = date.fromisoformat(str(fecha_emision_raw))
+            fecha_cobro = date.fromisoformat(str(fecha_cobro_raw))
+        except ValueError:
+            raise ValueError('Fecha de cheque inválida.')
+
+        financiadora = None
+        if cheque_data.get('cuenta_financiadora_pk'):
+            financiadora, error = validar_cuenta_financiadora(
+                cheque_data.get('cuenta_financiadora_pk'), cuenta_origen, self.deuda.moneda, monto_cheque,
+            )
+            if error:
+                raise ValueError(error)
+
+        deuda = self.deuda
+        origen_desc = deuda.pago_compra.compra.numero if deuda.pago_compra_id else f'Deuda #{deuda.pk}'
+
+        self.estado = EstadoCuota.CONFIRMADA
+        self.fecha_confirmacion = timezone.now()
+        self.confirmado_por = usuario
+        self.save(update_fields=['estado', 'fecha_confirmacion', 'confirmado_por'])
+
+        cheque = Cheque.objects.create(
+            tipo=TipoCheque.A_PAGAR,
+            numero_cheque=str(cheque_data.get('numero_cheque', '') or '').strip(),
+            numero_factura=origen_desc,
+            monto=monto_cheque,
+            moneda=deuda.moneda,
+            fecha_emision=fecha_emision,
+            fecha_cobro=fecha_cobro,
+            cuenta_origen=cuenta_origen,
+            emisor=str(cheque_data.get('emisor', '') or '').strip(),
+            receptor=str(cheque_data.get('receptor', '') or '').strip(),
+            banco=str(cheque_data.get('banco', '') or '').strip(),
+            notas=f'Cuota {self.numero}/{deuda.cantidad_cuotas} de {origen_desc}',
+            cuota_deuda=self,
+            creado_por=usuario,
+        )
+        if financiadora:
+            fondear_chequera(financiadora, cuenta_origen, monto_cheque, timezone.now().date(), cheque, usuario)
+
+        sincronizar_movimiento_cuota(self)
+        sincronizar_movimiento_cuota_tarjeta(self)
+
 
 def generar_cuotas(deuda):
     """
@@ -1414,7 +1498,10 @@ def sincronizar_movimiento_cuota(cuota):
         origen=OrigenMovimiento.CUOTA_DEUDA, origen_app='caja', origen_id=cuota.pk,
     ).first()
 
-    if cuota.estado != EstadoCuota.CONFIRMADA:
+    # cuenta_pago=None con estado CONFIRMADA es una cuota pagada con
+    # cheque (ver confirmar_con_cheque) — el egreso real recién ocurre
+    # cuando ESE cheque se confirma por separado, no acá.
+    if cuota.estado != EstadoCuota.CONFIRMADA or cuota.cuenta_pago_id is None:
         if movimiento:
             movimiento.delete()
         return
@@ -1708,6 +1795,68 @@ class CuotaCobro(models.Model):
 
         sincronizar_movimiento_cuota_cobro(self)
 
+    @transaction.atomic
+    def confirmar_con_cheque(self, cheque_data, usuario, adelantar=False):
+        """
+        Alternativa a confirmar(): esta cuota se cobra con un cheque de
+        un tercero (A_COBRAR) por su monto exacto. La cuota queda
+        CONFIRMADA de inmediato, pero el ingreso real de caja recién
+        ocurre cuando ESE cheque se deposita/confirma por separado desde
+        Cheques — mismo criterio que ventas cobradas con cheque.
+        `cuenta_cobro` queda vacío a propósito (se elige recién al
+        confirmar el cheque, como cualquier A_COBRAR).
+        """
+        if CuotaCobro.objects.select_for_update().get(pk=self.pk).estado != EstadoCuota.PENDIENTE:
+            raise ValueError('Solo se pueden confirmar cuotas pendientes.')
+        if not self.habilitada and not adelantar:
+            fecha_habilitacion = self.fecha_vencimiento - timedelta(days=DIAS_HABILITACION_CUOTA)
+            raise ValueError(
+                f'Esta cuota se habilita para cobrar a partir del {fecha_habilitacion.strftime("%d/%m/%Y")}.'
+            )
+
+        try:
+            monto_cheque = Decimal(str(cheque_data.get('monto')))
+        except Exception:
+            raise ValueError('Monto de cheque inválido.')
+        if abs(monto_cheque - self.monto) > Decimal('0.01'):
+            raise ValueError(f'El cheque tiene que ser por el monto exacto de la cuota: {self.monto}.')
+
+        fecha_emision_raw = cheque_data.get('fecha_emision')
+        fecha_cobro_raw = cheque_data.get('fecha_cobro')
+        if not fecha_emision_raw or not fecha_cobro_raw:
+            raise ValueError('Indicá fecha de emisión y de cobro del cheque.')
+        try:
+            fecha_emision = date.fromisoformat(str(fecha_emision_raw))
+            fecha_cobro = date.fromisoformat(str(fecha_cobro_raw))
+        except ValueError:
+            raise ValueError('Fecha de cheque inválida.')
+
+        cxc = self.cuenta_por_cobrar
+        origen_desc = cxc.pago_venta.venta.numero if cxc.pago_venta_id else f'Cuenta por cobrar #{cxc.pk}'
+
+        self.estado = EstadoCuota.CONFIRMADA
+        self.fecha_confirmacion = timezone.now()
+        self.confirmado_por = usuario
+        self.save(update_fields=['estado', 'fecha_confirmacion', 'confirmado_por'])
+
+        Cheque.objects.create(
+            tipo=TipoCheque.A_COBRAR,
+            numero_cheque=str(cheque_data.get('numero_cheque', '') or '').strip(),
+            numero_factura=origen_desc,
+            monto=monto_cheque,
+            moneda=cxc.moneda,
+            fecha_emision=fecha_emision,
+            fecha_cobro=fecha_cobro,
+            emisor=str(cheque_data.get('emisor', '') or '').strip(),
+            receptor=str(cheque_data.get('receptor', '') or '').strip(),
+            banco=str(cheque_data.get('banco', '') or '').strip(),
+            notas=f'Cuota {self.numero}/{cxc.cantidad_cuotas} de {origen_desc}',
+            cuota_cobro=self,
+            creado_por=usuario,
+        )
+
+        sincronizar_movimiento_cuota_cobro(self)
+
 
 def generar_cuotas_cobro(cuenta_por_cobrar):
     """
@@ -1746,7 +1895,10 @@ def sincronizar_movimiento_cuota_cobro(cuota):
         origen=OrigenMovimiento.CUOTA_COBRO, origen_app='caja', origen_id=cuota.pk,
     ).first()
 
-    if cuota.estado != EstadoCuota.CONFIRMADA:
+    # cuenta_cobro=None con estado CONFIRMADA es una cuota cobrada con
+    # cheque (ver confirmar_con_cheque) — el ingreso real recién ocurre
+    # cuando ESE cheque se confirma/deposita por separado, no acá.
+    if cuota.estado != EstadoCuota.CONFIRMADA or cuota.cuenta_cobro_id is None:
         if movimiento:
             movimiento.delete()
         return
@@ -1808,35 +1960,65 @@ class Cheque(models.Model):
 
     tipo = models.CharField(max_length=10, choices=TipoCheque.choices)
 
-    numero_cheque = models.CharField(max_length=30, blank=True,
+    numero_cheque  = models.CharField(max_length=30, blank=True,
                         help_text='Opcional, ayuda a evitar duplicados.')
+    numero_factura = models.CharField(max_length=30, blank=True,
+                        help_text='N° de factura asociada al cheque, si corresponde.')
     monto  = models.DecimalField(max_digits=14, decimal_places=2)
     moneda = models.CharField(max_length=5, choices=Moneda.choices, default=Moneda.ARS)
 
     fecha_emision = models.DateField(help_text='Fecha en que se emitió/recibió el cheque.')
     fecha_cobro   = models.DateField(help_text='Fecha en que se puede/debe cobrar (cubre cheque común y de pago diferido).')
 
-    # — A_PAGAR: chequera propia, fija desde que se carga —
+    # — A_PAGAR: chequera propia (cuenta bancaria real), fija desde que se carga —
     cuenta_origen = models.ForeignKey(
         CuentaCaja, on_delete=models.PROTECT, null=True, blank=True,
         related_name='cheques_a_pagar',
         help_text='Cuenta bancaria propia (la chequera). Solo para A_PAGAR.',
     )
 
-    # — A_COBRAR: datos del que lo entregó (informativos) + cuenta propia
-    # de destino, que se elige recién al confirmar —
-    banco_librador   = models.CharField(max_length=100, blank=True,
-                            help_text='Banco del cheque de terceros. Solo informativo.')
-    titular_librador = models.CharField(max_length=150, blank=True,
-                            help_text='Quién entregó el cheque. Solo para A_COBRAR.')
+    # — Datos impresos en el cheque, válidos para ambos tipos —
+    banco   = models.CharField(max_length=100, blank=True,
+                  help_text='Banco de la chequera. Informativo.')
+    emisor  = models.CharField(max_length=150, blank=True,
+                  help_text='Quién emite el cheque (A_PAGAR: nuestra empresa/firmante. A_COBRAR: quién lo entregó).')
+    receptor = models.CharField(max_length=150, blank=True,
+                   help_text='Quién recibe el cheque (A_PAGAR: a quién se le paga. A_COBRAR: normalmente la propia empresa).')
+
+    # — A_COBRAR: cuenta propia de destino, se elige recién al confirmar —
     cuenta_destino = models.ForeignKey(
         CuentaCaja, on_delete=models.PROTECT, null=True, blank=True,
         related_name='cheques_a_cobrar',
         help_text='Cuenta propia donde se deposita/cobra. Se completa al confirmar, no antes.',
     )
 
-    contraparte = models.CharField(max_length=150, blank=True,
-                      help_text='A quién se le paga (A_PAGAR) o quién lo entregó (A_COBRAR).')
+    # — Origen, si nació de un checkout de venta/compra en vez de
+    # cargarse a mano desde esta pantalla. Nunca OneToOne: una misma
+    # línea de pago puede traer varios cheques (pago dividido). —
+    pago_venta = models.ForeignKey(
+        'ventas.PagoVenta', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='cheques',
+        help_text='Línea de pago (medio=cheque) de la venta que originó este cheque, si corresponde.',
+    )
+    pago_compra = models.ForeignKey(
+        'compras.PagoCompra', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='cheques',
+        help_text='Línea de pago (medio=cheque) de la compra que originó este cheque, si corresponde.',
+    )
+    # — Origen alternativo: pago de UNA cuota suelta de una deuda/cuenta
+    # por cobrar (no de la compra/venta completa) — el registro de la
+    # deuda es el mismo en todas sus cuotas, esto distingue cuál cuota
+    # puntual pagó/cobró este cheque. —
+    cuota_deuda = models.ForeignKey(
+        'caja.CuotaDeuda', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='cheques',
+        help_text='Cuota de deuda que este cheque pagó, si nació de "pagar cuota con cheque".',
+    )
+    cuota_cobro = models.ForeignKey(
+        'caja.CuotaCobro', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='cheques',
+        help_text='Cuota de cobro que este cheque saldó, si nació de "cobrar cuota con cheque".',
+    )
 
     estado = models.CharField(max_length=10, choices=EstadoCheque.choices, default=EstadoCheque.PENDIENTE)
     notas  = models.CharField(max_length=300, blank=True)
@@ -1870,12 +2052,17 @@ class Cheque(models.Model):
             raise ValueError('Solo se pueden confirmar cheques pendientes.')
 
         if self.tipo == TipoCheque.A_COBRAR:
+            # Un cheque de terceros se deposita en CUALQUIERA de tus
+            # cuentas bancarias propias (no hace falta tener cuenta en
+            # el banco librador — tu banco lo cobra por vos a través de
+            # la cámara compensadora). Pero sí tiene que ser un banco:
+            # no se "deposita" en efectivo ni en una billetera virtual.
             cuenta = CuentaCaja.objects.filter(
                 pk=cuenta_pk, caja=TipoCaja.GRANDE, activa=True,
-                es_credito=False, moneda=self.moneda,
+                es_credito=False, tipo=TipoCuenta.BANCO, moneda=self.moneda,
             ).first()
             if not cuenta:
-                raise ValueError('Elegí una cuenta válida para depositar el cheque.')
+                raise ValueError('Elegí una cuenta bancaria propia válida para depositar el cheque.')
             self.cuenta_destino = cuenta
 
         self.estado = EstadoCheque.CONFIRMADO
@@ -1937,7 +2124,8 @@ def sincronizar_movimiento_cheque(cheque):
         cuenta = cheque.cuenta_destino
         concepto = _concepto_default('Cheque cobrado', TipoMovimientoCaja.INGRESO)
 
-    descripcion = f'Cheque {cheque.numero_cheque or "s/n"} — {cheque.contraparte}'.strip(' —')
+    contraparte = cheque.receptor if cheque.tipo == TipoCheque.A_PAGAR else cheque.emisor
+    descripcion = f'Cheque {cheque.numero_cheque or "s/n"} — {contraparte}'.strip(' —')
 
     if movimiento:
         movimiento.cuenta = cuenta
@@ -1956,6 +2144,80 @@ def sincronizar_movimiento_cheque(cheque):
             referencia=f'Cheque #{cheque.pk}', origen=OrigenMovimiento.CHEQUE,
             origen_app='caja', origen_id=cheque.pk, creado_por=cheque.confirmado_por,
         )
+
+
+# ── Helpers de chequera / fondeo — usados desde caja.views_cheques
+# (alta manual de un cheque) y desde compras.models (cheque cargado
+# como medio de pago en el checkout de una compra). Viven acá, no en
+# views_cheques.py, justamente para poder reusarse desde otra app sin
+# que compras tenga que importar código de la capa de vistas de caja. ──
+
+def cuenta_chequera_valida(cuenta_pk, moneda=None):
+    """La 'chequera' de un cheque A_PAGAR: cuenta bancaria propia (no
+    efectivo, no tarjeta de crédito). `moneda=None` no filtra por moneda
+    (caso Compras: se elige la cuenta primero y su moneda define la del
+    cheque, al revés que en el alta manual desde Cheques)."""
+    if not cuenta_pk:
+        return None
+    qs = CuentaCaja.objects.filter(
+        pk=cuenta_pk, caja=TipoCaja.GRANDE, activa=True, es_credito=False,
+        tipo=TipoCuenta.BANCO,
+    )
+    if moneda is not None:
+        qs = qs.filter(moneda=moneda)
+    return qs.first()
+
+
+def cuenta_caja_valida(cuenta_pk, moneda):
+    if not cuenta_pk:
+        return None
+    return CuentaCaja.objects.filter(
+        pk=cuenta_pk, caja=TipoCaja.GRANDE, activa=True, es_credito=False, moneda=moneda,
+    ).first()
+
+
+def validar_cuenta_financiadora(cuenta_financiadora_pk, cuenta_chequera, moneda, monto):
+    """
+    Fondeo opcional al emitir un cheque A_PAGAR: antes de crear el cheque,
+    valida la cuenta desde la que se va a transferir `monto` hacia la
+    chequera, para que el egreso del cheque (recién al confirmarlo) salga
+    de un banco que realmente tiene la plata — en vez de "aparecer" en
+    la chequera sin ningún movimiento que lo respalde.
+    Devuelve (cuenta, None) o (None, error).
+    """
+    financiadora = cuenta_caja_valida(cuenta_financiadora_pk, moneda)
+    if not financiadora:
+        return None, 'Elegí una cuenta financiadora válida.'
+    if financiadora.pk == cuenta_chequera.pk:
+        return None, 'La cuenta financiadora no puede ser la misma chequera.'
+    if financiadora.saldo < monto:
+        return None, (
+            f'Saldo insuficiente en {financiadora.nombre}: '
+            f'disponible {financiadora.saldo}, se necesitan {monto}.'
+        )
+    return financiadora, None
+
+
+def fondear_chequera(financiadora, cuenta_chequera, monto, fecha, cheque, usuario):
+    """Ejecuta la transferencia de fondeo ya validada por validar_cuenta_financiadora().
+    Usa el mismo criterio que la pantalla de Transacciones: DEPOSITO si la
+    financiadora es Efectivo, TRANSFERENCIA si es otro banco."""
+    tipo_transaccion = (
+        TipoTransaccion.DEPOSITO if financiadora.nombre == CUENTA_EFECTIVO_DEFAULT_NOMBRE
+        else TipoTransaccion.TRANSFERENCIA
+    )
+    transaccion = TransaccionCaja.objects.create(
+        tipo=tipo_transaccion,
+        cuenta_origen=financiadora,
+        cuenta_destino=cuenta_chequera,
+        monto_origen=monto,
+        monto_destino=monto,
+        fecha=fecha,
+        descripcion=f'Fondeo cheque {cheque.numero_cheque or "s/n"}',
+        creado_por=usuario,
+    )
+    transaccion.ejecutar()
+    return transaccion
 
 
 # ══════════════════════════════════════════════════════════════════

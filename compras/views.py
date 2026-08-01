@@ -671,6 +671,10 @@ class ConfirmarCompraAjax(LoginRequiredMixin, View):
                 linea['cuotas'] = p.get('cuotas')
                 linea['interes_pct'] = p.get('interes_pct')
                 linea['fecha_inicio_debito'] = p.get('fecha_inicio_debito')
+            if medio_p == MedioPagoCompra.CHEQUE:
+                # Lista de cheques cargados en el modal — se valida y
+                # crea de verdad en Compra.confirmar()/_resolver_pagos_compra.
+                linea['cheques'] = p.get('cheques')
             pagos_normalizados.append(linea)
 
         if not pagos_normalizados:
@@ -878,7 +882,7 @@ class DetalleCompraView(LoginRequiredMixin, View):
             .order_by('orden', 'nombre')
         )
         cuentas_json = json.dumps([
-            {'pk': c.pk, 'nombre': c.nombre, 'moneda': c.moneda}
+            {'pk': c.pk, 'nombre': c.nombre, 'moneda': c.moneda, 'tipo': c.tipo}
             for c in cuentas
         ])
 

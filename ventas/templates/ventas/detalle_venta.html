@@ -362,6 +362,71 @@
         background: rgba(239, 68, 68, .06);
     }
 
+    .vdt-pago-cheque-extra {
+        display: flex;
+        flex-direction: column;
+        gap: .3rem;
+    }
+    .vdt-cheque-fila {
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+        padding: .4rem .6rem;
+        border: 1px solid var(--border-color);
+        border-radius: .5rem;
+        background: var(--bg-secondary);
+    }
+    .vdt-cheque-fila-info {
+        display: flex;
+        flex-direction: column;
+        gap: .1rem;
+        flex: 1 1 auto;
+        min-width: 0;
+        font-size: .78rem;
+    }
+    .vdt-cheque-fila-info span {
+        color: var(--text-muted);
+        font-size: .72rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .vdt-cheque-btn-editar,
+    .vdt-cheque-btn-quitar {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        border: 1px solid var(--border-color);
+        border-radius: .4rem;
+        background: transparent;
+        color: var(--text-muted);
+        cursor: pointer;
+        flex-shrink: 0;
+    }
+    .vdt-cheque-btn-quitar:hover {
+        border-color: var(--danger, #ef4444);
+        color: var(--danger, #ef4444);
+    }
+    .vdt-cheque-btn-agregar {
+        align-self: flex-start;
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        padding: .35rem .75rem;
+        border: 1px dashed var(--border-color);
+        border-radius: .5rem;
+        background: transparent;
+        color: var(--text-muted);
+        font-size: .78rem;
+        cursor: pointer;
+    }
+    .vdt-cheque-btn-agregar:hover {
+        border-color: var(--brand-orange);
+        color: var(--brand-orange);
+    }
+
     .vdt-pago-agregar {
         display: inline-flex;
         align-items: center;
@@ -1137,6 +1202,78 @@
                         stroke-linejoin="round" />
                 </svg>
                 Confirmar venta
+            </button>
+        </div>
+    </div>
+</div>
+
+{# ══ MODAL CARGAR CHEQUE (línea de pago con medio='cheque') ══
+   No crea nada al guardar — solo queda en memoria dentro de la línea
+   de pago. El Cheque real se crea recién al confirmar la venta. #}
+<div id="vdtModalCheque" style="
+    display:none; position:fixed; inset:0; z-index:9100;
+    background:rgba(0,0,0,.45); align-items:center; justify-content:center; padding:1rem;">
+    <div style="
+        background:var(--bg-white,#fff); border-radius:1rem;
+        max-width:480px; width:100%; max-height:90vh; overflow-y:auto;
+        padding:1.75rem 2rem; position:relative; box-shadow:0 20px 60px rgba(0,0,0,.25);">
+        <button type="button" id="vchBtnCerrar" style="
+            position:absolute; top:1rem; right:1rem; background:none; border:none;
+            cursor:pointer; color:var(--text-muted); font-size:1.25rem; line-height:1;">✕</button>
+        <div style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1rem; font-weight:800; margin-bottom:1rem" id="vchTitulo">
+            Cargar cheque
+        </div>
+
+        <div style="margin-bottom:.6rem;">
+            <span class="vdt-pago-cuotas-label">N° de cheque</span>
+            <input type="text" id="vchNumeroCheque" class="vdt-pago-monto" placeholder="Opcional">
+        </div>
+
+        <div style="margin-bottom:.6rem;">
+            <span class="vdt-pago-cuotas-label">Monto (ARS) *</span>
+            <input type="number" id="vchMonto" class="vdt-pago-monto" min="0.01" step="0.01">
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:.6rem; margin-bottom:.6rem;">
+            <div>
+                <span class="vdt-pago-cuotas-label">Fecha de emisión *</span>
+                <input type="date" id="vchFechaEmision" class="vdt-pago-monto">
+            </div>
+            <div>
+                <span class="vdt-pago-cuotas-label">Fecha de cobro *</span>
+                <input type="date" id="vchFechaCobro" class="vdt-pago-monto">
+            </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:.6rem; margin-bottom:.6rem;">
+            <div>
+                <span class="vdt-pago-cuotas-label">Emisor (quién lo entrega)</span>
+                <input type="text" id="vchEmisor" class="vdt-pago-monto" placeholder="Opcional">
+            </div>
+            <div>
+                <span class="vdt-pago-cuotas-label">Receptor</span>
+                <input type="text" id="vchReceptor" class="vdt-pago-monto" placeholder="Opcional">
+            </div>
+        </div>
+
+        <div style="margin-bottom:.6rem;">
+            <span class="vdt-pago-cuotas-label">Banco</span>
+            <input type="text" id="vchBanco" class="vdt-pago-monto" placeholder="Ej: Banco Galicia">
+        </div>
+
+        <div style="margin-bottom:.75rem;">
+            <span class="vdt-pago-cuotas-label">Notas</span>
+            <input type="text" id="vchNotas" class="vdt-pago-monto" placeholder="Observaciones (opcional)">
+        </div>
+
+        <div id="vchMsg" style="color:var(--danger, #ef4444); font-size:.78rem; margin-bottom:.5rem;"></div>
+
+        <div style="display:flex; gap:.5rem; justify-content:flex-end">
+            <button type="button" id="vchBtnCancelar" class="vta-btn vta-btn-ghost" style="width:auto; margin:0">
+                Cancelar
+            </button>
+            <button type="button" id="vchBtnGuardar" class="vta-btn vta-btn-primary" style="width:auto; margin:0">
+                Guardar
             </button>
         </div>
     </div>

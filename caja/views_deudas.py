@@ -33,6 +33,7 @@ def _cuenta_valida(cuenta_pk, es_credito):
 
 
 def _serializar_cuota(c):
+    cheque = c.cheques.exclude(estado='anulado').order_by('-fecha_alta').first()
     return {
         'pk': c.pk,
         'numero': c.numero,
@@ -42,6 +43,9 @@ def _serializar_cuota(c):
         'habilitada': c.habilitada,
         'cuenta_pago_pk': c.cuenta_pago_id,
         'cuenta_pago_nombre': c.cuenta_pago.nombre if c.cuenta_pago_id else '',
+        'cheque_pk': cheque.pk if cheque else None,
+        'cheque_numero': (cheque.numero_cheque or 's/n') if cheque else '',
+        'cheque_estado': cheque.estado if cheque else '',
         'fecha_confirmacion': c.fecha_confirmacion.isoformat() if c.fecha_confirmacion else '',
         'confirmado_por': str(c.confirmado_por) if c.confirmado_por else '',
     }
@@ -105,7 +109,7 @@ class DeudasView(LoginRequiredMixin, TemplateView):
 
         cuentas = CuentaCaja.objects.filter(caja=TipoCaja.GRANDE, activa=True).order_by('orden', 'nombre')
         ctx['cuentas_json'] = json.dumps([
-            {'pk': c.pk, 'nombre': c.nombre, 'moneda': c.moneda, 'es_credito': c.es_credito}
+            {'pk': c.pk, 'nombre': c.nombre, 'moneda': c.moneda, 'es_credito': c.es_credito, 'tipo': c.tipo}
             for c in cuentas
         ])
         ctx['today'] = timezone.now().date().isoformat()
@@ -326,10 +330,12 @@ class ConfirmarCuotaAjax(LoginRequiredMixin, View):
 
         try:
             data = json.loads(request.body)
-            cuenta_pk = data.get('cuenta_pk')
             adelantar = bool(data.get('adelantar', False))
 
-            cuota.confirmar(cuenta_pk, request.user, adelantar=adelantar)
+            if data.get('cheque'):
+                cuota.confirmar_con_cheque(data.get('cheque'), request.user, adelantar=adelantar)
+            else:
+                cuota.confirmar(data.get('cuenta_pk'), request.user, adelantar=adelantar)
 
             # En segundo plano: si esperáramos a que el mail salga acá,
             # el pedido HTTP se queda 1-2s colgado por el ida y vuelta

@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const urls = window.cxcUrls;
     const puedeConfirmar = window.cxcPuedeConfirmar;
     const puedeEditar = window.cxcPuedeEditar;
+    const today = window.cxcToday;
 
     // ── Cuentas reales (para el select de "confirmar cobro") ──
     const cuentasDataEl = document.getElementById('cuentas-data');
@@ -185,22 +186,28 @@ document.addEventListener('DOMContentLoaded', function () {
             if (c.estado === 'pendiente' && puedeConfirmar && c.habilitada) {
                 accion = `
                     <div class="cxc-cuota-confirmar">
-                        <select id="cuentaCuota${c.pk}" class="cxc-cuota-select">
+                        <select id="cuentaCuota${c.pk}" class="cxc-cuota-select"
+                                onchange="onCuentaCuotaChange(this, ${c.pk}, ${c.monto}, '${d.moneda}', false)">
                             ${cuentasCobro.map(cta => `<option value="${cta.pk}">${cta.nombre}</option>`).join('')}
+                            <option value="__cheque__">— Cobrar con cheque —</option>
                         </select>
                         <button type="button" class="btn btn-primary btn--sm" onclick="confirmarCuotaCobro(${c.pk})">Confirmar</button>
                     </div>`;
             } else if (c.estado === 'pendiente' && !c.habilitada && puedeConfirmar) {
                 accion = `
                     <div class="cxc-cuota-confirmar">
-                        <select id="cuentaCuota${c.pk}" class="cxc-cuota-select">
+                        <select id="cuentaCuota${c.pk}" class="cxc-cuota-select"
+                                onchange="onCuentaCuotaChange(this, ${c.pk}, ${c.monto}, '${d.moneda}', true)">
                             ${cuentasCobro.map(cta => `<option value="${cta.pk}">${cta.nombre}</option>`).join('')}
+                            <option value="__cheque__">— Cobrar con cheque —</option>
                         </select>
                         <button type="button" class="btn btn-secondary btn--sm" onclick="confirmarCuotaCobro(${c.pk}, true)">Adelantar cobro</button>
                         <span class="cxc-cuota-fecha">Se habilita el ${c.fecha_vencimiento}</span>
                     </div>`;
             } else if (c.estado === 'pendiente' && !c.habilitada) {
                 accion = `<span class="cxc-cuota-fecha">Se habilita el ${c.fecha_vencimiento}</span>`;
+            } else if (c.estado === 'confirmada' && c.cheque_pk) {
+                accion = `Cheque #${c.cheque_numero} (${c.cheque_estado}) <span class="cxc-cuota-fecha">(${c.fecha_confirmacion ? c.fecha_confirmacion.slice(0, 10) : ''})</span>`;
             } else if (c.estado === 'confirmada') {
                 accion = `${c.cuenta_cobro_nombre} <span class="cxc-cuota-fecha">(${c.fecha_confirmacion ? c.fecha_confirmacion.slice(0, 10) : ''})</span>`;
             }
@@ -249,6 +256,90 @@ document.addEventListener('DOMContentLoaded', function () {
             KaiToast.show('Error al confirmar el cobro', 'danger');
         }
     };
+
+    // ── Modal "Cobrar cuota con cheque" ──────────────────────────────
+    const modalChequeCuota = document.getElementById('modalChequeCuota');
+    const modalChequeCuotaBackdrop = document.getElementById('modalChequeCuotaBackdrop');
+    const btnCerrarChequeCuota = document.getElementById('btnCerrarChequeCuota');
+    const btnCancelarChequeCuota = document.getElementById('btnCancelarChequeCuota');
+    const btnGuardarChequeCuota = document.getElementById('btnGuardarChequeCuota');
+    let chequeCuotaActual = null; // { cuotaPk, adelantar, monto }
+
+    // Elegir "— Cobrar con cheque —" en el select de cuenta abre el modal
+    // directo, en vez de un botón aparte (que no entraba en la fila sin
+    // hacer scroll horizontal). El select vuelve a su valor por defecto
+    // así no queda pareciendo elegida una cuenta que no existe.
+    window.onCuentaCuotaChange = function (select, cuotaPk, monto, moneda, adelantar) {
+        if (select.value === '__cheque__') {
+            select.value = '';
+            abrirModalChequeCuota(cuotaPk, monto, moneda, adelantar);
+        }
+    };
+
+    window.abrirModalChequeCuota = function (cuotaPk, monto, moneda, adelantar) {
+        chequeCuotaActual = { cuotaPk, adelantar, monto };
+        document.getElementById('cchcMontoLabel').textContent = fmtMoneda(monto, moneda);
+        document.getElementById('cchc_numero_cheque').value = '';
+        document.getElementById('cchc_fecha_emision').value = today;
+        document.getElementById('cchc_fecha_cobro').value = today;
+        document.getElementById('cchc_emisor').value = '';
+        document.getElementById('cchc_banco').value = '';
+        document.getElementById('cchcMsg').textContent = '';
+
+        modalChequeCuota.hidden = false;
+        document.body.style.overflow = 'hidden';
+    };
+
+    function cerrarModalChequeCuota() {
+        modalChequeCuota.hidden = true;
+        document.body.style.overflow = '';
+        chequeCuotaActual = null;
+    }
+    btnCerrarChequeCuota.addEventListener('click', cerrarModalChequeCuota);
+    btnCancelarChequeCuota.addEventListener('click', cerrarModalChequeCuota);
+    modalChequeCuotaBackdrop.addEventListener('click', cerrarModalChequeCuota);
+
+    btnGuardarChequeCuota.addEventListener('click', async () => {
+        if (!chequeCuotaActual) return;
+        const msg = document.getElementById('cchcMsg');
+        const fechaEmision = document.getElementById('cchc_fecha_emision').value;
+        const fechaCobro = document.getElementById('cchc_fecha_cobro').value;
+        if (!fechaEmision || !fechaCobro) { msg.textContent = 'Indicá fecha de emisión y de cobro.'; return; }
+
+        if (!await KaiConfirm('¿Cobrar esta cuota con este cheque? La cuota queda confirmada ya mismo; el ingreso real de caja se genera recién cuando confirmes/deposites el cheque desde la pantalla de Cheques.')) return;
+
+        btnGuardarChequeCuota.disabled = true;
+        try {
+            const response = await fetch(urlConfirmarCuota(chequeCuotaActual.cuotaPk), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                body: JSON.stringify({
+                    adelantar: chequeCuotaActual.adelantar,
+                    cheque: {
+                        numero_cheque: document.getElementById('cchc_numero_cheque').value,
+                        monto: chequeCuotaActual.monto,
+                        fecha_emision: fechaEmision,
+                        fecha_cobro: fechaCobro,
+                        emisor: document.getElementById('cchc_emisor').value,
+                        banco: document.getElementById('cchc_banco').value,
+                    },
+                }),
+            });
+            const result = await response.json();
+            if (result.success) {
+                cerrarModalChequeCuota();
+                window.verCxc(cxcDetalleActual.pk);
+                cargarCxc();
+            } else {
+                msg.textContent = result.error || 'Error al confirmar el cobro con cheque.';
+            }
+        } catch (error) {
+            console.error('Error al confirmar cobro con cheque:', error);
+            msg.textContent = 'Error al confirmar el cobro con cheque.';
+        } finally {
+            btnGuardarChequeCuota.disabled = false;
+        }
+    });
 
     btnGuardarNotas?.addEventListener('click', async () => {
         if (!cxcDetalleActual) return;

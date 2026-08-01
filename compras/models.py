@@ -31,6 +31,7 @@ class MedioPagoCompra(models.TextChoices):
     DEBITO        = 'debito',        'Débito'
     QR            = 'qr',            'QR'
     CREDITO       = 'credito',       'Crédito (tarjeta)'
+    CHEQUE        = 'cheque',        'Cheque'
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -115,31 +116,40 @@ def _resolver_pagos_compra(compra, pagos):
     if pagos is None:
         return None
 
-    from caja.models import CuentaCaja, TipoCaja
+    from caja.models import CuentaCaja, TipoCaja, cuenta_chequera_valida, validar_cuenta_financiadora
     labels_medio = dict(MedioPagoCompra.choices)
 
     pagos_resueltos = []
     for p in pagos:
         monto = p.get('monto')
-        if not monto or float(monto) <= 0:
-            continue
         medio = p.get('medio', MedioPagoCompra.EFECTIVO)
         if medio not in MedioPagoCompra.values:
             raise ValueError(f'Medio de pago inválido: {medio}')
+        if medio != MedioPagoCompra.CHEQUE and (not monto or float(monto) <= 0):
+            continue
 
         es_credito = medio == MedioPagoCompra.CREDITO
-        # La compra en sí siempre está en pesos, pero se puede pagar
-        # con una cuenta en cualquier moneda (transferencia/efectivo/
-        # tarjeta en dólares, etc.) — ver cotización más abajo.
-        cuenta = CuentaCaja.objects.filter(
-            pk=p.get('cuenta_pk'), caja=TipoCaja.GRANDE, activa=True,
-            es_credito=es_credito,
-        ).first()
-        if not cuenta:
-            raise ValueError(
-                f'Elegí una cuenta válida para el pago con '
-                f'{labels_medio.get(medio, medio)}.'
-            )
+
+        if medio == MedioPagoCompra.CHEQUE:
+            # La chequera define la moneda del/los cheque(s) — al revés
+            # que en el alta manual desde Cheques, acá se elige la
+            # cuenta primero (como cualquier otra línea de pago).
+            cuenta = cuenta_chequera_valida(p.get('cuenta_pk'))
+            if not cuenta:
+                raise ValueError('Elegí la cuenta bancaria (chequera) de la que sale el cheque.')
+        else:
+            # La compra en sí siempre está en pesos, pero se puede pagar
+            # con una cuenta en cualquier moneda (transferencia/efectivo/
+            # tarjeta en dólares, etc.) — ver cotización más abajo.
+            cuenta = CuentaCaja.objects.filter(
+                pk=p.get('cuenta_pk'), caja=TipoCaja.GRANDE, activa=True,
+                es_credito=es_credito,
+            ).first()
+            if not cuenta:
+                raise ValueError(
+                    f'Elegí una cuenta válida para el pago con '
+                    f'{labels_medio.get(medio, medio)}.'
+                )
 
         cotizacion = None
         if cuenta.moneda != Moneda.ARS:
@@ -151,6 +161,52 @@ def _resolver_pagos_compra(compra, pagos):
                 raise ValueError(
                     f'Ingresá la cotización usada para el pago en {cuenta.get_moneda_display()}.'
                 )
+
+        cheques_info = None
+        if medio == MedioPagoCompra.CHEQUE:
+            cheques_raw = p.get('cheques') or []
+            if not cheques_raw:
+                raise ValueError('Cargá al menos un cheque para esta línea de pago.')
+            cheques_info = []
+            for ch in cheques_raw:
+                try:
+                    monto_cheque = Decimal(str(ch.get('monto')))
+                    if monto_cheque <= 0:
+                        raise ValueError
+                except Exception:
+                    raise ValueError('Uno de los cheques cargados tiene un monto inválido.')
+                fecha_emision_raw = ch.get('fecha_emision')
+                fecha_cobro_raw = ch.get('fecha_cobro')
+                if not fecha_emision_raw or not fecha_cobro_raw:
+                    raise ValueError('Cada cheque necesita fecha de emisión y de cobro.')
+                try:
+                    fecha_emision_ch = date.fromisoformat(str(fecha_emision_raw))
+                    fecha_cobro_ch = date.fromisoformat(str(fecha_cobro_raw))
+                except ValueError:
+                    raise ValueError('Fecha de cheque inválida.')
+
+                financiadora = None
+                if ch.get('cuenta_financiadora_pk'):
+                    financiadora, error = validar_cuenta_financiadora(
+                        ch.get('cuenta_financiadora_pk'), cuenta, cuenta.moneda, monto_cheque,
+                    )
+                    if error:
+                        raise ValueError(error)
+
+                cheques_info.append({
+                    'numero_cheque': str(ch.get('numero_cheque', '') or '').strip(),
+                    'monto': monto_cheque,
+                    'fecha_emision': fecha_emision_ch,
+                    'fecha_cobro': fecha_cobro_ch,
+                    'emisor': str(ch.get('emisor', '') or '').strip(),
+                    'receptor': str(ch.get('receptor', '') or '').strip(),
+                    'banco': str(ch.get('banco', '') or '').strip(),
+                    'notas': str(ch.get('notas', '') or '').strip(),
+                    'financiadora': financiadora,
+                })
+            # El monto de la línea es la suma de los cheques cargados,
+            # no un valor tipeado aparte — nunca pueden desincronizarse.
+            monto = sum(c['monto'] for c in cheques_info)
 
         cuotas = interes_pct = fecha_inicio_debito = None
         if es_credito:
@@ -178,6 +234,7 @@ def _resolver_pagos_compra(compra, pagos):
             'medio': medio, 'monto': monto, 'cuenta': cuenta, 'cotizacion': cotizacion,
             'cuotas': cuotas, 'interes_pct': interes_pct,
             'fecha_inicio_debito': fecha_inicio_debito,
+            'cheques_info': cheques_info,
         })
 
     return pagos_resueltos
@@ -242,6 +299,66 @@ def _anular_deudas_de_compra(compra):
     from caja.models import Deuda, EstadoDeuda
     for deuda in Deuda.objects.filter(pago_compra__compra=compra, estado=EstadoDeuda.ACTIVA):
         deuda.anular()
+
+
+def _crear_cheques_desde_pagos(compra, pagos_resueltos, pagos_creados):
+    """
+    Para cada línea de pago con medio=CHEQUE, crea el/los Cheque (A_PAGAR)
+    vinculados a esa línea — puede haber más de uno (pago dividido con
+    varios cheques). Cada cheque nace PENDIENTE: no impacta caja hasta
+    que se confirma por separado desde la pantalla de Cheques (ver
+    caja.sincronizar_movimiento_compra, que excluye estas líneas).
+    Si el cheque trae una cuenta financiadora, fondea la chequera con
+    una transferencia — mismo mecanismo que el alta manual de un cheque.
+    """
+    if not pagos_resueltos:
+        return
+
+    from caja.models import Cheque, TipoCheque, fondear_chequera
+
+    for p, pago_obj in zip(pagos_resueltos, pagos_creados):
+        if p['medio'] != MedioPagoCompra.CHEQUE:
+            continue
+        for ch in p['cheques_info']:
+            cheque = Cheque.objects.create(
+                tipo=TipoCheque.A_PAGAR,
+                numero_cheque=ch['numero_cheque'],
+                numero_factura=compra.numero,
+                monto=ch['monto'],
+                moneda=p['cuenta'].moneda,
+                fecha_emision=ch['fecha_emision'],
+                fecha_cobro=ch['fecha_cobro'],
+                cuenta_origen=p['cuenta'],
+                emisor=ch['emisor'],
+                receptor=ch['receptor'],
+                banco=ch['banco'],
+                notas=ch['notas'],
+                pago_compra=pago_obj,
+                creado_por=compra.creado_por,
+            )
+            if ch['financiadora']:
+                fondear_chequera(
+                    ch['financiadora'], p['cuenta'], ch['monto'],
+                    compra.fecha, cheque, compra.creado_por,
+                )
+
+
+def _anular_cheques_de_compra(compra):
+    """
+    Anula los cheques PENDIENTES vinculados a las líneas de pago con
+    cheque de esta compra. Si alguno ya está CONFIRMADO (efectivamente
+    pagado), no se puede anular la compra sin resolver eso antes — mismo
+    criterio fail-fast que _anular_deudas_de_compra.
+    """
+    from caja.models import Cheque, EstadoCheque
+    for cheque in Cheque.objects.filter(pago_compra__compra=compra).exclude(estado=EstadoCheque.ANULADO):
+        if cheque.estado == EstadoCheque.PENDIENTE:
+            cheque.anular()
+        elif cheque.estado == EstadoCheque.CONFIRMADO:
+            raise ValueError(
+                f'El cheque {cheque.numero_cheque or "s/n"} de esta compra ya está confirmado '
+                f'(pagado) — rechazalo desde Cheques antes de anular la compra.'
+            )
 
 
 def _crear_lote_desde_item(item, fecha_compra):
@@ -364,6 +481,7 @@ class Compra(models.Model):
                 return
             # Falla rápido: bloquea el borrado si hay cuotas ya confirmadas.
             _anular_deudas_de_compra(self)
+            _anular_cheques_de_compra(self)
             productos_afectados = {item.producto for item in self.items.all() if item.producto_id}
             if estado_actual == EstadoCompra.CONFIRMADA:
                 for item in self.items.select_related('producto', 'combinacion'):
@@ -429,6 +547,7 @@ class Compra(models.Model):
 
         pagos_creados = _guardar_pagos_compra(self, pagos_resueltos)
         _crear_deudas_desde_pagos(self, pagos_resueltos, pagos_creados)
+        _crear_cheques_desde_pagos(self, pagos_resueltos, pagos_creados)
 
         # Sincronizar movimiento de caja grande
         from caja.models import sincronizar_movimiento_compra
@@ -463,6 +582,7 @@ class Compra(models.Model):
         # Falla rápido: si alguna cuota de una deuda por crédito ya fue
         # confirmada, no se puede anular la compra sin antes resolver esa deuda.
         _anular_deudas_de_compra(self)
+        _anular_cheques_de_compra(self)
 
         for item in self.items.select_related('producto', 'combinacion'):
             _restar_stock_item(item)
@@ -575,6 +695,7 @@ class Compra(models.Model):
 
         pagos_creados = _guardar_pagos_compra(self, pagos_resueltos)
         _crear_deudas_desde_pagos(self, pagos_resueltos, pagos_creados)
+        _crear_cheques_desde_pagos(self, pagos_resueltos, pagos_creados)
 
         # Sincronizar movimiento de caja grande
         from caja.models import sincronizar_movimiento_compra

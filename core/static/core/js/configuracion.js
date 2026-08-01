@@ -377,11 +377,23 @@ document.addEventListener('DOMContentLoaded', function () {
         const modal = window.bootstrap ? new bootstrap.Modal(modalEl) : null;
         const campoCredito = document.getElementById('cuentaEsCredito');
         const camposCredito = document.getElementById('cuentaCreditoFields');
+        const campoTipo = document.getElementById('cuentaTipo');
 
         function toggleCamposCredito() {
             camposCredito.style.display = campoCredito.checked ? 'flex' : 'none';
         }
         campoCredito.addEventListener('change', toggleCamposCredito);
+
+        // Una cuenta bancaria (chequera) no puede ser a la vez tarjeta de
+        // crédito propia — el backend lo rechaza. Si el usuario pasa una
+        // tarjeta a "banco", destildamos el checkbox para que no falle
+        // el guardado sin que se entienda por qué.
+        campoTipo.addEventListener('change', function () {
+            if (campoTipo.value === 'banco' && campoCredito.checked) {
+                campoCredito.checked = false;
+                toggleCamposCredito();
+            }
+        });
 
         function limpiarForm() {
             document.getElementById('cuentaPk').value = '';
@@ -389,6 +401,7 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('cuentaMoneda').selectedIndex = 0;
             document.getElementById('cuentaTitular').value = '';
             document.getElementById('cuentaTerminadaEn').value = '';
+            document.getElementById('cuentaTipo').value = 'otra';
             campoCredito.checked = false;
             document.getElementById('cuentaDiaCierre').value = '';
             document.getElementById('cuentaDiaVencimiento').value = '';
@@ -411,6 +424,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 document.getElementById('cuentaMoneda').value = row.dataset.moneda;
                 document.getElementById('cuentaTitular').value = row.dataset.titular;
                 document.getElementById('cuentaTerminadaEn').value = row.dataset.terminadaEn;
+                document.getElementById('cuentaTipo').value = row.dataset.tipo === 'banco' ? 'banco' : 'otra';
                 campoCredito.checked = row.dataset.esCredito === '1';
                 document.getElementById('cuentaDiaCierre').value = row.dataset.diaCierre;
                 document.getElementById('cuentaDiaVencimiento').value = row.dataset.diaVencimiento;
@@ -448,6 +462,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     pk:               document.getElementById('cuentaPk').value || null,
                     nombre:           document.getElementById('cuentaNombre').value,
                     moneda:           document.getElementById('cuentaMoneda').value,
+                    tipo:             document.getElementById('cuentaTipo').value,
                     titular:          document.getElementById('cuentaTitular').value,
                     terminada_en:     document.getElementById('cuentaTerminadaEn').value,
                     es_credito:       campoCredito.checked,
@@ -460,6 +475,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (data.error) {
                     msg.style.color = '#e11d48';
                     msg.textContent = data.error;
+                    if (window.KaiToast) KaiToast.show(data.error, 'danger');
                     return;
                 }
                 window.location.reload();
