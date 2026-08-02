@@ -1,0 +1,171 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ empresa.nombre_comercial }}{% endblock %}</title>
+    {% if empresa.logo %}
+        <link rel="icon" type="image/png" href="{{ empresa.logo.url }}">
+    {% else %}
+        <link rel="icon" type="image/png" href="{% static 'core/img/kai-cart-icono.png' %}">
+    {% endif %}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'catalogo/css/kinetic.css' %}">
+    <style>
+        /* Mismo campo compartido que ya usa Almacén/Bento (color_marca) —
+           acá pisa el rosa por defecto de Kinetic, para que el dueño pueda
+           hacerlo combinar con su propio logo. El verde (--k-secondary) NO
+           lee color_marca_secundario a propósito: en Almacén/Bento ese campo
+           guarda un tono oscuro (fondo de header/footer), y usado como
+           acento brillante sobre una interfaz ya oscura como la de Kinetic
+           se vuelve ilegible (texto oscuro sobre fondo oscuro) — se necesita
+           un campo propio para eso, no reutilizar ese. */
+        :root {
+            --k-primary: {{ config_catalogo.color_marca|default:default_color_marca_kinetic }};
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="kc-kinetic">
+
+    <div class="k-status-bar">
+        <span class="k-status-badge"><span class="k-status-dot"></span> SISTEMA KAIROS · CATÁLOGO EN LÍNEA</span>
+        <span class="k-status-extra">STOCK ACTUALIZADO EN TIEMPO REAL</span>
+    </div>
+
+    <header class="k-header">
+        <div class="k-header-inner">
+            <a href="{% url 'catalogo:home' %}" class="k-brand">
+                {% if empresa.logo %}
+                    <img src="{{ empresa.logo.url }}" alt="{{ empresa.nombre_comercial }}" class="k-brand-logo">
+                {% else %}
+                    <img src="{% static 'core/img/kai-cart-logo-completo.png' %}" alt="Kai-Cart" class="k-brand-logo">
+                {% endif %}
+            </a>
+
+            <nav class="k-nav">
+                <a href="{% url 'catalogo:home' %}" class="{% if seccion_activa != 'ofertas' and seccion_activa != 'paquetes' %}k-nav-activo{% endif %}"><span id="kcNavCatalogo">{{ config_catalogo.nav_catalogo_label|default:default_nav_catalogo }}</span></a>
+                <a href="{% url 'catalogo:home' %}?seccion=ofertas#kcCatalogo" class="{% if seccion_activa == 'ofertas' %}k-nav-activo{% endif %}"><span id="kcNavOfertas">{{ config_catalogo.nav_ofertas_label|default:default_nav_ofertas }}</span></a>
+                <a href="{% url 'catalogo:home' %}?seccion=paquetes#kcCatalogo" class="{% if seccion_activa == 'paquetes' %}k-nav-activo{% endif %}"><span id="kcNavCombos">{{ config_catalogo.nav_combos_label|default:default_nav_combos }}</span></a>
+                <a href="{% url 'catalogo:institucional' %}"><span id="kcNavTienda">{{ config_catalogo.nav_tienda_label|default:default_nav_tienda }}</span></a>
+            </nav>
+
+            <div class="k-header-actions">
+                <button type="button" class="k-cart-trigger" id="kcBtnCarrito" aria-label="Ver tu pedido">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 5H4L5.5 13.5H15.5L17 6.5H5"/><circle cx="7.5" cy="17" r="1.15"/><circle cx="14.5" cy="17" r="1.15"/></svg>
+                    <span>PEDIDO</span>
+                    <span class="k-cart-count" id="kcCarritoBadge" hidden>0</span>
+                </button>
+                <a href="{% url 'core:login' %}" class="k-btn-login" title="Ingresar" aria-label="Ingresar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="7" r="4"/><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/></svg>
+                    <span class="k-btn-login-text">Ingresar</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    {% block content %}{% endblock %}
+
+    <footer class="k-footer">
+        <div class="k-footer-inner">
+            <div class="k-footer-col">
+                <div class="k-footer-brand">
+                    {% if empresa.logo %}
+                        <img src="{{ empresa.logo.url }}" alt="{{ empresa.nombre_comercial }}" class="k-footer-logo">
+                    {% else %}
+                        <img src="{% static 'core/img/kai-cart-logo-completo.png' %}" alt="" class="k-footer-logo">
+                    {% endif %}
+                    <span class="k-footer-name">{{ empresa.nombre_comercial }}</span>
+                </div>
+                <p class="k-footer-tagline">{{ config_catalogo.sobre_nosotros|default:default_sobre_nosotros }}</p>
+                {% if config_catalogo.instagram_url or config_catalogo.facebook_url or config_catalogo.tiktok_url %}
+                <div class="k-footer-redes">
+                    {% if config_catalogo.instagram_url %}<a href="{{ config_catalogo.instagram_url }}" target="_blank" rel="noopener" aria-label="Instagram"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r="1"/></svg></a>{% endif %}
+                    {% if config_catalogo.facebook_url %}<a href="{{ config_catalogo.facebook_url }}" target="_blank" rel="noopener" aria-label="Facebook"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M15 8.5h-2a1.5 1.5 0 00-1.5 1.5v2h3.4l-.4 3h-3v7h-3v-7H6v-3h2.5v-2.3C8.5 6.9 10 5 12.8 5H15v3.5z"/></svg></a>{% endif %}
+                    {% if config_catalogo.tiktok_url %}<a href="{{ config_catalogo.tiktok_url }}" target="_blank" rel="noopener" aria-label="TikTok"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 4v10.5a3.5 3.5 0 11-3-3.46"/><path d="M14 4a5 5 0 005 5"/></svg></a>{% endif %}
+                </div>
+                {% endif %}
+            </div>
+            <div class="k-footer-col">
+                <h4>Navegación</h4>
+                <a href="{% url 'catalogo:home' %}">{{ config_catalogo.nav_catalogo_label|default:default_nav_catalogo }}</a>
+                <a href="{% url 'catalogo:home' %}?seccion=ofertas#kcCatalogo">{{ config_catalogo.nav_ofertas_label|default:default_nav_ofertas }}</a>
+                <a href="{% url 'catalogo:home' %}?seccion=paquetes#kcCatalogo">{{ config_catalogo.nav_combos_label|default:default_nav_combos }}</a>
+                <a href="{% url 'catalogo:institucional' %}">{{ config_catalogo.nav_tienda_label|default:default_nav_tienda }}</a>
+            </div>
+            <div class="k-footer-col">
+                <h4>Contacto</h4>
+                {% if whatsapp_url %}<a href="{{ whatsapp_url }}" target="_blank" rel="noopener">WhatsApp</a>{% endif %}
+                {% if empresa.domicilio %}<div>{{ empresa.domicilio }}</div>{% endif %}
+                {% if empresa.email %}<div>{{ empresa.email }}</div>{% endif %}
+            </div>
+        </div>
+    </footer>
+
+    <!-- Carrito — mismo contrato de ids que carrito.js (ver también bento.css/
+         catalogo.css, cada plantilla lo re-estila sin tocar el JS). -->
+    <div class="k-overlay" id="kcOverlay"></div>
+    <aside class="k-drawer" id="kcDrawer" aria-label="Tu pedido">
+        <div class="k-drawer-head">
+            <h3>Tu pedido</h3>
+            <button type="button" class="k-drawer-cerrar" id="kcDrawerCerrar" aria-label="Cerrar pedido">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 1L13 13M13 1L1 13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            </button>
+        </div>
+        <div class="k-drawer-items" id="kcDrawerItems"></div>
+
+        <div class="k-drawer-foot" id="kcDrawerFootCarrito">
+            <div class="k-drawer-sub"><span>Subtotal</span><span id="kcDrawerSubtotal">$0</span></div>
+            <div class="k-drawer-sub k-drawer-descuento" id="kcDrawerDescuentoRow" hidden>
+                <span id="kcDrawerDescuentoLabel">Descuento</span><span id="kcDrawerDescuentoMonto">-$0</span>
+            </div>
+            <div class="k-drawer-sub k-drawer-total" id="kcDrawerTotalRow" hidden>
+                <span>Total</span><span id="kcDrawerTotal">$0</span>
+            </div>
+            <p class="k-drawer-nota">Dejanos tu WhatsApp y coordinamos el pago y la entrega.</p>
+            <button type="button" class="k-btn-checkout" id="kcBtnIrAlContacto">FINALIZAR PEDIDO</button>
+        </div>
+
+        <div class="k-drawer-foot" id="kcDrawerFootContacto" hidden>
+            <div class="k-form-field">
+                <label for="kcContactoNombre">Tu nombre <span>(opcional)</span></label>
+                <input type="text" id="kcContactoNombre" placeholder="¿Cómo te llamamos?" maxlength="150">
+            </div>
+            <div class="k-form-field">
+                <label for="kcContactoTelefono">Tu WhatsApp</label>
+                <input type="tel" id="kcContactoTelefono" placeholder="Ej: 3624 023093" maxlength="40" required>
+                <span class="k-form-hint">Característica + número, sin 0 ni 15 adelante</span>
+            </div>
+            <div class="k-form-field">
+                <label for="kcContactoNotas">Algo que debamos saber <span>(opcional)</span></label>
+                <textarea id="kcContactoNotas" rows="2" placeholder="Horario para entregar, aclaraciones..." maxlength="1000"></textarea>
+            </div>
+            <p class="k-form-error" id="kcContactoError" hidden></p>
+            <div class="k-drawer-contacto-botones">
+                <button type="button" class="k-btn-volver" id="kcBtnVolverCarrito">Volver</button>
+                <button type="button" class="k-btn-checkout k-btn-checkout--activo" id="kcBtnConfirmarPedido">CONFIRMAR PEDIDO</button>
+            </div>
+        </div>
+
+        <div class="k-drawer-foot k-drawer-exito" id="kcDrawerExito" hidden>
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="18" stroke="currentColor" stroke-width="1.6"/><path d="M12 20.5L17 25.5L28 14.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <p><strong>¡Listo! Ya armamos tu pedido.</strong><br>Te vamos a escribir por WhatsApp para coordinar el pago y la entrega.</p>
+            <button type="button" class="k-btn-checkout k-btn-checkout--activo" id="kcBtnSeguirComprando">SEGUIR VIENDO EL CATÁLOGO</button>
+        </div>
+    </aside>
+
+    {{ ofertas_umbral_json|json_script:"kcOfertasUmbral" }}
+    {{ ofertas_nxm_json|json_script:"kcOfertasNxm" }}
+    <script>
+        window.KC_URLS = { pedidoCrear: "{% url 'catalogo:pedido_crear' %}" };
+        window.KC_OFERTAS_UMBRAL = JSON.parse(document.getElementById('kcOfertasUmbral').textContent) || [];
+        window.KC_OFERTAS_NXM = JSON.parse(document.getElementById('kcOfertasNxm').textContent) || [];
+    </script>
+    <script src="{% static 'catalogo/js/carrito.js' %}"></script>
+    <script src="{% static 'catalogo/js/kinetic.js' %}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

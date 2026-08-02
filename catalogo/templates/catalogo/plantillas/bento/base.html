@@ -8,7 +8,7 @@
 {% if empresa.logo %}
     <link rel="icon" type="image/png" href="{{ empresa.logo.url }}">
 {% else %}
-    <link rel="icon" type="image/png" href="{% static 'core/img/kai-cart-icono1.png' %}">
+    <link rel="icon" type="image/png" href="{% static 'core/img/kai-cart-icono.png' %}">
 {% endif %}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -39,7 +39,7 @@
         {% if empresa.logo %}
           <img src="{{ empresa.logo.url }}" alt="{{ empresa.nombre_comercial }}">
         {% else %}
-          <img src="{% static 'core/img/kai-cart-icono1.png' %}" alt="Kai-Cart">
+          <img src="{% static 'core/img/kai-cart-logo-completo.png' %}" alt="Kai-Cart">
         {% endif %}
       </div>
       <div class="brand-name">{{ empresa.nombre_comercial }}</div>

@@ -1,0 +1,172 @@
+{% extends 'catalogo/plantillas/kinetic/base.html' %}
+
+{% block content %}
+
+    <section class="k-hero">
+        <div class="k-hero-copy">
+            <span class="k-hero-eyebrow">
+                {% if ofertas_umbral %}
+                    {% for oferta in ofertas_umbral %}{{ oferta.porcentaje|floatformat:"-0" }}% OFF DESDE ${{ oferta.monto_minimo|floatformat:"-0" }}{% if not forloop.last %} · {% endif %}{% endfor %}
+                {% else %}
+                    CATÁLOGO EN LÍNEA
+                {% endif %}
+            </span>
+            <!-- ids usados por catalogo_online.js (vista previa en vivo) — no renombrar sin actualizar ese archivo -->
+            <h1 id="kcHeroTitulo">{{ config_catalogo.hero_titulo|default:empresa.nombre_comercial }}</h1>
+            <p id="kcHeroSubtitulo">{{ config_catalogo.hero_subtitulo|default:default_hero_subtitulo }}</p>
+            <div class="k-hero-ctas">
+                <a href="#kcCatalogo" class="k-hero-cta k-hero-cta--primary">Ver catálogo completo →</a>
+                <a href="?seccion=ofertas#kcCatalogo" class="k-hero-cta k-hero-cta--secondary">Ofertas de hoy →</a>
+            </div>
+        </div>
+
+        <div class="k-erp-card k-erp-card--vivo">
+            <div class="k-erp-row"><span>CATÁLOGO:</span><span class="k-erp-value">{{ total_catalogo }} PRODUCTO{{ total_catalogo|pluralize }}</span></div>
+            <div class="k-erp-row"><span>STOCK:</span><span class="k-erp-value k-erp-value--accent">ACTUALIZADO EN TIEMPO REAL</span></div>
+            <div class="k-erp-row"><span>PEDIDOS:</span><span class="k-erp-value">{% if whatsapp_url %}COORDINADOS POR WHATSAPP{% else %}A CONSULTAR{% endif %}</span></div>
+        </div>
+    </section>
+
+    {% if marcas %}
+    <section class="k-marquee" aria-label="Marcas disponibles en el catálogo">
+        <div class="k-marquee-track">
+            {% for m in marcas %}<span class="k-marquee-item">{{ m.nombre }}</span><span class="k-marquee-dot">•</span>{% endfor %}
+            {% for m in marcas %}<span class="k-marquee-item" aria-hidden="true">{{ m.nombre }}</span><span class="k-marquee-dot" aria-hidden="true">•</span>{% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <section class="k-toolbar" id="kcCatalogo">
+        <form class="k-search" method="get" action="{% url 'catalogo:home' %}#kcCatalogo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input type="text" name="q" placeholder="Buscar por nombre o código…" value="{{ request.GET.q }}">
+        </form>
+
+        <div class="k-toolbar-actions">
+            <button type="button" class="k-btn-filtros" id="kcFiltrosToggle">
+                <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 5H15M5.5 9H12.5M7.5 13H10.5" stroke-linecap="round"/></svg>
+                FILTROS
+                {% if filtros_activos %}<span class="k-filtros-count">{{ filtros_activos|length }}</span>{% endif %}
+            </button>
+            <form method="get" class="k-orden-form" id="kcFormOrden" action="{% url 'catalogo:home' %}#kcCatalogo">
+                {% if categoria_activa %}<input type="hidden" name="categoria" value="{{ categoria_activa }}">{% endif %}
+                {% if tipo_activo %}<input type="hidden" name="tipo" value="{{ tipo_activo }}">{% endif %}
+                {% if marca_activa %}<input type="hidden" name="marca" value="{{ marca_activa }}">{% endif %}
+                {% if seccion_activa != 'todos' %}<input type="hidden" name="seccion" value="{{ seccion_activa }}">{% endif %}
+                {% if request.GET.q %}<input type="hidden" name="q" value="{{ request.GET.q }}">{% endif %}
+                <label for="kcOrdenSelect">Ordenar</label>
+                <select name="orden" id="kcOrdenSelect" onchange="document.getElementById('kcFormOrden').submit()">
+                    <option value="" {% if not orden_activo %}selected{% endif %}>Relevancia</option>
+                    <option value="precio_asc" {% if orden_activo == 'precio_asc' %}selected{% endif %}>Menor precio</option>
+                    <option value="precio_desc" {% if orden_activo == 'precio_desc' %}selected{% endif %}>Mayor precio</option>
+                    <option value="nuevos" {% if orden_activo == 'nuevos' %}selected{% endif %}>Más nuevos</option>
+                </select>
+            </form>
+        </div>
+    </section>
+
+    {% if filtros_activos %}
+    <div class="k-filtros-activos">
+        <span>Filtrando por:</span>
+        {% for f in filtros_activos %}
+            <a href="?{{ f.quitar }}" class="k-chip-filtro">{{ f.etiqueta }}
+                <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M1 1L9 9M9 1L1 9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            </a>
+        {% endfor %}
+        <a href="{% url 'catalogo:home' %}#kcCatalogo" class="k-limpiar-filtros">Limpiar todo</a>
+    </div>
+    {% endif %}
+
+    {% if total_productos == 0 %}
+        <p class="k-vacio">No hay resultados para mostrar con estos filtros.</p>
+    {% endif %}
+
+    {% if mostrar_productos and productos %}
+    <main class="k-catalog-grid">
+        {% for p in productos %}
+            {% include 'catalogo/plantillas/kinetic/_product_card.html' with p=p %}
+        {% endfor %}
+    </main>
+
+    {% if paginas|length > 1 %}
+    <nav class="k-paginacion" aria-label="Paginación">
+        {% if pagina.has_previous %}<a href="{{ url_pagina_anterior }}" class="k-pagina-flecha" aria-label="Página anterior">‹</a>{% endif %}
+        {% for p in paginas %}
+            <a href="{{ p.url }}" class="{% if p.activa %}k-pagina-activa{% endif %}">{{ p.numero }}</a>
+        {% endfor %}
+        {% if pagina.has_next %}<a href="{{ url_pagina_siguiente }}" class="k-pagina-flecha" aria-label="Página siguiente">›</a>{% endif %}
+    </nav>
+    {% endif %}
+    {% endif %}
+
+    {% if mostrar_paquetes and paquetes %}
+    <section class="k-combos">
+        <div class="k-sec-head"><h2>Combos y paquetes</h2></div>
+        <div class="k-catalog-grid">
+            {% for pq in paquetes %}
+                {% include 'catalogo/plantillas/kinetic/_combo_card.html' with pq=pq %}
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Panel de filtros -->
+    <div class="k-overlay" id="kcFiltrosOverlay"></div>
+    <aside class="k-filtros-panel" id="kcFiltrosPanel" aria-label="Filtros">
+        <div class="k-drawer-head">
+            <h3>Filtros</h3>
+            <button type="button" class="k-drawer-cerrar" id="kcFiltrosCerrar" aria-label="Cerrar filtros">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 1L13 13M13 1L1 13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            </button>
+        </div>
+        <div class="k-filtros-body">
+            <div class="k-filtro-grupo">
+                <h4>Categoría</h4>
+                <nav class="k-filtro-lista">
+                    <a href="{{ url_todas_categorias }}" class="{% if not categoria_activa %}k-filtro-activo{% endif %}">Todas</a>
+                    {% for cat in categorias %}
+                        <a href="{{ cat.url }}" class="{% if cat.activa %}k-filtro-activo{% endif %}">{{ cat.nombre }} <span>{{ cat.cantidad }}</span></a>
+                    {% endfor %}
+                </nav>
+            </div>
+
+            {% if tipos %}
+            <div class="k-filtro-grupo">
+                <h4>Tipo</h4>
+                <nav class="k-filtro-lista">
+                    <a href="{{ url_todos_tipos }}" class="{% if not tipo_activo %}k-filtro-activo{% endif %}">Todos</a>
+                    {% for t in tipos %}
+                        <a href="{{ t.url }}" class="{% if t.activa %}k-filtro-activo{% endif %}">{{ t.nombre }} <span>{{ t.cantidad }}</span></a>
+                    {% endfor %}
+                </nav>
+            </div>
+            {% endif %}
+
+            {% if marcas %}
+            <div class="k-filtro-grupo">
+                <h4>Marca</h4>
+                <nav class="k-filtro-lista">
+                    {% for m in marcas %}
+                        <a href="{{ m.url }}" class="{% if m.activa %}k-filtro-activo{% endif %}">{{ m.nombre }}</a>
+                    {% endfor %}
+                </nav>
+            </div>
+            {% endif %}
+
+            <form class="k-filtro-grupo" method="get" id="kcFormPrecio" action="{% url 'catalogo:home' %}#kcCatalogo">
+                <h4>Precio</h4>
+                {% if categoria_activa %}<input type="hidden" name="categoria" value="{{ categoria_activa }}">{% endif %}
+                {% if tipo_activo %}<input type="hidden" name="tipo" value="{{ tipo_activo }}">{% endif %}
+                {% if marca_activa %}<input type="hidden" name="marca" value="{{ marca_activa }}">{% endif %}
+                {% if seccion_activa != 'todos' %}<input type="hidden" name="seccion" value="{{ seccion_activa }}">{% endif %}
+                <div class="k-precio-inputs">
+                    <input type="number" name="precio_min" placeholder="Mín" value="{{ precio_min|default_if_none:'' }}" min="0">
+                    <span>—</span>
+                    <input type="number" name="precio_max" placeholder="Máx" value="{{ precio_max|default_if_none:'' }}" min="0">
+                </div>
+                <button type="submit" class="k-btn-checkout k-btn-checkout--activo">Aplicar</button>
+            </form>
+        </div>
+    </aside>
+
+{% endblock %}

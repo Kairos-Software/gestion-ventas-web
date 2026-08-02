@@ -8,7 +8,7 @@
     {% if empresa.logo %}
         <link rel="icon" type="image/png" href="{{ empresa.logo.url }}">
     {% else %}
-        <link rel="icon" type="image/png" href="{% static 'core/img/kai-cart-icono1.png' %}">
+        <link rel="icon" type="image/png" href="{% static 'core/img/kai-cart-icono.png' %}">
     {% endif %}
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'catalogo/css/catalogo.css' %}">
@@ -31,7 +31,7 @@
                 {% if empresa.logo %}
                     <img src="{{ empresa.logo.url }}" alt="{{ empresa.nombre_comercial }}" class="kc-brand-logo">
                 {% else %}
-                    <img src="{% static 'core/img/kai-cart-icono1.png' %}" alt="Kai-Cart" class="kc-brand-logo">
+                    <img src="{% static 'core/img/kai-cart-logo-completo.png' %}" alt="Kai-Cart" class="kc-brand-logo">
                 {% endif %}
                 <span class="kc-brand-text">
                     <span class="kc-brand-name">{{ empresa.nombre_comercial }}</span>
@@ -54,6 +54,9 @@
             </nav>
 
             <div class="kc-header-actions">
+                <button type="button" class="kc-btn-search-toggle" id="kcSearchToggle" aria-label="Buscar">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+                </button>
                 <a href="{% url 'core:login' %}" class="kc-btn-ingresar" title="Ingresar" aria-label="Ingresar">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                 </a>
@@ -75,7 +78,7 @@
                 {% if empresa.logo %}
                     <img src="{{ empresa.logo.url }}" alt="{{ empresa.nombre_comercial }}" class="kc-footer-logo">
                 {% else %}
-                    <img src="{% static 'core/img/kai-cart-icono1.png' %}" alt="" class="kc-footer-logo">
+                    <img src="{% static 'core/img/kai-cart-logo-completo.png' %}" alt="" class="kc-footer-logo">
                 {% endif %}
                 <span class="kc-footer-name">{{ empresa.nombre_comercial }}</span>
                 <p class="kc-footer-tagline">{{ config_catalogo.sobre_nosotros|default:default_sobre_nosotros }}</p>

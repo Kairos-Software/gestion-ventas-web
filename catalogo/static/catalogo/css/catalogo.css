@@ -96,7 +96,7 @@ img { max-width: 100%; display: block; }
 
 .kc-brand { display: flex; align-items: center; gap: 0.75rem; flex-shrink: 0; }
 
-.kc-brand-logo { height: 44px; width: 44px; object-fit: contain; border-radius: 0.65rem; }
+.kc-brand-logo { height: 44px; width: auto; max-width: 160px; object-fit: contain; border-radius: 0.65rem; }
 
 .kc-brand-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
 .kc-brand-name { font-weight: 800; font-size: 1.6rem; letter-spacing: -0.03em; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40vw; }
@@ -142,6 +142,22 @@ img { max-width: 100%; display: block; }
     transition: .2s cubic-bezier(.34,1.56,.64,1);
 }
 .kc-btn-ingresar:hover { background: rgba(255,255,255,.18); transform: translateY(-3px) scale(1.05); }
+
+.kc-btn-search-toggle {
+    display: none;
+    width: 42px;
+    height: 42px;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,.08);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: .2s cubic-bezier(.34,1.56,.64,1);
+}
+.kc-btn-search-toggle:hover { background: rgba(255,255,255,.18); transform: translateY(-3px) scale(1.05); }
 
 .kc-brand span.kc-brand-name { transition: transform .3s ease; display: inline-block; }
 .kc-brand:hover .kc-brand-logo { transform: rotate(8deg) scale(1.08); }
@@ -270,7 +286,7 @@ img { max-width: 100%; display: block; }
     pointer-events: none; opacity: 0; transition: opacity .3s; z-index: 3;
 }
 .kc-hero-product-img {
-    width: 100%; height: 240px; border-radius: 14px; position: relative; overflow: hidden;
+    width: 100%; aspect-ratio: 4 / 3; border-radius: 14px; position: relative; overflow: hidden;
     background: linear-gradient(135deg, var(--navy) 0%, var(--navy-2) 100%);
     margin-bottom: 1.2rem;
 }
@@ -526,7 +542,7 @@ img { max-width: 100%; display: block; }
 }
 .kc-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-6px); border-color: #cbd5e1; }
 
-.kc-card-img { height: 200px; border-radius: 12px; position: relative; overflow: hidden; background: var(--surface-2); display: flex; align-items: center; justify-content: center; color: var(--text-faint); margin-bottom: 1.2rem; }
+.kc-card-img { aspect-ratio: 1 / 1; border-radius: 12px; position: relative; overflow: hidden; background: var(--surface-2); display: flex; align-items: center; justify-content: center; color: var(--text-faint); margin-bottom: 1.2rem; }
 .kc-card-img img { width: 100%; height: 100%; object-fit: cover; transition: transform .4s ease; }
 .kc-card:hover .kc-card-img img { transform: scale(1.12); }
 .kc-card-img--vacia svg, .kc-card-img--paquete svg { width: 34px; height: 34px; }
@@ -537,7 +553,7 @@ img { max-width: 100%; display: block; }
 .kc-badge--nuevo { background: var(--success); color: #fff; }
 .kc-badge-oferta { background: var(--danger); color: #fff; font-size: 0.7rem; font-weight: 800; padding: 0.22rem 0.55rem; border-radius: 0.4rem; box-shadow: 0 4px 10px rgba(255,71,61,.35); }
 .kc-badge-oferta--grande { position: static; display: inline-block; margin-bottom: 0.6rem; font-size: 0.78rem; padding: 0.3rem 0.7rem; }
-.kc-badge-disponible { position: absolute; top: 0.55rem; right: 0.55rem; z-index: 2; background: rgba(255,255,255,.92); backdrop-filter: blur(2px); color: var(--success); font-size: 0.65rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 0.4rem; }
+.kc-badge-disponible { position: absolute; bottom: 0.55rem; right: 0.55rem; z-index: 2; background: rgba(255,255,255,.92); backdrop-filter: blur(2px); color: var(--success); font-size: 0.65rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 0.4rem; }
 .kc-badge-stock { position: absolute; bottom: 0.55rem; left: 0.55rem; z-index: 2; background: rgba(15,23,42,.82); backdrop-filter: blur(2px); color: #fff; font-size: 0.65rem; font-weight: 600; padding: 0.25rem 0.5rem; border-radius: 0.4rem; }
 .kc-badge-stock--inline { position: static; display: inline-block; background: var(--danger-soft); color: var(--danger); margin-bottom: 0.4rem; }
 
@@ -1003,7 +1019,7 @@ img { max-width: 100%; display: block; }
 /* ═══════════════════════════ FOOTER ═══════════════════════════ */
 .kc-footer { background: var(--navy-2); color: #fff; margin-top: 2.5rem; }
 .kc-footer-inner { padding: 4.5rem 5% 2.25rem; display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 3rem; align-items: start; }
-.kc-footer-logo { width: 36px; height: 36px; object-fit: contain; border-radius: 0.5rem; margin-bottom: 0.65rem; }
+.kc-footer-logo { height: 36px; width: auto; max-width: 140px; object-fit: contain; border-radius: 0.5rem; margin-bottom: 0.65rem; }
 .kc-footer-name { display: block; font-size: 1rem; font-weight: 700; color: #fff; margin-bottom: 0.6rem; }
 .kc-footer-redes { display: flex; gap: 0.5rem; margin-top: 0.2rem; }
 .kc-footer-redes a {
@@ -1051,10 +1067,18 @@ img { max-width: 100%; display: block; }
 
 @media (max-width: 620px) {
     .kc-header-inner, .kc-layout, .kc-detalle, .kc-breadcrumb, .kc-sec-vidriera, .kc-features-bar { padding-left: 1rem; padding-right: 1rem; }
+    .kc-header-inner { gap: 0.6rem; }
     .kc-search { display: none; }
+    .kc-btn-search-toggle { display: flex; }
+    .kc-header.kc-search-open .kc-header-inner { flex-wrap: wrap; row-gap: 0.7rem; }
+    .kc-header.kc-search-open .kc-search { display: flex; order: 5; flex-basis: 100%; max-width: none; }
+    .kc-brand-logo { max-width: 84px; }
     .kc-brand-sub { display: none; }
-    .kc-brand-name { font-size: 1.2rem; max-width: 50vw; }
+    .kc-brand-name { font-size: 1.1rem; max-width: 32vw; }
+    .kc-header-actions { gap: 0.5rem; }
+    .kc-btn-search-toggle, .kc-btn-ingresar, .kc-btn-carrito { width: 38px; height: 38px; }
     .kc-grid { grid-template-columns: repeat(2, 1fr); }
+    .kc-badge, .kc-badge-oferta, .kc-badge-disponible, .kc-badge-stock { font-size: 0.58rem; padding: 0.18rem 0.4rem; }
     .kc-feat-row { grid-template-columns: 1fr 1fr; }
     .kc-flash-row { grid-template-columns: 1fr; }
     .kc-combo-row { grid-template-columns: 1fr; }

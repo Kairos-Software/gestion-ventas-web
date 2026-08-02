@@ -18,6 +18,7 @@ def _catalogo_institucional_path(instance, filename):
 class PlantillaCatalogo(models.TextChoices):
     ALMACEN = 'almacen', 'Almacén'
     BENTO   = 'bento',   'Bento'
+    KINETIC = 'kinetic', 'Kinetic'
 
 
 class ConfiguracionCatalogo(models.Model):
@@ -121,6 +122,12 @@ class ConfiguracionCatalogo(models.Model):
     # navy para almacén, verde lima/índigo para bento), no en la del otro.
     DEFAULT_COLOR_MARCA_BENTO = '#6fa525'
     DEFAULT_COLOR_MARCA_SECUNDARIO_BENTO = '#262b52'
+    # "kinetic" no lee estos colores todavía (paleta fija en kinetic.css,
+    # ver plantillas/kinetic/base.html) — quedan acá solo para el día que
+    # se sume personalización de marca a esa plantilla, mismo criterio que
+    # las de arriba.
+    DEFAULT_COLOR_MARCA_KINETIC = '#ff3366'
+    DEFAULT_COLOR_MARCA_SECUNDARIO_KINETIC = '#00e699'
     DEFAULT_NAV_CATALOGO = 'Catálogo'
     DEFAULT_NAV_OFERTAS  = 'Ofertas'
     DEFAULT_NAV_COMBOS   = 'Combos'

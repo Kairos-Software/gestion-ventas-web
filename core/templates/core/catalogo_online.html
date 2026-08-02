@@ -87,7 +87,7 @@
                             <label class="config-row-label" for="idCatalogoHeroTitulo">Título principal</label>
                             <input class="form-control" id="idCatalogoHeroTitulo" value="{{ configuracion_catalogo.hero_titulo }}" placeholder="Vacío = usa el nombre comercial de la empresa">
                         </div>
-                        <span class="config-row-desc" style="padding:0 1.375rem 0.5rem;">La bajada del hero, el producto destacado y los colores ahora se editan desde la pestaña "Apariencia" — valen para las dos plantillas.</span>
+                        <span class="config-row-desc" style="padding:0 1.375rem 0.5rem;">La bajada y el color principal ahora se editan desde la pestaña "Apariencia" y valen para las tres plantillas; el producto destacado vale para Almacén y Bento.</span>
                     </div>
                 </div>
 
@@ -245,7 +245,7 @@
                         <div class="config-section-header">
                             <div>
                                 <h2>Hero</h2>
-                                <p>El producto destacado y la bajada, en las dos plantillas</p>
+                                <p>La bajada (las tres plantillas) y el producto destacado (Almacén y Bento)</p>
                             </div>
                         </div>
                         <div class="config-row" style="flex-direction:column; align-items:flex-start;">
@@ -253,7 +253,7 @@
                             <textarea class="form-control" id="idCatalogoHeroSubtitulo" rows="2" placeholder="Vacío = usa un texto genérico">{{ configuracion_catalogo.hero_subtitulo }}</textarea>
                             <span class="config-row-desc">En Bento se usa hasta que cargues el primer slide del carrusel.</span>
                         </div>
-                        <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                        <div class="config-row" data-plantilla-oculta="kinetic" style="flex-direction:column; align-items:flex-start;">
                             <label class="config-row-label" for="idCatalogoHeroProducto">Producto destacado en el hero</label>
                             <select class="form-control" id="idCatalogoHeroProducto">
                                 <option value="">Automático (el destacado más reciente)</option>
@@ -261,7 +261,7 @@
                                 <option value="{{ p.pk }}" {% if configuracion_catalogo.hero_producto_id == p.pk %}selected{% endif %}>{{ p.nombre }}{% if p.es_paquete %} (combo){% endif %}</option>
                                 {% endfor %}
                             </select>
-                            <span class="config-row-desc">La tarjeta con precio y botón de compra que aparece junto al hero.</span>
+                            <span class="config-row-desc">La tarjeta con precio y botón de compra que aparece junto al hero — Kinetic no la usa, tiene su propio panel de stats.</span>
                         </div>
                     </div>
 
@@ -269,7 +269,7 @@
                         <div class="config-section-header">
                             <div>
                                 <h2>Colores de marca</h2>
-                                <p>Los dos colores que arman la paleta del catálogo</p>
+                                <p>Los colores que arman la paleta del catálogo</p>
                             </div>
                         </div>
                         <div class="config-row" style="flex-direction:column; align-items:flex-start; gap:0.4rem;">
@@ -280,9 +280,9 @@
                                 <button type="button" id="btnResetColorMarca" class="btn btn-sm btn-outline-secondary" style="margin-left:0.75rem;">Restablecer</button>
                             </div>
                         </div>
-                        <div class="config-row" style="flex-direction:column; align-items:flex-start; gap:0.4rem;">
+                        <div class="config-row" data-plantilla-oculta="kinetic" style="flex-direction:column; align-items:flex-start; gap:0.4rem;">
                             <label class="config-row-label">Color secundario</label>
-                            <span class="config-row-desc" style="margin:0 0 0.3rem;">Hero, pie de página y detalles oscuros</span>
+                            <span class="config-row-desc" style="margin:0 0 0.3rem;">Hero, pie de página y detalles oscuros — Kinetic no lo usa (ver ficha del proyecto)</span>
                             <div style="display:flex; align-items:center;">
                                 <input type="color" id="idCatalogoColorMarcaSecundario" value="{{ configuracion_catalogo.color_marca_secundario|default:default_color_marca_secundario_actual }}" style="width:44px; height:36px; padding:0; border:1px solid var(--line); border-radius:0.4rem;">
                                 <button type="button" id="btnResetColorMarcaSecundario" class="btn btn-sm btn-outline-secondary" style="margin-left:0.75rem;">Restablecer</button>
@@ -474,6 +474,8 @@
         colorMarcaSecundario: "{{ default_color_marca_secundario|escapejs }}",
         colorMarcaBento: "{{ default_color_marca_bento|escapejs }}",
         colorMarcaSecundarioBento: "{{ default_color_marca_secundario_bento|escapejs }}",
+        colorMarcaKinetic: "{{ default_color_marca_kinetic|escapejs }}",
+        colorMarcaSecundarioKinetic: "{{ default_color_marca_secundario_kinetic|escapejs }}",
         navCatalogo:     "{{ default_nav_catalogo|escapejs }}",
         navOfertas:      "{{ default_nav_ofertas|escapejs }}",
         navCombos:       "{{ default_nav_combos|escapejs }}",

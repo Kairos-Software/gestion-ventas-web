@@ -1,0 +1,45 @@
+{% comment %}
+Tarjeta de combo/paquete — separada de _product_card.html a propósito:
+un combo tiene datos propios que vale la pena mostrar (qué incluye,
+cuánto se ahorra) que no tienen sentido en una card de producto suelto.
+Recibe `pq` (paquete, con .oferta_info/.ahorro/.disponible_compra ya
+calculados por la vista) en el contexto del include.
+{% endcomment %}
+<div class="k-product-card k-combo-card">
+    <div class="k-product-header-info">
+        <span class="k-sku-tag">{{ pq.codigo }}</span>
+        <span class="k-stock-tag k-stock-tag--high">COMBO</span>
+    </div>
+    <a href="{% url 'catalogo:producto_detalle' pq.pk %}" class="k-product-img-box">
+        {% with portada=pq.imagenes.first %}
+            {% if portada %}<img src="{{ portada.imagen.url }}" alt="{{ pq.nombre }}" loading="lazy">{% endif %}
+        {% endwith %}
+    </a>
+    <div class="k-product-content">
+        <a href="{% url 'catalogo:producto_detalle' pq.pk %}" class="k-product-title">{{ pq.nombre }}</a>
+        {% if pq.componentes.all %}
+        <ul class="k-combo-incluye">
+            {% for c in pq.componentes.all|slice:":4" %}<li>{{ c.cantidad|floatformat:"-2" }}× {{ c.producto.nombre }}</li>{% endfor %}
+            {% if pq.componentes.all|length > 4 %}<li class="k-combo-incluye-mas">+ {{ pq.componentes.all|length|add:"-4" }} más</li>{% endif %}
+        </ul>
+        {% endif %}
+        <div class="k-product-footer">
+            <div class="k-combo-price-block">
+                {% if pq.precio_venta %}<span class="k-price-tag">${{ pq.precio_venta }}</span>{% else %}<span class="k-price-consultar">A consultar</span>{% endif %}
+                {% if pq.ahorro %}<span class="k-combo-ahorro">Ahorrás ${{ pq.ahorro.ahorro|floatformat:0 }}</span>{% endif %}
+            </div>
+            {% if pq.disponible_compra %}
+            <div data-carrito-slot>
+                <button type="button" class="k-btn-add-cart" data-carrito-agregar="paq-{{ pq.pk }}"
+                    data-nombre="{{ pq.nombre }}" data-precio="{{ pq.precio_venta }}"
+                    data-precio-lista="{{ pq.precio_venta }}"
+                    data-categoria-id="{{ pq.categoria.pk|default:'' }}"
+                    data-imagen="{% if pq.imagenes.first %}{{ pq.imagenes.first.imagen.url }}{% endif %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+                    AGREGAR
+                </button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>

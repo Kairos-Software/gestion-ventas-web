@@ -14,12 +14,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // ── Default de color según la plantilla ACTIVA en el selector — cada
     //    plantilla tiene su propia identidad (naranja/navy en "almacen",
-    //    verde lima/índigo en "bento"); sin esto, cambiar de plantilla sin
-    //    haber tocado el color todavía dejaba pintado el color de la otra. ──
+    //    verde lima/índigo en "bento", rosa/verde neón en "kinetic"); sin
+    //    esto, cambiar de plantilla sin haber tocado el color todavía
+    //    dejaba pintado el color de la otra. ──
     function colorDefaultActual(campo) {
         const valorPlantilla = document.getElementById('idCatalogoPlantilla')?.value || 'almacen';
         if (valorPlantilla === 'bento') {
             return campo === 'marca' ? (defaults.colorMarcaBento || '#6fa525') : (defaults.colorMarcaSecundarioBento || '#262b52');
+        }
+        if (valorPlantilla === 'kinetic') {
+            return campo === 'marca' ? (defaults.colorMarcaKinetic || '#ff3366') : (defaults.colorMarcaSecundarioKinetic || '#00e699');
         }
         return campo === 'marca' ? (defaults.colorMarca || '#ff9343') : (defaults.colorMarcaSecundario || '#111e2f');
     }
@@ -153,6 +157,11 @@ document.addEventListener('DOMContentLoaded', function () {
             doc.documentElement.style.setProperty('--lime-soft', `color-mix(in srgb, ${color} 12%, white)`);
             doc.documentElement.style.setProperty('--indigo', colorSecundario);
             doc.documentElement.style.setProperty('--indigo-2', `color-mix(in srgb, ${colorSecundario} 82%, black)`);
+            // Variable de Kinetic — --k-primary-glow/--k-primary-dark se
+            // recalculan solas porque están definidas con color-mix(var(--k-primary))
+            // en kinetic.css; no hace falta pisarlas acá también. Kinetic no
+            // tiene un color secundario propio editable (ver base.html).
+            doc.documentElement.style.setProperty('--k-primary', color);
         }
     }
 
@@ -248,6 +257,16 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!visible && btn.dataset.tab === tabActiva) tabActivaOculta = true;
         });
         mostrarPanel(tabActivaOculta ? 'plantillas' : tabActiva);
+
+        // ── Campos sueltos dentro de un panel compartido (ej. "Apariencia")
+        //    que no aplican a alguna plantilla puntual — a diferencia de
+        //    data-plantilla arriba (que es "mostrar SOLO para esta"), acá es
+        //    al revés: "ocultar PARA esta/estas" (soporta lista separada por
+        //    comas), porque el campo sí vale para el resto. ──
+        document.querySelectorAll('[data-plantilla-oculta]').forEach(function (el) {
+            const ocultarEn = el.dataset.plantillaOculta.split(',').map(function (s) { return s.trim(); });
+            el.style.display = ocultarEn.indexOf(inputPlantilla.value) !== -1 ? 'none' : '';
+        });
     }
     aplicarToggleDataPlantilla();
 

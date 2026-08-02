@@ -63,8 +63,8 @@ html[data-theme="dark"]{
    no existen, siempre hay una imagen: el logo real o el ícono de Kai-Cart de
    respaldo) y con un logo de fondo transparente un cuadro de color detrás
    sobra. */
-.kc-bento .brand-mark{ width:36px; height:36px; display:flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden; }
-.kc-bento .brand-mark img{ width:100%; height:100%; object-fit:contain; }
+.kc-bento .brand-mark{ display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.kc-bento .brand-mark img{ height:36px; width:auto; max-width:140px; object-fit:contain; }
 .kc-bento .brand-name{ font-family:var(--f-display); font-weight:700; font-size:16.5px; letter-spacing:-.01em; }
 
 .kc-bento .search-wrap{ flex:1; max-width:360px; position:relative; }

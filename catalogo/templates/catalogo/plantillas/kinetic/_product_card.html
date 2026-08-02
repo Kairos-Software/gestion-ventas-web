@@ -1,0 +1,49 @@
+{% comment %}
+Tarjeta de producto — usada por home.html (grilla principal) y detalle.html
+(relacionados). Recibe `p` (producto, ya con .oferta_info/.es_nuevo/
+.disponible_compra calculados por la vista) en el contexto del include.
+{% endcomment %}
+<div class="k-product-card">
+    <div class="k-product-header-info">
+        <span class="k-sku-tag">{{ p.codigo }}</span>
+        {% if p.gestiona_stock %}
+            {% if p.stock_actual <= 0 %}
+                <span class="k-stock-tag k-stock-tag--low">SIN STOCK</span>
+            {% elif p.stock_actual <= 5 %}
+                <span class="k-stock-tag k-stock-tag--low">STOCK: {{ p.stock_actual }} U.</span>
+            {% else %}
+                <span class="k-stock-tag k-stock-tag--high">STOCK: {{ p.stock_actual }} U.</span>
+            {% endif %}
+        {% endif %}
+    </div>
+    <a href="{% url 'catalogo:producto_detalle' p.pk %}" class="k-product-img-box">
+        {% with portada=p.imagenes.first %}
+            {% if portada %}<img src="{{ portada.imagen.url }}" alt="{{ p.nombre }}" loading="lazy">{% endif %}
+        {% endwith %}
+    </a>
+    <div class="k-product-content">
+        <a href="{% url 'catalogo:producto_detalle' p.pk %}" class="k-product-title">{{ p.nombre }}</a>
+        <p class="k-product-desc">{% if p.descripcion %}{{ p.descripcion|truncatechars:90 }}{% elif p.categoria %}{{ p.categoria.nombre }}{% endif %}</p>
+        <div class="k-product-footer">
+            {% if p.oferta_info and p.oferta_info.precio_final != p.precio_venta %}
+                <span class="k-price-tag">${{ p.oferta_info.precio_final }}<span class="k-price-old">${{ p.precio_venta }}</span></span>
+            {% elif p.precio_venta %}
+                <span class="k-price-tag">${{ p.precio_venta }}</span>
+            {% else %}
+                <span class="k-price-consultar">A consultar</span>
+            {% endif %}
+            {% if p.disponible_compra %}
+            <div data-carrito-slot>
+                <button type="button" class="k-btn-add-cart" data-carrito-agregar="prod-{{ p.pk }}"
+                    data-nombre="{{ p.nombre }}" data-precio="{{ p.oferta_info.precio_final|default:p.precio_venta }}"
+                    data-precio-lista="{{ p.precio_venta }}"
+                    data-categoria-id="{{ p.categoria.pk|default:'' }}"
+                    data-imagen="{% if p.imagenes.first %}{{ p.imagenes.first.imagen.url }}{% endif %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+                    AGREGAR
+                </button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>

@@ -71,6 +71,30 @@ function toggleFiltrosMobile(abrir) {
     }, { passive: true });
 })();
 
+/* Buscador mobile (icono que expande el form) — el input de búsqueda del
+   header se oculta en mobile (catalogo.css) para no competir por espacio
+   con el resto de los íconos; este botón lo despliega en una fila propia. */
+(function () {
+    var header = document.getElementById('kcHeader');
+    var toggle = document.getElementById('kcSearchToggle');
+    var input = document.querySelector('.kc-search input');
+    if (!header || !toggle) return;
+
+    toggle.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var abierto = header.classList.toggle('kc-search-open');
+        if (abierto && input) input.focus();
+    });
+    document.addEventListener('click', function (e) {
+        if (header.classList.contains('kc-search-open') && !header.contains(e.target)) {
+            header.classList.remove('kc-search-open');
+        }
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') header.classList.remove('kc-search-open');
+    });
+})();
+
 /* Tilt 3D + glare sobre la tarjeta del hero al mover el mouse — puramente
    visual, no depende de ningún dato. */
 (function () {

@@ -157,16 +157,21 @@ def catalogo_online(request):
     config_catalogo = ConfiguracionCatalogo.get_solo()
     # El color por default depende de la plantilla ACTIVA — si no, el
     # selector de color arranca mostrando naranja/navy (los de "almacen")
-    # aunque el catálogo real esté en "bento" (verde lima/índigo), y el
-    # preview en vivo termina repintando mal apenas carga.
-    es_bento = config_catalogo.plantilla == PlantillaCatalogo.BENTO
-    default_color_marca_actual = (
-        ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_BENTO if es_bento
-        else ConfiguracionCatalogo.DEFAULT_COLOR_MARCA
-    )
-    default_color_marca_secundario_actual = (
-        ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_BENTO if es_bento
-        else ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO
+    # aunque el catálogo real esté en "bento"/"kinetic", y el preview en
+    # vivo termina repintando mal apenas carga.
+    defaults_color_por_plantilla = {
+        PlantillaCatalogo.BENTO: (
+            ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_BENTO,
+            ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_BENTO,
+        ),
+        PlantillaCatalogo.KINETIC: (
+            ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_KINETIC,
+            ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_KINETIC,
+        ),
+    }
+    default_color_marca_actual, default_color_marca_secundario_actual = defaults_color_por_plantilla.get(
+        config_catalogo.plantilla,
+        (ConfiguracionCatalogo.DEFAULT_COLOR_MARCA, ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO),
     )
     return render(request, 'core/catalogo_online.html', {
         'datos_empresa':          DatosEmpresa.get_solo(),
@@ -180,6 +185,8 @@ def catalogo_online(request):
         'default_color_marca_secundario': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO,
         'default_color_marca_bento': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_BENTO,
         'default_color_marca_secundario_bento': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_BENTO,
+        'default_color_marca_kinetic': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_KINETIC,
+        'default_color_marca_secundario_kinetic': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_KINETIC,
         'default_color_marca_actual': default_color_marca_actual,
         'default_color_marca_secundario_actual': default_color_marca_secundario_actual,
         'default_nav_catalogo':   ConfiguracionCatalogo.DEFAULT_NAV_CATALOGO,

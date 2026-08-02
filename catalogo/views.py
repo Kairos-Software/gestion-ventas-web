@@ -69,6 +69,8 @@ def _contexto_base(request):
         'default_color_marca_secundario': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO,
         'default_color_marca_bento': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_BENTO,
         'default_color_marca_secundario_bento': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_BENTO,
+        'default_color_marca_kinetic': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_KINETIC,
+        'default_color_marca_secundario_kinetic': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_KINETIC,
         'default_nav_catalogo': ConfiguracionCatalogo.DEFAULT_NAV_CATALOGO,
         'default_nav_ofertas': ConfiguracionCatalogo.DEFAULT_NAV_OFERTAS,
         'default_nav_combos': ConfiguracionCatalogo.DEFAULT_NAV_COMBOS,
@@ -327,6 +329,8 @@ class CatalogoHomeView(TemplateView):
             plantilla = ConfiguracionCatalogo.get_solo().plantilla
         if plantilla == PlantillaCatalogo.BENTO:
             return ['catalogo/plantillas/bento/home.html']
+        if plantilla == PlantillaCatalogo.KINETIC:
+            return ['catalogo/plantillas/kinetic/home.html']
         return ['catalogo/home.html']
 
     def get_context_data(self, **kwargs):
@@ -553,8 +557,11 @@ class ProductoDetalleView(DetailView):
     context_object_name = 'producto'
 
     def get_template_names(self):
-        if ConfiguracionCatalogo.get_solo().plantilla == PlantillaCatalogo.BENTO:
+        plantilla = ConfiguracionCatalogo.get_solo().plantilla
+        if plantilla == PlantillaCatalogo.BENTO:
             return ['catalogo/plantillas/bento/detalle.html']
+        if plantilla == PlantillaCatalogo.KINETIC:
+            return ['catalogo/plantillas/kinetic/detalle.html']
         return ['catalogo/detalle.html']
 
     def get_queryset(self):
@@ -580,6 +587,7 @@ class ProductoDetalleView(DetailView):
             ctx['componentes'] = list(
                 self.object.componentes.select_related('producto', 'combinacion')
             )
+            ctx['ahorro'] = _ahorro_paquete(self.object)
         else:
             ctx['relacionados'] = _productos_relacionados(self.object, ofertas)
         return ctx
@@ -606,6 +614,8 @@ class TiendaInstitucionalView(TemplateView):
             plantilla = ConfiguracionCatalogo.get_solo().plantilla
         if plantilla == PlantillaCatalogo.BENTO:
             return ['catalogo/plantillas/bento/institucional.html']
+        if plantilla == PlantillaCatalogo.KINETIC:
+            return ['catalogo/plantillas/kinetic/institucional.html']
         return ['catalogo/institucional.html']
 
     def get_context_data(self, **kwargs):
