@@ -198,6 +198,18 @@
     text-overflow: ellipsis;
 }
 
+.compra-comprobante {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.mp-badge-extra {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
 .compra-total {
     font-weight: 700;
     font-size: 1rem;

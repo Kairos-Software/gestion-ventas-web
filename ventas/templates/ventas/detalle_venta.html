@@ -18,6 +18,15 @@
         align-items: start;
     }
 
+    /* Sin esto, un grid item no se achica nunca por debajo del ancho
+       mínimo de su contenido (min-width:auto por default) — con una
+       tabla ancha, esa columna "1fr" terminaba forzando TODO el layout
+       más ancho que la pantalla y empujaba la columna lateral fuera
+       de la vista en resoluciones de laptop normales (~1280px). */
+    .cdt-col-main {
+        min-width: 0;
+    }
+
     @media (max-width: 900px) {
         .cdt-layout {
             grid-template-columns: 1fr;
@@ -331,7 +340,7 @@
 
     .vdt-pago-cuotas-extra {
         display: grid;
-        grid-template-columns: 1fr 1fr 1.3fr;
+        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
         gap: .35rem;
     }
     .vdt-pago-cuotas-extra .vdt-pago-cuotas-label {
@@ -340,6 +349,29 @@
         margin-bottom: .2rem;
         display: block;
     }
+
+    .vdt-credito-total-libre strong {
+        display: block;
+        font-size: .85rem;
+        color: var(--text-primary);
+    }
+
+    .vdt-credito-modo-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .5rem;
+        margin-bottom: .35rem;
+    }
+
+    /* Mismo componente que caja/static/caja/css/deudas.css — se duplica
+       acá siguiendo la convención de que cada pantalla tiene su propio CSS. */
+    .toggle-switch { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-track { position: absolute; inset: 0; background: var(--border-strong, #d1d5db); border-radius: 2rem; cursor: pointer; transition: background 0.2s; }
+    .toggle-track::before { content: ''; position: absolute; left: 3px; top: 3px; width: 14px; height: 14px; background: white; border-radius: 50%; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+    .toggle-switch input:checked + .toggle-track { background: var(--accent-primary); }
+    .toggle-switch input:checked + .toggle-track::before { transform: translateX(16px); }
 
     .vdt-pago-btn-quitar {
         display: flex;
@@ -821,7 +853,20 @@
                         <input type="date" id="vdtFecha" class="vta-control" value="{{ venta.fecha|date:'Y-m-d' }}">
                     </div>
 
-                    <div class="cdt-resumen-row"><span>Cliente</span><strong>{{ venta.cliente_display }}</strong></div>
+                    <div class="vta-field" style="margin-top:1rem">
+                        <label class="vta-label" for="vdtClienteInput">Cliente</label>
+                        <div class="vta-cli-wrap" style="width:100%">
+                            <svg class="vta-cli-icon" width="14" height="14" viewBox="0 0 16 16" fill="none">
+                                <circle cx="8" cy="5.4" r="2.7" stroke="currentColor" stroke-width="1.3"/>
+                                <path d="M2.6 13.6C3 10.9 5.2 9 8 9s5 1.9 5.4 4.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                            </svg>
+                            <input type="text" id="vdtClienteInput" class="vta-control vta-cli-input"
+                                   style="padding-left:1.95rem; padding-right:1.75rem;"
+                                   placeholder="Buscar por nombre, apellido o DNI… (vacío = Consumidor Final)" autocomplete="off">
+                            <div id="vdtClienteDropdown" class="vta-cli-dropdown"></div>
+                            <button type="button" id="vdtClienteClear" class="vta-cliente-venta-clear" title="Quitar cliente" style="display:none;">✕</button>
+                        </div>
+                    </div>
 
                     <div class="vta-field" style="margin-top:1rem">
                         <label class="vta-label" for="vdtNotas">Notas generales</label>
@@ -846,7 +891,7 @@
                             <span>Pendiente: <strong id="vdtPagoPendiente">${{ venta.total|floatformat:"2" }}</strong></span>
                         </div>
                         <div class="vdt-pago-resumen vdt-pago-resumen--recargo" id="vdtRecargoResumen" style="display:none">
-                            <span>Recargo: <strong id="vdtRecargoMonto">$0,00</strong></span>
+                            <span>Recargo/interés: <strong id="vdtRecargoMonto">$0,00</strong></span>
                             <span>Total a cobrar: <strong id="vdtTotalACobrar">$0,00</strong></span>
                         </div>
                     </div>
@@ -884,7 +929,7 @@
                         <span>${{ venta.total|floatformat:"2" }}</span>
                     </div>
                     <div class="vta-totals-row" id="vdtTotalsRecargoRow" style="display:none">
-                        <span>Recargo</span>
+                        <span>Recargo/interés</span>
                         <span id="vdtTotalsRecargoValue">$0,00</span>
                     </div>
                     <div class="vta-totals-grand">
@@ -1207,9 +1252,11 @@
     </div>
 </div>
 
-{# ══ MODAL CARGAR CHEQUE (línea de pago con medio='cheque') ══
-   No crea nada al guardar — solo queda en memoria dentro de la línea
-   de pago. El Cheque real se crea recién al confirmar la venta. #}
+{% comment %}
+══ MODAL CARGAR CHEQUE (línea de pago con medio='cheque') ══
+No crea nada al guardar — solo queda en memoria dentro de la línea
+de pago. El Cheque real se crea recién al confirmar la venta.
+{% endcomment %}
 <div id="vdtModalCheque" style="
     display:none; position:fixed; inset:0; z-index:9100;
     background:rgba(0,0,0,.45); align-items:center; justify-content:center; padding:1rem;">
@@ -1479,8 +1526,10 @@
         urlDocSubir: "{{ url_doc_subir }}",
         urlDocEliminar: "{{ url_doc_eliminar }}",
         urlFacturar: "{{ url_facturar }}",
+        urlBuscarCliente: "{{ url_buscar_cliente }}",
         csrfToken: "{{ csrf_token }}",
         clienteUnicoPk: {{ cliente_unico_venta.pk|default:"null" }},
+        clienteUnicoNombre: "{{ cliente_unico_venta.get_nombre_display|default:'' }}",
         hoy: "{% now 'Y-m-d' %}",
         mediosPago: [
             {% for val, label in medios_pago %}

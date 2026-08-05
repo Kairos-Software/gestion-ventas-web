@@ -21,6 +21,7 @@ urlpatterns = [
     path('buscar/clientes/',   views.BuscarClienteAjax.as_view(),     name='buscar_cliente'),
     path('buscar/lote/',       views.BuscarLoteVentaAjax.as_view(),   name='buscar_lote'),
     path('guardar-borrador/',  views.GuardarBorradorAjax.as_view(),   name='guardar_borrador'),
+    path('actualizar-borrador/', views.ActualizarBorradorAjax.as_view(), name='actualizar_borrador'),
     path('confirmar/',         views.ConfirmarVentaAjax.as_view(),    name='confirmar_venta'),
     path('eliminar-borrador/', views.EliminarBorradorAjax.as_view(),  name='eliminar_borrador'),
     path('<int:pk>/facturar/', views.VentaFacturarAjax.as_view(),     name='venta_facturar'),

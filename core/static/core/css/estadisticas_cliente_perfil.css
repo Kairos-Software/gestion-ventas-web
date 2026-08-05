@@ -1,0 +1,285 @@
+/* estadisticas_cliente_perfil.css — Ficha individual de cliente
+   (Estadísticas → Clientes → detalle). Hereda base.css/estadisticas.css
+   sin sobreescribirlos; solo lo que es nuevo de esta pantalla. */
+
+.cp-back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    margin-bottom: 1rem;
+    transition: color 0.18s;
+}
+.cp-back-link:hover { color: var(--brand-orange); }
+
+/* ═══════════ HERO ═══════════ */
+.cp-hero {
+    background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-white) 100%);
+    border: 1px solid var(--border-color);
+    border-radius: 1rem;
+    margin-bottom: 1.5rem;
+    padding: 1.5rem;
+    position: relative;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+}
+.cp-hero::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--brand-orange) 0%, var(--brand-orange-dark) 100%);
+}
+
+.cp-hero-badges { display: flex; gap: .5rem; margin-bottom: .625rem; }
+
+.cp-hero-nombre {
+    font-family: var(--font-heading);
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 .5rem;
+}
+
+.cp-hero-meta {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    flex-wrap: wrap;
+}
+
+.cp-hero-link {
+    font-size: .8125rem;
+    color: var(--brand-blue);
+    text-decoration: none;
+    font-weight: 500;
+}
+.cp-hero-link:hover { text-decoration: underline; }
+
+.cp-hero-ganancia {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    text-align: right;
+    flex-shrink: 0;
+}
+.cp-hero-ganancia-label {
+    font-size: .75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    font-weight: 600;
+}
+.cp-hero-ganancia-valor {
+    font-family: var(--font-heading);
+    font-size: 2.25rem;
+    font-weight: 700;
+    color: var(--success);
+    line-height: 1.15;
+}
+.cp-hero-ganancia-sub { font-size: .8125rem; color: var(--text-muted); }
+
+/* ═══════════ COMPORTAMIENTO DE PAGO ═══════════ */
+.cp-pago-grid {
+    display: grid;
+    grid-template-columns: minmax(220px, 320px) 1fr;
+    gap: 1.5rem;
+    align-items: center;
+}
+@media (max-width: 780px) {
+    .cp-pago-grid { grid-template-columns: 1fr; }
+}
+
+.cp-pago-donut { display: flex; flex-direction: column; align-items: center; gap: .75rem; }
+
+.cp-donut-leyenda { display: flex; gap: 1.25rem; flex-wrap: wrap; justify-content: center; }
+.cp-leyenda-item {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    font-size: .8125rem;
+    color: var(--text-secondary);
+}
+.cp-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.cp-dot-success { background: var(--success); }
+.cp-dot-danger { background: var(--danger); }
+
+/* ═══════════ DEUDA ACTUAL ═══════════ */
+.cp-deuda-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: .75rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+.cp-deuda-row:last-child { border-bottom: none; }
+
+.cp-deuda-titulo { font-weight: 600; color: var(--text-primary); font-size: .9375rem; }
+.cp-deuda-sub { font-size: .8125rem; color: var(--text-muted); margin-top: .125rem; }
+
+.cp-deuda-right { text-align: right; flex-shrink: 0; }
+.cp-deuda-saldo { font-weight: 700; color: var(--danger); font-size: 1rem; }
+.cp-deuda-total-label { font-size: .75rem; color: var(--text-muted); }
+
+/* ═══════════ TABLA HISTORIAL ═══════════ */
+.cp-th-monto { text-align: right; white-space: nowrap; }
+
+/* ═══════════ BUSCADOR DE CLIENTE (Estadísticas → Clientes) ═══════════ */
+/* .card tiene overflow:hidden (para recortar bien las esquinas
+   redondeadas) — eso corta el dropdown de resultados si vive adentro.
+   Esta card puntual lo desactiva porque no tiene nada que recortar. */
+.cp-buscador-card { overflow: visible; }
+
+.cp-buscador-wrap { position: relative; max-width: 460px; }
+
+#ecBuscador {
+    width: 100%;
+    padding: .625rem .875rem;
+    border: 1px solid var(--border-color);
+    border-radius: .625rem;
+    font-size: .875rem;
+    color: var(--text-primary);
+    background: var(--bg-white);
+    outline: none;
+    transition: border-color .18s;
+}
+#ecBuscador:focus { border-color: var(--brand-orange); }
+
+.cp-buscador-resultados {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 20;
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: .625rem;
+    box-shadow: var(--shadow-sm);
+    max-height: 280px;
+    overflow-y: auto;
+}
+
+.cp-buscador-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    padding: .625rem .875rem;
+    cursor: pointer;
+    font-size: .8125rem;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-color);
+}
+.cp-buscador-item:last-child { border-bottom: none; }
+.cp-buscador-item:hover { background: var(--bg-surface-hover); }
+.cp-buscador-item-vacio { padding: .75rem .875rem; font-size: .8125rem; color: var(--text-muted); cursor: default; }
+
+/* Links de nombre en los rankings de la página general, que llevan a la ficha */
+.cp-ranking-link { color: inherit; text-decoration: none; }
+.cp-ranking-link:hover { color: var(--brand-orange); text-decoration: underline; }
+
+/* ═══════════ KPI TILES CON SUPERFICIE (solo Estadísticas → Clientes) ═══════════
+   .est-mini-stat de estadisticas.css es plano (fondo gris + número negro).
+   Acá, dentro de .cp-page, el número lleva más peso y las tarjetas que
+   representan un estado (vencido/por vencer/cobrado/etc.) llevan un tinte de
+   color de fondo, no solo texto de color — así el estado se lee de un
+   vistazo, no hay que leer la letra chica. Scope a .cp-page para no tocar
+   el resto de Estadísticas (Ventas, Compras, Caja...) todavía. */
+.cp-page .est-mini-stat {
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: .75rem;
+    padding: 1rem 1.125rem;
+    text-align: left;
+}
+.cp-page .est-mini-stat-valor {
+    font-size: 1.625rem;
+    font-weight: 800;
+    line-height: 1.2;
+}
+.cp-page .est-mini-stat-label {
+    font-size: .6875rem;
+    text-transform: uppercase;
+    letter-spacing: .045em;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-top: .3rem;
+}
+
+.cp-page .est-mini-stat--danger { background: #FEF2F2; border-color: #FECACA; }
+.cp-page .est-mini-stat--danger .est-mini-stat-valor { color: var(--danger); }
+
+.cp-page .est-mini-stat--warning { background: #FFFBEB; border-color: #FDE68A; }
+.cp-page .est-mini-stat--warning .est-mini-stat-valor { color: var(--warning); }
+
+.cp-page .est-mini-stat--success { background: #ECFDF5; border-color: #A7F3D0; }
+.cp-page .est-mini-stat--success .est-mini-stat-valor { color: var(--success); }
+
+/* Badge tipo píldora para tags cortos en el header de una card ("Tiempo
+   real", "Cuentas corrientes") — reemplaza el texto plano suelto. */
+.cp-pill {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    font-size: .6875rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    padding: .25rem .75rem;
+    white-space: nowrap;
+}
+.cp-pill--warning {
+    color: #B45309;
+    background: #FFFBEB;
+    border-color: #FDE68A;
+}
+
+/* ═══════════ DONUTS DE CARTERA (Nivel de riesgo / Estado) ═══════════
+   Reemplaza la leyenda automática de Chart.js (comprimida a la derecha
+   del canvas) por una leyenda propia en lista, más legible — mismo
+   patrón que la dona de puntualidad de pago en la ficha individual. */
+.cp-donut-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2rem;
+    flex-wrap: wrap;
+    padding: .5rem 0;
+}
+.cp-donut-visual {
+    position: relative;
+    width: 150px;
+    height: 150px;
+    flex-shrink: 0;
+}
+.cp-donut-leyenda--col {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    align-items: flex-start;
+}
+.cp-donut-leyenda--col .cp-leyenda-item {
+    font-size: .8125rem;
+    color: var(--text-secondary);
+}
+.cp-donut-leyenda--col .cp-leyenda-item strong {
+    color: var(--text-primary);
+    font-weight: 700;
+}
+
+.cp-dot-activo, .cp-dot-empresa { background: #10B981; }
+.cp-dot-potencial { background: #F59E0B; }
+.cp-dot-suspendido { background: #EF4444; }
+.cp-dot-inactivo { background: #8A9BB0; }
+.cp-dot-persona { background: #F26A1B; }

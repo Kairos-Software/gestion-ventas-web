@@ -39,6 +39,8 @@ class ListarComprasAjax(LoginRequiredMixin, View):
             'items__combinacion',
             'documentos',
             'pagos__cuenta',
+            'pagos__deuda',
+            'pagos__cheques',
         ).order_by('-fecha', '-fecha_alta')
 
         q = request.GET.get('q', '').strip()
@@ -115,15 +117,41 @@ class ListarComprasAjax(LoginRequiredMixin, View):
                     'subido_el':   doc.subido_el.strftime('%d/%m/%Y %H:%M'),
                 })
 
-            pagos = [
-                {
-                    'medio': p.medio,
+            # — Pagos — con el vínculo real a la Deuda/Cheque que generó
+            # cada línea de crédito/cheque, si corresponde (antes solo se
+            # mostraba medio/monto/cuenta, sin plan de cuotas ni saldo).
+            pagos = []
+            for p in c.pagos.all():
+                linea = {
+                    'medio':       p.medio,
                     'medio_label': p.get_medio_display(),
-                    'monto': str(p.monto),
-                    'cuenta': p.cuenta.nombre if p.cuenta_id else None,
+                    'monto':       str(p.monto),
+                    'cuenta':      p.cuenta.nombre if p.cuenta_id else None,
+                    'cotizacion':  str(p.cotizacion) if p.cotizacion else None,
                 }
-                for p in c.pagos.all()
-            ]
+                deuda = getattr(p, 'deuda', None)
+                if deuda:
+                    linea['deuda'] = {
+                        'pk':               deuda.pk,
+                        'estado':           deuda.estado,
+                        'estado_label':     deuda.get_estado_display(),
+                        'modo_cuotas':      deuda.modo_cuotas,
+                        'cantidad_cuotas':  deuda.cantidad_cuotas,
+                        'saldo_pendiente':  str(deuda.saldo_pendiente),
+                    }
+                cheques = list(p.cheques.all())
+                if cheques:
+                    linea['cheques'] = [
+                        {
+                            'pk':            ch.pk,
+                            'numero_cheque': ch.numero_cheque,
+                            'estado':        ch.estado,
+                            'estado_label':  ch.get_estado_display(),
+                            'fecha_cobro':   ch.fecha_cobro.strftime('%d/%m/%Y'),
+                        }
+                        for ch in cheques
+                    ]
+                pagos.append(linea)
 
             data.append({
                 'pk':                     c.pk,
@@ -133,6 +161,7 @@ class ListarComprasAjax(LoginRequiredMixin, View):
                 'estado':                 c.estado,
                 'estado_label':           c.get_estado_display(),
                 'total':                  str(c.total),
+                'numero_comprobante':     c.numero_comprobante,
                 'notas':                  c.notas,
                 'medio_pago':             c.medio_pago,
                 'medio_pago_label':       c.get_medio_pago_display(),

@@ -109,6 +109,15 @@
                     </div>
                     {% endif %}
 
+                    {% for message in messages %}
+                    <div class="alert-success">
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+                            <path d="M4 10L8 14L16 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>{{ message }}</span>
+                    </div>
+                    {% endfor %}
+
                     <form method="post" class="login-form">
                         {% csrf_token %}
 
@@ -139,6 +148,8 @@
                                 </button>
                             </div>
                         </div>
+
+                        <span class="login-forgot-link"><a href="{% url 'core:recuperar_password' %}">¿Olvidaste tu contraseña?</a></span>
 
                         <button type="submit" class="btn-login shimmer">
                             <span>Ingresar al sistema</span>

@@ -209,31 +209,43 @@ def _resolver_pagos_compra(compra, pagos):
             monto = sum(c['monto'] for c in cheques_info)
 
         cuotas = interes_pct = fecha_inicio_debito = None
+        modo_cuotas = None
         if es_credito:
-            try:
-                cuotas = int(p.get('cuotas', 0))
-            except (TypeError, ValueError):
-                cuotas = 0
-            if cuotas < 1:
-                raise ValueError('Indicá la cantidad de cuotas para el pago con crédito.')
+            from caja.models import ModoCuotas
+            modo_cuotas = p.get('modo_cuotas') or ModoCuotas.FIJAS
+            if modo_cuotas not in ModoCuotas.values:
+                raise ValueError(f'Modo de cuotas inválido: {modo_cuotas}')
             try:
                 interes_pct = Decimal(str(p.get('interes_pct', 0) or 0))
             except Exception:
                 raise ValueError('Porcentaje de interés inválido.')
             if interes_pct < 0:
                 raise ValueError('El porcentaje de interés no puede ser negativo.')
-            fecha_inicio_raw = p.get('fecha_inicio_debito')
-            if not fecha_inicio_raw:
-                raise ValueError('Indicá la fecha de inicio de débito de la tarjeta.')
-            try:
-                fecha_inicio_debito = date.fromisoformat(str(fecha_inicio_raw))
-            except ValueError:
-                raise ValueError('Fecha de inicio de débito inválida.')
+            if modo_cuotas == ModoCuotas.LIBRE:
+                # Cuotas libres: no hay plan ni fecha de débito que pedir
+                # — la deuda nace sin CuotaDeuda, se va pagando después
+                # con "Registrar abono" desde Deudas.
+                cuotas = None
+                fecha_inicio_debito = None
+            else:
+                try:
+                    cuotas = int(p.get('cuotas', 0))
+                except (TypeError, ValueError):
+                    cuotas = 0
+                if cuotas < 1:
+                    raise ValueError('Indicá la cantidad de cuotas para el pago con crédito.')
+                fecha_inicio_raw = p.get('fecha_inicio_debito')
+                if not fecha_inicio_raw:
+                    raise ValueError('Indicá la fecha de inicio de débito de la tarjeta.')
+                try:
+                    fecha_inicio_debito = date.fromisoformat(str(fecha_inicio_raw))
+                except ValueError:
+                    raise ValueError('Fecha de inicio de débito inválida.')
 
         pagos_resueltos.append({
             'medio': medio, 'monto': monto, 'cuenta': cuenta, 'cotizacion': cotizacion,
             'cuotas': cuotas, 'interes_pct': interes_pct,
-            'fecha_inicio_debito': fecha_inicio_debito,
+            'fecha_inicio_debito': fecha_inicio_debito, 'modo_cuotas': modo_cuotas,
             'cheques_info': cheques_info,
         })
 
@@ -282,9 +294,11 @@ def _crear_deudas_desde_pagos(compra, pagos_resueltos, pagos_creados):
             monto_original=p['monto'],
             porcentaje_interes=p['interes_pct'],
             cantidad_cuotas=p['cuotas'],
-            fecha_inicio=p['fecha_inicio_debito'],
+            fecha_inicio=p['fecha_inicio_debito'] or compra.fecha,
+            modo_cuotas=p['modo_cuotas'],
             moneda=p['cuenta'].moneda,
             descripcion=f'Compra {compra.numero}',
+            numero_comprobante=compra.numero_comprobante,
             creado_por=compra.creado_por,
         )
 
@@ -323,7 +337,7 @@ def _crear_cheques_desde_pagos(compra, pagos_resueltos, pagos_creados):
             cheque = Cheque.objects.create(
                 tipo=TipoCheque.A_PAGAR,
                 numero_cheque=ch['numero_cheque'],
-                numero_factura=compra.numero,
+                numero_factura=compra.numero_comprobante or compra.numero,
                 monto=ch['monto'],
                 moneda=p['cuenta'].moneda,
                 fecha_emision=ch['fecha_emision'],
@@ -438,6 +452,12 @@ class Compra(models.Model):
 
     # — Totales (calculados al confirmar) —
     total      = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+
+    # — N° de factura/remito real del proveedor (uno por compra, además
+    #   del `numero` interno que genera el sistema). Sin importar el
+    #   medio de pago: si la compra termina generando una Deuda (crédito)
+    #   o un Cheque, este valor se propaga para poder buscarlos por acá. —
+    numero_comprobante = models.CharField('N° de comprobante', max_length=100, blank=True)
 
     # — Notas —
     notas      = models.TextField(blank=True)
@@ -708,16 +728,20 @@ class Compra(models.Model):
             producto.actualizar_costo_y_precio()
 
     @transaction.atomic
-    def editar_cabecera(self, fecha, notas):
+    def editar_cabecera(self, fecha, notas, numero_comprobante=None):
         """
-        Edita fecha y notas. Solo disponible en BORRADOR.
+        Edita fecha, notas y N° de comprobante. Solo disponible en BORRADOR.
         """
         if self.estado != EstadoCompra.BORRADOR:
             raise ValueError('Solo se pueden editar compras en estado Borrador.')
 
         self.fecha = fecha
         self.notas = notas
-        self.save(update_fields=['fecha', 'notas'])
+        update_fields = ['fecha', 'notas']
+        if numero_comprobante is not None:
+            self.numero_comprobante = numero_comprobante
+            update_fields.append('numero_comprobante')
+        self.save(update_fields=update_fields)
 
 
 # ══════════════════════════════════════════════════════════════════

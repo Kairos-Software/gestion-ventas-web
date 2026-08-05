@@ -168,6 +168,10 @@ def catalogo_online(request):
             ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_KINETIC,
             ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_KINETIC,
         ),
+        PlantillaCatalogo.LUMINA: (
+            ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_LUMINA,
+            ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_LUMINA,
+        ),
     }
     default_color_marca_actual, default_color_marca_secundario_actual = defaults_color_por_plantilla.get(
         config_catalogo.plantilla,
@@ -187,6 +191,8 @@ def catalogo_online(request):
         'default_color_marca_secundario_bento': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_BENTO,
         'default_color_marca_kinetic': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_KINETIC,
         'default_color_marca_secundario_kinetic': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_KINETIC,
+        'default_color_marca_lumina': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_LUMINA,
+        'default_color_marca_secundario_lumina': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_LUMINA,
         'default_color_marca_actual': default_color_marca_actual,
         'default_color_marca_secundario_actual': default_color_marca_secundario_actual,
         'default_nav_catalogo':   ConfiguracionCatalogo.DEFAULT_NAV_CATALOGO,

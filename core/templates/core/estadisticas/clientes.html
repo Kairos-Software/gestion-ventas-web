@@ -6,6 +6,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'core/css/estadisticas.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas_cliente_perfil.css' %}">
 {% endblock %}
 
 {% block content %}
@@ -20,8 +21,19 @@
     <p>No tenés permiso para ver estadísticas de clientes.</p>
 </div>
 {% else %}
+<div class="cp-page">
 
 {% include "core/estadisticas/_filtros.html" %}
+
+<!-- ══════════ BUSCADOR DE CLIENTE ══════════ -->
+<div class="card mb-4 cp-buscador-card">
+    <div class="card-body">
+        <div class="cp-buscador-wrap">
+            <input type="text" id="ecBuscador" placeholder="Buscar cliente por nombre, DNI, CUIT... para ver su ficha individual" autocomplete="off">
+            <div id="ecResultados" class="cp-buscador-resultados" hidden></div>
+        </div>
+    </div>
+</div>
 
 <!-- ══════════ NUEVOS VS. RECURRENTES ══════════ -->
 <div class="card mb-4">
@@ -41,7 +53,7 @@
                 <div class="est-mini-stat-valor">{{ nuevos_vs_recurrentes.compradores }}</div>
                 <div class="est-mini-stat-label">Te compraron</div>
             </div>
-            <div class="est-mini-stat">
+            <div class="est-mini-stat est-mini-stat--success">
                 <div class="est-mini-stat-valor">{{ nuevos_vs_recurrentes.recurrentes }}</div>
                 <div class="est-mini-stat-label">Recurrentes</div>
             </div>
@@ -68,7 +80,7 @@
                 <div class="est-ranking-left">
                     <span class="est-ranking-pos">{{ forloop.counter }}</span>
                     <div>
-                        <div class="est-ranking-nombre">{{ cl.nombre }}</div>
+                        <div class="est-ranking-nombre"><a href="{% url 'core:estadisticas_cliente_perfil' cl.id %}" class="cp-ranking-link">{{ cl.nombre }}</a></div>
                         <div class="est-ranking-detalle">{{ cl.cant_ventas }} venta{{ cl.cant_ventas|pluralize }}</div>
                     </div>
                 </div>
@@ -86,18 +98,26 @@
 </div>
 
 <!-- ══════════ DISTRIBUCIÓN POR RIESGO Y ESTADO (tiempo real) ══════════ -->
-<div class="est-row">
+<div class="est-row-2">
     <div class="card">
         <div class="card-header">
             <div>
-                <p class="card-title">Nivel de riesgo de la cartera</p>
-                <p class="text-muted" style="font-size:.8125rem;">Tiempo real — todos los clientes cargados, no depende del filtro de arriba</p>
+                <p class="card-title">Tipo de cliente en la cartera</p>
+                <p class="text-muted" style="font-size:.8125rem;">Personas físicas vs. empresas — todos los clientes cargados</p>
             </div>
+            <span class="cp-pill">Tiempo real</span>
         </div>
         <div class="card-body">
-            {% if distribucion_riesgo %}
-            <div class="est-chart-wrap chico">
-                <canvas id="chartRiesgo"></canvas>
+            {% if distribucion_tipo %}
+            <div class="cp-donut-row">
+                <div class="cp-donut-visual">
+                    <canvas id="chartTipo"></canvas>
+                </div>
+                <div class="cp-donut-leyenda cp-donut-leyenda--col">
+                    {% for f in distribucion_tipo %}
+                    <span class="cp-leyenda-item"><i class="cp-dot cp-dot-{{ f.tipo }}"></i>{{ f.label }}: <strong>{{ f.cantidad }}</strong></span>
+                    {% endfor %}
+                </div>
             </div>
             {% else %}
                 <div class="empty-state">
@@ -111,13 +131,21 @@
         <div class="card-header">
             <div>
                 <p class="card-title">Estado de la cartera</p>
-                <p class="text-muted" style="font-size:.8125rem;">Tiempo real</p>
+                <p class="text-muted" style="font-size:.8125rem;">Distribución según actividad</p>
             </div>
+            <span class="cp-pill">Tiempo real</span>
         </div>
         <div class="card-body">
             {% if distribucion_estado %}
-            <div class="est-chart-wrap chico">
-                <canvas id="chartEstadoCartera"></canvas>
+            <div class="cp-donut-row">
+                <div class="cp-donut-visual">
+                    <canvas id="chartEstadoCartera"></canvas>
+                </div>
+                <div class="cp-donut-leyenda cp-donut-leyenda--col">
+                    {% for f in distribucion_estado %}
+                    <span class="cp-leyenda-item"><i class="cp-dot cp-dot-{{ f.estado }}"></i>{{ f.label }}: <strong>{{ f.cantidad }}</strong></span>
+                    {% endfor %}
+                </div>
             </div>
             {% else %}
                 <div class="empty-state">
@@ -134,8 +162,9 @@
     <div class="card-header">
         <div>
             <p class="card-title">¿Quién te debe plata?</p>
-            <p class="text-muted" style="font-size:.8125rem;">Ventas financiadas en cuotas propias — tiempo real, salvo "cobrado" que respeta el filtro de arriba</p>
+            <p class="text-muted" style="font-size:.8125rem;">Ventas financiadas en cuotas propias — salvo "cobrado" que respeta el filtro de arriba</p>
         </div>
+        <span class="cp-pill cp-pill--warning">Cuentas corrientes</span>
     </div>
     <div class="card-body">
         <div class="est-mini-stat-grid mb-3">
@@ -143,16 +172,16 @@
                 <div class="est-mini-stat-valor">${{ cuentas_por_cobrar.total_pendiente|floatformat:0|intcomma }}</div>
                 <div class="est-mini-stat-label">Pendiente de cobro ({{ cuentas_por_cobrar.cantidad_pendiente }} cuota{{ cuentas_por_cobrar.cantidad_pendiente|pluralize }})</div>
             </div>
-            <div class="est-mini-stat">
-                <div class="est-mini-stat-valor" style="color:var(--danger);">${{ cuentas_por_cobrar.total_vencido|floatformat:0|intcomma }}</div>
+            <div class="est-mini-stat est-mini-stat--danger">
+                <div class="est-mini-stat-valor">${{ cuentas_por_cobrar.total_vencido|floatformat:0|intcomma }}</div>
                 <div class="est-mini-stat-label">Vencido sin cobrar ({{ cuentas_por_cobrar.cantidad_vencidas }} cuota{{ cuentas_por_cobrar.cantidad_vencidas|pluralize }})</div>
             </div>
-            <div class="est-mini-stat">
-                <div class="est-mini-stat-valor" style="color:var(--warning);">${{ cuentas_por_cobrar.total_proximo|floatformat:0|intcomma }}</div>
+            <div class="est-mini-stat est-mini-stat--warning">
+                <div class="est-mini-stat-valor">${{ cuentas_por_cobrar.total_proximo|floatformat:0|intcomma }}</div>
                 <div class="est-mini-stat-label">Vence en 15 días ({{ cuentas_por_cobrar.cantidad_proximas }} cuota{{ cuentas_por_cobrar.cantidad_proximas|pluralize }})</div>
             </div>
-            <div class="est-mini-stat">
-                <div class="est-mini-stat-valor" style="color:var(--success);">${{ cuentas_por_cobrar.cobrado_periodo|floatformat:0|intcomma }}</div>
+            <div class="est-mini-stat est-mini-stat--success">
+                <div class="est-mini-stat-valor">${{ cuentas_por_cobrar.cobrado_periodo|floatformat:0|intcomma }}</div>
                 <div class="est-mini-stat-label">Cobrado en el período</div>
             </div>
         </div>
@@ -164,7 +193,7 @@
                 <div class="est-ranking-left">
                     <span class="est-ranking-pos">{{ forloop.counter }}</span>
                     <div>
-                        <div class="est-ranking-nombre">{{ d.nombre }}</div>
+                        <div class="est-ranking-nombre"><a href="{% url 'core:estadisticas_cliente_perfil' d.id %}" class="cp-ranking-link">{{ d.nombre }}</a></div>
                         <div class="est-ranking-detalle">{{ d.cantidad_cuotas }} cuota{{ d.cantidad_cuotas|pluralize }} pendiente{{ d.cantidad_cuotas|pluralize }}</div>
                     </div>
                 </div>
@@ -187,8 +216,9 @@
     <div class="card-header">
         <div>
             <p class="card-title">Clientes activos que dejaron de comprar</p>
-            <p class="text-muted" style="font-size:.8125rem;">Sin ninguna compra en los últimos 60 días — tiempo real, no depende del filtro de arriba</p>
+            <p class="text-muted" style="font-size:.8125rem;">Sin ninguna compra en los últimos 60 días</p>
         </div>
+        <span class="cp-pill">Tiempo real</span>
     </div>
     <div class="card-body">
         {% if clientes_inactivos %}
@@ -216,21 +246,31 @@
     </div>
 </div>
 
+</div>
 {% endif %}
 {% endblock %}
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="{% static 'core/js/estadisticas.js' %}"></script>
+<script src="{% static 'core/js/estadisticas_cliente_buscar.js' %}"></script>
+<script src="{% static 'core/js/estadisticas_clientes_donut.js' %}"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        initChartDonut('chartRiesgo', {{ distribucion_riesgo_json|safe }}, {
-            'Bajo': '#10B981', 'Medio': '#F59E0B', 'Alto': '#EF4444',
+        initDonutClientesCartera('chartTipo', {{ distribucion_tipo_json|safe }}, {
+            'Persona física': '#F26A1B', 'Empresa / Persona jurídica': '#10B981',
         });
-        initChartDonut('chartEstadoCartera', {{ distribucion_estado_json|safe }}, {
+        initDonutClientesCartera('chartEstadoCartera', {{ distribucion_estado_json|safe }}, {
             'Activo': '#10B981', 'Potencial': '#F59E0B',
             'Inactivo': '#8A9BB0', 'Suspendido': '#EF4444',
         });
+
+        initBuscadorClienteEstadisticas(
+            document.getElementById('ecBuscador'),
+            document.getElementById('ecResultados'),
+            '{% url "core:cliente_buscar" %}',
+            '{% url "core:estadisticas_cliente_perfil" 0 %}'.slice(0, -2)
+        );
     });
 </script>
 {% endblock %}

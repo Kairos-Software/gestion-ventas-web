@@ -231,8 +231,6 @@
                     <th>Desc. %</th>
                     <th>Lista</th>
                     <th>Oferta</th>
-                    <th>Cond. pago</th>
-                    <th>Referencia</th>
                     <th>Subtotal</th>
                     <th></th>
                 </tr>
@@ -293,6 +291,7 @@ window.VTA_CONFIG = {
     urlBuscarLote:      "{% url 'ventas:buscar_lote' %}",
     urlBuscarBalanza:   "{% url 'ventas:balanza_buscar_codigo' %}",
     urlGuardarBorrador: "{% url 'ventas:guardar_borrador' %}",
+    urlActualizarBorrador: "{% url 'ventas:actualizar_borrador' %}",
     urlEliminarBorrador:"{% url 'ventas:eliminar_borrador' %}",
     urlDetalle:         "{% url 'ventas:detalle_venta' pk=0 %}".replace("/0/", "/"),
     csrfToken:          "{{ csrf_token }}",

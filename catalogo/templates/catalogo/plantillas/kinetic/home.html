@@ -2,7 +2,9 @@
 
 {% block content %}
 
-    <section class="k-hero">
+    <!-- id/clase usados por catalogo_online.js (vista previa en vivo) — no renombrar sin actualizar ese archivo -->
+    <section class="k-hero{% if config_catalogo.kinetic_hero_fondo %} k-hero--con-fondo{% endif %}" id="kcHero"
+        {% if config_catalogo.kinetic_hero_fondo %}style="--k-hero-fondo-url: url('{{ config_catalogo.kinetic_hero_fondo.url }}');"{% endif %}>
         <div class="k-hero-copy">
             <span class="k-hero-eyebrow">
                 {% if ofertas_umbral %}

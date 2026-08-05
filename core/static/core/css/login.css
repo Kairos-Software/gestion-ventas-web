@@ -577,6 +577,43 @@ body.custom-cursor-on.cursor-over-form .cursor-ring {
     75%      { transform: translateX(5px); }
 }
 
+/* ─── Éxito (ej. contraseña restablecida) ─── */
+.alert-success {
+    background: #F0FDF4;
+    color: #15803D;
+    padding: 0.7rem 0.9rem;
+    border-radius: var(--radius-md);
+    font-size: 0.8125rem;
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border: 1px solid #BBF7D0;
+}
+
+/* ─── Info (flujo de recuperar contraseña) ─── */
+.alert-info {
+    background: #EBF5FC;
+    color: var(--brand-blue);
+    padding: 0.7rem 0.9rem;
+    border-radius: var(--radius-md);
+    font-size: 0.8125rem;
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border: 1px solid rgba(30,111,168,0.25);
+}
+
+/* ─── Código de verificación — más grande y espaciado para leerlo rápido ─── */
+.codigo-input {
+    letter-spacing: 0.5em;
+    font-size: 1.15rem !important;
+    font-weight: 700;
+    text-align: center;
+    padding-left: 1rem !important;
+}
+
 /* ─── Form ─── */
 .login-form { display: flex; flex-direction: column; gap: 0.95rem; }
 
@@ -678,6 +715,36 @@ body.custom-cursor-on.cursor-over-form .cursor-ring {
     border-top: 1px solid var(--border-color);
     padding-top: 1.1rem;
 }
+
+.login-footer a,
+.login-links-row a {
+    color: var(--brand-blue);
+    text-decoration: none;
+    font-weight: 600;
+}
+.login-footer a:hover,
+.login-links-row a:hover { text-decoration: underline; }
+
+.login-links-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 0.9rem;
+    font-size: 0.78rem;
+}
+
+.login-forgot-link {
+    display: block;
+    text-align: right;
+    font-size: 0.78rem;
+    margin-top: -0.35rem;
+}
+.login-forgot-link a {
+    color: var(--brand-blue);
+    text-decoration: none;
+    font-weight: 600;
+}
+.login-forgot-link a:hover { text-decoration: underline; }
 
 /* ─── Cue de scroll — invita a bajar, se apaga apenas el usuario scrollea ─── */
 .scroll-cue {

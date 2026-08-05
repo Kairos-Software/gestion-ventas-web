@@ -13,14 +13,16 @@ from datetime import date
 
 from django.contrib.auth.decorators import login_required
 from django.core.serializers.json import DjangoJSONEncoder
-from django.shortcuts import render
+from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 
+from .models import Cliente
 from .services_estadisticas import rango_por_preset
 from .services_estadisticas import ventas as stats_ventas
 from .services_estadisticas import compras as stats_compras
 from .services_estadisticas import productos as stats_productos
 from .services_estadisticas import clientes as stats_clientes
+from .services_estadisticas import cliente_perfil as stats_cliente_perfil
 from .services_estadisticas import caja as stats_caja
 from .permisos import chequear_permiso
 
@@ -229,7 +231,7 @@ def clientes(request):
     hoy = timezone.now().date()
     preset, desde, hasta = _resolver_rango(request, hoy)
 
-    distribucion_riesgo = stats_clientes.distribucion_riesgo()
+    distribucion_tipo = stats_clientes.distribucion_tipo()
     distribucion_estado = stats_clientes.distribucion_estado()
 
     contexto = {
@@ -239,10 +241,10 @@ def clientes(request):
         'mejores_clientes': stats_clientes.mejores_clientes(desde, hasta),
         'nuevos_vs_recurrentes': stats_clientes.nuevos_vs_recurrentes(desde, hasta),
         'clientes_inactivos': stats_clientes.clientes_inactivos(),
-        'distribucion_riesgo': distribucion_riesgo,
+        'distribucion_tipo': distribucion_tipo,
         'distribucion_estado': distribucion_estado,
-        'distribucion_riesgo_json': json.dumps([
-            {'label': f['label'], 'cantidad': f['cantidad']} for f in distribucion_riesgo
+        'distribucion_tipo_json': json.dumps([
+            {'label': f['label'], 'cantidad': f['cantidad']} for f in distribucion_tipo
         ], cls=DjangoJSONEncoder),
         'distribucion_estado_json': json.dumps([
             {'label': f['label'], 'cantidad': f['cantidad']} for f in distribucion_estado
@@ -253,6 +255,34 @@ def clientes(request):
         contexto['cuentas_por_cobrar'] = stats_clientes.cuentas_por_cobrar(desde, hasta)
 
     return render(request, 'core/estadisticas/clientes.html', contexto)
+
+
+@login_required
+def cliente_perfil(request, pk):
+    if not chequear_permiso(request.user, 'ver_clientes'):
+        return render(request, 'core/estadisticas/cliente_perfil.html', {'sin_permiso': True})
+
+    cliente = get_object_or_404(Cliente, pk=pk)
+    puede_ver_deuda = chequear_permiso(request.user, 'ver_cuentas_cobrar')
+
+    contexto = {
+        'cliente': cliente,
+        'puede_ver_deuda': puede_ver_deuda,
+        'perfil_valor': stats_cliente_perfil.perfil_valor(cliente),
+    }
+
+    if puede_ver_deuda:
+        deudas = stats_cliente_perfil.deudas_activas(cliente)
+        historial = stats_cliente_perfil.historial_cliente(cliente)
+        contexto.update({
+            'comportamiento_pago': stats_cliente_perfil.comportamiento_pago(cliente),
+            'deudas_activas': deudas,
+            'deudas_activas_json': json.dumps(deudas, cls=DjangoJSONEncoder),
+            'historial': historial,
+            'historial_json': json.dumps(historial, cls=DjangoJSONEncoder),
+        })
+
+    return render(request, 'core/estadisticas/cliente_perfil.html', contexto)
 
 
 @login_required

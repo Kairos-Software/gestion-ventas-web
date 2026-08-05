@@ -65,6 +65,27 @@ function buildMedioPagoBadge(medioPago, medioPagoLabel) {
     return `<span class="mp-badge ${cls}">${_esc(medioPagoLabel)}</span>`;
 }
 
+/** Detalle extra de una línea de pago: tarjeta/plan/recargo, y el
+ *  vínculo con la cuenta por cobrar o el/los cheque(s) que generó,
+ *  si corresponde — antes esta información se perdía por completo. */
+function buildPagoExtraHTML(p) {
+    const partes = [];
+    if (p.tarjeta) partes.push(_esc(p.tarjeta));
+    if (p.etiqueta_plan) partes.push(_esc(p.etiqueta_plan));
+    if (parseFloat(p.recargo_monto) > 0) partes.push(`recargo ${formatMoney(p.recargo_monto)}`);
+    if (p.cuenta_por_cobrar) {
+        const cxc = p.cuenta_por_cobrar;
+        const cuotasTxt = cxc.modo_cuotas === 'libre' ? 'cuotas libres' : `${cxc.cantidad_cuotas} cuotas`;
+        partes.push(`cuenta por cobrar (${_esc(cuotasTxt)}, ${_esc(cxc.estado_label)}, saldo ${formatMoney(cxc.saldo_pendiente)})`);
+    }
+    if (p.cheques && p.cheques.length) {
+        p.cheques.forEach(ch => {
+            partes.push(`cheque ${_esc(ch.numero_cheque || 's/n')} (${_esc(ch.estado_label)}, cobra ${_esc(ch.fecha_cobro)})`);
+        });
+    }
+    return partes.length ? ` <span class="mp-badge-extra">— ${partes.join(' · ')}</span>` : '';
+}
+
 /** Si la venta tiene pagos divididos (c.pagos), muestra un badge por
  *  cada uno con su monto. Si no, cae al badge único de siempre. */
 function buildMediosPagoHTML(c) {
@@ -72,7 +93,7 @@ function buildMediosPagoHTML(c) {
         return c.pagos.map(p => {
             const cls = MEDIO_PAGO_CLASES[p.medio] || '';
             const cuentaTxt = p.cuenta ? ` · ${_esc(p.cuenta)}` : '';
-            return `<span class="mp-badge ${cls}">${_esc(p.medio_label)}: ${formatMoney(p.monto)}${cuentaTxt}</span>`;
+            return `<span class="mp-badge ${cls}">${_esc(p.medio_label)}: ${formatMoney(p.monto)}${cuentaTxt}</span>${buildPagoExtraHTML(p)}`;
         }).join(' ');
     }
     return buildMedioPagoBadge(c.medio_pago, c.medio_pago_label);
@@ -97,6 +118,30 @@ function accionAnular(pk, numero) {
                 HISTORIAL_URLS.anular,
                 { pk },
                 () => { mostrarToastExito(`Venta ${numero} anulada. Stock revertido.`); fetchVentas(currentPage); },
+                msg => mostrarToastError(msg)
+            );
+        },
+    });
+}
+
+/** Editar una venta anulada: reabrirla como borrador (no toca ítems, no
+ *  revive stock/caja — ver Venta.reactivar()) y mandar al carrito para
+ *  editarla ahí como una venta nueva, en vez de duplicar acá la lógica
+ *  de armar carrito con un editor aparte. */
+function accionEditar(pk, numero) {
+    abrirModal({
+        icon: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                   <path d="M18 6L22 10L9 23H5V19L18 6Z" stroke="var(--brand-blue,#2563eb)" stroke-width="1.6"
+                         stroke-linecap="round" stroke-linejoin="round"/>
+               </svg>`,
+        title:        `Editar ${numero}`,
+        body:         'Se va a reabrir como borrador y te vamos a llevar al carrito para editarla, igual que una venta nueva.',
+        confirmLabel: 'Sí, editar',
+        onConfirm: () => {
+            postAccion(
+                HISTORIAL_URLS.reactivar,
+                { pk },
+                () => { window.location.href = HISTORIAL_URLS.nuevaVenta + '?editar=' + pk; },
                 msg => mostrarToastError(msg)
             );
         },
@@ -295,6 +340,7 @@ function buildVentaHTML(c) {
         <div class="venta-cabecera">
             <span class="venta-numero">${_esc(c.numero)}</span>
             <span class="venta-fecha">${_esc(c.fecha)}</span>
+            ${c.cliente_display ? `<span class="venta-cliente">${_esc(c.cliente_display)}</span>` : ''}
             <span class="venta-notas">${_esc(c.notas || '')}</span>
             ${porUsuario}
             ${medioBadgeCabecera}
@@ -372,10 +418,7 @@ function renderLista(data) {
 
             if (accion === 'anular')   accionAnular(pk, numero);
             if (accion === 'eliminar') accionEliminar(pk, numero, revierte);
-            if (accion === 'editar') {
-                const ventaData = (lastData.results || []).find(c => c.pk === pk);
-                if (ventaData) accionEditar(pk, ventaData, listaContainer);
-            }
+            if (accion === 'editar')   accionEditar(pk, numero);
         });
     });
 

@@ -10,6 +10,95 @@ const cdtDocInput = document.getElementById('cdtDocInput');
 const cdtDocLista = document.getElementById('cdtDocLista');
 
 /* ════════════════════════════════════════════════════════════════
+   PROVEEDOR DE LA COMPRA — editable también desde acá (pestaña
+   General), no solo desde el carrito. Mismo mecanismo que Nueva
+   Compra (ver nueva_compra.js _bindProveedorCompraInput), pero acá el
+   cambio se manda recién al confirmar (ver el payload de
+   ConfirmarCompraAjax más abajo y el backend, que actualiza el
+   proveedor de TODOS los ítems antes de resolver los pagos) — nada se
+   persiste solo por elegirlo, igual que Fecha/Notas en esta misma
+   pestaña.
+════════════════════════════════════════════════════════════════ */
+let proveedorCompraDetalle = { pk: CDT.proveedorActualPk || null, nombre: CDT.proveedorActualNombre || '' };
+let proveedorDetalleSearchTimer;
+
+function _escCdt(str) {
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+}
+
+function _bindProveedorCompraDetalle() {
+    const input    = document.getElementById('cdtProveedorInput');
+    const dropdown = document.getElementById('cdtProveedorDropdown');
+    const clear    = document.getElementById('cdtProveedorClear');
+    if (!input || !dropdown || !clear) return;
+
+    input.value = proveedorCompraDetalle.nombre;
+    clear.style.display = proveedorCompraDetalle.pk ? 'inline-flex' : 'none';
+
+    function _aplicarProveedor(pk, nombre) {
+        proveedorCompraDetalle = { pk, nombre };
+    }
+
+    input.addEventListener('input', () => {
+        clearTimeout(proveedorDetalleSearchTimer);
+        const q = input.value.trim();
+        _aplicarProveedor(null, '');
+        clear.style.display = 'none';
+
+        if (!q) {
+            dropdown.classList.remove('open');
+            dropdown.innerHTML = '';
+            return;
+        }
+        proveedorDetalleSearchTimer = setTimeout(async () => {
+            try {
+                const res  = await fetch(`${CDT.urlBuscarProveedor}?q=${encodeURIComponent(q)}`);
+                const data = await res.json();
+                if (input.value.trim() !== q) return; // respuesta vieja
+                const results = data.results || [];
+
+                dropdown.innerHTML = results.length
+                    ? results.map(p => `
+                        <div class="cmp-prov-option" data-pk="${p.pk}" data-nombre="${_escCdt(p.nombre)}">
+                            <div class="cmp-prov-option-nombre">${_escCdt(p.nombre)}</div>
+                            ${p.cuit ? `<div class="cmp-prov-option-meta">CUIT: ${_escCdt(p.cuit)}</div>` : ''}
+                        </div>`).join('')
+                    : `<div class="cmp-prov-option" style="color:var(--text-muted);cursor:default">Sin resultados</div>`;
+
+                dropdown.querySelectorAll('.cmp-prov-option[data-pk]').forEach(el => {
+                    el.addEventListener('click', () => {
+                        const pk     = parseInt(el.dataset.pk, 10);
+                        const nombre = el.dataset.nombre;
+                        input.value  = nombre;
+                        clear.style.display = 'inline-flex';
+                        dropdown.classList.remove('open');
+                        dropdown.innerHTML = '';
+                        _aplicarProveedor(pk, nombre);
+                    });
+                });
+                dropdown.classList.add('open');
+            } catch { /* silencioso */ }
+        }, 260);
+    });
+
+    clear.addEventListener('click', () => {
+        input.value = '';
+        clear.style.display = 'none';
+        _aplicarProveedor(null, '');
+        input.focus();
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!dropdown.contains(e.target) && e.target !== input) {
+            dropdown.classList.remove('open');
+        }
+    });
+}
+_bindProveedorCompraDetalle();
+
+/* ════════════════════════════════════════════════════════════════
    MÓDULO DE PAGOS — solo activo si es borrador
    Un solo selector por línea: "Efectivo" es una cuenta más de la
    lista (siempre está — ver asegurar_cuentas_efectivo). No se
@@ -42,6 +131,16 @@ function _cdtTarjetasDisponibles() {
 
 function _cdtEsTarjeta(cuentaPk) {
     return _cdtTarjetasDisponibles().some(t => String(t.pk) === String(cuentaPk));
+}
+
+/** Plata que se termina pagando de más sobre el costo de los productos:
+ *  el interés de una línea con tarjeta (compra a crédito), sea modo
+ *  fijas o libre. Compras no tiene recargo por medio de pago (eso es
+ *  cosa de Ventas — TarjetaPago/RecargoMedioPago no existen acá), así
+ *  que el único "extra" posible es este interés. */
+function _cdtExtraMontoLinea(l) {
+    if (!_cdtEsTarjeta(l.cuenta)) return 0;
+    return (l.monto || 0) * (l.interesPct || 0) / 100;
 }
 
 function _cdtCuentaEfectivo() {
@@ -125,14 +224,21 @@ function _cdtEquivalenteArsHTML(l) {
 }
 
 function _cdtPagoCuentaOpts(seleccionada) {
-    const cuentasOpts = _cdtCuentasDisponibles().map(c =>
-        `<option value="${c.pk}" ${String(c.pk) === String(seleccionada) ? 'selected' : ''}>${c.nombre} (${c.moneda})</option>`
-    ).join('');
+    const opt = c => `<option value="${c.pk}" ${String(c.pk) === String(seleccionada) ? 'selected' : ''}>${c.nombre} (${c.moneda})</option>`;
+    const todas = _cdtCuentasDisponibles();
+    // Las cuentas tipo "banco" son las únicas que habilitan "Pagar con
+    // cheque" en la línea (ver _cdtCuentaEsBanco) — se agrupan aparte
+    // para que se note desde el combo, no recién después de elegirla.
+    const otrasOpts = todas.filter(c => c.tipo !== 'banco').map(opt).join('');
+    const bancos = todas.filter(c => c.tipo === 'banco');
+    const bancosOpts = bancos.length
+        ? `<optgroup label="Cuenta bancaria — habilita pagar con cheque">${bancos.map(opt).join('')}</optgroup>`
+        : '';
     const tarjetas = _cdtTarjetasDisponibles();
     const tarjetasOpts = tarjetas.length ? `<optgroup label="Tarjeta de crédito">${tarjetas.map(t =>
         `<option value="${t.pk}" ${String(t.pk) === String(seleccionada) ? 'selected' : ''}>${t.nombre}${t.terminada_en ? ' ·· ' + t.terminada_en : ''} (${t.moneda})</option>`
     ).join('')}</optgroup>` : '';
-    return '<option value="">— Elegí cuenta o Efectivo —</option>' + cuentasOpts + tarjetasOpts;
+    return '<option value="">— Elegí cuenta o Efectivo —</option>' + otrasOpts + bancosOpts + tarjetasOpts;
 }
 
 function _cdtPagoRenderLineas() {
@@ -169,10 +275,11 @@ function _cdtPagoRenderLineas() {
                 </svg>
             </button>
         </div>
-        ${puedeCheque ? `
-        <label class="vdt-cheque-toggle">
-            <input type="checkbox" data-campo="esCheque" data-id="${l.id}" ${l.esCheque ? 'checked' : ''}>
+        ${!esTarjeta ? `
+        <label class="vdt-cheque-toggle${puedeCheque ? '' : ' vdt-cheque-toggle--disabled'}">
+            <input type="checkbox" data-campo="esCheque" data-id="${l.id}" ${l.esCheque ? 'checked' : ''} ${puedeCheque ? '' : 'disabled'}>
             Pagar con cheque (en vez de transferencia)
+            ${puedeCheque ? '' : '<span class="vdt-cheque-toggle-hint">— elegí una cuenta bancaria arriba para habilitarlo</span>'}
         </label>` : ''}
         ${esCheque ? _cdtChequesExtraHTML(l) : `
         ${(_cdtCotizacionInputHTML(l) || _cdtEquivalenteArsHTML(l)) ? `
@@ -181,22 +288,35 @@ function _cdtPagoRenderLineas() {
             ${_cdtEquivalenteArsHTML(l)}
         </div>` : ''}
         ${esTarjeta ? `
+        <label class="vdt-credito-modo-row">
+            <span class="vdt-pago-credito-label">Cuotas libres</span>
+            <span class="toggle-switch">
+                <input type="checkbox" data-campo="modoCuotas" data-id="${l.id}" ${l.modoCuotas === 'libre' ? 'checked' : ''}>
+                <span class="toggle-track"></span>
+            </span>
+        </label>
         <div class="vdt-pago-credito-extra">
+            ${l.modoCuotas === 'libre' ? '' : `
             <div>
                 <span class="vdt-pago-credito-label">Cuotas</span>
                 <input type="number" class="vdt-pago-select" min="1" step="1" placeholder="Cuotas"
                        value="${l.cuotas || ''}" data-campo="cuotas" data-id="${l.id}">
-            </div>
+            </div>`}
             <div>
                 <span class="vdt-pago-credito-label">Interés %</span>
                 <input type="number" class="vdt-pago-select" min="0" step="0.01" placeholder="0"
                        value="${l.interesPct != null ? l.interesPct : ''}" data-campo="interesPct" data-id="${l.id}">
             </div>
+            ${l.modoCuotas === 'libre' ? `
+            <div class="vdt-credito-total-libre">
+                <span class="vdt-pago-credito-label">Total a pagar</span>
+                <strong>${_cdtFmtARS((l.monto || 0) * (1 + (l.interesPct || 0) / 100))}</strong>
+            </div>` : `
             <div>
                 <span class="vdt-pago-credito-label">Inicio débito</span>
                 <input type="date" class="vdt-pago-select"
                        value="${l.fechaInicioDebito || ''}" data-campo="fechaInicioDebito" data-id="${l.id}">
-            </div>
+            </div>`}
         </div>` : ''}` }
     </div>`;
     }).join('');
@@ -219,6 +339,8 @@ function _cdtPagoRenderLineas() {
                 linea.esCheque = el.checked;
                 linea.cheques = linea.cheques || [];
                 _cdtRecalcularMontoCheque(linea);
+            } else if (campo === 'modoCuotas') {
+                linea.modoCuotas = el.checked ? 'libre' : 'fijas';
             } else {
                 linea[campo] = el.value;
             }
@@ -226,8 +348,13 @@ function _cdtPagoRenderLineas() {
                 linea.cotizacion = ''; // cambiar de cuenta resetea la cotización cargada
                 linea.esCheque = false; // idem el toggle de cheque
                 _cdtPagoRenderLineas();
-            } else if (campo === 'cotizacion' || campo === 'esCheque') {
+            } else if (campo === 'cotizacion' || campo === 'esCheque' || campo === 'modoCuotas') {
                 _cdtPagoRenderLineas();
+            } else if (campo === 'interesPct') {
+                // Se re-renderiza también para actualizar "Total a pagar"
+                // en vivo cuando la línea está en modo libre.
+                if (linea.modoCuotas === 'libre') _cdtPagoRenderLineas();
+                else _cdtPagoActualizarResumen();
             } else {
                 _cdtPagoActualizarResumen();
             }
@@ -317,7 +444,40 @@ function _cdtPagoActualizarResumen() {
         }
     }
 
+    _cdtActualizarInteresResumen();
     _cdtActualizarEstadoConfirmar();
+}
+
+/** El interés se suma ENCIMA del total (no cuenta para "pago cubierto",
+ *  ver _cdtMontoArsLinea) — se muestra aparte, informativo, para saber
+ *  cuánto termina costando la compra en total. Actualiza dos lugares: el
+ *  resumen chico dentro de la pestaña "Medios de pago" (#cdtInteresResumen)
+ *  y el total grande de abajo (#cdtTotalsGrandValue), visible sin
+ *  importar qué pestaña esté abierta. */
+function _cdtActualizarInteresResumen() {
+    const totalInteres = cdtPagoState.lineas.reduce((s, l) => s + _cdtExtraMontoLinea(l), 0);
+    const hayInteres = totalInteres > 0.005;
+    const totalConInteres = cdtPagoState.total + totalInteres;
+
+    const el      = document.getElementById('cdtInteresResumen');
+    const montoEl = document.getElementById('cdtInteresMonto');
+    const totalEl = document.getElementById('cdtTotalAPagar');
+    if (el) {
+        el.style.display = hayInteres ? '' : 'none';
+        if (hayInteres) {
+            if (montoEl) montoEl.textContent = _cdtFmtARS(totalInteres);
+            if (totalEl) totalEl.textContent = _cdtFmtARS(totalConInteres);
+        }
+    }
+
+    const filaInteres  = document.getElementById('cdtTotalsInteresRow');
+    const valorInteres = document.getElementById('cdtTotalsInteresValue');
+    const labelGrande  = document.getElementById('cdtTotalsGrandLabel');
+    const valorGrande  = document.getElementById('cdtTotalsGrandValue');
+    if (filaInteres) filaInteres.style.display = hayInteres ? '' : 'none';
+    if (valorInteres) valorInteres.textContent = _cdtFmtARS(totalInteres);
+    if (labelGrande) labelGrande.textContent = hayInteres ? 'Total a pagar' : 'Total';
+    if (valorGrande) valorGrande.textContent = _cdtFmtARS(hayInteres ? totalConInteres : cdtPagoState.total);
 }
 
 /** Habilita "Confirmar compra" solo cuando ya está todo cargado: fecha,
@@ -365,9 +525,11 @@ function _cdtPagoFaltanCuentas() {
 }
 
 function _cdtPagoFaltanDatosCredito() {
-    return cdtPagoState.lineas.some(l =>
-        _cdtEsTarjeta(l.cuenta) && (!l.cuotas || l.cuotas < 1 || !l.fechaInicioDebito)
-    );
+    return cdtPagoState.lineas.some(l => {
+        if (!_cdtEsTarjeta(l.cuenta)) return false;
+        if (l.modoCuotas === 'libre') return false; // no pide cuotas ni fecha de inicio
+        return !l.cuotas || l.cuotas < 1 || !l.fechaInicioDebito;
+    });
 }
 
 /** Toda línea "pagar con cheque" necesita al menos un cheque cargado. */
@@ -385,9 +547,10 @@ function _cdtGetPagoPayload() {
                 monto: l.monto,
                 cuenta_pk: l.cuenta || null,
                 cotizacion: l.cotizacion || null,
-                cuotas: l.cuotas,
+                modo_cuotas: l.modoCuotas === 'libre' ? 'libre' : 'fijas',
+                cuotas: l.modoCuotas === 'libre' ? null : l.cuotas,
                 interes_pct: l.interesPct != null ? l.interesPct : 0,
-                fecha_inicio_debito: l.fechaInicioDebito || null,
+                fecha_inicio_debito: l.modoCuotas === 'libre' ? null : (l.fechaInicioDebito || null),
             };
         }
         if (_cdtCuentaEsBanco(l.cuenta) && l.esCheque) {
@@ -511,6 +674,7 @@ if (CDT.esBorrador) {
     const btnVolver    = document.getElementById('cdtBtnVolver');
     const inputFecha   = document.getElementById('cdtFecha');
     const inputNotas   = document.getElementById('cdtNotas');
+    const inputNumeroComprobante = document.getElementById('cdtNumeroComprobante');
 
     /* ── Widget de pagos: línea inicial con el total completo,
            precargada en Efectivo si existe ──────────────────────── */
@@ -574,6 +738,8 @@ if (CDT.esBorrador) {
                     compra_pk: CDT.compraPk,
                     fecha:     fecha,
                     notas:     inputNotas ? inputNotas.value.trim() : '',
+                    numero_comprobante: inputNumeroComprobante ? inputNumeroComprobante.value.trim() : '',
+                    proveedor_pk: proveedorCompraDetalle.pk,
                     pagos:     pagoPayload.pagos,
                 }),
             });

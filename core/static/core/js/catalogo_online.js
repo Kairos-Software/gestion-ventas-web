@@ -14,9 +14,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // ── Default de color según la plantilla ACTIVA en el selector — cada
     //    plantilla tiene su propia identidad (naranja/navy en "almacen",
-    //    verde lima/índigo en "bento", rosa/verde neón en "kinetic"); sin
-    //    esto, cambiar de plantilla sin haber tocado el color todavía
-    //    dejaba pintado el color de la otra. ──
+    //    verde lima/índigo en "bento", rosa/verde neón en "kinetic", salvia/
+    //    terracota en "lumina"); sin esto, cambiar de plantilla sin haber
+    //    tocado el color todavía dejaba pintado el color de la otra. ──
     function colorDefaultActual(campo) {
         const valorPlantilla = document.getElementById('idCatalogoPlantilla')?.value || 'almacen';
         if (valorPlantilla === 'bento') {
@@ -24,6 +24,9 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         if (valorPlantilla === 'kinetic') {
             return campo === 'marca' ? (defaults.colorMarcaKinetic || '#ff3366') : (defaults.colorMarcaSecundarioKinetic || '#00e699');
+        }
+        if (valorPlantilla === 'lumina') {
+            return campo === 'marca' ? (defaults.colorMarcaLumina || '#4a6b5d') : (defaults.colorMarcaSecundarioLumina || '#e76f51');
         }
         return campo === 'marca' ? (defaults.colorMarca || '#ff9343') : (defaults.colorMarcaSecundario || '#111e2f');
     }
@@ -89,6 +92,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const previewWrap = document.getElementById('catalogoPreviewWrap');
     let heroObjectUrl = null;
     let instImagenObjectUrl = null;
+    let kineticFondoObjectUrl = null;
 
     function aplicarValoresAlPreview() {
         const doc = previewFrame && previewFrame.contentDocument;
@@ -120,6 +124,13 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 }
                 img.src = instImagenObjectUrl;
+            }
+        }
+        if (kineticFondoObjectUrl) {
+            const hero = doc.getElementById('kcHero');
+            if (hero) {
+                hero.classList.add('k-hero--con-fondo');
+                hero.style.setProperty('--k-hero-fondo-url', `url("${kineticFondoObjectUrl}")`);
             }
         }
         const navCatalogo = doc.getElementById('kcNavCatalogo');
@@ -162,6 +173,11 @@ document.addEventListener('DOMContentLoaded', function () {
             // en kinetic.css; no hace falta pisarlas acá también. Kinetic no
             // tiene un color secundario propio editable (ver base.html).
             doc.documentElement.style.setProperty('--k-primary', color);
+            // Variables de Lumina — --l-primary-dark/--l-primary-soft/
+            // --l-secondary-soft se recalculan solas vía color-mix(var(--l-primary)/
+            // var(--l-secondary)) en lumina.css.
+            doc.documentElement.style.setProperty('--l-primary', color);
+            doc.documentElement.style.setProperty('--l-secondary', colorSecundario);
         }
     }
 
@@ -387,6 +403,53 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Más simple y robusto que reconstruir a mano el SVG de
                 // fallback del hero — el listener 'load' de arriba se
                 // encarga de reaplicar los textos vigentes tras recargar.
+                if (previewFrame && previewFrame.contentWindow) {
+                    previewFrame.contentWindow.location.reload();
+                }
+            }
+        });
+    });
+
+    // ── Fondo del hero de "Kinetic" (mismo patrón que la imagen del hero) ──
+    document.getElementById('inputCatalogoKineticFondo')?.addEventListener('change', function () {
+        if (!this.files[0]) return;
+
+        if (kineticFondoObjectUrl) URL.revokeObjectURL(kineticFondoObjectUrl);
+        kineticFondoObjectUrl = URL.createObjectURL(this.files[0]);
+        aplicarValoresAlPreview();
+
+        const fd = new FormData();
+        fd.append('imagen', this.files[0]);
+        fetch(urls.kineticHeroFondo, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrf() },
+            body: fd,
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.ok) {
+                document.getElementById('catalogoKineticFondoPreviewBox').innerHTML =
+                    `<img src="${data.imagen_url}" alt="Fondo del hero">`;
+                document.getElementById('btnEliminarCatalogoKineticFondo').style.display = 'inline-block';
+            }
+        });
+    });
+
+    document.getElementById('btnEliminarCatalogoKineticFondo')?.addEventListener('click', function () {
+        fetch(urls.kineticHeroFondo, {
+            method: 'DELETE',
+            headers: { 'X-CSRFToken': csrf() },
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.ok) {
+                document.getElementById('catalogoKineticFondoPreviewBox').innerHTML =
+                    '<span style="font-size:0.7rem; color:var(--text-muted);">Sin imagen</span>';
+                this.style.display = 'none';
+                if (kineticFondoObjectUrl) {
+                    URL.revokeObjectURL(kineticFondoObjectUrl);
+                    kineticFondoObjectUrl = null;
+                }
                 if (previewFrame && previewFrame.contentWindow) {
                     previewFrame.contentWindow.location.reload();
                 }

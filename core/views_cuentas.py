@@ -55,7 +55,9 @@ class CuentaCrearEditarAjax(LoginRequiredMixin, View):
         es_credito = bool(body.get('es_credito'))
         if tipo == TipoCuenta.BANCO and es_credito:
             return JsonResponse(
-                {'error': 'Una cuenta bancaria no puede ser también tarjeta de crédito.'},
+                {'error': 'Una cuenta bancaria (con chequera) no puede ser también tarjeta de '
+                          'crédito. Si la tarjeta te la dio tu banco, igual cargala con tipo '
+                          '"Billetera / tarjeta" y tildá "Es tarjeta de crédito propia".'},
                 status=400,
             )
 

@@ -1,0 +1,49 @@
+{% load static %}
+<div class="l-card">
+    <a href="{% url 'catalogo:producto_detalle' p.pk %}" class="l-card-img">
+        {% with portada=p.imagenes.first %}
+            {% if portada %}
+                <img src="{{ portada.imagen.url }}" alt="{{ p.nombre }}" loading="lazy">
+            {% else %}
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M3 8L12 3.5L21 8V16L12 20.5L3 16V8Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M3 8L12 12.5L21 8" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M12 12.5V20.5" stroke="currentColor" stroke-width="1.4"/></svg>
+            {% endif %}
+        {% endwith %}
+        <div class="l-card-badges">
+            {% if p.oferta_info %}<span class="l-badge l-badge--oferta">{{ p.oferta_info.badge }}</span>{% endif %}
+            {% if p.es_nuevo %}<span class="l-badge l-badge--nuevo">Nuevo</span>{% endif %}
+            {% if p.destacado %}<span class="l-badge l-badge--destacado">Destacado</span>{% endif %}
+        </div>
+        {% if p.gestiona_stock and p.stock_actual <= 0 %}<span class="l-badge-stock">Sin stock</span>{% endif %}
+    </a>
+    <div class="l-card-body">
+        <div class="l-card-meta">
+            {% if p.marca %}<span>{{ p.marca }}</span>{% endif %}
+            {% if p.categoria %}<span>{{ p.categoria.nombre }}</span>{% endif %}
+        </div>
+        <a href="{% url 'catalogo:producto_detalle' p.pk %}" style="text-decoration:none;"><h3 class="l-card-nombre">{{ p.nombre }}</h3></a>
+        <div class="l-card-footer">
+            <div>
+                {% if p.oferta_info and p.oferta_info.precio_final != p.precio_venta %}
+                    <span class="l-precio-final">${{ p.oferta_info.precio_final }}</span>
+                    <span class="l-precio-tachado">${{ p.precio_venta }}</span>
+                {% elif p.precio_venta %}
+                    <span class="l-precio-final">${{ p.precio_venta }}</span>
+                {% else %}
+                    <span class="l-precio-consultar">A consultar</span>
+                {% endif %}
+            </div>
+            {% if p.disponible_compra %}
+            <div data-carrito-slot>
+                <button type="button" class="l-btn-agregar" data-carrito-agregar="prod-{{ p.pk }}"
+                    data-nombre="{{ p.nombre }}" data-precio="{{ p.oferta_info.precio_final|default:p.precio_venta }}"
+                    data-precio-lista="{{ p.precio_venta }}"
+                    data-categoria-id="{{ p.categoria.pk|default:'' }}"
+                    data-imagen="{% if p.imagenes.first %}{{ p.imagenes.first.imagen.url }}{% endif %}"
+                    aria-label="Agregar {{ p.nombre }} al pedido">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+                </button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>

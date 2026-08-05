@@ -50,6 +50,15 @@
     font-size: 0.78rem;
 }
 
+.btn--icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.4rem;
+    width: 2rem;
+    height: 2rem;
+}
+
 /* ── Secciones ────────────────────────────────────────────────── */
 .deudas-section {
     margin-bottom: 1.75rem;
@@ -195,6 +204,7 @@
     text-align: right;
     font-weight: 700;
     white-space: nowrap;
+    font-variant-numeric: tabular-nums;
 }
 
 .deudas-badge-tipo {
@@ -250,35 +260,57 @@
     border: 1px solid rgba(239,68,68,0.25);
 }
 
-/* Toggle Compra a crédito / Préstamo en el modal */
+/* Toggle Compra a crédito / Préstamo — segmented control compacto,
+   anclado al header de "Datos generales" en vez de una fila propia
+   con dos botones grandes (ocupaban espacio útil sin aportar nada). */
 .deudas-tipo-toggle {
-    display: flex;
-    gap: 0.5rem;
+    display: inline-flex;
+    flex-shrink: 0;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 3px;
+    gap: 2px;
 }
 
 .deudas-tipo-btn {
-    flex: 1;
-    padding: 0.55rem 1rem;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border-color);
-    background: var(--bg-white);
+    padding: 0.32rem 0.75rem;
+    border-radius: calc(var(--radius-md) - 3px);
+    border: none;
+    background: transparent;
     color: var(--text-secondary);
-    font-weight: 700;
-    font-size: 0.85rem;
+    font-weight: 600;
+    font-size: 0.78rem;
     cursor: pointer;
-    transition: all var(--transition-fast);
+    transition: background-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.deudas-tipo-btn:hover:not(.deudas-tipo-btn--active) {
+    color: var(--text-primary);
 }
 
 .deudas-tipo-btn--credito.deudas-tipo-btn--active {
-    background: rgba(99,102,241,0.1);
-    border-color: #6366f1;
+    background: var(--bg-white);
     color: #6366f1;
+    box-shadow: var(--shadow-sm);
 }
 
 .deudas-tipo-btn--prestamo.deudas-tipo-btn--active {
-    background: rgba(245,158,11,0.1);
-    border-color: var(--warning, #b45309);
+    background: var(--bg-white);
     color: var(--warning, #b45309);
+    box-shadow: var(--shadow-sm);
+}
+
+/* Cuotas libres — anclado al header de "Plan de pago", mismo criterio */
+.deudas-modo-cuotas-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
 }
 
 .deudas-form-grid {
@@ -325,14 +357,14 @@
     background: var(--bg-white);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-lg);
-    max-width: 500px;
-    width: 90%;
+    max-width: 580px;
+    width: 92%;
     max-height: 90vh;
     overflow-y: auto;
 }
 
 .modal-content--ancho {
-    max-width: 680px;
+    max-width: 960px;
 }
 
 .modal-header {
@@ -376,7 +408,43 @@
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
-    margin-bottom: 1rem;
+    margin-bottom: 0.85rem;
+}
+
+/* ── Encabezados de sección dentro del formulario (agrupan campos
+   relacionados para reducir el scroll y dar jerarquía visual). El
+   control más relevante de cada sección (Tipo / Cuotas libres) vive
+   anclado al header en vez de ocupar una fila propia — antes eran
+   botones grandes sueltos que se comían espacio útil sin aportar
+   jerarquía. ─────────────────────────────────────────────────────── */
+.deudas-form-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 1.5rem 0 0.85rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.deudas-form-section-header:first-child {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+}
+
+.deudas-form-section-title {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.deudas-form-grid.deudas-form-grid--2-1 {
+    grid-template-columns: 2fr 1fr;
 }
 
 .form-campo label {
@@ -428,20 +496,82 @@
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
-    padding: 0.9rem 1.1rem;
+    padding: 1rem 1.1rem;
     margin-bottom: 1.1rem;
 }
 
-.deudas-resumen-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.3rem 0;
-    font-size: 0.85rem;
+.deudas-resumen-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.9rem 1.5rem;
 }
 
-.deudas-resumen-row span {
+.deudas-resumen-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+}
+
+.deudas-resumen-item--wide {
+    grid-column: span 2;
+}
+
+.deudas-resumen-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
     color: var(--text-secondary);
+}
+
+.deudas-resumen-value {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    overflow-wrap: break-word;
+    font-variant-numeric: tabular-nums;
+}
+
+/* El saldo pendiente es el número que más le importa a quien mira este
+   modal — se resalta en color y tamaño para que no compita en igualdad
+   con metadatos como el N° de comprobante o la moneda. */
+.deudas-resumen-item--highlight .deudas-resumen-label {
+    color: var(--danger);
+}
+
+.deudas-resumen-item--highlight .deudas-resumen-value {
+    font-family: var(--font-heading);
+    font-size: 1.15rem;
+    color: var(--danger);
+}
+
+.deudas-resumen-value input,
+.deudas-resumen-value select {
+    width: 100%;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 0.4rem 0.55rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    background: var(--bg-white);
+    color: var(--text-primary);
+}
+
+.deudas-resumen-value input:focus,
+.deudas-resumen-value select:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px var(--accent-light);
+}
+
+.deudas-edicion-nota {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-style: italic;
+    margin: 0.5rem 0 0;
+    padding-top: 0.5rem;
+    border-top: 1px dashed var(--border-color);
 }
 
 .deudas-cuotas-title {
@@ -507,6 +637,387 @@
     font-size: 0.75rem;
 }
 
+/* ── Total adeudado ──────────────────────────────────────────── */
+.deudas-totales {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+.deudas-total-card {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 0.6rem 1rem;
+}
+
+.deudas-total-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.deudas-total-monto {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--danger);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Carga inicial (deuda preexistente) ─────────────────────────── */
+.deudas-carga-inicial-campo {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 0.85rem 1rem;
+}
+
+.deudas-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.deudas-checkbox-label input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--accent-primary);
+}
+
+.deudas-cuotas-historicas {
+    margin-top: 0.85rem;
+}
+
+.deudas-cuotas-historicas-hint {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    margin: 0 0 0.5rem;
+}
+
+.deudas-cuotas-historicas-wrap {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    overflow-x: auto;
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+.deudas-cuotas-historicas-wrap input[type="date"],
+.deudas-cuotas-historicas-wrap input[type="text"],
+.deudas-cuotas-historicas-wrap select {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 0.25rem 0.4rem;
+    font-size: 0.78rem;
+    background: var(--bg-white);
+    color: var(--text-primary);
+    width: 100%;
+    max-width: 140px;
+}
+
+.deudas-cuotas-historicas-wrap .ph-detalle {
+    min-width: 160px;
+}
+
+.deudas-cuotas-historicas-wrap .ph-cheque-campos {
+    flex-wrap: nowrap;
+}
+
+.deudas-cuotas-historicas-wrap .ph-cheque-campos input,
+.deudas-cuotas-historicas-wrap .ph-cheque-campos select {
+    max-width: 100px;
+    font-size: 0.72rem;
+    padding: 0.2rem 0.35rem;
+}
+
+.deudas-cuotas-historicas-wrap input:disabled,
+.deudas-cuotas-historicas-wrap select:disabled {
+    opacity: 0.5;
+}
+
+.deudas-badge-carga-inicial {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.15rem 0.5rem;
+    border-radius: 0.35rem;
+    white-space: nowrap;
+    background: rgba(99,102,241,0.1);
+    color: #6366f1;
+    border: 1px solid rgba(99,102,241,0.25);
+}
+
+/* ── Documentos adjuntos (mismo patrón que compras/historial_compras.css) ── */
+.docs-lista { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 0.6rem; }
+.doc-vacio { font-size: 0.82rem; color: var(--text-muted); font-style: italic; margin: 0; padding: 0.2rem 0; }
+
+.doc-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0.4rem 0.75rem;
+    transition: border-color .15s, box-shadow .15s;
+}
+.doc-item:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
+
+.doc-link {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex: 1;
+    min-width: 0;
+    color: var(--brand-blue, var(--accent-primary));
+    text-decoration: none;
+    font-size: 0.835rem;
+    font-weight: 600;
+    transition: color .15s;
+}
+.doc-link:hover { color: var(--brand-orange, var(--accent-primary)); }
+.doc-icono  { flex-shrink: 0; display: flex; align-items: center; color: var(--text-muted); }
+.doc-nombre { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+.doc-tipo-badge {
+    flex-shrink: 0;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 0.1rem 0.5rem;
+    border-radius: 20px;
+    background: rgba(59,130,246,0.1);
+    color: var(--brand-blue, var(--accent-primary));
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    font-family: var(--font-heading);
+}
+.doc-descripcion {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-style: italic;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 150px;
+}
+.doc-fecha { flex-shrink: 0; font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; }
+
+.doc-btn-eliminar {
+    flex-shrink: 0;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    padding: 0.2rem 0.3rem;
+    cursor: pointer;
+    color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    transition: background .15s, color .15s, border-color .15s;
+}
+.doc-btn-eliminar:hover {
+    background: rgba(239,68,68,0.08);
+    color: var(--danger);
+    border-color: rgba(239,68,68,0.25);
+}
+
+.doc-subir-wrap { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.4rem; }
+.doc-subir-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.32rem 0.85rem;
+    background: transparent;
+    border: 1px dashed var(--border-strong);
+    border-radius: 7px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color .15s, border-color .15s, background .15s;
+    font-family: var(--font-body);
+    white-space: nowrap;
+}
+.doc-subir-label:hover { color: var(--accent-primary); border-color: var(--accent-primary); background: var(--accent-light); }
+
+.doc-tipo-select,
+.doc-desc-input {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 7px;
+    padding: 0.32rem 0.65rem;
+    font-size: 0.8rem;
+    color: var(--text-primary);
+    outline: none;
+    font-family: var(--font-body);
+    transition: border-color .15s;
+}
+.doc-tipo-select:focus, .doc-desc-input:focus { border-color: var(--accent-primary); }
+.doc-desc-input { flex: 1; min-width: 120px; }
+.doc-desc-input::placeholder { color: var(--text-muted); }
+.doc-upload-status { font-size: 0.78rem; color: var(--text-muted); font-style: italic; }
+
+/* ── Cuotas libres (modo_cuotas) ─────────────────────────────── */
+
+/* Mismo componente que core/static/core/css/configuracion.css — se
+   duplica acá (en vez de importar esa hoja entera) siguiendo la
+   convención del proyecto de que cada pantalla tiene su propio CSS. */
+.toggle-switch {
+    position: relative;
+    width: 40px; height: 22px;
+    flex-shrink: 0;
+}
+
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+
+.toggle-track {
+    position: absolute;
+    inset: 0;
+    background: var(--border-strong, #d1d5db);
+    border-radius: 2rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.toggle-track::before {
+    content: '';
+    position: absolute;
+    left: 3px; top: 3px;
+    width: 16px; height: 16px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+
+.toggle-switch input:checked + .toggle-track { background: var(--accent-primary); }
+.toggle-switch input:checked + .toggle-track::before { transform: translateX(18px); }
+
+.deudas-modo-hint {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    margin: 0.4rem 0 0;
+}
+
+.deudas-total-libre-preview {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: -0.35rem 0 0.85rem;
+}
+
+.deudas-abonos-historicos {
+    margin-top: 0.85rem;
+}
+
+.deudas-abonos-historicos-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.deudas-abono-historico-fila {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px dashed var(--border-color);
+}
+
+.deudas-abono-historico-fila-linea {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.deudas-abono-historico-fila input[type="number"],
+.deudas-abono-historico-fila input[type="date"],
+.deudas-abono-historico-fila input[type="text"],
+.deudas-abono-historico-fila select {
+    flex: 1;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 0.4rem 0.5rem;
+    font-size: 0.8125rem;
+    background: var(--bg-white);
+    color: var(--text-primary);
+}
+
+.deudas-abono-historico-quitar {
+    border: none;
+    background: transparent;
+    color: var(--danger, #dc2626);
+    cursor: pointer;
+    font-size: 1.1rem;
+    line-height: 1;
+    padding: 0.2rem 0.4rem;
+}
+
+.ph-detalle:empty {
+    display: none;
+}
+
+.ph-cheque-campos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.ph-cheque-campos input,
+.ph-cheque-campos select {
+    flex: 1 1 120px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 0.35rem 0.5rem;
+    font-size: 0.78rem;
+    background: var(--bg-white);
+    color: var(--text-primary);
+}
+
+.ph-nota {
+    width: 100%;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 0.35rem 0.5rem;
+    font-size: 0.78rem;
+    background: var(--bg-white);
+    color: var(--text-primary);
+}
+
+.deudas-abonos-historicos-total {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.deudas-registrar-abono {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 0.85rem;
+    margin: 0.5rem 0 1.25rem;
+    background: var(--bg-subtle, rgba(0,0,0,0.02));
+}
+
+.deudas-registrar-abono .deudas-cuotas-title {
+    margin-top: 0;
+}
+
+.deudas-registrar-abono-acciones {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
 /* ── Responsive ──────────────────────────────────────────────── */
 @media (max-width: 640px) {
     .deudas-header {
@@ -515,7 +1026,19 @@
     .filtro-campo--ancho {
         grid-column: span 1;
     }
-    .deudas-form-grid {
+    .deudas-form-grid,
+    .deudas-form-grid--2-1 {
         grid-template-columns: 1fr;
     }
+    .deudas-resumen-grid {
+        grid-template-columns: 1fr;
+    }
+    .deudas-resumen-item--wide {
+        grid-column: span 1;
+    }
+    .doc-item { flex-wrap: wrap; }
+    .doc-descripcion, .doc-fecha { display: none; }
+    .doc-subir-wrap { flex-direction: column; align-items: stretch; }
+    .doc-subir-label { justify-content: center; }
+    .doc-desc-input { min-width: unset; }
 }

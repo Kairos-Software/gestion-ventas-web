@@ -124,7 +124,12 @@ class ListarChequesAjax(LoginRequiredMixin, View):
         if moneda:
             qs = qs.filter(moneda=moneda)
         if q:
-            qs = qs.filter(numero_cheque__icontains=q) | qs.filter(receptor__icontains=q) | qs.filter(emisor__icontains=q)
+            qs = (
+                qs.filter(numero_cheque__icontains=q)
+                | qs.filter(numero_factura__icontains=q)
+                | qs.filter(receptor__icontains=q)
+                | qs.filter(emisor__icontains=q)
+            )
 
         try:
             pagina = max(int(request.GET.get('pagina', 1)), 1)

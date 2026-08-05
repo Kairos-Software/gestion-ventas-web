@@ -109,6 +109,7 @@ PERMISOS_CHOICES = [
 
     # ── Módulo: Cuentas por cobrar (ventas en cuotas) ──────────────
     ('ver_cuentas_cobrar',        'Ver cuentas por cobrar'),
+    ('crear_cuentas_cobrar',      'Crear cuentas por cobrar (carga inicial de clientes)'),
     ('editar_cuentas_cobrar',     'Editar notas de una cuenta por cobrar'),
     ('eliminar_cuentas_cobrar',   'Eliminar una cuenta por cobrar'),
     ('confirmar_cuotas_cobro',    'Confirmar el cobro de una cuota'),
@@ -387,6 +388,37 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
         partes = [self.calle, self.numero, self.piso_depto,
                   self.barrio, self.localidad, self.provincia]
         return ', '.join(p for p in partes if p)
+
+
+# ══════════════════════════════════════════════════════════════════
+#  RECUPERACIÓN DE CONTRASEÑA — código numérico enviado por mail
+# ══════════════════════════════════════════════════════════════════
+
+VIGENCIA_CODIGO_RECUPERACION = 15  # minutos
+INTENTOS_MAXIMOS_CODIGO_RECUPERACION = 5
+
+
+class CodigoRecuperacionPassword(models.Model):
+    usuario  = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='codigos_recuperacion')
+    codigo   = models.CharField(max_length=6)
+    creado   = models.DateTimeField(auto_now_add=True)
+    usado    = models.BooleanField(default=False)
+    intentos = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        verbose_name        = 'Código de recuperación de contraseña'
+        verbose_name_plural = 'Códigos de recuperación de contraseña'
+        ordering = ['-creado']
+
+    def __str__(self):
+        return f'{self.usuario.username} · {self.creado:%d/%m/%Y %H:%M}'
+
+    def expirado(self):
+        limite = self.creado + timezone.timedelta(minutes=VIGENCIA_CODIGO_RECUPERACION)
+        return timezone.now() > limite
+
+    def vigente(self):
+        return not self.usado and not self.expirado() and self.intentos < INTENTOS_MAXIMOS_CODIGO_RECUPERACION
 
 
 # ══════════════════════════════════════════════════════════════════

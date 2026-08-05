@@ -1,0 +1,50 @@
+{% load static %}
+<!-- Panel de marca compartido por login.html y las pantallas de
+     recuperación de contraseña — mismo navy/logo/animación reales,
+     para que el flujo se sienta parte de la misma pieza. -->
+<aside class="login-brand-panel">
+    <div class="login-brand-content">
+        <div class="login-brand-lockup">
+            <div class="logo">
+                <img src="{% static 'core/img/kai-cart-logo-completo.png' %}" alt="Kai-Cart" class="logo-img">
+            </div>
+        </div>
+
+        <span class="login-brand-pill">Sistema de Gestión</span>
+
+        <h1 class="login-brand-tagline">{{ brand_tagline|default:"Gestioná todo tu negocio en un solo lugar." }}</h1>
+        <p class="login-brand-sub">{{ brand_sub|default:"Ventas, stock, clientes y catálogo online — todo sincronizado en tiempo real." }}</p>
+
+        <ul class="login-brand-features">
+            <li>
+                <span class="login-feature-ic">
+                    <svg width="17" height="17" viewBox="0 0 20 20" fill="none"><path d="M2 15L7 10L11 13L18 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M13 5H18V10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </span>
+                <div>
+                    <strong>Ventas y facturación</strong>
+                    <span>Caja, ventas y comprobantes centralizados.</span>
+                </div>
+            </li>
+            <li>
+                <span class="login-feature-ic">
+                    <svg width="17" height="17" viewBox="0 0 20 20" fill="none"><path d="M2 6L10 2L18 6V14L10 18L2 14V6Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M2 6L10 10L18 6M10 10V18" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+                </span>
+                <div>
+                    <strong>Stock y compras</strong>
+                    <span>Inventario y compras siempre al día.</span>
+                </div>
+            </li>
+            <li>
+                <span class="login-feature-ic">
+                    <svg width="17" height="17" viewBox="0 0 20 20" fill="none"><rect x="2" y="4" width="16" height="12" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M2 8H18" stroke="currentColor" stroke-width="1.6"/></svg>
+                </span>
+                <div>
+                    <strong>Catálogo online</strong>
+                    <span>Tu tienda pública conectada en tiempo real.</span>
+                </div>
+            </li>
+        </ul>
+    </div>
+
+    <div class="login-brand-footer">© {% now "Y" %} Kai-Cart · Todos los derechos reservados</div>
+</aside>

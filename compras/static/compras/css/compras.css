@@ -375,8 +375,76 @@
     border-color: var(--brand-orange);
 }
 
-/* Proveedor autocomplete en fila */
+/* Wrapper base del autocomplete de proveedor — lo reusan tanto el
+   widget de cabecera del carrito (nueva_compra.js) como el de la
+   pestaña General del detalle (detalle_compra.js). */
 .cmp-prov-wrap { position: relative; min-width: 140px; }
+
+/* Proveedor único de la compra — vive en el header de la card del
+   carrito, no por fila (ver nueva_compra.js). */
+.cmp-proveedor-compra {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    margin-left: auto;
+}
+
+.cmp-proveedor-compra-label {
+    font-size: .7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.cmp-proveedor-compra .cmp-prov-wrap { min-width: 260px; }
+
+.cmp-prov-input-global {
+    width: 100%;
+    padding: .5rem .75rem;
+    padding-right: 1.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: .625rem;
+    background: var(--bg-white);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: .8rem;
+}
+
+.cmp-proveedor-compra .cmp-prov-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    width: auto;
+}
+
+.cmp-proveedor-compra-clear {
+    position: absolute;
+    top: 50%;
+    right: .5rem;
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: .7rem;
+    line-height: 1;
+    padding: 0;
+}
+
+.cmp-proveedor-compra-clear:hover { color: var(--danger, #e11d48); }
+
+@media (max-width: 640px) {
+    .cmp-proveedor-compra { margin-left: 0; width: 100%; }
+    .cmp-proveedor-compra .cmp-prov-wrap { flex: 1; min-width: 0; }
+}
 
 .cmp-prov-dropdown {
     background: var(--bg-white);

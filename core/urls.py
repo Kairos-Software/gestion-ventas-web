@@ -10,6 +10,7 @@ from . import views_cuentas
 from . import views_reiniciar
 from . import views_estadisticas
 from . import views_notas
+from . import views_recuperacion
 
 app_name = 'core'
 
@@ -21,12 +22,18 @@ urlpatterns = [
     path('logout/', views.CustomLogoutView.as_view(), name='logout'),
     path('home/', views.home, name='home'),
 
+    # ── Recuperar contraseña (por código de mail, sin login) ────────
+    path('recuperar/', views_recuperacion.solicitar_recuperacion, name='recuperar_password'),
+    path('recuperar/codigo/', views_recuperacion.verificar_codigo_recuperacion, name='recuperar_codigo'),
+    path('recuperar/nueva/', views_recuperacion.nueva_password_recuperacion, name='recuperar_nueva_password'),
+
     # ── Estadísticas ────────────────────────────────────────────────
     path('estadisticas/', views_estadisticas.resumen, name='estadisticas'),
     path('estadisticas/ventas/', views_estadisticas.ventas, name='estadisticas_ventas'),
     path('estadisticas/compras/', views_estadisticas.compras, name='estadisticas_compras'),
     path('estadisticas/productos/', views_estadisticas.productos, name='estadisticas_productos'),
     path('estadisticas/clientes/', views_estadisticas.clientes, name='estadisticas_clientes'),
+    path('estadisticas/clientes/<int:pk>/', views_estadisticas.cliente_perfil, name='estadisticas_cliente_perfil'),
     path('estadisticas/caja/', views_estadisticas.caja, name='estadisticas_caja'),
 
     # ── Usuarios — listado y acciones rápidas (modal) ─────────────

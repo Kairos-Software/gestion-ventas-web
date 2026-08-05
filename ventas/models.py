@@ -614,7 +614,7 @@ class Venta(models.Model):
         # pero así evitamos descontar stock para nada).
         pagos_resueltos = None
         if pagos is not None:
-            from caja.models import CuentaCaja, TipoCaja, TipoCuenta, _cuenta_default
+            from caja.models import CuentaCaja, TipoCaja, TipoCuenta, _cuenta_default, ModoCuotas
             labels_medio = dict(MedioPago.choices)
 
             pagos_resueltos = []
@@ -693,27 +693,43 @@ class Venta(models.Model):
                             'Para vender en cuotas la venta necesita un único cliente vinculado '
                             '(no se le puede vender en cuotas a Consumidor Final).'
                         )
-                    try:
-                        cantidad_cuotas = int(p.get('cuotas', 0))
-                    except (TypeError, ValueError):
-                        cantidad_cuotas = 0
-                    if cantidad_cuotas < 1:
-                        raise ValueError('Indicá la cantidad de cuotas para el pago financiado.')
+                    modo_cuotas = p.get('modo_cuotas', ModoCuotas.FIJAS)
+                    if modo_cuotas not in ModoCuotas.values:
+                        modo_cuotas = ModoCuotas.FIJAS
+                    es_libre = modo_cuotas == ModoCuotas.LIBRE
+
                     try:
                         interes_pct = Decimal(str(p.get('interes_pct', 0) or 0))
                     except Exception:
                         raise ValueError('Porcentaje de interés inválido.')
                     if interes_pct < 0:
                         raise ValueError('El porcentaje de interés no puede ser negativo.')
-                    fecha_inicio_raw = p.get('fecha_inicio_cobro')
-                    if not fecha_inicio_raw:
-                        raise ValueError('Indicá la fecha de la primera cuota.')
-                    try:
-                        fecha_inicio_cobro = date.fromisoformat(str(fecha_inicio_raw))
-                    except ValueError:
-                        raise ValueError('Fecha de inicio de cobro inválida.')
+
+                    cantidad_cuotas = None
+                    if es_libre:
+                        # Modo libre: no hay plan que armar, así que no hace
+                        # falta pedirle cantidad de cuotas ni fecha de la
+                        # primera al vendedor — la fecha de origen es
+                        # directamente la de la venta (mismo criterio que
+                        # Compras usa la fecha de la compra en compra_credito
+                        # libre).
+                        fecha_inicio_cobro = self.fecha
+                    else:
+                        try:
+                            cantidad_cuotas = int(p.get('cuotas', 0))
+                        except (TypeError, ValueError):
+                            cantidad_cuotas = 0
+                        if cantidad_cuotas < 1:
+                            raise ValueError('Indicá la cantidad de cuotas para el pago financiado.')
+                        fecha_inicio_raw = p.get('fecha_inicio_cobro')
+                        if not fecha_inicio_raw:
+                            raise ValueError('Indicá la fecha de la primera cuota.')
+                        try:
+                            fecha_inicio_cobro = date.fromisoformat(str(fecha_inicio_raw))
+                        except ValueError:
+                            raise ValueError('Fecha de inicio de cobro inválida.')
                     cuotas_info = {
-                        'cliente': cliente_venta, 'cantidad_cuotas': cantidad_cuotas,
+                        'cliente': cliente_venta, 'modo_cuotas': modo_cuotas, 'cantidad_cuotas': cantidad_cuotas,
                         'interes_pct': interes_pct, 'fecha_inicio_cobro': fecha_inicio_cobro,
                     }
                 else:
@@ -843,6 +859,7 @@ class Venta(models.Model):
                         pago_venta=pago,
                         monto_original=Decimal(str(p['monto'])),
                         porcentaje_interes=info['interes_pct'],
+                        modo_cuotas=info['modo_cuotas'],
                         cantidad_cuotas=info['cantidad_cuotas'],
                         fecha_inicio=info['fecha_inicio_cobro'],
                         moneda=Moneda.ARS,
@@ -1577,12 +1594,22 @@ def descartar_borradores_vencidos(excluir_pk=None):
     NuevaVentaView) — nunca hay que descartar el que el usuario está
     a punto de retomar, aunque sea viejo.
 
+    Excepción: una venta ANULADA reactivada (ver `reactivar()`) vuelve
+    a BORRADOR para poder editarla desde el Historial, pero puede tener
+    `fecha_alta` de hace semanas y SÍ tiene historial real (ItemVenta,
+    PagoVenta) detrás — no es un borrador vacío abandonado. Se excluye
+    del barrido por `fecha_anulacion__isnull=True` (reactivar() no la
+    limpia) para no borrar una venta real solo porque alguien la abrió
+    para editar y se distrajo sin guardar.
+
     No hay scheduler corriendo dentro de Django, así que esto se llama
     perezosamente al entrar a "Nueva venta" — mismo criterio que
     procesar_lotes_vencidos() en compras/models.py.
     """
     umbral = timezone.now() - timedelta(hours=HORAS_DESCARTE_BORRADOR)
-    qs = Venta.objects.filter(estado=EstadoVenta.BORRADOR, fecha_alta__lt=umbral)
+    qs = Venta.objects.filter(
+        estado=EstadoVenta.BORRADOR, fecha_alta__lt=umbral, fecha_anulacion__isnull=True
+    )
     if excluir_pk:
         qs = qs.exclude(pk=excluir_pk)
     for venta in qs:

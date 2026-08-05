@@ -15,6 +15,7 @@ urlpatterns = [
     # Interno — pantalla de Configuración del sistema (ver core/views.py:configuracion).
     path('config/guardar/', views_config.CatalogoConfigGuardarAjax.as_view(), name='config_guardar'),
     path('config/hero-imagen/', views_config.CatalogoConfigHeroImagenAjax.as_view(), name='config_hero_imagen'),
+    path('config/kinetic-hero-fondo/', views_config.CatalogoKineticHeroFondoAjax.as_view(), name='config_kinetic_hero_fondo'),
     path('config/slides/guardar/', views_config.CatalogoSlideGuardarAjax.as_view(), name='config_slide_guardar'),
     path('config/slides/imagen/', views_config.CatalogoSlideImagenAjax.as_view(), name='config_slide_imagen'),
     path('config/slides/eliminar/', views_config.CatalogoSlideEliminarAjax.as_view(), name='config_slide_eliminar'),

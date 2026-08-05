@@ -108,6 +108,7 @@
         reactivar:   "{% url 'compras:reactivar_compra' %}",
         eliminar:    "{% url 'compras:eliminar_compra' %}",
         editar:      "{% url 'compras:editar_compra' %}",
+        nuevaCompra: "{% url 'compras:nueva_compra' %}",
         productos:   "{% url 'productos:gestion_productos' %}",
         proveedores: "{% url 'productos:gestion_proveedores' %}",
         buscarProducto:  "{% url 'compras:buscar_producto' %}",
@@ -121,6 +122,5 @@
 </script>
 <script src="{% static 'compras/js/historial_utils.js' %}"></script>
 <script src="{% static 'compras/js/historial_docs.js' %}"></script>
-<script src="{% static 'compras/js/historial_editor.js' %}"></script>
 <script src="{% static 'compras/js/historial_compras.js' %}"></script>
 {% endblock %}

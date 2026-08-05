@@ -9,6 +9,7 @@ from .views_nueva_venta import (
     BuscarClienteAjax,
     BuscarLoteVentaAjax,
     GuardarBorradorAjax,
+    ActualizarBorradorAjax,
     ConfirmarVentaAjax,
     VentaFacturarAjax,
     EliminarBorradorAjax,

@@ -15,10 +15,17 @@ def _catalogo_institucional_path(instance, filename):
     return f'catalogo/institucional{ext}'
 
 
+def _catalogo_kinetic_hero_fondo_path(instance, filename):
+    import os
+    ext = os.path.splitext(filename)[1].lower()
+    return f'catalogo/kinetic-hero-fondo{ext}'
+
+
 class PlantillaCatalogo(models.TextChoices):
     ALMACEN = 'almacen', 'Almacén'
     BENTO   = 'bento',   'Bento'
     KINETIC = 'kinetic', 'Kinetic'
+    LUMINA  = 'lumina',  'Lumina'
 
 
 class ConfiguracionCatalogo(models.Model):
@@ -29,10 +36,11 @@ class ConfiguracionCatalogo(models.Model):
     público (ver core/views.py:configuracion), con vista previa en vivo.
     Mismo patrón singleton que DatosEmpresa (ver core/models.py).
     hero_titulo/hero_imagen son exclusivos de la plantilla "almacen" (esa
-    no tiene carrusel). hero_subtitulo y hero_producto los usan las DOS
-    plantillas — en "bento", hero_subtitulo es el texto de respaldo hasta
-    que se carga el primer slide (ver SlideHeroCatalogo) y hero_producto
-    arma la tarjeta lateral del hero, con o sin carrusel.
+    no tiene carrusel). hero_subtitulo lo usan las cuatro plantillas.
+    hero_producto lo usan "almacen"/"bento"/"lumina" para armar la tarjeta
+    lateral del hero ("kinetic" tiene su propio panel de stats en su lugar)
+    — en "bento", hero_subtitulo es el texto de respaldo hasta que se carga
+    el primer slide (ver SlideHeroCatalogo).
     """
     plantilla = models.CharField(
         'Plantilla activa', max_length=20,
@@ -54,6 +62,11 @@ class ConfiguracionCatalogo(models.Model):
         'productos.Producto', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
         verbose_name='Producto destacado en el hero',
         help_text='Vacío = se elige automáticamente (el destacado más reciente).',
+    )
+    kinetic_hero_fondo = models.ImageField(
+        'Imagen de fondo del hero (Kinetic)', upload_to=_catalogo_kinetic_hero_fondo_path, blank=True, null=True,
+        help_text='Opcional, exclusiva de "Kinetic" — si no se carga, el hero se ve sin fondo, '
+                   'igual que ahora. Se muestra oscurecida y difuminada detrás del texto.',
     )
     sobre_nosotros = models.TextField('Sobre nosotros', blank=True)
     contacto_texto = models.TextField(
@@ -128,6 +141,9 @@ class ConfiguracionCatalogo(models.Model):
     # las de arriba.
     DEFAULT_COLOR_MARCA_KINETIC = '#ff3366'
     DEFAULT_COLOR_MARCA_SECUNDARIO_KINETIC = '#00e699'
+    # Default propio de "lumina" — salvia + terracota, paleta pastel cálida.
+    DEFAULT_COLOR_MARCA_LUMINA = '#4a6b5d'
+    DEFAULT_COLOR_MARCA_SECUNDARIO_LUMINA = '#e76f51'
     DEFAULT_NAV_CATALOGO = 'Catálogo'
     DEFAULT_NAV_OFERTAS  = 'Ofertas'
     DEFAULT_NAV_COMBOS   = 'Combos'

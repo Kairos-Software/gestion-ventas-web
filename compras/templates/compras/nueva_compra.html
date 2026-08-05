@@ -65,6 +65,21 @@
             <path d="M1 5.5H15M1 9.5H15M5.5 5.5V14.5" stroke="currentColor" stroke-width="1.2"/>
         </svg>
         <span class="cmp-card-title">Ítems del carrito</span>
+
+        {% comment %}
+        Proveedor de la compra — uno solo para todos los ítems (no por
+        producto): una compra es un pedido a UN proveedor, no tiene
+        sentido de negocio mezclarlos en el mismo pedido.
+        {% endcomment %}
+        <div class="cmp-proveedor-compra">
+            <span class="cmp-proveedor-compra-label">Proveedor</span>
+            <div class="cmp-prov-wrap">
+                <input type="text" id="cmpProveedorInput" class="cmp-prov-input-global"
+                       placeholder="Buscar proveedor…" autocomplete="off">
+                <div id="cmpProveedorDropdown" class="cmp-prov-dropdown"></div>
+                <button type="button" id="cmpProveedorClear" class="cmp-proveedor-compra-clear" title="Quitar proveedor" style="display:none;">✕</button>
+            </div>
+        </div>
     </div>
 
     <div class="cmp-table-wrap">
@@ -72,13 +87,10 @@
             <thead>
                 <tr>
                     <th>Producto</th>
-                    <th>Proveedor</th>
                     <th>Cant.</th>
                     <th>Costo unit.</th>
                     <th>Desc. %</th>
                     <th>Lista</th>
-                    <th>Cond. pago</th>
-                    <th>Referencia</th>
                     <th>Vencimiento</th>
                     <th>Subtotal</th>
                     <th></th>

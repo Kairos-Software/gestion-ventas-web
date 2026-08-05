@@ -703,14 +703,6 @@ function _renderCarrito() {
                        data-item-id="${item.id}" data-campo="descuento" value="${item.descuento}"></td>
             <td>${_selectDescuento(item)}</td>
             <td>${_selectOferta(item)}</td>
-            <td>
-                <select class="vta-select-inline" data-item-id="${item.id}" data-campo="condicion">
-                    <option value="contado" ${item.condicion === 'contado' ? 'selected' : ''}>Contado</option>
-                    <option value="cuenta_corriente" ${item.condicion === 'cuenta_corriente' ? 'selected' : ''}>Cta. cte.</option>
-                    <option value="tarjeta" ${item.condicion === 'tarjeta' ? 'selected' : ''}>Tarjeta</option>
-                </select>
-            </td>
-            <td><input type="text" class="vta-input-inline w-md" data-item-id="${item.id}" data-campo="referencia" value="${_esc(item.referencia)}"></td>
             <td class="vta-subtotal-cell">${_fmt(_calcSub(item), item.moneda)}</td>
             <td><button class="vta-btn-remove" data-item-id="${item.id}" title="Quitar">✕</button></td>
         </tr>`;
@@ -930,28 +922,29 @@ if (btnContinuar) {
             referencia:      item.referencia,
         }));
 
+        // Modo edición (?editar=<pk>): actualiza el borrador existente
+        // en el mismo lugar (mismo pk/número). Modo normal: crea uno
+        // nuevo. Mismo patrón que nueva_compra.js.
+        const editando = !!CFG.ventaEditarPk;
+        const url      = editando ? CFG.urlActualizarBorrador : CFG.urlGuardarBorrador;
+        const body     = {
+            items: itemsPayload,
+            descuento_global_pct: _ofertaGlobalActual ? _ofertaGlobalActual.porcentaje : 0,
+            oferta_global_nombre: _ofertaGlobalActual ? _ofertaGlobalActual.nombre : '',
+        };
+        if (editando) body.venta_pk = CFG.ventaEditarPk;
+
         try {
-            const res  = await fetch(CFG.urlGuardarBorrador, {
+            const res  = await fetch(url, {
                 method:  'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CFG.csrfToken },
-                body:    JSON.stringify({
-                    items: itemsPayload,
-                    descuento_global_pct: _ofertaGlobalActual ? _ofertaGlobalActual.porcentaje : 0,
-                    oferta_global_nombre: _ofertaGlobalActual ? _ofertaGlobalActual.nombre : '',
-                }),
+                body:    JSON.stringify(body),
             });
             const data = await res.json();
 
             if (data.ok) {
-                if (CFG.ventaEditarPk) {
-                    // Best-effort: no bloquea la redirección si falla.
-                    fetch(CFG.urlEliminarBorrador, {
-                        method:  'POST',
-                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CFG.csrfToken },
-                        body:    JSON.stringify({ venta_pk: CFG.ventaEditarPk }),
-                    }).catch(() => {});
-                }
-                window.location.href = CFG.urlDetalle + data.pk + '/';
+                const pkDestino = editando ? CFG.ventaEditarPk : data.pk;
+                window.location.href = CFG.urlDetalle + pkDestino + '/';
             } else {
                 _toast('Error al guardar', data.error || 'No se pudo guardar el borrador.');
                 btnContinuar.disabled  = false;

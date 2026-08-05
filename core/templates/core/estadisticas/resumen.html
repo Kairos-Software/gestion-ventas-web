@@ -6,80 +6,26 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'core/css/estadisticas.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas_finanzas.css' %}">
 {% endblock %}
 
 {% block content %}
 
 {% include "core/estadisticas/_filtros.html" %}
 
-<!-- ══════════ SITUACIÓN FINANCIERA ACTUAL (tiempo real, no depende del filtro) ══════════ -->
-{% if situacion_financiera %}
-<div class="est-finanzas-card">
-    <div class="est-finanzas-header">
-        <div>
-            <p class="card-title">Situación financiera actual</p>
-            <p class="text-muted" style="font-size:.8125rem;">Esto es en tiempo real — cuánta plata tenés, cuánto debés y cuánto te deben. Más detalle en <a href="{% url 'core:estadisticas_caja' %}">Caja y Finanzas</a>.</p>
-        </div>
+<!-- ══════════ POSICIÓN FINANCIERA NETA (tiempo real, no depende del filtro) ══════════ -->
+{% if situacion_financiera.posicion_neta %}
+<div class="est-posicion-neta-card {% if situacion_financiera.posicion_neta.0.total < 0 %}ef-negativo{% else %}ef-positivo{% endif %}">
+    <div class="est-posicion-neta-info">
+        <p class="card-title">Posición financiera neta</p>
+        <p class="text-muted" style="font-size:.8125rem;">Tu plata disponible, más lo que te deben, menos lo que debés — si hoy cobraras y pagaras todo, esto es lo que te queda. Detalle en <a href="{% url 'core:estadisticas_caja' %}">Caja y Finanzas</a>.</p>
     </div>
-    <div class="est-finanzas-body">
-
-        <div class="est-finanzas-grupo">
-            <span class="est-finanzas-grupo-titulo">Disponible en cuentas</span>
-            {% if situacion_financiera.saldo_cuentas %}
-                {% for s in situacion_financiera.saldo_cuentas %}
-                <div class="est-finanzas-monto {% if s.total < 0 %}negativo{% else %}positivo{% endif %}">
-                    ${{ s.total|floatformat:0|intcomma }} <span>{{ s.moneda }}</span>
-                </div>
-                {% endfor %}
-            {% else %}
-                <div class="est-finanzas-monto neutro">$0</div>
-            {% endif %}
+    <div class="est-posicion-neta-valores">
+        {% for p in situacion_financiera.posicion_neta %}
+        <div class="est-posicion-neta-valor {% if p.total < 0 %}negativo{% else %}positivo{% endif %}">
+            ${{ p.total|floatformat:0|intcomma }}<span>{{ p.moneda }}</span>
         </div>
-
-        <div class="est-finanzas-grupo">
-            <span class="est-finanzas-grupo-titulo">Debés (créditos y préstamos)</span>
-            {% if situacion_financiera.deudas_pendientes %}
-                {% for d in situacion_financiera.deudas_pendientes %}
-                <div class="est-finanzas-monto negativo">${{ d.total|floatformat:0|intcomma }} <span>{{ d.moneda }}</span></div>
-                {% endfor %}
-            {% else %}
-                <div class="est-finanzas-monto neutro">$0</div>
-            {% endif %}
-        </div>
-
-        <div class="est-finanzas-grupo">
-            <span class="est-finanzas-grupo-titulo">Te deben (ventas en cuotas)</span>
-            {% if situacion_financiera.cxc_pendientes %}
-                {% for c in situacion_financiera.cxc_pendientes %}
-                <div class="est-finanzas-monto positivo">${{ c.total|floatformat:0|intcomma }} <span>{{ c.moneda }}</span></div>
-                {% endfor %}
-            {% else %}
-                <div class="est-finanzas-monto neutro">$0</div>
-            {% endif %}
-        </div>
-
-        <div class="est-finanzas-grupo">
-            <span class="est-finanzas-grupo-titulo">Cheques a cobrar</span>
-            {% if situacion_financiera.cheques_a_cobrar %}
-                {% for c in situacion_financiera.cheques_a_cobrar %}
-                <div class="est-finanzas-monto positivo">${{ c.total|floatformat:0|intcomma }} <span>{{ c.moneda }}</span></div>
-                {% endfor %}
-            {% else %}
-                <div class="est-finanzas-monto neutro">$0</div>
-            {% endif %}
-        </div>
-
-        <div class="est-finanzas-grupo">
-            <span class="est-finanzas-grupo-titulo">Cheques a pagar</span>
-            {% if situacion_financiera.cheques_a_pagar %}
-                {% for c in situacion_financiera.cheques_a_pagar %}
-                <div class="est-finanzas-monto negativo">${{ c.total|floatformat:0|intcomma }} <span>{{ c.moneda }}</span></div>
-                {% endfor %}
-            {% else %}
-                <div class="est-finanzas-monto neutro">$0</div>
-            {% endif %}
-        </div>
-
+        {% endfor %}
     </div>
 </div>
 {% endif %}

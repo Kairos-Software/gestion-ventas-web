@@ -16,7 +16,7 @@ from django.utils import timezone
 
 from core.models import Cliente
 from ventas.models import ItemVenta, EstadoVenta
-from caja.models import CuotaCobro, EstadoCuota, EstadoDeuda
+from caja.models import CuentaPorCobrar, CuotaCobro, EstadoCuota, EstadoDeuda, ModoCuotas
 
 from .ventas import SUBTOTAL_EXPR
 
@@ -127,15 +127,21 @@ def clientes_inactivos(dias_sin_comprar=60, top=20):
 
 
 # ══════════════════════════════════════════════════════════════════
-#  DISTRIBUCIÓN POR NIVEL DE RIESGO Y ESTADO
+#  DISTRIBUCIÓN POR TIPO Y ESTADO
 #  (tiempo real — foto de la base de clientes hoy, no del período)
 # ══════════════════════════════════════════════════════════════════
 
-def distribucion_riesgo():
-    labels = dict(Cliente.NIVEL_RIESGO_CHOICES)
+def distribucion_tipo():
+    """
+    Persona física vs. empresa — a diferencia de nivel_riesgo (campo
+    manual que nadie calcula), tipo es obligatorio y siempre está
+    cargado, así que esta distribución sí refleja algo real de la
+    cartera.
+    """
+    labels = dict(Cliente.TIPO_CHOICES)
     return [
-        {'nivel': f['nivel_riesgo'], 'label': labels.get(f['nivel_riesgo'], f['nivel_riesgo']), 'cantidad': f['cantidad']}
-        for f in Cliente.objects.values('nivel_riesgo').annotate(cantidad=Count('id')).order_by('-cantidad')
+        {'tipo': f['tipo'], 'label': labels.get(f['tipo'], f['tipo']), 'cantidad': f['cantidad']}
+        for f in Cliente.objects.values('tipo').annotate(cantidad=Count('id')).order_by('-cantidad')
     ]
 
 
@@ -156,13 +162,23 @@ def distribucion_estado():
 # ══════════════════════════════════════════════════════════════════
 
 def cuentas_por_cobrar(desde, hasta, dias_proximo_vencimiento=15, top=10):
+    """
+    IMPORTANTE — modo_cuotas=libre no genera CuotaCobro por adelantado
+    (ver CuentaPorCobrar.registrar_abono): no hay "cuotas pendientes"
+    pregeneradas, solo un saldo abierto sin fecha de vencimiento propia.
+    Si solo se suman CuotaCobro con estado=pendiente, toda la deuda de
+    cuentas libres queda afuera de "pendiente de cobro" y del ranking de
+    deudores — hay que sumar el saldo_pendiente de esas cuentas aparte.
+    Por no tener fecha de vencimiento, tampoco entran en "vencido" ni
+    "vence en N días" (no hay contra qué fecha comparar).
+    """
     hoy = timezone.now().date()
 
     cuotas_pendientes = CuotaCobro.objects.filter(
         estado=EstadoCuota.PENDIENTE, cuenta_por_cobrar__estado=EstadoDeuda.ACTIVA,
     )
-    total_pendiente = cuotas_pendientes.aggregate(total=Sum('monto'))['total'] or Decimal('0')
-    cantidad_pendiente = cuotas_pendientes.count()
+    total_fijas = cuotas_pendientes.aggregate(total=Sum('monto'))['total'] or Decimal('0')
+    cantidad_fijas = cuotas_pendientes.count()
 
     vencidas = cuotas_pendientes.filter(fecha_vencimiento__lt=hoy)
     total_vencido = vencidas.aggregate(total=Sum('monto'))['total'] or Decimal('0')
@@ -175,30 +191,52 @@ def cuentas_por_cobrar(desde, hasta, dias_proximo_vencimiento=15, top=10):
     total_proximo = proximas.aggregate(total=Sum('monto'))['total'] or Decimal('0')
     cantidad_proximas = proximas.count()
 
+    cuentas_libres = CuentaPorCobrar.objects.filter(
+        estado=EstadoDeuda.ACTIVA, modo_cuotas=ModoCuotas.LIBRE,
+    )
+    libres_con_saldo = [(c, c.saldo_pendiente) for c in cuentas_libres]
+    libres_con_saldo = [(c, s) for c, s in libres_con_saldo if s > 0]
+    total_libres = sum((s for _, s in libres_con_saldo), Decimal('0'))
+    cantidad_libres = len(libres_con_saldo)
+
+    total_pendiente = total_fijas + total_libres
+    cantidad_pendiente = cantidad_fijas + cantidad_libres
+
     cobrado_periodo = CuotaCobro.objects.filter(
         estado=EstadoCuota.CONFIRMADA, fecha_confirmacion__date__range=(desde, hasta),
     ).aggregate(total=Sum('monto'))['total'] or Decimal('0')
 
-    por_cliente = list(
+    deuda_por_cliente = {}
+    for f in (
         cuotas_pendientes.values('cuenta_por_cobrar__cliente__id')
         .annotate(total=Sum('monto'), cantidad=Count('id'))
-        .order_by('-total')[:top]
-    )
+    ):
+        acumulado = deuda_por_cliente.setdefault(
+            f['cuenta_por_cobrar__cliente__id'], {'total': Decimal('0'), 'cantidad': 0})
+        acumulado['total'] += f['total'] or Decimal('0')
+        acumulado['cantidad'] += f['cantidad']
+    for cxc, saldo in libres_con_saldo:
+        acumulado = deuda_por_cliente.setdefault(
+            cxc.cliente_id, {'total': Decimal('0'), 'cantidad': 0})
+        acumulado['total'] += saldo
+        acumulado['cantidad'] += 1
+
+    top_clientes = sorted(
+        deuda_por_cliente.items(), key=lambda kv: kv[1]['total'], reverse=True)[:top]
     clientes_dict = {
-        c.id: c for c in Cliente.objects.filter(
-            id__in=[f['cuenta_por_cobrar__cliente__id'] for f in por_cliente])
+        c.id: c for c in Cliente.objects.filter(id__in=[cid for cid, _ in top_clientes])
     }
     ranking_deudores = [
         {
-            'id': f['cuenta_por_cobrar__cliente__id'],
+            'id': cid,
             'nombre': (
-                clientes_dict[f['cuenta_por_cobrar__cliente__id']].get_nombre_display()
-                if f['cuenta_por_cobrar__cliente__id'] in clientes_dict else '(cliente eliminado)'
+                clientes_dict[cid].get_nombre_display()
+                if cid in clientes_dict else '(cliente eliminado)'
             ),
-            'total': f['total'] or Decimal('0'),
-            'cantidad_cuotas': f['cantidad'],
+            'total': datos['total'],
+            'cantidad_cuotas': datos['cantidad'],
         }
-        for f in por_cliente
+        for cid, datos in top_clientes
     ]
 
     return {

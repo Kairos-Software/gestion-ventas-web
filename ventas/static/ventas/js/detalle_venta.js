@@ -43,6 +43,101 @@ function _pagoMediosOpts(seleccionado) {
     ).join('');
 }
 
+/* ════════════════════════════════════════════════════════════════
+   CLIENTE DE LA VENTA — editable también desde acá (pestaña General),
+   no solo desde el carrito. Mismo mecanismo que Nueva Venta
+   (ver nueva_venta.js _bindClienteVentaInput), pero acá el cambio se
+   manda recién al confirmar (ver _getPagoPayload/cliente_pk más abajo
+   y ConfirmarVentaAjax en el backend, que actualiza el cliente de
+   TODOS los ítems antes de resolver los pagos) — nada se persiste
+   solo por elegirlo, igual que Fecha/Notas en esta misma pestaña.
+════════════════════════════════════════════════════════════════ */
+let clienteVentaDetalle = { pk: VDT.clienteUnicoPk || null, nombre: VDT.clienteUnicoNombre || '' };
+let clienteDetalleSearchTimer;
+
+function _escVdt(str) {
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+}
+
+function _bindClienteVentaDetalle() {
+    const input    = document.getElementById('vdtClienteInput');
+    const dropdown = document.getElementById('vdtClienteDropdown');
+    const clear    = document.getElementById('vdtClienteClear');
+    if (!input || !dropdown || !clear) return;
+
+    input.value = clienteVentaDetalle.nombre;
+    clear.style.display = clienteVentaDetalle.pk ? 'inline-flex' : 'none';
+
+    function _aplicarCliente(pk, nombre) {
+        clienteVentaDetalle = { pk, nombre };
+        VDT.clienteUnicoPk = pk;
+        // Reflejar de una si "Cuotas"/"Cheque" pasan a estar disponibles
+        // (o dejan de estarlo) sin tener que recargar la página.
+        if (typeof _renderLineas === 'function') _renderLineas();
+    }
+
+    input.addEventListener('input', () => {
+        clearTimeout(clienteDetalleSearchTimer);
+        const q = input.value.trim();
+        _aplicarCliente(null, '');
+        clear.style.display = 'none';
+
+        if (!q) {
+            dropdown.classList.remove('open');
+            dropdown.innerHTML = '';
+            return;
+        }
+        clienteDetalleSearchTimer = setTimeout(async () => {
+            try {
+                const res  = await fetch(`${VDT.urlBuscarCliente}?q=${encodeURIComponent(q)}`);
+                const data = await res.json();
+                if (input.value.trim() !== q) return; // respuesta vieja, el usuario ya siguió escribiendo
+                const results = data.results || [];
+
+                dropdown.innerHTML = results.length
+                    ? results.map(c => `
+                        <div class="vta-cli-option" data-pk="${c.pk}" data-nombre="${_escVdt(c.nombre)}">
+                            <div class="vta-cli-option-top">
+                                <span class="vta-cli-option-nombre">${_escVdt(c.nombre)}</span>
+                                ${c.codigo ? `<span class="vta-dropdown-item-codigo">${_escVdt(c.codigo)}</span>` : ''}
+                            </div>
+                            ${c.doc ? `<div class="vta-cli-option-doc">${_escVdt(c.doc)}</div>` : ''}
+                        </div>`).join('')
+                    : `<div class="vta-dropdown-empty">Sin resultados para "${_escVdt(q)}"</div>`;
+
+                dropdown.querySelectorAll('.vta-cli-option').forEach(el => {
+                    el.addEventListener('click', () => {
+                        const pk     = parseInt(el.dataset.pk, 10);
+                        const nombre = el.dataset.nombre;
+                        input.value  = nombre;
+                        clear.style.display = 'inline-flex';
+                        dropdown.classList.remove('open');
+                        dropdown.innerHTML = '';
+                        _aplicarCliente(pk, nombre);
+                    });
+                });
+                dropdown.classList.add('open');
+            } catch { /* silencioso */ }
+        }, 260);
+    });
+
+    clear.addEventListener('click', () => {
+        input.value = '';
+        clear.style.display = 'none';
+        _aplicarCliente(null, '');
+        input.focus();
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!dropdown.contains(e.target) && e.target !== input) {
+            dropdown.classList.remove('open');
+        }
+    });
+}
+_bindClienteVentaDetalle();
+
 function _cuentaPorId(pk) {
     return (VDT.cuentas || []).find(c => String(c.pk) === String(pk));
 }
@@ -98,6 +193,20 @@ function _lineaAplicaRecargo(l) {
 function _recargoMontoLinea(l) {
     if (!_lineaAplicaRecargo(l)) return 0;
     return (l.monto || 0) * _recargoPctPara(l) / 100;
+}
+
+/** Plata que el cliente termina pagando de más sobre lo que cubre el
+ *  precio de venta, sea cual sea el motivo: recargo de tarjeta/débito/QR/
+ *  transferencia (ver _recargoMontoLinea) o interés de un pago financiado
+ *  en cuotas (interesPct, ver _cuotasExtraHTML). Une ambos conceptos bajo
+ *  un solo "Total a cobrar" — antes solo se contaba el recargo de tarjeta,
+ *  así que una venta en cuotas con interés seguía mostrando el total de
+ *  productos nomás, sin el interés cargado. */
+function _extraMontoLinea(l) {
+    if (l.medio === 'cuotas') {
+        return (l.monto || 0) * (l.interesPct || 0) / 100;
+    }
+    return _recargoMontoLinea(l);
 }
 
 const CAMPO_ACEPTA_POR_MEDIO = {
@@ -180,25 +289,42 @@ function _montoArsLinea(l) {
  *  y fecha de la primera cuota — igual criterio que la compra a
  *  crédito (ver detalle_compra.js), pero acá no hay tarjeta ni cuenta:
  *  nada entra a caja hasta que se confirma cada cuota por separado
- *  desde "Cuentas por cobrar". */
+ *  desde "Cuentas por cobrar". Igual que en Compras, un switch "Cuotas
+ *  libres" oculta la cantidad de cuotas/fecha (no hay plan: se van
+ *  registrando cobros de cualquier monto desde Cuentas por cobrar) y
+ *  muestra el total a cobrar calculado en vivo. */
 function _cuotasExtraHTML(l) {
+    const libre = l.modoCuotas === 'libre';
     return `
+    <label class="vdt-credito-modo-row">
+        <span class="vdt-pago-cuotas-label">Cuotas libres</span>
+        <span class="toggle-switch">
+            <input type="checkbox" data-campo="modoCuotas" data-id="${l.id}" ${libre ? 'checked' : ''}>
+            <span class="toggle-track"></span>
+        </span>
+    </label>
     <div class="vdt-pago-cuotas-extra">
+        ${libre ? '' : `
         <div>
             <span class="vdt-pago-cuotas-label">Cuotas</span>
             <input type="number" class="vdt-pago-select" min="1" step="1" placeholder="Cuotas"
                    value="${l.cuotas || ''}" data-campo="cuotas" data-id="${l.id}">
-        </div>
+        </div>`}
         <div>
             <span class="vdt-pago-cuotas-label">Interés %</span>
             <input type="number" class="vdt-pago-select" min="0" step="0.01" placeholder="0"
                    value="${l.interesPct != null ? l.interesPct : ''}" data-campo="interesPct" data-id="${l.id}">
         </div>
+        ${libre ? `
+        <div class="vdt-credito-total-libre">
+            <span class="vdt-pago-cuotas-label">Total a cobrar</span>
+            <strong>${_fmtARS((l.monto || 0) * (1 + (l.interesPct || 0) / 100))}</strong>
+        </div>` : `
         <div>
             <span class="vdt-pago-cuotas-label">Primera cuota</span>
             <input type="date" class="vdt-pago-select"
                    value="${l.fechaInicioCobro || ''}" data-campo="fechaInicioCobro" data-id="${l.id}">
-        </div>
+        </div>`}
     </div>`;
 }
 
@@ -344,8 +470,9 @@ function _renderLineas() {
                 linea.cuenta = '';
                 linea.cantidadPagos = 1;
                 linea.aplicaRecargo = true; // se sugiere aplicado; el vendedor lo destilda si no corresponde
-                if (linea.medio === 'cuotas' && !linea.fechaInicioCobro) {
-                    linea.fechaInicioCobro = VDT.hoy || '';
+                if (linea.medio === 'cuotas') {
+                    if (!linea.fechaInicioCobro) linea.fechaInicioCobro = VDT.hoy || '';
+                    if (!linea.modoCuotas) linea.modoCuotas = 'fijas';
                 }
                 if (linea.medio === 'cheque') {
                     linea.cheques = linea.cheques || [];
@@ -392,9 +519,17 @@ function _renderLineas() {
                 _actualizarResumen();
                 return;
             }
+            if (campo === 'modoCuotas') {
+                linea.modoCuotas = el.checked ? 'libre' : 'fijas';
+                _renderLineas();
+                return;
+            }
             if (campo === 'interesPct') {
                 linea.interesPct = el.value === '' ? 0 : parseFloat(el.value);
-                _actualizarResumen();
+                // Se re-renderiza también para actualizar "Total a cobrar"
+                // en vivo cuando la línea está en modo libre.
+                if (linea.medio === 'cuotas' && linea.modoCuotas === 'libre') _renderLineas();
+                else _actualizarResumen();
                 return;
             }
             linea[campo] = campo === 'monto' ? (parseFloat(el.value) || 0) : el.value;
@@ -496,7 +631,7 @@ function _actualizarResumen() {
  *  (#vdtRecargoResumen) y el total grande de abajo (#vdtTotalsGrandValue),
  *  visible sin importar qué pestaña esté abierta. */
 function _actualizarRecargoResumen() {
-    const totalRecargo = pagoState.lineas.reduce((s, l) => s + _recargoMontoLinea(l), 0);
+    const totalRecargo = pagoState.lineas.reduce((s, l) => s + _extraMontoLinea(l), 0);
     const hayRecargo = totalRecargo > 0.005;
     const totalConRecargo = pagoState.total + totalRecargo;
 
@@ -567,11 +702,13 @@ function _pagoFaltanCuentas() {
     });
 }
 
-/** Toda línea en cuotas necesita cantidad de cuotas y fecha de la
- *  primera — igual criterio que _cdtPagoFaltanDatosCredito en compras. */
+/** Toda línea en cuotas fijas necesita cantidad de cuotas y fecha de la
+ *  primera — igual criterio que _cdtPagoFaltanDatosCredito en compras.
+ *  En modo libre no hay plan que armar, así que no se exige ninguno
+ *  de los dos. */
 function _pagoFaltanDatosCuotas() {
     return pagoState.lineas.some(l =>
-        l.medio === 'cuotas' && (!l.cuotas || l.cuotas < 1 || !l.fechaInicioCobro)
+        l.medio === 'cuotas' && l.modoCuotas !== 'libre' && (!l.cuotas || l.cuotas < 1 || !l.fechaInicioCobro)
     );
 }
 
@@ -583,14 +720,16 @@ function _pagoFaltanDatosCheque() {
 function _getPagoPayload() {
     const pagos = pagoState.lineas.map(l => {
         if (l.medio === 'cuotas') {
+            const libre = l.modoCuotas === 'libre';
             return {
                 medio: l.medio,
                 monto: l.monto,
                 cuenta_pk: null,
                 cotizacion: null,
-                cuotas: l.cuotas,
+                modo_cuotas: libre ? 'libre' : 'fijas',
+                cuotas: libre ? null : l.cuotas,
                 interes_pct: l.interesPct != null ? l.interesPct : 0,
-                fecha_inicio_cobro: l.fechaInicioCobro || null,
+                fecha_inicio_cobro: libre ? null : (l.fechaInicioCobro || null),
             };
         }
         if (l.medio === 'cheque') {
@@ -793,6 +932,7 @@ if (VDT.esBorrador) {
                         venta_pk:   VDT.ventaPk,
                         fecha:      fecha,
                         notas:      inputNotas ? inputNotas.value.trim() : '',
+                        cliente_pk: clienteVentaDetalle.pk,
                         medio_pago: pagoPayload.medio_pago,
                         pagos:      pagoPayload.pagos,
                         ...facturarPayload,

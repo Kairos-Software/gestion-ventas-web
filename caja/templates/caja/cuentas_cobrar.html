@@ -26,9 +26,22 @@
     <header class="cxc-header">
         <div>
             <h1 class="cxc-title">Cuentas por cobrar</h1>
-            <p class="cxc-subtitle">Ventas financiadas en cuotas por el propio negocio. Nacen solas al confirmar una venta con medio de pago "Cuotas" — ninguna cuota impacta caja hasta que se confirma su cobro.</p>
+            <p class="cxc-subtitle">Ventas financiadas en cuotas por el propio negocio (nacen solas al confirmar una venta con medio de pago "Cuotas") y deudas de clientes cargadas a mano. Ninguna cuota impacta caja hasta que se confirma su cobro.</p>
         </div>
+        {% if puede_crear %}
+        <button type="button" class="btn btn-primary" id="btnNuevaCxc">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Nueva cuenta por cobrar
+        </button>
+        {% endif %}
     </header>
+
+    <!-- ══════════════════════════════════
+         TOTAL A COBRAR
+    ══════════════════════════════════ -->
+    <div class="cxc-totales" id="cxcTotales"></div>
 
     <!-- ══════════════════════════════════
          FILTROS
@@ -64,7 +77,7 @@
             </div>
             <div class="filtro-campo filtro-campo--ancho">
                 <label for="fQ">Buscar</label>
-                <input type="text" id="fQ" name="q" placeholder="Cliente o descripción...">
+                <input type="text" id="fQ" name="q" placeholder="Cliente, descripción o N° de comprobante…">
             </div>
             <div class="filtro-acciones">
                 <button type="submit" class="btn btn-primary">Filtrar</button>
@@ -82,7 +95,8 @@
                 <thead>
                     <tr>
                         <th>Cliente</th>
-                        <th>Venta</th>
+                        <th>Venta / Descripción</th>
+                        <th>N° Comprobante</th>
                         <th class="th-monto">Monto total</th>
                         <th class="th-monto">Saldo pendiente</th>
                         <th>Cuotas</th>
@@ -92,13 +106,151 @@
                 </thead>
                 <tbody id="cxcBody">
                     <tr>
-                        <td colspan="7" class="cxc-tabla-loading">Cargando…</td>
+                        <td colspan="8" class="cxc-tabla-loading">Cargando…</td>
                     </tr>
                 </tbody>
             </table>
         </div>
         <div class="cxc-paginacion" id="paginacionContainer"></div>
     </section>
+</div>
+
+<!-- ══════════════════════════════════
+     MODAL NUEVA CUENTA POR COBRAR
+══════════════════════════════════ -->
+<div class="modal" id="modalCxc" hidden>
+    <div class="modal-backdrop" id="modalBackdrop"></div>
+    <div class="modal-content modal-content--ancho">
+        <div class="modal-header">
+            <h2 class="modal-title">Nueva cuenta por cobrar</h2>
+            <button type="button" class="modal-close" id="btnCerrarModal" aria-label="Cerrar">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M5 5L15 15M5 15L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
+        <form id="formCxc" class="modal-body">
+            <div class="cxc-form-section-header">
+                <h3 class="cxc-form-section-title">Datos generales</h3>
+            </div>
+
+            <div class="form-campo">
+                <label for="cCliente">Cliente *</label>
+                <div class="cxc-cliente-buscador">
+                    <input type="text" id="cClienteBusqueda" placeholder="Buscá por nombre, DNI/CUIT…" autocomplete="off">
+                    <input type="hidden" id="cClientePk" name="cliente_pk">
+                    <div class="cxc-cliente-resultados" id="cClienteResultados" hidden></div>
+                </div>
+                <div class="cxc-cliente-seleccionado" id="cClienteSeleccionado" hidden></div>
+            </div>
+
+            <div class="cxc-form-grid cxc-form-grid--2-1">
+                <div class="form-campo">
+                    <label for="cDescripcion">Descripción *</label>
+                    <input type="text" id="cDescripcion" name="descripcion" placeholder="Ej: Saldo de mercadería, Venta financiada…">
+                </div>
+                <div class="form-campo">
+                    <label for="cNumeroComprobante">N° de factura / comprobante</label>
+                    <input type="text" id="cNumeroComprobante" name="numero_comprobante" placeholder="Opcional">
+                </div>
+            </div>
+
+            <div class="cxc-form-section-header">
+                <h3 class="cxc-form-section-title">Plan de pago</h3>
+                <label class="cxc-modo-cuotas-inline">
+                    <span>Cuotas libres</span>
+                    <span class="toggle-switch">
+                        <input type="checkbox" id="cModoCuotas" name="modo_cuotas" value="libre">
+                        <span class="toggle-track"></span>
+                    </span>
+                </label>
+            </div>
+            <p class="cxc-modo-hint" id="cModoCuotasHint">Cuotas fijas: se reparte el total en N cuotas iguales con vencimiento mensual.</p>
+
+            <div class="cxc-form-grid cxc-form-grid--3">
+                <div class="form-campo">
+                    <label for="cMoneda">Moneda</label>
+                    <select id="cMoneda" name="moneda">
+                        {% for moneda, label in monedas %}
+                        <option value="{{ moneda }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-campo">
+                    <label for="cMonto">Monto *</label>
+                    <input type="number" id="cMonto" name="monto_original" step="0.01" min="0.01" required>
+                </div>
+                <div class="form-campo">
+                    <label for="cInteres">Interés %</label>
+                    <input type="number" id="cInteres" name="porcentaje_interes" step="0.01" min="0" value="0">
+                </div>
+            </div>
+
+            <p class="cxc-total-libre-preview" id="cTotalLibrePreview" hidden></p>
+
+            <div class="cxc-form-grid" id="gridPlanFijo">
+                <div class="form-campo">
+                    <label for="cCuotas">Cantidad de cuotas *</label>
+                    <input type="number" id="cCuotas" name="cantidad_cuotas" step="1" min="1" value="1" required>
+                </div>
+                <div class="form-campo">
+                    <label for="cFechaInicio">Vencimiento de la 1° cuota *</label>
+                    <input type="date" id="cFechaInicio" name="fecha_inicio" required>
+                </div>
+            </div>
+
+            <div class="form-campo cxc-carga-inicial-campo">
+                <label class="cxc-checkbox-label kai-label-help">
+                    <input type="checkbox" id="cCargaInicial" name="es_carga_inicial">
+                    Es una deuda que el cliente ya tenía antes de usar el sistema
+                    <button type="button" class="kai-help-btn" data-help-target="ayuda_cxc_carga_inicial" aria-label="Ayuda">?</button>
+                </label>
+                <div class="kai-help-popover" id="ayuda_cxc_carga_inicial">
+                    Marcá esto para cargar una cuenta por cobrar que ya tenías con este cliente, con algunas
+                    cuotas ya cobradas antes de usar Kairos. Esas cuotas ya cobradas NO van a sumarse a la caja
+                    grande — no tenemos registrado ese ingreso real, sumarlo de nuevo inflaría el balance sin
+                    motivo. Las cuotas que todavía no se cobraron siguen funcionando exactamente igual que en
+                    cualquier otra cuenta por cobrar: cuando las confirmes de acá en adelante, sí van a impactar
+                    la caja.
+                </div>
+                <div class="cxc-cuotas-historicas" id="cxcCuotasHistoricas" hidden>
+                    <p class="cxc-cuotas-historicas-hint">Tildá las cuotas que ya están cobradas y su fecha real de cobro:</p>
+                    <div class="cxc-cuotas-historicas-wrap">
+                        <table class="cxc-cuotas-tabla">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Vencimiento</th>
+                                    <th class="th-monto">Monto</th>
+                                    <th>Ya cobrada</th>
+                                    <th>Fecha de cobro</th>
+                                    <th>Medio</th>
+                                    <th>Detalle</th>
+                                </tr>
+                            </thead>
+                            <tbody id="cxcCuotasHistoricasBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="cxc-abonos-historicos" id="cxcAbonosHistoricos" hidden>
+                    <p class="cxc-cuotas-historicas-hint">Agregá los abonos que ya se cobraron antes de cargar la cuenta:</p>
+                    <div class="cxc-abonos-historicos-wrap" id="cxcAbonosHistoricosWrap"></div>
+                    <button type="button" class="btn btn-ghost btn-sm" id="btnAgregarAbonoHistorico">+ Agregar abono ya cobrado</button>
+                    <p class="cxc-abonos-historicos-total" id="cxcAbonosHistoricosTotal"></p>
+                </div>
+            </div>
+
+            <div class="form-campo">
+                <label for="cNotas">Notas</label>
+                <input type="text" id="cNotas" name="notas" placeholder="Observaciones (opcional)">
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-ghost" id="btnCancelarModal">Cancelar</button>
+                <button type="submit" class="btn btn-primary" id="btnGuardarCxc">Guardar</button>
+            </div>
+        </form>
+    </div>
 </div>
 
 <!-- ══════════════════════════════════
@@ -123,7 +275,7 @@
                 <input type="text" id="detNotas" placeholder="Observaciones (opcional)">
             </div>
 
-            <h3 class="cxc-cuotas-title">Cuotas</h3>
+            <h3 class="cxc-cuotas-title" id="cuotasTitle">Cuotas</h3>
             <div class="cxc-cuotas-wrap">
                 <table class="cxc-cuotas-tabla">
                     <thead>
@@ -139,12 +291,41 @@
                 </table>
             </div>
 
+            <div class="cxc-registrar-abono" id="cxcRegistrarAbono" hidden>
+                <h3 class="cxc-cuotas-title">Registrar abono</h3>
+                <div class="cxc-form-grid">
+                    <div class="form-campo">
+                        <label for="raMonto">Monto *</label>
+                        <input type="number" id="raMonto" step="0.01" min="0.01">
+                    </div>
+                    <div class="form-campo">
+                        <label for="raFecha">Fecha *</label>
+                        <input type="date" id="raFecha">
+                    </div>
+                </div>
+                <div class="form-campo">
+                    <label for="raCuenta">Cuenta *</label>
+                    <select id="raCuenta">
+                        <option value="">— Elegí una cuenta —</option>
+                    </select>
+                </div>
+                <div id="raMsg" style="color:#dc2626; font-size:.8125rem; margin-bottom:.5rem;"></div>
+                <div class="cxc-registrar-abono-acciones">
+                    <button type="button" class="btn btn-ghost" id="btnAbonarCheque">Cobrar con cheque</button>
+                    <button type="button" class="btn btn-primary" id="btnAbonar">Cobrar</button>
+                </div>
+            </div>
+
+            <h3 class="cxc-cuotas-title">Documentos adjuntos</h3>
+            <div class="cxc-documentos" id="cxcDocumentos"></div>
+
             <div class="modal-footer">
                 {% if puede_eliminar %}
                 <button type="button" class="btn btn-ghost cxc-btn-danger" id="btnEliminarCxc">Eliminar</button>
                 {% endif %}
+                <button type="button" class="btn btn-ghost" id="btnImprimirCxc">Imprimir</button>
                 {% if puede_editar %}
-                <button type="button" class="btn btn-primary" id="btnGuardarNotas">Guardar notas</button>
+                <button type="button" class="btn btn-primary" id="btnGuardarNotas">Guardar cambios</button>
                 {% endif %}
             </div>
         </div>
@@ -209,14 +390,23 @@
 <script>
     window.cxcUrls = {
         listar: '{{ url_listar }}',
+        crear: '{{ url_crear }}',
         editar: '{{ url_editar }}',
         eliminar: '{{ url_eliminar }}',
         detalle: '{{ url_detalle }}',
         confirmarCuota: '{{ url_confirmar_cuota }}',
+        registrarAbono: '{{ url_registrar_abono }}',
+        previsualizarCuotas: '{{ url_previsualizar_cuotas }}',
+        documentoSubir: '{{ url_documento_subir }}',
+        documentoEliminar: '{{ url_documento_eliminar }}',
+        buscarCliente: '{{ url_buscar_cliente }}',
+        clientePerfilBase: '{{ url_cliente_perfil_base }}',
     };
+    window.cxcToday = '{{ today }}';
     window.cxcPuedeConfirmar = {{ puede_confirmar|yesno:"true,false" }};
     window.cxcPuedeEditar = {{ puede_editar|yesno:"true,false" }};
-    window.cxcToday = "{% now 'Y-m-d' %}";
 </script>
 <script src="{% static 'caja/js/cuentas_cobrar.js' %}"></script>
+<script src="{% static 'caja/js/cuentas_cobrar_documentos.js' %}"></script>
+<script src="{% static 'caja/js/cuentas_cobrar_imprimir.js' %}"></script>
 {% endblock %}

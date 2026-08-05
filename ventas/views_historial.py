@@ -45,6 +45,9 @@ class ListarVentasAjax(LoginRequiredMixin, View):
             'items__consumos',
             'documentos',
             'pagos__cuenta',
+            'pagos__tarjeta',
+            'pagos__cuenta_por_cobrar',
+            'pagos__cheques',
         ).order_by('-fecha', '-fecha_alta')
 
         # — Filtros —
@@ -172,16 +175,49 @@ class ListarVentasAjax(LoginRequiredMixin, View):
             if not confirmado_por and creado_por:
                 confirmado_por = creado_por
 
-            # — Pagos múltiples —
-            pagos = [
-                {
-                    'medio': p.medio,
-                    'medio_label': p.get_medio_display(),
-                    'monto': str(p.monto),
-                    'cuenta': p.cuenta.nombre if p.cuenta_id else None,
+            # — Pagos múltiples — con el detalle real de cada línea
+            # (antes solo mostraba medio/monto/cuenta, perdiendo tarjeta,
+            # recargo, plan de cuotas, y el vínculo con la cuenta por
+            # cobrar/cheque que generó, si los hay).
+            pagos = []
+            for p in v.pagos.all():
+                linea = {
+                    'medio':         p.medio,
+                    'medio_label':   p.get_medio_display(),
+                    'monto':         str(p.monto),
+                    'monto_base':    str(p.monto_base),
+                    'cuenta':        p.cuenta.nombre if p.cuenta_id else None,
+                    'tarjeta':       p.tarjeta.nombre if p.tarjeta_id else None,
+                    'cotizacion':    str(p.cotizacion) if p.cotizacion else None,
+                    'recargo_pct':   str(p.recargo_pct),
+                    'recargo_monto': str(p.recargo_monto),
+                    'cantidad_pagos': p.cantidad_pagos,
+                    'nombre_plan':   p.nombre_plan,
+                    'etiqueta_plan': p.etiqueta_plan if p.cantidad_pagos > 1 or p.nombre_plan else None,
                 }
-                for p in v.pagos.all()
-            ]
+                cxc = getattr(p, 'cuenta_por_cobrar', None)
+                if cxc:
+                    linea['cuenta_por_cobrar'] = {
+                        'pk':               cxc.pk,
+                        'estado':           cxc.estado,
+                        'estado_label':     cxc.get_estado_display(),
+                        'modo_cuotas':      cxc.modo_cuotas,
+                        'cantidad_cuotas':  cxc.cantidad_cuotas,
+                        'saldo_pendiente':  str(cxc.saldo_pendiente),
+                    }
+                cheques = list(p.cheques.all())
+                if cheques:
+                    linea['cheques'] = [
+                        {
+                            'pk':             ch.pk,
+                            'numero_cheque':  ch.numero_cheque,
+                            'estado':         ch.estado,
+                            'estado_label':   ch.get_estado_display(),
+                            'fecha_cobro':    ch.fecha_cobro.strftime('%d/%m/%Y'),
+                        }
+                        for ch in cheques
+                    ]
+                pagos.append(linea)
 
             data.append({
                 'pk':                      v.pk,
@@ -194,6 +230,7 @@ class ListarVentasAjax(LoginRequiredMixin, View):
                 'descuento_global_pct':    str(v.descuento_global_pct),
                 'oferta_global_nombre':    v.oferta_global_nombre,
                 'notas':                   v.notas,
+                'cliente_display':         v.cliente_display,
                 # — Medio de pago —
                 'medio_pago':              v.medio_pago,
                 'medio_pago_label':        v.get_medio_pago_display(),

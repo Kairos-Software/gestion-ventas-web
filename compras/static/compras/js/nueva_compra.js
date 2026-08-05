@@ -37,11 +37,13 @@ let carrito      = [];   // [{ id, producto_pk, combinacion_pk, nombre,
                          //    cantidad, costo, moneda, descuento,
                          //    condicion, referencia, fecha_vencimiento }]
 let nextId       = 0;
-let provTimers   = {};
-let provGlobalDD = null;
-let provActiveInput  = null;
-let provActiveItemId = null;
 let _lastResults = [];   // últimos resultados del buscador (para leer por índice)
+
+// Proveedor de la compra — uno solo para todos los ítems (no por producto):
+// una compra es un pedido a UN proveedor, no tiene sentido de negocio
+// mezclarlos en el mismo pedido. Ver _bindProveedorCompraInput más abajo.
+let compraProveedor = { pk: null, nombre: '' };
+let provSearchTimer;
 
 /* ════════════════════════════════════════════════════════════════
    DOM
@@ -229,6 +231,18 @@ function _agregarItem(fila) {
         return;
     }
 
+    // Si todavía no se eligió proveedor para la compra, el primer producto
+    // agregado "sugiere" el suyo (su proveedor habitual) como punto de
+    // partida — el vendedor lo puede cambiar en el buscador del header,
+    // y ese cambio se propaga a todos los ítems (ver _sincronizarProveedorEnCarrito).
+    if (!compraProveedor.pk && !carrito.length && fila.proveedor_pk) {
+        compraProveedor = { pk: fila.proveedor_pk, nombre: fila.proveedor || '' };
+        const provInput = document.getElementById('cmpProveedorInput');
+        const provClear = document.getElementById('cmpProveedorClear');
+        if (provInput) provInput.value = compraProveedor.nombre;
+        if (provClear) provClear.style.display = 'inline-flex';
+    }
+
     carrito.push({
         id:               nextId++,
         producto_pk:      fila.producto_pk,
@@ -240,8 +254,8 @@ function _agregarItem(fila) {
         codigo_barras:    fila.codigo_barras || '',
         unidad:           fila.unidad_medida || '',
         es_perecedero:    !!fila.es_perecedero,
-        proveedor_pk:     fila.proveedor_pk || '',
-        proveedor_nombre: fila.proveedor || '',
+        proveedor_pk:     compraProveedor.pk || '',
+        proveedor_nombre: compraProveedor.nombre || '',
         cantidad:         1,
         costo:            0,
         moneda:           'ARS',
@@ -310,16 +324,6 @@ function _renderCarrito() {
                 </div>
             </td>
             <td>
-                <div class="cmp-prov-wrap">
-                    <input type="text"
-                           class="cmp-input-inline w-lg cmp-prov-input"
-                           placeholder="Buscar proveedor…"
-                           value="${_esc(item.proveedor_nombre)}"
-                           autocomplete="off"
-                           data-item-id="${item.id}">
-                </div>
-            </td>
-            <td>
                 <input type="number" min="0.001" step="any"
                        class="cmp-input-inline w-xs cmp-field-input"
                        value="${item.cantidad}"
@@ -338,24 +342,6 @@ function _renderCarrito() {
                        data-item-id="${item.id}" data-campo="descuento">
             </td>
             <td>${_selectListaDescuento(item)}</td>
-            <td>
-                <select class="cmp-select-inline cmp-field-input"
-                        data-item-id="${item.id}" data-campo="condicion">
-                    <option value="contado"  ${item.condicion === 'contado'  ? 'selected' : ''}>Contado</option>
-                    <option value="15"       ${item.condicion === '15'       ? 'selected' : ''}>15 días</option>
-                    <option value="30"       ${item.condicion === '30'       ? 'selected' : ''}>30 días</option>
-                    <option value="60"       ${item.condicion === '60'       ? 'selected' : ''}>60 días</option>
-                    <option value="90"       ${item.condicion === '90'       ? 'selected' : ''}>90 días</option>
-                    <option value="convenir" ${item.condicion === 'convenir' ? 'selected' : ''}>A convenir</option>
-                </select>
-            </td>
-            <td>
-                <input type="text"
-                       class="cmp-input-inline w-md cmp-field-input"
-                       placeholder="Nº remito / factura"
-                       value="${_esc(item.referencia)}"
-                       data-item-id="${item.id}" data-campo="referencia">
-            </td>
             <td>
                 ${item.es_perecedero
                     ? `<input type="date"
@@ -400,12 +386,6 @@ function _bindCartBodyEvents() {
             _renderCarrito();
             _actualizarTotales();
         });
-    });
-
-    // Proveedor autocomplete
-    cartBody.querySelectorAll('.cmp-prov-input').forEach(input => {
-        input.addEventListener('input', () => _onProvInput(input));
-        input.addEventListener('blur',  () => _onProvBlur(input));
     });
 }
 
@@ -465,89 +445,83 @@ function _actualizarBtnContinuar() {
 }
 
 /* ════════════════════════════════════════════════════════════════
-   PROVEEDOR — AUTOCOMPLETE GLOBAL (posicionado con fixed)
+   PROVEEDOR DE LA COMPRA — un solo buscador para todo el carrito
+   (antes era por fila — ver comentario en la declaración de
+   compraProveedor más arriba).
 ════════════════════════════════════════════════════════════════ */
-function _getProvDD() {
-    if (!provGlobalDD) {
-        provGlobalDD = document.createElement('div');
-        provGlobalDD.className = 'cmp-prov-dropdown';
-        document.body.appendChild(provGlobalDD);
-    }
-    return provGlobalDD;
+function _sincronizarProveedorEnCarrito() {
+    carrito.forEach(item => {
+        item.proveedor_pk     = compraProveedor.pk;
+        item.proveedor_nombre = compraProveedor.nombre;
+    });
 }
 
-function _cerrarProvDD() {
-    const dd = _getProvDD();
-    dd.classList.remove('open');
-    dd.innerHTML = '';
-    provActiveInput  = null;
-    provActiveItemId = null;
-}
+function _bindProveedorCompraInput() {
+    const input    = document.getElementById('cmpProveedorInput');
+    const dropdown = document.getElementById('cmpProveedorDropdown');
+    const clear    = document.getElementById('cmpProveedorClear');
+    if (!input || !dropdown || !clear) return;
 
-function _posProvDD(input) {
-    const dd   = _getProvDD();
-    const rect = input.getBoundingClientRect();
-    const below = window.innerHeight - rect.bottom;
-    dd.style.cssText = `
-        position:fixed;
-        left:${rect.left}px;
-        width:${Math.max(rect.width, 220)}px;
-        max-height:${Math.min(200, Math.max(below - 8, 120))}px;
-        z-index:9000;
-        ${below < 120
-            ? `bottom:${window.innerHeight - rect.top + 4}px; top:auto;`
-            : `top:${rect.bottom + 4}px; bottom:auto;`}`;
-}
+    input.value = compraProveedor.nombre;
+    clear.style.display = compraProveedor.pk ? 'inline-flex' : 'none';
 
-function _onProvInput(input) {
-    const itemId = parseInt(input.dataset.itemId, 10);
-    provActiveInput  = input;
-    provActiveItemId = itemId;
+    input.addEventListener('input', () => {
+        clearTimeout(provSearchTimer);
+        const q = input.value.trim();
+        compraProveedor = { pk: null, nombre: '' };
+        clear.style.display = 'none';
+        _sincronizarProveedorEnCarrito();
 
-    // Limpiar pk mientras escribe
-    const item = carrito.find(i => i.id === itemId);
-    if (item) { item.proveedor_pk = ''; item.proveedor_nombre = input.value; }
+        if (!q) {
+            dropdown.classList.remove('open');
+            dropdown.innerHTML = '';
+            return;
+        }
+        provSearchTimer = setTimeout(async () => {
+            try {
+                const res     = await fetch(`${CFG.urlBuscarProveedor}?q=${encodeURIComponent(q)}`);
+                const data    = await res.json();
+                if (input.value.trim() !== q) return; // respuesta vieja
+                const results = data.results || [];
 
-    clearTimeout(provTimers[itemId]);
-    const dd = _getProvDD();
-    const q  = input.value.trim();
-    if (!q) { _cerrarProvDD(); return; }
+                dropdown.innerHTML = results.length
+                    ? results.map(p => `
+                        <div class="cmp-prov-option" data-pk="${p.pk}" data-nombre="${_esc(p.nombre)}">
+                            <div class="cmp-prov-option-nombre">${_esc(p.nombre)}</div>
+                            ${p.cuit ? `<div class="cmp-prov-option-meta">CUIT: ${_esc(p.cuit)}</div>` : ''}
+                        </div>`).join('')
+                    : `<div class="cmp-prov-option" style="color:var(--text-muted);cursor:default">Sin resultados</div>`;
 
-    provTimers[itemId] = setTimeout(async () => {
-        try {
-            const res     = await fetch(`${CFG.urlBuscarProveedor}?q=${encodeURIComponent(q)}`);
-            const data    = await res.json();
-            const results = data.results || [];
-            dd.innerHTML  = results.length
-                ? results.map(p => `
-                    <div class="cmp-prov-option" data-pk="${p.pk}" data-nombre="${_esc(p.nombre)}">
-                        <div class="cmp-prov-option-nombre">${_esc(p.nombre)}</div>
-                        ${p.cuit ? `<div class="cmp-prov-option-meta">CUIT: ${_esc(p.cuit)}</div>` : ''}
-                    </div>`).join('')
-                : `<div class="cmp-prov-option" style="color:var(--text-muted);cursor:default">Sin resultados</div>`;
-
-            dd.querySelectorAll('.cmp-prov-option[data-pk]').forEach(el => {
-                el.addEventListener('mousedown', e => {
-                    e.preventDefault();
-                    input.value = el.dataset.nombre;
-                    const it = carrito.find(i => i.id === itemId);
-                    if (it) { it.proveedor_pk = el.dataset.pk; it.proveedor_nombre = el.dataset.nombre; }
-                    _cerrarProvDD();
+                dropdown.querySelectorAll('.cmp-prov-option[data-pk]').forEach(el => {
+                    el.addEventListener('mousedown', e => {
+                        e.preventDefault();
+                        compraProveedor = { pk: parseInt(el.dataset.pk, 10), nombre: el.dataset.nombre };
+                        input.value = el.dataset.nombre;
+                        clear.style.display = 'inline-flex';
+                        dropdown.classList.remove('open');
+                        dropdown.innerHTML = '';
+                        _sincronizarProveedorEnCarrito();
+                    });
                 });
-            });
-            _posProvDD(input);
-            dd.classList.add('open');
-        } catch { _cerrarProvDD(); }
-    }, 250);
-}
+                dropdown.classList.add('open');
+            } catch { /* silencioso */ }
+        }, 260);
+    });
 
-function _onProvBlur(input) {
-    setTimeout(() => { if (provActiveInput === input) _cerrarProvDD(); }, 200);
-}
+    clear.addEventListener('click', () => {
+        compraProveedor = { pk: null, nombre: '' };
+        input.value = '';
+        clear.style.display = 'none';
+        _sincronizarProveedorEnCarrito();
+        input.focus();
+    });
 
-document.addEventListener('mousedown', e => {
-    if (provGlobalDD && !provGlobalDD.contains(e.target)) _cerrarProvDD();
-});
+    document.addEventListener('mousedown', e => {
+        if (!dropdown.contains(e.target) && e.target !== input) {
+            dropdown.classList.remove('open');
+        }
+    });
+}
 
 /* ════════════════════════════════════════════════════════════════
    GUARDAR BORRADOR Y NAVEGAR AL DETALLE
@@ -655,7 +629,15 @@ if (CFG.itemsIniciales && CFG.itemsIniciales.length) {
         fecha_vencimiento: it.fecha_vencimiento || '',
     }));
     nextId = carrito.length;
+    // Un borrador guardado antes de este cambio podía tener proveedor
+    // por ítem — al editarlo, el buscador del header arranca con el
+    // proveedor del primer ítem (si lo tiene) como punto de partida.
+    const primero = carrito.find(i => i.proveedor_pk);
+    if (primero) {
+        compraProveedor = { pk: primero.proveedor_pk, nombre: primero.proveedor_nombre };
+    }
 }
 _renderCarrito();
 _actualizarTotales();
+_bindProveedorCompraInput();
 searchInput.focus();

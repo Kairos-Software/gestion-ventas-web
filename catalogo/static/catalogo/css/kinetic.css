@@ -101,6 +101,23 @@
     padding: 3.5rem 1.5rem; max-width: 1400px; margin: 0 auto;
     display: grid; grid-template-columns: 1.2fr .8fr; gap: 3rem; align-items: center;
     border-bottom: 1px solid var(--k-border);
+    position: relative; isolation: isolate;
+}
+/* Fondo opcional (config → Fondo, exclusivo de Kinetic) — imagen propia
+   oscurecida en capas separadas (::before/::after) en vez de sobre el
+   elemento mismo, así queda detrás del contenido sin tocar su layout de
+   grid. Nítida a propósito (sin blur) — se "pierde" contra el fondo por
+   la oscurecida + el degradado de ::after, no por estar borrosa. Sin
+   imagen cargada, .k-hero--con-fondo ni se agrega (ver home.html), así
+   que el hero se ve exactamente igual que antes. */
+.kc-kinetic .k-hero--con-fondo::before {
+    content: ""; position: absolute; inset: 0; z-index: -2;
+    background-image: var(--k-hero-fondo-url); background-size: cover; background-position: center;
+    filter: brightness(.65) saturate(1.15);
+}
+.kc-kinetic .k-hero--con-fondo::after {
+    content: ""; position: absolute; inset: 0; z-index: -1;
+    background: linear-gradient(180deg, rgba(8,9,15,.25) 0%, rgba(8,9,15,.75) 100%);
 }
 .kc-kinetic .k-hero-eyebrow {
     display: inline-block; font-family: var(--k-mono); font-size: .75rem; font-weight: 700;
@@ -305,7 +322,6 @@
 .kc-kinetic .k-footer-inner { max-width: 1400px; margin: 0 auto; padding: 3rem 1.5rem 2rem; display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 2.5rem; }
 .kc-kinetic .k-footer-brand { display: flex; align-items: center; gap: 10px; margin-bottom: .75rem; }
 .kc-kinetic .k-footer-logo { height: 28px; width: auto; max-width: 130px; object-fit: contain; }
-.kc-kinetic .k-footer-name { font-family: var(--k-heading); font-weight: 800; font-size: 1.05rem; color: #fff; }
 .kc-kinetic .k-footer-tagline { color: var(--k-text-dim); font-size: .85rem; line-height: 1.5; max-width: 40ch; margin: 0 0 .9rem; }
 .kc-kinetic .k-footer-redes { display: flex; gap: .5rem; }
 .kc-kinetic .k-footer-redes a {

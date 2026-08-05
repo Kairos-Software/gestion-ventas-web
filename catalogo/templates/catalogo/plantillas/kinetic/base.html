@@ -78,7 +78,6 @@
                     {% else %}
                         <img src="{% static 'core/img/kai-cart-logo-completo.png' %}" alt="" class="k-footer-logo">
                     {% endif %}
-                    <span class="k-footer-name">{{ empresa.nombre_comercial }}</span>
                 </div>
                 <p class="k-footer-tagline">{{ config_catalogo.sobre_nosotros|default:default_sobre_nosotros }}</p>
                 {% if config_catalogo.instagram_url or config_catalogo.facebook_url or config_catalogo.tiktok_url %}

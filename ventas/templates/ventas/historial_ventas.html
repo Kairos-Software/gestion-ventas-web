@@ -178,6 +178,7 @@
         reactivar:        "{% url 'ventas:reactivar_venta' %}",
         eliminar:         "{% url 'ventas:eliminar_venta' %}",
         editar:           "{% url 'ventas:editar_venta' %}",
+        nuevaVenta:       "{% url 'ventas:nueva_venta' %}",
         productos:        "{% url 'productos:gestion_productos' %}",
         clientes:         "{% url 'core:gestion_clientes' %}",
         buscarProducto:   "{% url 'ventas:buscar_producto' %}",
@@ -195,7 +196,6 @@
 </script>
 <script src="{% static 'ventas/js/historial_utils.js' %}"></script>
 <script src="{% static 'ventas/js/historial_docs.js' %}"></script>
-<script src="{% static 'ventas/js/historial_editor.js' %}"></script>
 <script src="{% static 'ventas/js/historial_ventas.js' %}"></script>
 <script>
 // Resaltar la venta recién confirmada al llegar desde Nueva Venta

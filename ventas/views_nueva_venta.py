@@ -579,6 +579,177 @@ class GuardarBorradorAjax(LoginRequiredMixin, View):
 
 
 # ══════════════════════════════════════════════════════════════════
+#  AJAX — Actualizar Borrador  (usado cuando se edita el carrito de
+#  un borrador existente desde Nueva Venta con ?editar=<pk> — mismo
+#  patrón que compras.views.ActualizarBorradorAjax)
+# ══════════════════════════════════════════════════════════════════
+
+class ActualizarBorradorAjax(LoginRequiredMixin, View):
+    """
+    POST JSON:
+    {
+        "venta_pk": 42,
+        "fecha":    "2025-01-15",
+        "notas":    "...",
+        "items":    [ ... mismo formato que GuardarBorradorAjax ... ],
+        "descuento_global_pct": 10, "oferta_global_nombre": "..."
+    }
+
+    Reemplaza TODOS los ítems del borrador por los que llegan en el body,
+    en el mismo lugar (mismo pk/número) — a diferencia de GuardarBorradorAjax,
+    que siempre crea una venta nueva. El borrador sigue en BORRADOR, no
+    toca stock ni caja todavía (eso recién pasa al confirmar).
+
+    Respuesta: { ok: true, pk, numero }
+    """
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'crear_ventas'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        venta_pk = body.get('venta_pk')
+        if not venta_pk:
+            return JsonResponse({'error': 'venta_pk requerido.'}, status=400)
+
+        venta = get_object_or_404(Venta, pk=venta_pk)
+
+        if venta.estado != EstadoVenta.BORRADOR:
+            return JsonResponse(
+                {'error': f'La venta ya está en estado "{venta.get_estado_display()}". Solo se pueden editar borradores desde acá.'},
+                status=400
+            )
+
+        items_raw = body.get('items', [])
+        if not items_raw:
+            return JsonResponse({'error': 'El carrito no puede quedar vacío.'}, status=400)
+
+        errores = []
+        items_para_crear = []
+
+        for idx, raw in enumerate(items_raw, start=1):
+            producto_pk = raw.get('producto_pk')
+            if not producto_pk:
+                errores.append(f'Ítem {idx}: falta producto.')
+                continue
+
+            try:
+                producto = Producto.objects.get(pk=producto_pk)
+            except Producto.DoesNotExist:
+                errores.append(f'Ítem {idx}: producto no encontrado.')
+                continue
+
+            try:
+                cantidad        = Decimal(str(raw.get('cantidad', 0)))
+                precio_unitario = Decimal(str(raw.get('precio_unitario', 0)))
+                descuento_pct   = Decimal(str(raw.get('descuento_pct', 0)))
+            except Exception:
+                errores.append(f'Ítem {idx}: valores numéricos inválidos.')
+                continue
+
+            # Mismo criterio que GuardarBorradorAjax: la etiqueta de
+            # balanza manda su propia cantidad/precio reales.
+            etiqueta_balanza = None
+            etiqueta_pk = raw.get('etiqueta_balanza_pk')
+            if etiqueta_pk:
+                etiqueta_balanza = EtiquetaBalanza.objects.filter(pk=etiqueta_pk).first()
+                if not etiqueta_balanza:
+                    errores.append(f'Ítem {idx}: la etiqueta de balanza ya no existe.')
+                    continue
+                if etiqueta_balanza.estado != EstadoEtiquetaBalanza.DISPONIBLE:
+                    errores.append(
+                        f'Ítem {idx}: la etiqueta {etiqueta_balanza.codigo} ya no está disponible '
+                        f'({etiqueta_balanza.get_estado_display()}).'
+                    )
+                    continue
+                if etiqueta_balanza.producto_id != producto.pk:
+                    errores.append(f'Ítem {idx}: la etiqueta no corresponde a este producto.')
+                    continue
+                cantidad        = etiqueta_balanza.cantidad
+                precio_unitario = etiqueta_balanza.precio_unitario
+
+            if cantidad <= 0:
+                errores.append(f'Ítem {idx}: la cantidad debe ser mayor a 0.')
+                continue
+            if not cantidad_valida_para_unidad(producto.unidad_medida, cantidad):
+                errores.append(
+                    f'Ítem {idx}: "{producto.nombre}" se vende por {producto.get_unidad_medida_display()} '
+                    f'— la cantidad tiene que ser un número entero.'
+                )
+                continue
+            if precio_unitario < 0:
+                errores.append(f'Ítem {idx}: el precio no puede ser negativo.')
+                continue
+
+            cliente    = None
+            cliente_pk = raw.get('cliente_pk')
+            if cliente_pk:
+                cliente = Cliente.objects.filter(pk=cliente_pk).first()
+
+            combinacion    = None
+            combinacion_pk = raw.get('combinacion_pk')
+            if combinacion_pk:
+                combinacion = CombinacionVariante.objects.filter(pk=combinacion_pk, producto=producto).first()
+                if not combinacion:
+                    errores.append(f'Ítem {idx}: la combinación no pertenece a este producto.')
+                    continue
+
+            tipo_escaneo   = raw.get('tipo_escaneo', TipoResolucionLote.NORMAL)
+            lote_escaneado = None
+            if tipo_escaneo == TipoResolucionLote.LOTE_ESPECIFICO:
+                lote_pk = raw.get('lote_pk')
+                if not lote_pk:
+                    errores.append(f'Ítem {idx}: falta el lote escaneado.')
+                    continue
+                lote_escaneado = LoteCompra.objects.filter(pk=lote_pk).first()
+                if not lote_escaneado:
+                    errores.append(f'Ítem {idx}: el lote escaneado ya no existe.')
+                    continue
+
+            items_para_crear.append(dict(
+                producto=producto, cliente=cliente, combinacion=combinacion,
+                tipo_escaneo=tipo_escaneo, lote_escaneado=lote_escaneado,
+                cantidad=cantidad, precio_unitario=precio_unitario,
+                moneda=raw.get('moneda', 'ARS'), descuento_pct=descuento_pct,
+                lista_descuento_nombre=raw.get('lista_descuento_nombre', ''),
+                oferta_aplicada_nombre=raw.get('oferta_aplicada_nombre', ''),
+                condicion_pago=raw.get('condicion_pago', 'contado'),
+                referencia=raw.get('referencia', ''), notas=raw.get('notas', ''),
+                etiqueta_balanza=etiqueta_balanza,
+            ))
+
+        if errores:
+            return JsonResponse({'error': ' | '.join(errores)}, status=400)
+
+        # — Recién acá se toca la base: reemplazo total de ítems —
+        venta.items.all().delete()
+        for datos in items_para_crear:
+            etiqueta_balanza = datos.pop('etiqueta_balanza')
+            item = ItemVenta.objects.create(venta=venta, **datos)
+            if etiqueta_balanza:
+                etiqueta_balanza.item_venta = item
+                etiqueta_balanza.save(update_fields=['item_venta'])
+
+        venta.fecha = body.get('fecha') or venta.fecha
+        venta.notas = body.get('notas', venta.notas)
+        venta.save(update_fields=['fecha', 'notas'])
+
+        try:
+            descuento_global_pct = Decimal(str(body.get('descuento_global_pct', 0) or 0))
+        except Exception:
+            descuento_global_pct = Decimal('0')
+        venta.aplicar_descuento_global(
+            descuento_global_pct, body.get('oferta_global_nombre', ''),
+        )
+
+        return JsonResponse({'ok': True, 'pk': venta.pk, 'numero': venta.numero})
+
+
+# ══════════════════════════════════════════════════════════════════
 #  AJAX — Confirmar Venta
 # ══════════════════════════════════════════════════════════════════
 
@@ -624,6 +795,7 @@ class ConfirmarVentaAjax(LoginRequiredMixin, View):
         fecha      = body.get('fecha', '').strip()
         medio_pago = body.get('medio_pago', '').strip()
         pagos_raw  = body.get('pagos')
+        cliente_pk = body.get('cliente_pk') if 'cliente_pk' in body else False
 
         if not venta_pk:
             return JsonResponse({'error': 'venta_pk requerido.'}, status=400)
@@ -700,6 +872,7 @@ class ConfirmarVentaAjax(LoginRequiredMixin, View):
                         'cotizacion': cotizacion_p,
                         # Solo se usan si medio_p == 'cuotas' (ver Venta.confirmar) —
                         # se pasan tal cual, la validación real vive ahí.
+                        'modo_cuotas': p.get('modo_cuotas'),
                         'cuotas': p.get('cuotas'),
                         'interes_pct': p.get('interes_pct'),
                         'fecha_inicio_cobro': p.get('fecha_inicio_cobro'),
@@ -730,6 +903,23 @@ class ConfirmarVentaAjax(LoginRequiredMixin, View):
                     return JsonResponse({
                         'error': f'La suma de los pagos (${suma_ars}) no coincide con el total (${venta.total}).'
                     }, status=400)
+
+            # El cliente se puede corregir/cargar acá también (no solo desde
+            # el carrito) — se aplica a TODOS los ítems, que es de donde sale
+            # `Venta.cliente_unico` (ver esa property). `cliente_pk=False`
+            # (sentinel, no viene la clave) significa "no tocar"; `None` o ''
+            # significa "vaciar" (queda Consumidor Final).
+            if cliente_pk is not False:
+                cliente = Cliente.objects.filter(pk=cliente_pk).first() if cliente_pk else None
+                # cliente_nombre es un snapshot (ver ItemVenta.save()) que
+                # normalmente se completa solo al guardar un ítem nuevo —
+                # como acá se pisa con un `.update()` masivo (no pasa por
+                # save()), hay que resolverlo a mano para que no quede
+                # desincronizado del cliente real recién asignado.
+                venta.items.update(
+                    cliente=cliente,
+                    cliente_nombre=cliente.get_nombre_display() if cliente else '',
+                )
 
             try:
                 venta.editar_cabecera(fecha=fecha, notas=body.get('notas', ''))
@@ -1065,4 +1255,5 @@ class DetalleVentaView(LoginRequiredMixin, View):
             'url_doc_subir':         reverse('ventas:documento_subir'),
             'url_doc_eliminar':      reverse('ventas:documento_eliminar'),
             'url_facturar':          reverse('ventas:venta_facturar', args=[venta.pk]),
+            'url_buscar_cliente':    reverse('ventas:buscar_cliente'),
         })

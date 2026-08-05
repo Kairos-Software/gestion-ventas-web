@@ -198,6 +198,19 @@
     text-overflow: ellipsis;
 }
 
+.venta-cliente {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.mp-badge-extra {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
 .venta-total {
     font-weight: 700;
     font-size: 1rem;

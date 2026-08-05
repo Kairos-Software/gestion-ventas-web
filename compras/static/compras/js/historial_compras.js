@@ -6,8 +6,7 @@
  * Depende de (cargar en este orden):
  *   1. historial_utils.js
  *   2. historial_docs.js
- *   3. historial_editor.js
- *   4. historial_compras.js  ← este archivo
+ *   3. historial_compras.js  ← este archivo
  */
 'use strict';
 
@@ -18,7 +17,7 @@ let currentPage    = 1;
 let currentFilters = {};
 let lastData       = null;
 
-window._currentPage = currentPage; // usado por historial_editor.js al cancelar/guardar
+window._currentPage = currentPage;
 
 /* ════════════════════════════════════════════════════════════════
    DOM
@@ -58,6 +57,30 @@ function accionAnular(pk, numero) {
                 HISTORIAL_URLS.anular,
                 { pk },
                 () => { mostrarToastExito(`Compra ${numero} anulada. Stock revertido.`); fetchCompras(currentPage); },
+                msg => mostrarToastError(msg)
+            );
+        },
+    });
+}
+
+/** Editar una compra anulada: reabrirla como borrador (no toca ítems, no
+ *  revive stock/caja — ver Compra.reactivar()) y mandar al carrito para
+ *  editarla ahí como una compra nueva, en vez de duplicar acá la lógica
+ *  de armar carrito con un editor aparte. */
+function accionEditar(pk, numero) {
+    abrirModal({
+        icon: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                   <path d="M18 6L22 10L9 23H5V19L18 6Z" stroke="var(--brand-blue,#2563eb)" stroke-width="1.6"
+                         stroke-linecap="round" stroke-linejoin="round"/>
+               </svg>`,
+        title:        `Editar ${numero}`,
+        body:         'Se va a reabrir como borrador y te vamos a llevar al carrito para editarla, igual que una compra nueva.',
+        confirmLabel: 'Sí, editar',
+        onConfirm: () => {
+            postAccion(
+                HISTORIAL_URLS.reactivar,
+                { pk },
+                () => { window.location.href = HISTORIAL_URLS.nuevaCompra + '?editar=' + pk; },
                 msg => mostrarToastError(msg)
             );
         },
@@ -198,12 +221,30 @@ function buildAccionesHTML(c) {
         : '';
 }
 
+/** Detalle extra de una línea de pago: el vínculo con la Deuda o el/los
+ *  cheque(s) que generó, si corresponde (plan de cuotas, saldo
+ *  pendiente, estado) — antes esta información se perdía por completo. */
+function buildPagoExtraHTML(p) {
+    const partes = [];
+    if (p.deuda) {
+        const d = p.deuda;
+        const cuotasTxt = d.modo_cuotas === 'libre' ? 'cuotas libres' : `${d.cantidad_cuotas} cuotas`;
+        partes.push(`deuda (${_esc(cuotasTxt)}, ${_esc(d.estado_label)}, saldo ${formatMoney(d.saldo_pendiente)})`);
+    }
+    if (p.cheques && p.cheques.length) {
+        p.cheques.forEach(ch => {
+            partes.push(`cheque ${_esc(ch.numero_cheque || 's/n')} (${_esc(ch.estado_label)}, paga ${_esc(ch.fecha_cobro)})`);
+        });
+    }
+    return partes.length ? ` <span class="mp-badge-extra">— ${partes.join(' · ')}</span>` : '';
+}
+
 /** Un badge por línea de pago: "Efectivo" o el nombre de la cuenta real. */
 function buildPagosCompraHTML(c) {
     if (!c.pagos || !c.pagos.length) return '';
     return `<div class="detalle-pagos">${c.pagos.map(p => {
         const etiqueta = p.medio === 'efectivo' ? 'Efectivo' : (p.cuenta || p.medio_label);
-        return `<span class="pago-badge">${_esc(etiqueta)}: ${formatMoney(p.monto)}</span>`;
+        return `<span class="pago-badge">${_esc(etiqueta)}: ${formatMoney(p.monto)}</span>${buildPagoExtraHTML(p)}`;
     }).join(' ')}</div>`;
 }
 
@@ -213,6 +254,7 @@ function buildCompraHTML(c) {
         <div class="compra-cabecera">
             <span class="compra-numero">${_esc(c.numero)}</span>
             <span class="compra-fecha">${_esc(c.fecha)}</span>
+            ${c.numero_comprobante ? `<span class="compra-comprobante">Comprobante: ${_esc(c.numero_comprobante)}</span>` : ''}
             <span class="compra-notas">${_esc(c.notas || '')}</span>
             <span class="compra-total">${formatMoney(c.total)}</span>
             <span class="badge-estado ${c.estado}">${_esc(c.estado_label)}</span>
@@ -292,10 +334,7 @@ function renderLista(data) {
 
             if (accion === 'anular')   accionAnular(pk, numero);
             if (accion === 'eliminar') accionEliminar(pk, numero, revierte);
-            if (accion === 'editar') {
-                const compraData = (lastData.results || []).find(c => c.pk === pk);
-                if (compraData) accionEditar(pk, compraData, listaContainer);
-            }
+            if (accion === 'editar')   accionEditar(pk, numero);
         });
     });
 

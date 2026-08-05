@@ -167,7 +167,7 @@
 
 .vdt-pago-credito-extra {
     display: grid;
-    grid-template-columns: 1fr 1fr 1.3fr;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
     gap: .35rem;
 }
 
@@ -178,13 +178,68 @@
     display: block;
 }
 
+.vdt-credito-total-libre strong {
+    display: block;
+    font-size: .85rem;
+    color: var(--text-primary);
+}
+
+.vdt-credito-modo-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    margin-bottom: .35rem;
+}
+
+/* Mismo componente que caja/static/caja/css/deudas.css — se duplica acá
+   siguiendo la convención de que cada pantalla tiene su propio CSS. */
+.toggle-switch {
+    position: relative;
+    width: 36px; height: 20px;
+    flex-shrink: 0;
+}
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-track {
+    position: absolute;
+    inset: 0;
+    background: var(--border-strong, #d1d5db);
+    border-radius: 2rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.toggle-track::before {
+    content: '';
+    position: absolute;
+    left: 3px; top: 3px;
+    width: 14px; height: 14px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+.toggle-switch input:checked + .toggle-track { background: var(--accent-primary, #2563eb); }
+.toggle-switch input:checked + .toggle-track::before { transform: translateX(16px); }
+
 .vdt-cheque-toggle {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: .4rem;
     font-size: .78rem;
     color: var(--text-muted);
     cursor: pointer;
+}
+
+.vdt-cheque-toggle--disabled {
+    cursor: default;
+    opacity: .65;
+}
+
+.vdt-cheque-toggle-hint {
+    font-size: .72rem;
+    font-style: italic;
+    color: var(--text-muted);
 }
 
 .vdt-pago-cheque-extra {
@@ -624,6 +679,24 @@
                     </div>
 
                     <div class="cmp-field">
+                        <label class="cmp-label" for="cdtProveedorInput">Proveedor</label>
+                        <div class="cmp-prov-wrap" style="width:100%">
+                            <input type="text" id="cdtProveedorInput" class="cmp-control"
+                                   style="padding-right:1.75rem"
+                                   placeholder="Buscar proveedor… (vacío = sin proveedor)" autocomplete="off">
+                            <div id="cdtProveedorDropdown" class="cmp-prov-dropdown"></div>
+                            <button type="button" id="cdtProveedorClear" class="cmp-proveedor-compra-clear" title="Quitar proveedor" style="display:none;">✕</button>
+                        </div>
+                    </div>
+
+                    <div class="cmp-field">
+                        <label class="cmp-label" for="cdtNumeroComprobante">N° de comprobante / factura del proveedor</label>
+                        <input type="text" id="cdtNumeroComprobante" class="cmp-control"
+                               placeholder="Opcional — sin importar el medio de pago"
+                               value="{{ compra.numero_comprobante }}">
+                    </div>
+
+                    <div class="cmp-field">
                         <label class="cmp-label" for="cdtNotas">Notas generales</label>
                         <textarea id="cdtNotas" class="cmp-control"
                                   placeholder="Observaciones, número de OC, condiciones especiales…">{{ compra.notas }}</textarea>
@@ -645,6 +718,10 @@
                             <span>Asignado: <strong id="cdtPagoAsignado">$0,00</strong></span>
                             <span>Pendiente: <strong id="cdtPagoPendiente">${{ compra.total|floatformat:"2" }}</strong></span>
                         </div>
+                        <div class="vdt-pago-resumen vdt-pago-resumen--recargo" id="cdtInteresResumen" style="display:none">
+                            <span>Interés: <strong id="cdtInteresMonto">$0,00</strong></span>
+                            <span>Total a pagar: <strong id="cdtTotalAPagar">$0,00</strong></span>
+                        </div>
                     </div>
                 </div>
 
@@ -654,9 +731,13 @@
                         <span>Líneas</span>
                         <span>{{ items|length }}</span>
                     </div>
+                    <div class="cmp-totals-row" id="cdtTotalsInteresRow" style="display:none">
+                        <span>Interés (tarjeta)</span>
+                        <span id="cdtTotalsInteresValue">$0,00</span>
+                    </div>
                     <div class="cmp-totals-grand">
-                        <span class="cmp-totals-grand-label">Total</span>
-                        <span class="cmp-totals-grand-value">${{ compra.total|floatformat:"2" }}</span>
+                        <span class="cmp-totals-grand-label" id="cdtTotalsGrandLabel">Total</span>
+                        <span class="cmp-totals-grand-value" id="cdtTotalsGrandValue">${{ compra.total|floatformat:"2" }}</span>
                     </div>
                 </div>
 
@@ -701,6 +782,12 @@
                     <span>Número</span>
                     <strong>{{ compra.numero }}</strong>
                 </div>
+                {% if compra.numero_comprobante %}
+                <div class="cdt-resumen-row">
+                    <span>N° Comprobante</span>
+                    <strong>{{ compra.numero_comprobante }}</strong>
+                </div>
+                {% endif %}
                 <div class="cdt-resumen-row">
                     <span>Fecha</span>
                     <strong>{{ compra.fecha }}</strong>
@@ -743,9 +830,11 @@
     <div class="cmp-toast-body"  id="cdtToastBody"></div>
 </div>
 
-{# ══ MODAL CARGAR CHEQUE (línea de pago "Pagar con cheque") ══
-   No crea nada al guardar — solo queda en memoria dentro de la línea
-   de pago. El/los Cheque reales se crean recién al confirmar la compra. #}
+{% comment %}
+══ MODAL CARGAR CHEQUE (línea de pago "Pagar con cheque") ══
+No crea nada al guardar — solo queda en memoria dentro de la línea
+de pago. El/los Cheque reales se crean recién al confirmar la compra.
+{% endcomment %}
 <div id="cdtModalCheque" style="
     display:none; position:fixed; inset:0; z-index:9100;
     background:rgba(0,0,0,.45); align-items:center; justify-content:center; padding:1rem;">
@@ -847,8 +936,11 @@ window.CDT_CONFIG = {
     urlHistorial:         "{{ url_historial }}",
     urlDocSubir:          "{{ url_doc_subir }}",
     urlDocEliminar:       "{{ url_doc_eliminar }}",
+    urlBuscarProveedor:   "{{ url_buscar_proveedor }}",
     csrfToken:            "{{ csrf_token }}",
     hoy:                  "{% now 'Y-m-d' %}",
+    proveedorActualPk:     {{ proveedor_unico_compra.pk|default:"null" }},
+    proveedorActualNombre: "{{ proveedor_unico_compra.nombre|default:'' }}",
     cuentas: JSON.parse(document.getElementById('cuentas-data').textContent),
     tarjetas: JSON.parse(document.getElementById('tarjetas-data').textContent),
 };

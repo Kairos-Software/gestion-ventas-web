@@ -324,6 +324,7 @@ class GuardarBorradorAjax(LoginRequiredMixin, View):
         compra = Compra(
             fecha      = fecha,
             notas      = body.get('notas', ''),
+            numero_comprobante = body.get('numero_comprobante', ''),
             estado     = EstadoCompra.BORRADOR,
             creado_por = request.user,
         )
@@ -551,8 +552,9 @@ class ActualizarBorradorAjax(LoginRequiredMixin, View):
 
         compra.fecha = body.get('fecha') or compra.fecha
         compra.notas = body.get('notas', compra.notas)
+        compra.numero_comprobante = body.get('numero_comprobante', compra.numero_comprobante)
         compra.total = sum(item.subtotal for item in compra.items.all())
-        compra.save(update_fields=['fecha', 'notas', 'total'])
+        compra.save(update_fields=['fecha', 'notas', 'numero_comprobante', 'total'])
 
         return JsonResponse({
             'ok':     True,
@@ -668,6 +670,7 @@ class ConfirmarCompraAjax(LoginRequiredMixin, View):
                 'cotizacion': cotizacion_p,
             }
             if es_credito:
+                linea['modo_cuotas'] = p.get('modo_cuotas')
                 linea['cuotas'] = p.get('cuotas')
                 linea['interes_pct'] = p.get('interes_pct')
                 linea['fecha_inicio_debito'] = p.get('fecha_inicio_debito')
@@ -682,9 +685,30 @@ class ConfirmarCompraAjax(LoginRequiredMixin, View):
 
         medio_pago = pagos_normalizados[0]['medio']
 
+        # El proveedor se puede corregir/cargar acá también (no solo desde
+        # el carrito) — se aplica a TODOS los ítems, igual que el cliente
+        # en Ventas (ver ConfirmarVentaAjax). `proveedor_pk=False`
+        # (sentinel, no viene la clave) significa "no tocar"; `None` o ''
+        # significa "vaciar".
+        proveedor_pk = body.get('proveedor_pk') if 'proveedor_pk' in body else False
+        if proveedor_pk is not False:
+            proveedor = Proveedor.objects.filter(pk=proveedor_pk, activo=True).first() if proveedor_pk else None
+            # proveedor_nombre es un snapshot (ver ItemCompra.save()) que
+            # normalmente se completa solo al guardar un ítem nuevo — como
+            # acá se pisa con un `.update()` masivo (no pasa por save()),
+            # hay que resolverlo a mano para que no quede desincronizado
+            # del proveedor real recién asignado.
+            compra.items.update(
+                proveedor=proveedor,
+                proveedor_nombre=proveedor.nombre if proveedor else '',
+            )
+
         # Actualizar cabecera antes de confirmar
         try:
-            compra.editar_cabecera(fecha=fecha, notas=body.get('notas', ''))
+            compra.editar_cabecera(
+                fecha=fecha, notas=body.get('notas', ''),
+                numero_comprobante=body.get('numero_comprobante', ''),
+            )
         except ValueError as e:
             return JsonResponse({'error': str(e)}, status=400)
 
@@ -896,6 +920,13 @@ class DetalleCompraView(LoginRequiredMixin, View):
             for t in tarjetas
         ])
 
+        # Proveedor único de la compra (derivado de los ítems, mismo
+        # criterio que Venta.cliente_unico): None si no hay ninguno
+        # cargado o si es una compra vieja con proveedores mezclados por
+        # ítem (de antes de que el proveedor pasara a ser uno solo).
+        proveedores_ids = {i.proveedor_id for i in compra.items.all() if i.proveedor_id}
+        proveedor_unico = compra.items.all()[0].proveedor if len(proveedores_ids) == 1 else None
+
         from django.urls import reverse
         return _render(request, self.template_name, {
             'compra':     compra,
@@ -907,6 +938,7 @@ class DetalleCompraView(LoginRequiredMixin, View):
             'compra_moneda': moneda_compra,
             'cuentas_json': cuentas_json,
             'tarjetas_json': tarjetas_json,
+            'proveedor_unico_compra': proveedor_unico,
             # — URLs para el JS del template —
             'url_confirmar':        reverse('compras:confirmar_compra'),
             'url_eliminar_borrador': reverse('compras:eliminar_borrador'),
@@ -915,4 +947,5 @@ class DetalleCompraView(LoginRequiredMixin, View):
             'url_historial':        reverse('compras:historial_compras'),
             'url_doc_subir':        reverse('compras:documento_subir'),
             'url_doc_eliminar':     reverse('compras:documento_eliminar'),
+            'url_buscar_proveedor': reverse('compras:buscar_proveedor'),
         })

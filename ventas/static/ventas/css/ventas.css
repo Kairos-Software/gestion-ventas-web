@@ -389,12 +389,13 @@
     font-size: .8rem;
 }
 
-/* Cliente autocomplete en fila (usado hoy solo por historial_editor.js) */
+/* Wrapper base del autocomplete de cliente — lo reusan tanto el widget
+   de cabecera del carrito (nueva_venta.js) como el de la pestaña
+   General del detalle (detalle_venta.js). */
 .vta-cli-wrap { position: relative; min-width: 140px; }
 
 /* Cliente único de la venta — vive en el header de la card del carrito,
-   no por fila (ver nueva_venta.js). Namespaced aparte para no afectar el
-   autocomplete por fila que historial_editor.js todavía usa. */
+   no por fila (ver nueva_venta.js). */
 .vta-cliente-venta {
     display: flex;
     align-items: center;
@@ -472,8 +473,8 @@
 
 /* Tarjeta de resultado del cliente — nombre + código a la izquierda/
    derecha en una fila, documento (si tiene) en una segunda fila con
-   ícono. Clases propias (no las genéricas .vta-cli-option-nombre/-meta,
-   que también usa historial_editor.js) para no afectar esa pantalla. */
+   ícono. Clases propias (no las genéricas .vta-cli-option-nombre/-meta)
+   para no pisar otros usos del autocomplete de cliente. */
 .vta-cli-option-top {
     display: flex;
     align-items: center;

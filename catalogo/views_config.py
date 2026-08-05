@@ -117,6 +117,44 @@ class CatalogoConfigHeroImagenAjax(LoginRequiredMixin, View):
             os.remove(config.hero_imagen.path)
 
 
+class CatalogoKineticHeroFondoAjax(LoginRequiredMixin, View):
+    """POST (FormData, campo 'imagen') = subir/reemplazar el fondo del hero de "Kinetic". DELETE = quitarlo."""
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        archivo = request.FILES.get('imagen')
+        if not archivo:
+            return JsonResponse({'error': 'No se recibió ningún archivo.'}, status=400)
+        if archivo.size > 5 * 1024 * 1024:
+            return JsonResponse({'error': 'El archivo supera el límite de 5 MB.'}, status=400)
+
+        ext = os.path.splitext(archivo.name)[1].lower()
+        if ext not in EXTENSIONES_PERMITIDAS:
+            return JsonResponse({'error': 'Usá JPG, PNG o WEBP.'}, status=400)
+
+        config = ConfiguracionCatalogo.get_solo()
+        self._borrar_archivo_actual(config)
+        config.kinetic_hero_fondo = archivo
+        config.save(update_fields=['kinetic_hero_fondo'])
+        return JsonResponse({'ok': True, 'imagen_url': config.kinetic_hero_fondo.url})
+
+    def delete(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        config = ConfiguracionCatalogo.get_solo()
+        self._borrar_archivo_actual(config)
+        config.kinetic_hero_fondo = None
+        config.save(update_fields=['kinetic_hero_fondo'])
+        return JsonResponse({'ok': True})
+
+    def _borrar_archivo_actual(self, config):
+        if config.kinetic_hero_fondo and os.path.isfile(config.kinetic_hero_fondo.path):
+            os.remove(config.kinetic_hero_fondo.path)
+
+
 class CatalogoInstitucionalImagenAjax(LoginRequiredMixin, View):
     """POST (FormData, campo 'imagen') = subir/reemplazar la portada de /la-tienda/. DELETE = quitarla."""
 

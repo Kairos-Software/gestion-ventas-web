@@ -343,12 +343,15 @@ function _a4Cliente(cliente) {
 }
 
 function _a4FilaItem(item) {
+    // Sin condición de pago acá: ya no se carga por ítem (siempre "Contado"
+    // por default, mostrarla es engañoso — ej. una venta en cuotas
+    // diciendo "Contado"). El medio de pago real de la venta ya se
+    // muestra una sola vez arriba, ver venta.medio_pago_display.
     const detalle = [
         item.marca   ? _esc(item.marca) : '',
         item.codigo  ? item.codigo : '',
         item.color   ? `Color: ${_esc(item.color)}`   : '',
         item.cliente ? `Cliente: ${_esc(item.cliente)}` : '',
-        item.condicion_pago_display || '',
     ].filter(Boolean).join(' · ');
 
     return `<tr>

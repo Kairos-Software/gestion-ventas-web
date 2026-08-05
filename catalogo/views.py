@@ -71,6 +71,8 @@ def _contexto_base(request):
         'default_color_marca_secundario_bento': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_BENTO,
         'default_color_marca_kinetic': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_KINETIC,
         'default_color_marca_secundario_kinetic': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_KINETIC,
+        'default_color_marca_lumina': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_LUMINA,
+        'default_color_marca_secundario_lumina': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_LUMINA,
         'default_nav_catalogo': ConfiguracionCatalogo.DEFAULT_NAV_CATALOGO,
         'default_nav_ofertas': ConfiguracionCatalogo.DEFAULT_NAV_OFERTAS,
         'default_nav_combos': ConfiguracionCatalogo.DEFAULT_NAV_COMBOS,
@@ -331,6 +333,8 @@ class CatalogoHomeView(TemplateView):
             return ['catalogo/plantillas/bento/home.html']
         if plantilla == PlantillaCatalogo.KINETIC:
             return ['catalogo/plantillas/kinetic/home.html']
+        if plantilla == PlantillaCatalogo.LUMINA:
+            return ['catalogo/plantillas/lumina/home.html']
         return ['catalogo/home.html']
 
     def get_context_data(self, **kwargs):
@@ -562,6 +566,8 @@ class ProductoDetalleView(DetailView):
             return ['catalogo/plantillas/bento/detalle.html']
         if plantilla == PlantillaCatalogo.KINETIC:
             return ['catalogo/plantillas/kinetic/detalle.html']
+        if plantilla == PlantillaCatalogo.LUMINA:
+            return ['catalogo/plantillas/lumina/detalle.html']
         return ['catalogo/detalle.html']
 
     def get_queryset(self):
@@ -616,6 +622,8 @@ class TiendaInstitucionalView(TemplateView):
             return ['catalogo/plantillas/bento/institucional.html']
         if plantilla == PlantillaCatalogo.KINETIC:
             return ['catalogo/plantillas/kinetic/institucional.html']
+        if plantilla == PlantillaCatalogo.LUMINA:
+            return ['catalogo/plantillas/lumina/institucional.html']
         return ['catalogo/institucional.html']
 
     def get_context_data(self, **kwargs):

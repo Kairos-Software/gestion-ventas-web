@@ -41,15 +41,25 @@ urlpatterns = [
     path('deudas/eliminar/<int:pk>/',        views_deudas.EliminarDeudaAjax.as_view(),   name='eliminar_deuda'),
     path('deudas/<int:pk>/',                 views_deudas.DetalleDeudaAjax.as_view(),    name='detalle_deuda'),
     path('deudas/cuotas/<int:pk>/confirmar/', views_deudas.ConfirmarCuotaAjax.as_view(), name='confirmar_cuota_deuda'),
+    path('deudas/<int:pk>/abonar/',          views_deudas.RegistrarAbonoAjax.as_view(), name='registrar_abono_deuda'),
+    path('deudas/previsualizar-cuotas/',     views_deudas.PrevisualizarCuotasAjax.as_view(),   name='previsualizar_cuotas_deuda'),
+    path('deudas/documentos/subir/',         views_deudas.DeudaDocumentoSubirAjax.as_view(),   name='deuda_documento_subir'),
+    path('deudas/documentos/eliminar/',      views_deudas.DeudaDocumentoEliminarAjax.as_view(), name='deuda_documento_eliminar'),
 
     # ══════════════════════════════════════════════════════════════════
     #  AJAX — Cuentas por cobrar (ventas en cuotas)
     # ══════════════════════════════════════════════════════════════════
     path('cuentas-cobrar/listar/',                   views_cuentas_cobrar.ListarCuentasCobrarAjax.as_view(),   name='listar_cuentas_cobrar'),
+    path('cuentas-cobrar/crear/',                    views_cuentas_cobrar.CrearCuentaCobrarAjax.as_view(),     name='crear_cuenta_cobrar'),
     path('cuentas-cobrar/editar/<int:pk>/',          views_cuentas_cobrar.EditarCuentaCobrarAjax.as_view(),    name='editar_cuenta_cobrar'),
     path('cuentas-cobrar/eliminar/<int:pk>/',        views_cuentas_cobrar.EliminarCuentaCobrarAjax.as_view(),  name='eliminar_cuenta_cobrar'),
     path('cuentas-cobrar/<int:pk>/',                 views_cuentas_cobrar.DetalleCuentaCobrarAjax.as_view(),   name='detalle_cuenta_cobrar'),
     path('cuentas-cobrar/cuotas/<int:pk>/confirmar/', views_cuentas_cobrar.ConfirmarCuotaCobroAjax.as_view(),  name='confirmar_cuota_cobro'),
+    path('cuentas-cobrar/<int:pk>/abonar/',          views_cuentas_cobrar.RegistrarAbonoCobroAjax.as_view(),  name='registrar_abono_cobro'),
+    path('cuentas-cobrar/previsualizar-cuotas/',     views_cuentas_cobrar.PrevisualizarCuotasCobroAjax.as_view(),   name='previsualizar_cuotas_cobro'),
+    path('cuentas-cobrar/documentos/subir/',         views_cuentas_cobrar.CuentaCobrarDocumentoSubirAjax.as_view(),   name='cuenta_cobrar_documento_subir'),
+    path('cuentas-cobrar/documentos/eliminar/',      views_cuentas_cobrar.CuentaCobrarDocumentoEliminarAjax.as_view(), name='cuenta_cobrar_documento_eliminar'),
+    path('cuentas-cobrar/buscar-cliente/',           views_cuentas_cobrar.BuscarClienteCobrarAjax.as_view(),  name='buscar_cliente_cobrar'),
 
     # ══════════════════════════════════════════════════════════════════
     #  AJAX — Cheques

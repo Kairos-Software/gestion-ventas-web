@@ -12,8 +12,8 @@ from django.db.models import Q, Sum
 from productos.models import Moneda
 from caja.models import (
     Gasto, MovimientoCaja, TipoCaja, TipoMovimientoCaja,
-    CuotaDeuda, EstadoCuota, EstadoDeuda,
-    CuotaCobro,
+    Deuda, CuotaDeuda, EstadoCuota, EstadoDeuda, ModoCuotas,
+    CuentaPorCobrar, CuotaCobro,
     Cheque, TipoCheque, EstadoCheque,
     TurnoCaja, EstadoTurno,
 )
@@ -56,6 +56,21 @@ def _por_moneda(lista, campo_total='total'):
     ]
 
 
+def _saldo_libres_por_moneda(qs):
+    """
+    modo_cuotas=libre no pregenera cuotas/abonos futuros (ver
+    CuentaPorCobrar/Deuda.registrar_abono) — no hay filas "pendiente"
+    para sumar con una query, el saldo es la property saldo_pendiente
+    de cada cuenta. Devuelve {moneda: total}.
+    """
+    totales = {}
+    for obj in qs:
+        saldo = obj.saldo_pendiente
+        if saldo > 0:
+            totales[obj.moneda] = totales.get(obj.moneda, Decimal('0')) + saldo
+    return totales
+
+
 def situacion_financiera():
     # — Plata disponible: cuentas reales (no tarjetas) de caja grande —
     saldos = (
@@ -72,29 +87,38 @@ def situacion_financiera():
         for f in saldos
     ])
 
-    # — Deudas propias pendientes (cuotas de crédito/préstamos activos) —
-    deudas = (
-        CuotaDeuda.objects
-        .filter(estado=EstadoCuota.PENDIENTE, deuda__estado=EstadoDeuda.ACTIVA)
-        .values('deuda__moneda')
-        .annotate(total=Sum('monto'))
-    )
-    deudas_pendientes = _por_moneda([
-        {'moneda': f['deuda__moneda'], 'total': f['total']} for f in deudas
-    ])
+    # — Deudas propias pendientes (créditos/préstamos activos): cuotas
+    # fijas (CuotaDeuda) + saldo de cuentas en cuotas libres —
+    totales_deuda = {
+        f['deuda__moneda']: f['total'] or Decimal('0')
+        for f in (
+            CuotaDeuda.objects
+            .filter(estado=EstadoCuota.PENDIENTE, deuda__estado=EstadoDeuda.ACTIVA)
+            .values('deuda__moneda').annotate(total=Sum('monto'))
+        )
+    }
+    for moneda, total in _saldo_libres_por_moneda(
+        Deuda.objects.filter(estado=EstadoDeuda.ACTIVA, modo_cuotas=ModoCuotas.LIBRE)
+    ).items():
+        totales_deuda[moneda] = totales_deuda.get(moneda, Decimal('0')) + total
+    deudas_pendientes = _por_moneda([{'moneda': m, 'total': t} for m, t in totales_deuda.items()])
 
     # — Cuentas por cobrar pendientes (ventas en cuotas — lo que te
     # deben LOS CLIENTES, contracara de "deudas_pendientes" de arriba,
-    # que es lo que VOS debés) —
-    cxc = (
-        CuotaCobro.objects
-        .filter(estado=EstadoCuota.PENDIENTE, cuenta_por_cobrar__estado=EstadoDeuda.ACTIVA)
-        .values('cuenta_por_cobrar__moneda')
-        .annotate(total=Sum('monto'))
-    )
-    cxc_pendientes = _por_moneda([
-        {'moneda': f['cuenta_por_cobrar__moneda'], 'total': f['total']} for f in cxc
-    ])
+    # que es lo que VOS debés): cuotas fijas + saldo de cuentas libres —
+    totales_cxc = {
+        f['cuenta_por_cobrar__moneda']: f['total'] or Decimal('0')
+        for f in (
+            CuotaCobro.objects
+            .filter(estado=EstadoCuota.PENDIENTE, cuenta_por_cobrar__estado=EstadoDeuda.ACTIVA)
+            .values('cuenta_por_cobrar__moneda').annotate(total=Sum('monto'))
+        )
+    }
+    for moneda, total in _saldo_libres_por_moneda(
+        CuentaPorCobrar.objects.filter(estado=EstadoDeuda.ACTIVA, modo_cuotas=ModoCuotas.LIBRE)
+    ).items():
+        totales_cxc[moneda] = totales_cxc.get(moneda, Decimal('0')) + total
+    cxc_pendientes = _por_moneda([{'moneda': m, 'total': t} for m, t in totales_cxc.items()])
 
     # — Cheques pendientes: a cobrar (a favor) vs a pagar (en contra) —
     cheques = (
@@ -112,12 +136,58 @@ def situacion_financiera():
         for f in cheques if f['tipo'] == TipoCheque.A_PAGAR
     ])
 
+    # — Posición neta proyectada: "si cobrara todo lo que me deben y
+    # pagara todo lo que debo, ¿cuánto me queda?" — arrancando de la
+    # plata disponible hoy, suma lo que entra (CxC + cheques a cobrar) y
+    # resta lo que sale (deudas + cheques a pagar). Se arma por moneda —
+    # nunca se mezclan ARS/USD/EUR en un solo número.
+    def _monto(lista, moneda):
+        return next((f['total'] for f in lista if f['moneda'] == moneda), Decimal('0'))
+
+    monedas = sorted({
+        f['moneda']
+        for lista in (saldo_cuentas, deudas_pendientes, cxc_pendientes, cheques_a_cobrar, cheques_a_pagar)
+        for f in lista
+    })
+    labels = dict(Moneda.choices)
+    posicion_neta = [
+        {
+            'moneda': moneda,
+            'label': labels.get(moneda, moneda),
+            'total': (
+                _monto(saldo_cuentas, moneda) + _monto(cxc_pendientes, moneda) + _monto(cheques_a_cobrar, moneda)
+                - _monto(deudas_pendientes, moneda) - _monto(cheques_a_pagar, moneda)
+            ),
+        }
+        for moneda in monedas
+    ]
+
+    # Mismos números que arriba, pero reagrupados por moneda en vez de
+    # por categoría — para armar en el template un renglón "+/−/=" por
+    # moneda (el detalle de arriba sirve para el reporte periódico por
+    # mail, que ya consume saldo_cuentas/deudas_pendientes sueltos).
+    por_moneda = [
+        {
+            'moneda': moneda,
+            'label': labels.get(moneda, moneda),
+            'saldo': _monto(saldo_cuentas, moneda),
+            'cxc': _monto(cxc_pendientes, moneda),
+            'cheques_cobrar': _monto(cheques_a_cobrar, moneda),
+            'deudas': _monto(deudas_pendientes, moneda),
+            'cheques_pagar': _monto(cheques_a_pagar, moneda),
+            'neto': next(p['total'] for p in posicion_neta if p['moneda'] == moneda),
+        }
+        for moneda in monedas
+    ]
+
     return {
         'saldo_cuentas': saldo_cuentas,
         'deudas_pendientes': deudas_pendientes,
         'cxc_pendientes': cxc_pendientes,
         'cheques_a_cobrar': cheques_a_cobrar,
         'cheques_a_pagar': cheques_a_pagar,
+        'posicion_neta': posicion_neta,
+        'por_moneda': por_moneda,
     }
 
 
