@@ -105,15 +105,16 @@ document.addEventListener('DOMContentLoaded', function () {
     const btnAbonar = document.getElementById('btnAbonar');
     const btnAbonarCheque = document.getElementById('btnAbonarCheque');
 
-    // ── Toggle tipo compra_credito/prestamo ──────────────────────────
+    // ── Toggle tipo compra_credito/prestamo/cheque ────────────────────
     function setTipo(tipo) {
         dTipo.value = tipo;
         botonesTipo.forEach(btn => {
             btn.classList.toggle('deudas-tipo-btn--active', btn.dataset.tipo === tipo);
         });
-        const esCredito = tipo === 'compra_credito';
-        campoTarjeta.hidden = !esCredito;
-        campoAcreditacion.hidden = esCredito;
+        // Cheque no necesita tarjeta ni cuenta de acreditación: cada
+        // cuota se paga sola después, con cheque real o cuenta.
+        campoTarjeta.hidden = tipo !== 'compra_credito';
+        campoAcreditacion.hidden = tipo !== 'prestamo';
         poblarSelectsCuentas();
     }
     botonesTipo.forEach(btn => {
@@ -610,6 +611,10 @@ document.addEventListener('DOMContentLoaded', function () {
     };
 
     function renderizarDetalle(d) {
+        // Cheque no tiene una cuenta propia asociada a la deuda (ni
+        // tarjeta ni acreditación) — cada cuota se paga sola con un
+        // cheque real o una cuenta, así que no hay nada que mostrar acá.
+        const tieneCuentaPropia = d.tipo !== 'cheque';
         const cuentaLabel = d.tipo === 'compra_credito' ? 'Tarjeta' : 'Cuenta acreditada';
         const cuentaValor = d.tipo === 'compra_credito'
             ? (d.cuenta_tarjeta_nombre || '-')
@@ -621,7 +626,8 @@ document.addEventListener('DOMContentLoaded', function () {
         const hayPagos = d.cuotas.some(c => c.estado === 'confirmada');
         const puedeEditarPlan = puedeEditar && !hayPagos;
 
-        const cuentaEditable = puedeEditarPlan ? cuentasPorMoneda(d.moneda, d.tipo === 'compra_credito') : [];
+        const cuentaEditable = (puedeEditarPlan && tieneCuentaPropia)
+            ? cuentasPorMoneda(d.moneda, d.tipo === 'compra_credito') : [];
         const cuentaActualPk = d.tipo === 'compra_credito' ? d.cuenta_tarjeta_pk : d.cuenta_acreditacion_pk;
 
         const item = (label, valor, wide, highlight) => `<div class="deudas-resumen-item${wide ? ' deudas-resumen-item--wide' : ''}${highlight ? ' deudas-resumen-item--highlight' : ''}"><span class="deudas-resumen-label">${label}</span><div class="deudas-resumen-value">${valor}</div></div>`;
@@ -635,9 +641,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 ${item('N° de comprobante', puedeEditar
                     ? `<input type="text" id="detNumeroComprobante" placeholder="Opcional" value="${_deudaEscInput(d.numero_comprobante)}">`
                     : (d.numero_comprobante || '-'))}
-                ${item(cuentaLabel, puedeEditarPlan
+                ${tieneCuentaPropia ? item(cuentaLabel, puedeEditarPlan
                     ? `<select id="detCuenta">${cuentaEditable.map(c => `<option value="${c.pk}" ${c.pk === cuentaActualPk ? 'selected' : ''}>${c.nombre}</option>`).join('')}</select>`
-                    : cuentaValor)}
+                    : cuentaValor) : ''}
                 ${item('Moneda', puedeEditarPlan
                     ? `<select id="detMoneda">${dMoneda.innerHTML}</select>`
                     : d.moneda)}
@@ -675,6 +681,11 @@ document.addEventListener('DOMContentLoaded', function () {
         const saldoPendienteNum = parseFloat(d.saldo_pendiente) || 0;
         const mostrarRegistrarAbono = d.modo_cuotas === 'libre' && d.estado === 'activa'
             && saldoPendienteNum > 0 && puedeConfirmar;
+        // Cheque no admite ningún otro medio de pago — ni cuenta propia
+        // en la cuota, ni el "Pagar" directo del abono libre. Es la
+        // única diferencia real con crédito/préstamo.
+        const soloCheque = d.tipo === 'cheque';
+
         if (deudasRegistrarAbono) {
             deudasRegistrarAbono.hidden = !mostrarRegistrarAbono;
             if (mostrarRegistrarAbono) {
@@ -682,17 +693,22 @@ document.addEventListener('DOMContentLoaded', function () {
                 raMonto.max = d.saldo_pendiente;
                 raFecha.value = today;
                 raFecha.max = today;
-                poblarSelect(raCuenta, cuentasPorMoneda(d.moneda, false));
+                const campoCuentaAbono = raCuenta.closest('.form-campo');
+                if (campoCuentaAbono) campoCuentaAbono.hidden = soloCheque;
+                if (btnAbonar) btnAbonar.hidden = soloCheque;
+                if (!soloCheque) poblarSelect(raCuenta, cuentasPorMoneda(d.moneda, false));
                 raMsg.textContent = '';
             }
         }
 
-        const cuentasPago = cuentasPorMoneda(d.moneda, false);
+        const cuentasPago = soloCheque ? [] : cuentasPorMoneda(d.moneda, false);
 
         cuotasBody.innerHTML = d.cuotas.map(c => {
             let accion = '-';
             if (c.estado === 'pendiente' && puedeConfirmar && c.habilitada) {
-                accion = `
+                accion = soloCheque
+                    ? `<button type="button" class="btn btn-primary btn--sm" onclick="abrirModalChequeCuota(${c.pk}, ${c.monto}, '${d.moneda}', false)">Pagar con cheque</button>`
+                    : `
                     <div class="deudas-cuota-confirmar">
                         <select id="cuentaCuota${c.pk}" class="deudas-cuota-select"
                                 onchange="onCuentaCuotaChange(this, ${c.pk}, ${c.monto}, '${d.moneda}', false)">
@@ -702,7 +718,13 @@ document.addEventListener('DOMContentLoaded', function () {
                         <button type="button" class="btn btn-primary btn--sm" onclick="confirmarCuota(${c.pk})">Confirmar</button>
                     </div>`;
             } else if (c.estado === 'pendiente' && !c.habilitada && puedeConfirmar) {
-                accion = `
+                accion = soloCheque
+                    ? `
+                    <div class="deudas-cuota-confirmar">
+                        <button type="button" class="btn btn-secondary btn--sm" onclick="abrirModalChequeCuota(${c.pk}, ${c.monto}, '${d.moneda}', true)">Adelantar pago con cheque</button>
+                        <span class="deudas-cuota-fecha">Se habilita el ${c.fecha_vencimiento}</span>
+                    </div>`
+                    : `
                     <div class="deudas-cuota-confirmar">
                         <select id="cuentaCuota${c.pk}" class="deudas-cuota-select"
                                 onchange="onCuentaCuotaChange(this, ${c.pk}, ${c.monto}, '${d.moneda}', true)">

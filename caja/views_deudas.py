@@ -333,10 +333,13 @@ class CrearDeudaAjax(LoginRequiredMixin, View):
                     return JsonResponse({'error': 'Elegí la tarjeta con la que se pagó.'}, status=400)
                 if not descripcion:
                     return JsonResponse({'error': 'La descripción es obligatoria.'}, status=400)
-            else:
+            elif tipo == TipoDeuda.PRESTAMO:
                 cuenta_acreditacion = _cuenta_valida(data.get('cuenta_acreditacion_pk'), es_credito=False)
                 if not cuenta_acreditacion:
                     return JsonResponse({'error': 'Elegí la cuenta que recibe el préstamo.'}, status=400)
+                if not descripcion:
+                    return JsonResponse({'error': 'La descripción es obligatoria.'}, status=400)
+            else:  # CHEQUE — no requiere tarjeta ni cuenta de acreditación, cada cuota se paga sola después
                 if not descripcion:
                     return JsonResponse({'error': 'La descripción es obligatoria.'}, status=400)
 

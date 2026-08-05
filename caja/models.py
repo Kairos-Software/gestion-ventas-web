@@ -1093,11 +1093,19 @@ def sincronizar_movimiento_gasto(gasto):
 #  Préstamo: genera un ingreso inmediato en `cuenta_acreditacion` al
 #  crearse (el dinero ya entró), y luego un egreso por cada cuota de
 #  devolución confirmada.
+#
+#  Compra con cheque: igual que compra a crédito (no genera movimiento
+#  propio al crearse, ni requiere una cuenta propia — no hay tarjeta ni
+#  acreditación), pero pensada para lo que se compró y se va a pagar
+#  con uno o varios cheques propios en vez de tarjeta. Cada cuota se
+#  paga como cualquier otra: con un cheque real (confirmar_con_cheque)
+#  o con una cuenta, ambos ya soportados de forma genérica.
 # ══════════════════════════════════════════════════════════════════
 
 class TipoDeuda(models.TextChoices):
     COMPRA_CREDITO = 'compra_credito', 'Compra con tarjeta de crédito'
     PRESTAMO       = 'prestamo',       'Préstamo'
+    CHEQUE         = 'cheque',         'Compra con cheque'
 
 
 class EstadoDeuda(models.TextChoices):
@@ -1636,6 +1644,10 @@ class CuotaDeuda(models.Model):
 
     @transaction.atomic
     def confirmar(self, cuenta_pk, usuario, adelantar=False):
+        # Una deuda tipo Cheque se paga SOLO con cheque — no admite
+        # ningún otro medio, ni siquiera de una cuenta propia.
+        if self.deuda.tipo == TipoDeuda.CHEQUE:
+            raise ValueError('Esta deuda se paga solo con cheque — usá "Pagar con cheque".')
         # select_for_update(): mismo guard que en Venta/Compra.confirmar()
         # — un doble clic en "Pagar cuota" no debe generar dos egresos.
         if CuotaDeuda.objects.select_for_update().get(pk=self.pk).estado != EstadoCuota.PENDIENTE:

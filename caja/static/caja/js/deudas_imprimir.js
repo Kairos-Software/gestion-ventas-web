@@ -39,6 +39,7 @@ function _diEstadoLabel(c) {
  *   Si no se pasa, la abre acá mismo (caso de uso sin async de por medio).
  */
 function deudaImprimir(deuda, ventanaPrevia) {
+    const tieneCuentaPropia = deuda.tipo !== 'cheque';
     const cuentaLabel = deuda.tipo === 'compra_credito' ? 'Tarjeta' : 'Cuenta acreditada';
     const cuentaValor = deuda.tipo === 'compra_credito'
         ? (deuda.cuenta_tarjeta_nombre || '-')
@@ -81,7 +82,7 @@ function deudaImprimir(deuda, ventanaPrevia) {
     ${deuda.es_carga_inicial ? '<div class="di-badge">Carga inicial</div>' : ''}
     <div class="di-resumen">
         ${deuda.numero_comprobante ? `<div><span>N° de comprobante</span><strong>${_diEsc(deuda.numero_comprobante)}</strong></div>` : ''}
-        <div><span>${cuentaLabel}</span><strong>${_diEsc(cuentaValor)}</strong></div>
+        ${tieneCuentaPropia ? `<div><span>${cuentaLabel}</span><strong>${_diEsc(cuentaValor)}</strong></div>` : ''}
         <div><span>Monto original</span><strong>${_diFmtMoneda(deuda.monto_original, deuda.moneda)}</strong></div>
         <div><span>Interés</span><strong>${_diEsc(deuda.porcentaje_interes)}%</strong></div>
         <div><span>Monto total</span><strong>${_diFmtMoneda(deuda.monto_total, deuda.moneda)}</strong></div>

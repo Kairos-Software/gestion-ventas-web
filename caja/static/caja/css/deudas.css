@@ -230,6 +230,12 @@
     border: 1px solid rgba(245,158,11,0.25);
 }
 
+.deudas-badge-tipo--cheque {
+    background: rgba(16,185,129,0.1);
+    color: var(--success, #059669);
+    border: 1px solid rgba(16,185,129,0.25);
+}
+
 .deudas-badge-estado {
     display: inline-block;
     font-size: 0.7rem;
@@ -298,6 +304,12 @@
 .deudas-tipo-btn--prestamo.deudas-tipo-btn--active {
     background: var(--bg-white);
     color: var(--warning, #b45309);
+    box-shadow: var(--shadow-sm);
+}
+
+.deudas-tipo-btn--cheque.deudas-tipo-btn--active {
+    background: var(--bg-white);
+    color: var(--success, #059669);
     box-shadow: var(--shadow-sm);
 }
 

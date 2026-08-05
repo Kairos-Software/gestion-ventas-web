@@ -26,7 +26,7 @@
     <header class="deudas-header">
         <div>
             <h1 class="deudas-title">Créditos y préstamos</h1>
-            <p class="deudas-subtitle">Compras con tarjeta y préstamos, con su plan de cuotas. Ninguna cuota impacta caja hasta que se confirma.</p>
+            <p class="deudas-subtitle">Compras con tarjeta, con cheque y préstamos, con su plan de cuotas. Ninguna cuota impacta caja hasta que se confirma.</p>
         </div>
         {% if puede_crear %}
         <button type="button" class="btn btn-primary" id="btnNuevaDeuda">
@@ -143,6 +143,7 @@
                 <div class="deudas-tipo-toggle">
                     <button type="button" class="deudas-tipo-btn deudas-tipo-btn--credito deudas-tipo-btn--active" data-tipo="compra_credito">Compra a crédito</button>
                     <button type="button" class="deudas-tipo-btn deudas-tipo-btn--prestamo" data-tipo="prestamo">Préstamo</button>
+                    <button type="button" class="deudas-tipo-btn deudas-tipo-btn--cheque" data-tipo="cheque">Cheque</button>
                 </div>
                 <input type="hidden" id="dTipo" name="tipo" value="compra_credito">
             </div>
@@ -226,7 +227,7 @@
                     <button type="button" class="kai-help-btn" data-help-target="ayuda_carga_inicial" aria-label="Ayuda">?</button>
                 </label>
                 <div class="kai-help-popover" id="ayuda_carga_inicial">
-                    Marcá esto para cargar una deuda que ya tenías (préstamo o compra a crédito) con algunas cuotas
+                    Marcá esto para cargar una deuda que ya tenías (préstamo, compra a crédito o compra con cheque) con algunas cuotas
                     ya pagadas antes de usar Kairos. Esas cuotas ya pagadas NO van a descontarse de la caja grande
                     — no tenemos registrado el ingreso real que las bancó, así que restarlas dejaría el balance
                     negativo sin motivo. Si es un préstamo, tampoco se acredita el ingreso de hoy: esa plata ya
