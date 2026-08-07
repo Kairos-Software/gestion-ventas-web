@@ -158,12 +158,23 @@ def _resolver_y_consumir_lotes(item, producto=None, combinacion=None, cantidad=N
         es_primero = False
 
         lote.descontar_stock(tomar)
+        # Un lote sin Compra real detrás (item_compra=None — nace de un
+        # ajuste manual de stock, ver StockAjusteAjax) siempre tiene
+        # costo_unitario=$0: no hay ninguna compra que lo respalde. Si el
+        # producto tiene un costo de referencia cargado a mano
+        # (Producto.costo, para stock migrado que ya se pagó antes de usar
+        # el sistema), la ganancia real de esta venta se calcula con ESE
+        # costo en vez de $0 — sino cualquier venta de stock migrado se
+        # vería como 100% de ganancia en los reportes.
+        costo_unitario_venta = lote.costo_unitario
+        if lote.item_compra_id is None and producto.costo is not None:
+            costo_unitario_venta = producto.costo
         consumos.append(ConsumoLoteVenta.objects.create(
             item_venta              = item,
             lote                    = lote,
             cantidad                = tomar,
             lote_codigo_snapshot    = lote.codigo,
-            costo_unitario_snapshot = lote.costo_unitario,
+            costo_unitario_snapshot = costo_unitario_venta,
         ))
         restante -= tomar
 
@@ -302,33 +313,56 @@ def _revertir_stock_venta_item(item):
 
 def _anular_cuentas_por_cobrar_de_venta(venta):
     """
-    Anula las CuentaPorCobrar activas vinculadas a las líneas de cuotas
+    Elimina las CuentaPorCobrar activas vinculadas a las líneas de cuotas
     de esta venta. CuentaPorCobrar.anular() ya bloquea si hay cuotas
     cobradas — el ValueError se propaga tal cual, mismo criterio que
     _anular_deudas_de_compra en compras/models.py (fail fast, antes de
-    tocar stock).
+    tocar stock). Una vez anulada, se borra del todo (CuentaPorCobrar.
+    delete() ya limpia sus propios movimientos) en vez de dejarla como
+    fantasma sin ninguna venta real detrás.
     """
     from caja.models import CuentaPorCobrar, EstadoDeuda
     for cxc in CuentaPorCobrar.objects.filter(pago_venta__venta=venta, estado=EstadoDeuda.ACTIVA):
         cxc.anular()
+        cxc.delete(_permitir_con_origen=True)
 
 
 def _anular_cheques_de_venta(venta):
     """
-    Anula los cheques PENDIENTES vinculados a las líneas de pago con
+    Elimina los cheques PENDIENTES vinculados a las líneas de pago con
     cheque de esta venta. Si alguno ya está CONFIRMADO (depositado), no
     se puede anular la venta sin resolver eso antes — mismo criterio
-    fail-fast que _anular_cuentas_por_cobrar_de_venta.
+    fail-fast que _anular_cuentas_por_cobrar_de_venta. Una vez anulado,
+    se borra del todo en vez de dejarlo como fantasma.
     """
     from caja.models import Cheque, EstadoCheque
     for cheque in Cheque.objects.filter(pago_venta__venta=venta).exclude(estado=EstadoCheque.ANULADO):
         if cheque.estado == EstadoCheque.PENDIENTE:
             cheque.anular()
+            cheque.delete(_permitir_con_origen=True)
         elif cheque.estado == EstadoCheque.CONFIRMADO:
             raise ValueError(
                 f'El cheque {cheque.numero_cheque or "s/n"} de esta venta ya está confirmado '
                 f'(depositado) — rechazalo desde Cheques antes de anular la venta.'
             )
+
+
+def _bloquear_si_tiene_devoluciones(venta):
+    """
+    Falla rápido si esta venta tiene alguna DevolucionVenta registrada —
+    ni anular() ni delete() saben de las devoluciones: revierten stock
+    usando la cantidad ORIGINAL de cada ConsumoLoteVenta, así que si una
+    porción ya se devolvió, sumarían stock de más al lote (doble conteo).
+    No hay forma de "deshacer" una devolución hoy (mismo criterio que
+    Perdida, tampoco anulable) — si hace falta corregir un error, se hace
+    un ajuste de stock manual.
+    """
+    if venta.devoluciones.exists():
+        raise ValueError(
+            'Esta venta tiene devoluciones registradas — no se puede anular ni eliminar '
+            '(el stock de los lotes ya se ajustó por esas devoluciones; anularla ahora '
+            'sumaría stock de más). Si hace falta corregirla, hacé un ajuste de stock manual.'
+        )
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -473,25 +507,39 @@ class Venta(models.Model):
                 estado_actual = Venta.objects.select_for_update().get(pk=self.pk).estado
             except Venta.DoesNotExist:
                 return
-            # Falla rápido: bloquea el borrado si hay cuotas ya cobradas.
+            # Falla rápido: bloquea el borrado si hay cuotas ya cobradas
+            # o devoluciones registradas.
+            _bloquear_si_tiene_devoluciones(self)
             _anular_cuentas_por_cobrar_de_venta(self)
             _anular_cheques_de_venta(self)
-            if estado_actual == EstadoVenta.CONFIRMADA:
-                # No permitir el borrado físico de una venta que pertenece a
+
+            if estado_actual in (EstadoVenta.CONFIRMADA, EstadoVenta.ANULADA):
+                # No permitir el borrado físico de una venta que perteneció a
                 # un turno ya cerrado: el turno guardó una foto congelada de
                 # sus totales al cerrar (ver TurnoCaja.totales_cierre) para
-                # que el historial contable no cambie retroactivamente. Acá
-                # sí se puede anular (Venta.anular) sin problema — anular no
-                # toca el efectivo ya conciliado de un turno viejo, solo
+                # que el historial contable no cambie retroactivamente.
+                # Aplica sin importar el estado ACTUAL — anular primero y
+                # eliminar después no es una forma válida de esquivar esto:
+                # el turno ya la contó en su momento, haya sido anulada
+                # recién o no. Acá sí se puede anular sin problema — anular
+                # no toca el efectivo ya conciliado de un turno viejo, solo
                 # revierte stock y cualquier movimiento no-efectivo asociado.
                 from caja.models import TurnoCaja, EstadoTurno
                 turno = TurnoCaja.turno_que_contiene(self.fecha_alta)
                 if turno and turno.estado == EstadoTurno.CERRADO:
+                    if estado_actual == EstadoVenta.CONFIRMADA:
+                        detalle = (
+                            'Anulala en su lugar (revierte el stock y el movimiento de caja, '
+                            'sin reescribir el historial de ese turno).'
+                        )
+                    else:
+                        detalle = 'Ya está anulada — queda así, como registro de lo que pasó ese turno.'
                     raise ValueError(
-                        f'No se puede eliminar: esta venta pertenece al turno #{turno.numero}, '
-                        f'que ya está cerrado. Anulala en su lugar (revierte el stock y el '
-                        f'movimiento de caja, sin reescribir el historial de ese turno).'
+                        f'No se puede eliminar: esta venta perteneció al turno #{turno.numero}, '
+                        f'que ya está cerrado. {detalle}'
                     )
+
+            if estado_actual == EstadoVenta.CONFIRMADA:
                 for item in self.items.select_related('producto', 'combinacion'):
                     _revertir_stock_venta_item(item)
                     etiqueta = EtiquetaBalanza.objects.filter(
@@ -901,7 +949,8 @@ class Venta(models.Model):
             raise ValueError('Las ventas en borrador no se anulan — simplemente no se confirman.')
 
         # Falla rápido: si alguna cuota de una venta en cuotas ya fue
-        # cobrada, no se puede anular la venta sin antes resolver eso.
+        # cobrada, o hay devoluciones registradas, no se puede anular.
+        _bloquear_si_tiene_devoluciones(self)
         _anular_cuentas_por_cobrar_de_venta(self)
         _anular_cheques_de_venta(self)
 
@@ -925,12 +974,38 @@ class Venta(models.Model):
 
     @transaction.atomic
     def reactivar(self):
-        """Reactiva una venta ANULADA devolviéndola a BORRADOR."""
+        """
+        Reactiva una venta ANULADA devolviéndola a BORRADOR. Actualiza
+        `fecha_modificacion` (aunque no cambia nada más) para poder medir
+        después cuánto tiempo lleva abandonada si nadie termina de
+        editarla — ver `descartar_borradores_vencidos`.
+        """
         if Venta.objects.select_for_update().get(pk=self.pk).estado != EstadoVenta.ANULADA:
             raise ValueError('Solo se pueden reactivar ventas anuladas.')
 
         self.estado = EstadoVenta.BORRADOR
-        self.save(update_fields=['estado'])
+        self.save(update_fields=['estado', 'fecha_modificacion'])
+
+    @transaction.atomic
+    def descartar_edicion(self):
+        """
+        Descarta un borrador desde "Cancelar" (carrito o detalle). Si
+        `fecha_anulacion` está seteada, este borrador viene de reactivar()
+        una venta ANULADA real (con ItemVenta/PagoVenta históricos detrás)
+        — no se borra, vuelve a ANULADA tal cual estaba. Si no, es un
+        borrador nuevo genuino (nunca existió como venta real) y se borra
+        directo, no hay nada que revertir.
+        """
+        if Venta.objects.select_for_update().get(pk=self.pk).estado != EstadoVenta.BORRADOR:
+            raise ValueError('Solo se pueden descartar borradores.')
+
+        if self.fecha_anulacion is not None:
+            self.estado = EstadoVenta.ANULADA
+            self.save(update_fields=['estado'])
+            return False  # no se borró, se revirtió
+        else:
+            self.delete()
+            return True  # se borró de verdad
 
     @transaction.atomic
     def editar_completa(self, fecha, notas='', items_data=None, medio_pago=None, editado_por=None, pagos=None,
@@ -1173,6 +1248,300 @@ class ConsumoLoteVenta(models.Model):
 
     def __str__(self):
         return f'{self.lote_codigo_snapshot} → {self.cantidad}u ({self.item_venta})'
+
+
+def _generar_numero_devolucion():
+    ultimo = DevolucionVenta.objects.order_by('-id').first()
+    if not ultimo or not ultimo.numero:
+        numero = 1
+    else:
+        try:
+            numero = int(ultimo.numero.split('-')[-1]) + 1
+        except (ValueError, IndexError):
+            numero = DevolucionVenta.objects.count() + 1
+    return f'DEV-{numero:05d}'
+
+
+# ══════════════════════════════════════════════════════════════════
+#  DEVOLUCIONES — alternativa a editar/reactivar una venta ya
+#  confirmada para el caso de "el cliente devuelve algo". La venta
+#  original queda intacta (sigue CONFIRMADA); la devolución es un
+#  registro aparte que repone stock al LOTE EXACTO de origen (via
+#  ConsumoLoteVenta) y, opcionalmente, reembolsa plata de una cuenta
+#  elegida. Ver registrar_devolucion() más abajo.
+# ══════════════════════════════════════════════════════════════════
+
+class DevolucionVenta(models.Model):
+    """
+    Cabecera de una devolución. No tiene estado (BORRADOR/ANULADA):
+    se registra atómicamente de una sola vez, igual que Perdida — no
+    hay forma de "deshacer" una devolución hoy (si hace falta corregir
+    un error, se hace un ajuste de stock manual, mismo criterio que ya
+    existe para Perdida).
+    """
+    numero = models.CharField(max_length=20, unique=True, blank=True)
+    venta  = models.ForeignKey(Venta, on_delete=models.PROTECT, related_name='devoluciones')
+    fecha  = models.DateField(help_text='Fecha contable de la devolución.')
+    descripcion = models.CharField(max_length=300, help_text='Motivo/descripción cargada a mano.')
+
+    # — Reembolso (opcional: puede ser un simple cambio, sin devolver plata) —
+    cuenta = models.ForeignKey(
+        'caja.CuentaCaja', on_delete=models.PROTECT,
+        null=True, blank=True, related_name='devoluciones_venta',
+        help_text='De qué cuenta sale el reembolso. Vacío si no se devuelve plata.',
+    )
+    monto = models.DecimalField(max_digits=14, decimal_places=2, default=0,
+                       help_text='Lo efectivamente reembolsado, en la moneda de "cuenta".')
+    cotizacion = models.DecimalField(
+        'Cotización', max_digits=12, decimal_places=4, null=True, blank=True,
+        help_text='Pesos por unidad de la moneda de la cuenta. Solo aplica si la cuenta no es en pesos.',
+    )
+
+    creado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='devoluciones_venta_creadas',
+    )
+    fecha_alta = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name        = 'Devolución de venta'
+        verbose_name_plural = 'Devoluciones de venta'
+        ordering            = ['-fecha_alta']
+
+    def __str__(self):
+        return f'{self.numero} — {self.venta.numero}'
+
+    def save(self, *args, **kwargs):
+        if not self.numero:
+            self.numero = _generar_numero_devolucion()
+        super().save(*args, **kwargs)
+
+
+class DevolucionVentaItem(models.Model):
+    """
+    Una fila por ItemVenta devuelto. Puede haber DOS filas para el
+    mismo item_venta en una misma devolución si una porción vuelve al
+    stock vendible y otra se marca como pérdida (ej: devolvieron 3,
+    2 se revenden, 1 está rota).
+    """
+    devolucion = models.ForeignKey(DevolucionVenta, on_delete=models.CASCADE, related_name='items')
+    item_venta = models.ForeignKey(
+        ItemVenta, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='devoluciones',
+    )
+    producto_nombre_snapshot     = models.CharField(max_length=255, blank=True)
+    combinacion_desc_snapshot    = models.CharField(max_length=300, blank=True)
+
+    cantidad = models.DecimalField(max_digits=12, decimal_places=3)
+
+    es_perdida = models.BooleanField(
+        default=False,
+        help_text='True si la unidad devuelta está rota/no reutilizable — no vuelve al stock '
+                   'vendible, se registra como Perdida en su lugar (ver registrar_perdida en '
+                   'compras.models).',
+    )
+    motivo_perdida = models.CharField(
+        max_length=20, blank=True,
+        help_text='Choices de compras.models.MotivoPerdida. Solo aplica si es_perdida=True.',
+    )
+
+    class Meta:
+        verbose_name        = 'Ítem de devolución de venta'
+        verbose_name_plural = 'Ítems de devolución de venta'
+
+    def __str__(self):
+        return f'{self.producto_nombre_snapshot} — {self.cantidad}u'
+
+
+class DevolucionVentaConsumo(models.Model):
+    """
+    De qué LoteCompra (vía qué ConsumoLoteVenta original) salió cada
+    porción repuesta — el corazón de "reponer al lote exacto". Un
+    DevolucionVentaItem puede repartirse entre varios lotes de origen,
+    igual que una venta puede haberse completado con más de uno.
+
+    `consumo_origen` es lo que permite saber cuánto de cada consumo
+    puntual de la venta original ya se devolvió antes (sumando
+    DevolucionVentaConsumo.cantidad por consumo_origen), para no poder
+    devolver más de lo que realmente salió de ahí.
+    """
+    devolucion_item = models.ForeignKey(DevolucionVentaItem, on_delete=models.CASCADE, related_name='consumos')
+    consumo_origen  = models.ForeignKey(
+        ConsumoLoteVenta, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='devoluciones',
+    )
+    lote = models.ForeignKey(
+        LoteCompra, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='devoluciones_venta',
+    )
+    lote_codigo_snapshot = models.CharField(max_length=20, blank=True)
+    cantidad = models.DecimalField(max_digits=12, decimal_places=3)
+
+    fue_perdida = models.BooleanField(default=False)
+    perdida = models.ForeignKey(
+        'compras.Perdida', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='devolucion_origen',
+        help_text='La Perdida que registró esta porción, si fue_perdida=True.',
+    )
+
+    class Meta:
+        verbose_name        = 'Consumo de devolución (venta)'
+        verbose_name_plural = 'Consumos de devolución (venta)'
+
+    def __str__(self):
+        return f'{self.lote_codigo_snapshot} ← {self.cantidad}u'
+
+
+@transaction.atomic
+def registrar_devolucion(venta, items_data, descripcion, usuario=None,
+                          cuenta=None, monto=None, cotizacion=None, fecha=None):
+    """
+    Registra una devolución de `venta` sin tocar su estado (sigue
+    CONFIRMADA). Por cada entrada de `items_data`
+    ({'item_venta': ItemVenta, 'cantidad': Decimal, 'es_perdida': bool,
+    'motivo_perdida': str|None}), reparte la cantidad a devolver entre
+    los ConsumoLoteVenta del ítem (mismo orden FIFO en que se vendió),
+    y por cada porción:
+      - siempre repone stock al lote de origen (lote.agregar_stock) y
+        sincroniza producto/combinación — igual que anular una venta;
+      - si es_perdida, ADEMÁS llama a registrar_perdida() de inmediato
+        para esa misma porción, que vuelve a descontarla del lote y
+        genera el registro de Perdida + MovimientoStock(MERMA). El
+        resultado neto es stock sin cambios (nunca volvió a estar
+        vendible), pero con el registro de auditoría/costo correcto.
+
+    Lanza ValueError si la venta no está confirmada, si falta algún
+    dato requerido, o si se intenta devolver más de lo que un ítem
+    realmente vendió (descontando devoluciones previas).
+    """
+    from compras.models import registrar_perdida, MotivoPerdida
+
+    if venta.estado != EstadoVenta.CONFIRMADA:
+        if venta.estado == EstadoVenta.BORRADOR:
+            raise ValueError('No se puede devolver una venta que todavía no se confirmó.')
+        raise ValueError('No se puede devolver una venta anulada.')
+
+    descripcion = (descripcion or '').strip()
+    if not descripcion:
+        raise ValueError('La descripción de la devolución es obligatoria.')
+    if not items_data:
+        raise ValueError('Elegí al menos un ítem a devolver.')
+
+    monto = Decimal(str(monto)) if monto else Decimal('0')
+    if monto < 0:
+        raise ValueError('El monto a reembolsar no puede ser negativo.')
+    if monto > 0:
+        if cuenta is None:
+            raise ValueError('Elegí de qué cuenta sale el reembolso.')
+        if cuenta.moneda != Moneda.ARS and not cotizacion:
+            raise ValueError('Indicá la cotización — la cuenta elegida no está en pesos.')
+    else:
+        cuenta = None
+        cotizacion = None
+
+    devolucion = DevolucionVenta.objects.create(
+        venta=venta, fecha=fecha or timezone.now().date(), descripcion=descripcion,
+        cuenta=cuenta, monto=monto, cotizacion=cotizacion, creado_por=usuario,
+    )
+
+    for data in items_data:
+        item_venta = data['item_venta']
+        if item_venta.venta_id != venta.pk:
+            raise ValueError('Uno de los ítems no pertenece a esta venta.')
+
+        cantidad = Decimal(str(data['cantidad']))
+        if cantidad <= 0:
+            raise ValueError('La cantidad a devolver debe ser mayor a 0.')
+
+        es_perdida = bool(data.get('es_perdida'))
+        motivo_perdida = data.get('motivo_perdida') or MotivoPerdida.ROTURA
+        if es_perdida and motivo_perdida not in MotivoPerdida.values:
+            raise ValueError(f'Motivo de pérdida inválido: {motivo_perdida}')
+
+        nombre_desc = item_venta.producto_nombre or (item_venta.producto.nombre if item_venta.producto else '')
+
+        dev_item = DevolucionVentaItem.objects.create(
+            devolucion=devolucion, item_venta=item_venta,
+            producto_nombre_snapshot=nombre_desc,
+            combinacion_desc_snapshot=item_venta.combinacion_descripcion,
+            cantidad=cantidad, es_perdida=es_perdida,
+            motivo_perdida=motivo_perdida if es_perdida else '',
+        )
+
+        restante = cantidad
+        totales = {}  # (producto_id, combinacion_id) -> cantidad a sumar a stock_actual
+
+        # Sin select_related('lote'): `lote` es una FK nullable
+        # (SET_NULL) — select_for_update() sobre un LEFT OUTER JOIN no
+        # es válido en Postgres ("FOR UPDATE no puede ser aplicado al
+        # lado nulable de un outer join"). consumo.lote se resuelve con
+        # una query aparte por fila, sin problema (son pocas filas).
+        for consumo in item_venta.consumos.select_for_update().order_by('id'):
+            if restante <= 0:
+                break
+            if consumo.lote is None:
+                continue
+
+            ya_devuelto = consumo.devoluciones.aggregate(total=models.Sum('cantidad'))['total'] or Decimal('0')
+            disponible = consumo.cantidad - ya_devuelto
+            if disponible <= 0:
+                continue
+
+            tomar = min(restante, disponible)
+
+            consumo.lote.agregar_stock(tomar)
+            clave = (consumo.lote.producto_id, consumo.lote.combinacion_id)
+            totales[clave] = totales.get(clave, Decimal('0')) + tomar
+
+            perdida = None
+            if es_perdida:
+                perdida = registrar_perdida(
+                    lote=consumo.lote, cantidad=tomar, motivo=motivo_perdida,
+                    motivo_detalle=f'Devolución {devolucion.numero}: {descripcion}',
+                    usuario=usuario, automatica=False, fecha=devolucion.fecha,
+                )
+
+            DevolucionVentaConsumo.objects.create(
+                devolucion_item=dev_item, consumo_origen=consumo, lote=consumo.lote,
+                lote_codigo_snapshot=consumo.lote_codigo_snapshot, cantidad=tomar,
+                fue_perdida=es_perdida, perdida=perdida,
+            )
+            restante -= tomar
+
+        if restante > 0:
+            raise ValueError(
+                f'"{nombre_desc}": no se puede devolver esa cantidad — ya se devolvió lo '
+                f'disponible de las {item_venta.cantidad} unidades vendidas en esta línea.'
+            )
+
+        # Sincronizar stock_actual de producto/combinación — mismo patrón
+        # que _revertir_stock_venta_item: lectura fresca con
+        # select_for_update() para no pisar cambios que registrar_perdida()
+        # ya haya guardado en la misma transacción (ver docstring de arriba).
+        for (producto_id, combinacion_id), cant in totales.items():
+            if producto_id is None:
+                continue
+            if combinacion_id is not None:
+                combinacion = CombinacionVariante.objects.select_for_update().filter(pk=combinacion_id).first()
+                if combinacion is None:
+                    continue
+                combinacion.stock_actual = combinacion.stock_actual + cant
+                combinacion.save(update_fields=['stock_actual'])
+                prod = Producto.objects.filter(pk=producto_id).first()
+                if prod is not None:
+                    prod.sincronizar_stock_desde_combinaciones()
+            else:
+                prod = Producto.objects.select_for_update().filter(pk=producto_id).first()
+                if prod is None:
+                    continue
+                prod.stock_actual = prod.stock_actual + cant
+                prod.save(update_fields=['stock_actual'])
+
+    if devolucion.monto > 0:
+        from caja.models import sincronizar_movimiento_devolucion
+        sincronizar_movimiento_devolucion(devolucion)
+
+    return devolucion
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -1581,39 +1950,48 @@ HORAS_DESCARTE_BORRADOR = 24
 
 def descartar_borradores_vencidos(excluir_pk=None):
     """
-    Borra los borradores de venta abandonados hace más de
-    HORAS_DESCARTE_BORRADOR horas — el caso típico es alguien que salió
-    de la pantalla de detalle sin tocar "Cancelar venta" (por ejemplo,
-    después de un error de stock al confirmar), dejando un borrador que
-    nunca se cierra y que tampoco aparece en el historial (que solo
-    muestra confirmada/anulada).
+    Limpia los borradores abandonados hace más de HORAS_DESCARTE_BORRADOR
+    horas. Dos casos, tratados distinto:
 
-    Un borrador nunca tocó stock ni caja (eso recién pasa en
-    confirmar()), así que borrarlo siempre es seguro. `excluir_pk` es
-    el borrador que se está por editar en esta misma request (ver
-    NuevaVentaView) — nunca hay que descartar el que el usuario está
-    a punto de retomar, aunque sea viejo.
+    1. Borrador nuevo genuino (`fecha_anulacion` vacía — nunca fue una
+       venta real): el caso típico es alguien que salió de la pantalla de
+       detalle sin tocar "Cancelar venta". Nunca tocó stock ni caja, así
+       que borrarlo directo es seguro.
+    2. Venta ANULADA reactivada para editar (ver `reactivar()`, que sí
+       tiene `fecha_anulacion`) y abandonada sin terminar — por ejemplo,
+       alguien tocó "Editar" en el Historial y después cerró la pestaña
+       en vez de guardar o cancelar. Acá NO se borra (tiene ItemVenta/
+       PagoVenta históricos reales detrás) — se revierte a ANULADA, tal
+       como estaba antes de tocar "Editar", para que vuelva a aparecer en
+       el Historial. Se mide el tiempo abandonado con `fecha_modificacion`
+       (que `reactivar()` actualiza a propósito), no `fecha_alta` (que es
+       la fecha original de la venta, de hace semanas quizás).
 
-    Excepción: una venta ANULADA reactivada (ver `reactivar()`) vuelve
-    a BORRADOR para poder editarla desde el Historial, pero puede tener
-    `fecha_alta` de hace semanas y SÍ tiene historial real (ItemVenta,
-    PagoVenta) detrás — no es un borrador vacío abandonado. Se excluye
-    del barrido por `fecha_anulacion__isnull=True` (reactivar() no la
-    limpia) para no borrar una venta real solo porque alguien la abrió
-    para editar y se distrajo sin guardar.
+    `excluir_pk` es el borrador que se está por editar en esta misma
+    request (ver NuevaVentaView) — nunca hay que tocar el que el usuario
+    está a punto de retomar, aunque esté vencido.
 
     No hay scheduler corriendo dentro de Django, así que esto se llama
     perezosamente al entrar a "Nueva venta" — mismo criterio que
     procesar_lotes_vencidos() en compras/models.py.
     """
     umbral = timezone.now() - timedelta(hours=HORAS_DESCARTE_BORRADOR)
-    qs = Venta.objects.filter(
+
+    nuevos = Venta.objects.filter(
         estado=EstadoVenta.BORRADOR, fecha_alta__lt=umbral, fecha_anulacion__isnull=True
     )
+    reactivados_abandonados = Venta.objects.filter(
+        estado=EstadoVenta.BORRADOR, fecha_modificacion__lt=umbral, fecha_anulacion__isnull=False
+    )
     if excluir_pk:
-        qs = qs.exclude(pk=excluir_pk)
-    for venta in qs:
+        nuevos = nuevos.exclude(pk=excluir_pk)
+        reactivados_abandonados = reactivados_abandonados.exclude(pk=excluir_pk)
+
+    for venta in nuevos:
         venta.delete()
+    for venta in reactivados_abandonados:
+        venta.estado = EstadoVenta.ANULADA
+        venta.save(update_fields=['estado'])
 
 
 def _generar_numero_venta():

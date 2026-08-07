@@ -54,6 +54,12 @@ def _serializar_cheque(c):
         'confirmado_por': str(c.confirmado_por) if c.confirmado_por else '',
         'creado_por': str(c.creado_por) if c.creado_por else '',
         'fecha_alta': c.fecha_alta.isoformat(),
+        # Si nació de una venta/compra/cuota (no cargado a mano), eliminarlo
+        # directo borra el historial de esa operación — el frontend usa esto
+        # para sugerir "Rechazar" en su lugar antes de confirmar el borrado.
+        'tiene_origen_real': bool(
+            c.pago_venta_id or c.pago_compra_id or c.cuota_deuda_id or c.cuota_cobro_id
+        ),
     }
 
 
@@ -252,6 +258,22 @@ class EditarChequeAjax(LoginRequiredMixin, View):
                 cheque.save(update_fields=['notas'])
                 return JsonResponse({'success': True, 'cheque': _serializar_cheque(cheque)})
 
+            # Un cheque que nació solo de una venta/compra/cuota (no cargado
+            # a mano) no puede tener su monto real alterado — desincroniza
+            # lo que esa operación registró de verdad. Los datos puramente
+            # descriptivos (número, banco, emisor/receptor, notas) siguen
+            # editables igual.
+            campos_plan = {'monto', 'moneda', 'fecha_emision', 'fecha_cobro', 'cuenta_origen_pk'}
+            tiene_origen_real = bool(
+                cheque.pago_venta_id or cheque.pago_compra_id
+                or cheque.cuota_deuda_id or cheque.cuota_cobro_id
+            )
+            if tiene_origen_real and campos_plan & data.keys():
+                return JsonResponse({
+                    'error': 'Este cheque nació de una venta/compra/cuota — no se puede editar '
+                             'su monto, moneda, fechas ni cuenta.',
+                }, status=400)
+
             if 'numero_cheque' in data:
                 cheque.numero_cheque = data.get('numero_cheque', '').strip()
             if 'numero_factura' in data:
@@ -336,6 +358,18 @@ class ConfirmarChequeAjax(LoginRequiredMixin, View):
             cuenta_pk = data.get('cuenta_pk')
 
             cheque.confirmar(request.user, cuenta_pk=cuenta_pk)
+
+            # Si este cheque pagaba/cobraba una cuota de Deuda/CxC, recién
+            # ahora esa cuota quedó CONFIRMADA de verdad (ver
+            # Cheque.confirmar() -> _sincronizar_cuota_desde_cheque) — el
+            # mail de "pagada/cobrada" se manda en este momento, no cuando
+            # se emitió el cheque.
+            if cheque.cuota_deuda_id:
+                from asistencia.services.eventos import notificar_deuda_pagada, enviar_en_background
+                enviar_en_background(notificar_deuda_pagada, cheque.cuota_deuda)
+            elif cheque.cuota_cobro_id:
+                from asistencia.services.eventos import notificar_cuota_cobro_confirmada, enviar_en_background
+                enviar_en_background(notificar_cuota_cobro_confirmada, cheque.cuota_cobro)
 
             return JsonResponse({'success': True, 'cheque': _serializar_cheque(cheque)})
 

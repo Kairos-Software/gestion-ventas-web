@@ -229,7 +229,7 @@ class ProductoForm(forms.ModelForm):
         model  = Producto
         fields = [
             # Identificación
-            'codigo', 'sku', 'codigo_barras',
+            'codigo', 'sku', 'codigo_barras', 'codigo_proveedor',
             'nombre', 'nombre_corto',
             'descripcion', 'descripcion_publica',
             # Clasificación
@@ -242,7 +242,7 @@ class ProductoForm(forms.ModelForm):
             'peso_kg', 'alto_cm', 'ancho_cm', 'profundidad_cm',
             # Precios
             'precio_venta', 'modo_precio', 'porcentaje_ganancia', 'alicuota_iva',
-            'precio_incluye_iva',
+            'precio_incluye_iva', 'costo',
             # Estado y visibilidad (publicado se maneja con botón toggle en tabla)
             'estado', 'publicado', 'destacado',
             # Logística
@@ -270,6 +270,10 @@ class ProductoForm(forms.ModelForm):
             'codigo_barras': forms.TextInput(attrs={
                 'class': 'form-control nx-input',
                 'placeholder': 'EAN-13, UPC...',
+            }),
+            'codigo_proveedor': forms.TextInput(attrs={
+                'class': 'form-control nx-input',
+                'placeholder': 'Código del proveedor',
             }),
             'nombre':       forms.TextInput(attrs={
                 'class': 'form-control nx-input',
@@ -324,6 +328,7 @@ class ProductoForm(forms.ModelForm):
             'precio_venta':     forms.NumberInput(attrs={'class': 'form-control nx-input', 'step': '0.01', 'min': '0', 'placeholder': '0.00'}),
             'modo_precio':      forms.Select(attrs={'class': 'form-select nx-input'}),
             'porcentaje_ganancia': forms.NumberInput(attrs={'class': 'form-control nx-input', 'step': '0.01', 'min': '0', 'placeholder': '0.00'}),
+            'costo':            forms.NumberInput(attrs={'class': 'form-control nx-input', 'step': '0.01', 'min': '0', 'placeholder': '0.00'}),
             'alicuota_iva':     forms.Select(attrs={'class': 'form-select nx-input'}),
 
             # — Estado —

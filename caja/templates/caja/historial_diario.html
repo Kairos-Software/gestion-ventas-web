@@ -123,7 +123,7 @@ Historial Diario
         <!-- Ventas por medio de pago, sumadas entre todos los turnos del día -->
         {% if dia.totales_medio_pago %}
         <div class="hd-medios-pago">
-            <h4>Ventas por medio de pago (todo el día)</h4>
+            <h4>Recaudado por medio de pago (todo el día)</h4>
             <div class="hd-medios-list">
                 {% for medio, monto in dia.totales_medio_pago.items %}
                 <div class="hd-medio-row">
@@ -131,6 +131,29 @@ Historial Diario
                     <span class="hd-medio-value">${{ monto|floatformat:"2" }}</span>
                 </div>
                 {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if dia.total_financiado_pendiente %}
+        <div class="hd-medios-pago hd-medios-pago--pendiente">
+            <h4>Pendiente de cobro (todo el día)</h4>
+            <p class="hd-medios-nota">Cheque/cuotas vendidos este día, todavía sin cobrar.</p>
+            <div class="hd-medios-list">
+                {% for medio, monto in dia.totales_medio_pago_pendiente.items %}
+                <div class="hd-medio-row">
+                    <span class="hd-medio-label">{{ medio|title }}</span>
+                    <span class="hd-medio-value">${{ monto|floatformat:"2" }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="hd-medios-links">
+                {% if dia.totales_medio_pago_pendiente.cheque %}
+                <a href="{% url 'caja:cheques' %}?tipo=a_cobrar&estado=pendiente" class="hd-medios-link">Ver cheques a cobrar pendientes →</a>
+                {% endif %}
+                {% if dia.totales_medio_pago_pendiente.cuotas %}
+                <a href="{% url 'caja:cuentas_cobrar' %}?estado=activa" class="hd-medios-link">Ver cuentas por cobrar activas →</a>
+                {% endif %}
             </div>
         </div>
         {% endif %}
@@ -168,7 +191,31 @@ Historial Diario
                             <span class="hd-medio-label">Efectivo en caja</span>
                             <span class="hd-medio-value">${{ turno.efectivo_total|floatformat:"2" }}</span>
                         </div>
+                        {% if turno.total_financiado_pendiente %}
+                        <div class="hd-medio-row" style="background:rgba(180,83,9,0.06); border-color:rgba(180,83,9,0.22)">
+                            <span class="hd-medio-label">Pendiente de cobro</span>
+                            <span class="hd-medio-value" style="color:var(--warning, #b45309)">${{ turno.total_financiado_pendiente|floatformat:"2" }}</span>
+                        </div>
+                        {% endif %}
                     </div>
+                    {% with correcciones=turno.correcciones_posteriores %}
+                    {% if correcciones %}
+                    <details class="ht-correccion" style="margin-top:0.75rem">
+                        <summary>
+                            ⚠ {{ correcciones|length }} ajuste{{ correcciones|length|pluralize }} posterior{{ correcciones|length|pluralize:",es" }} al cierre
+                            (-${{ turno.impacto_correcciones_posteriores|floatformat:"2" }})
+                        </summary>
+                        <div class="ht-correccion-lista">
+                            {% for venta in correcciones %}
+                            <div class="ht-correccion-item">
+                                <span><a href="{% url 'ventas:detalle_venta' pk=venta.pk %}" target="_blank" rel="noopener">{{ venta.numero }}</a> — anulada el {{ venta.fecha_anulacion|date:"d/m/Y H:i" }}</span>
+                                <span>${{ venta.total|floatformat:"2" }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </details>
+                    {% endif %}
+                    {% endwith %}
                     {% if turno.diferencia_efectivo %}
                     <div class="ht-diferencia{% if turno.alerta_diferencia %} ht-diferencia--alert{% endif %}"
                         style="margin-top:0.75rem">

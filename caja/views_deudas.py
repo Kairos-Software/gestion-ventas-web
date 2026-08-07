@@ -495,16 +495,20 @@ class ConfirmarCuotaAjax(LoginRequiredMixin, View):
             adelantar = bool(data.get('adelantar', False))
 
             if data.get('cheque'):
+                # Pagada con cheque: todavía no es un pago real (ver
+                # CuotaDeuda.confirmar_con_cheque) — el mail de "deuda
+                # pagada" se manda recién cuando ESE cheque se cobra de
+                # verdad (ver ConfirmarChequeAjax en views_cheques.py).
                 cuota.confirmar_con_cheque(data.get('cheque'), request.user, adelantar=adelantar)
             else:
                 cuota.confirmar(data.get('cuenta_pk'), request.user, adelantar=adelantar)
 
-            # En segundo plano: si esperáramos a que el mail salga acá,
-            # el pedido HTTP se queda 1-2s colgado por el ida y vuelta
-            # del SMTP, y del lado del navegador se siente como que el
-            # sistema se trabó.
-            from asistencia.services.eventos import notificar_deuda_pagada, enviar_en_background
-            enviar_en_background(notificar_deuda_pagada, cuota)
+                # En segundo plano: si esperáramos a que el mail salga acá,
+                # el pedido HTTP se queda 1-2s colgado por el ida y vuelta
+                # del SMTP, y del lado del navegador se siente como que el
+                # sistema se trabó.
+                from asistencia.services.eventos import notificar_deuda_pagada, enviar_en_background
+                enviar_en_background(notificar_deuda_pagada, cuota)
 
             return JsonResponse({'success': True, 'cuota': _serializar_cuota(cuota)})
 
@@ -548,6 +552,9 @@ class RegistrarAbonoAjax(LoginRequiredMixin, View):
                     return JsonResponse({'error': 'Fecha inválida.'}, status=400)
 
             if data.get('cheque'):
+                # Pagado con cheque: el mail de "deuda pagada" se manda
+                # recién cuando ESE cheque se cobra de verdad (ver
+                # ConfirmarChequeAjax en views_cheques.py).
                 cuota = deuda.registrar_abono(
                     monto=monto, usuario=request.user, cheque_data=data.get('cheque'), fecha=fecha,
                 )
@@ -555,9 +562,8 @@ class RegistrarAbonoAjax(LoginRequiredMixin, View):
                 cuota = deuda.registrar_abono(
                     monto=monto, usuario=request.user, cuenta_pk=data.get('cuenta_pk'), fecha=fecha,
                 )
-
-            from asistencia.services.eventos import notificar_deuda_pagada, enviar_en_background
-            enviar_en_background(notificar_deuda_pagada, cuota)
+                from asistencia.services.eventos import notificar_deuda_pagada, enviar_en_background
+                enviar_en_background(notificar_deuda_pagada, cuota)
 
             return JsonResponse({
                 'success': True,

@@ -352,6 +352,10 @@
                         <small class="prd-field-hint" id="hint_codigo_barras">Para productos con variantes, el código de barras se define en cada combinación.</small>
                     </div>
                 </div>
+                <div class="prd-field">
+                    <label>Código del proveedor <span class="prd-hint">(el que usa él en su factura/presupuesto)</span></label>
+                    <input type="text" id="f_codigo_proveedor" class="prd-input" placeholder="Ej: el código con el que el proveedor identifica este producto">
+                </div>
                 <div class="prd-field prd-field--required">
                     <label>Nombre del producto <span class="prd-req">*</span></label>
                     <input type="text" id="f_nombre" class="prd-input" placeholder="Nombre completo del producto" required>
@@ -517,18 +521,27 @@
                     <label>¿Cómo se calcula el precio de venta?</label>
                     <div class="prd-precio-toggle">
                         <button type="button" class="prd-precio-toggle-btn prd-precio-toggle-btn--active" data-modo="manual">Manual</button>
-                        <button type="button" class="prd-precio-toggle-btn" data-modo="automatico">Automático (costo + % ganancia)</button>
+                        <button type="button" class="prd-precio-toggle-btn" data-modo="automatico">Automático</button>
                     </div>
+                    <p class="prd-hint" id="prd-hint-modo-precio" hidden>
+                        El precio se recalcula solo a partir del costo + el % de ganancia de abajo.
+                    </p>
                     <input type="hidden" id="f_modo_precio" value="manual">
                 </div>
 
                 <div class="prd-form-grid prd-form-grid--2">
                     <div class="prd-field">
-                        <label>Precio de venta <span class="prd-hint" id="prd-hint-precio-iva">(IVA 21% incluido)</span></label>
-                        <div class="prd-input-prefix-wrap">
-                            <span class="prd-input-prefix">$</span>
-                            <input type="number" id="f_precio_venta" class="prd-input prd-input--prefixed" placeholder="0.00" step="0.01" min="0">
+                        <label>Costo <span class="prd-hint">de referencia</span></label>
+                        <div class="prd-costo-activar-row">
+                            <div class="prd-input-prefix-wrap">
+                                <span class="prd-input-prefix">$</span>
+                                <input type="number" id="f_costo" class="prd-input prd-input--prefixed" placeholder="0.00" step="0.01" min="0">
+                            </div>
+                            <button type="button" class="prd-btn prd-btn-ghost prd-btn--sm" id="btnActivarCosto" hidden>Activar</button>
                         </div>
+                        <p class="prd-hint prd-hint--sm" id="prd-hint-costo">
+                            Para stock que ya tenías antes de usar el sistema.
+                        </p>
                     </div>
                     <div class="prd-field" id="campo_porcentaje_ganancia" hidden>
                         <label>% de ganancia</label>
@@ -538,8 +551,18 @@
                         </div>
                     </div>
                 </div>
+                <div class="prd-precio-costo-badge" id="badge_costo_actual">
+                    Sin compras registradas todavía.
+                </div>
 
-                <div class="prd-form-grid prd-form-grid--2">
+                <div class="prd-form-grid prd-form-grid--2" style="margin-top: 1rem;">
+                    <div class="prd-field">
+                        <label>Precio de venta <span class="prd-hint" id="prd-hint-precio-iva">(IVA 21% incluido)</span></label>
+                        <div class="prd-input-prefix-wrap">
+                            <span class="prd-input-prefix">$</span>
+                            <input type="number" id="f_precio_venta" class="prd-input prd-input--prefixed" placeholder="0.00" step="0.01" min="0">
+                        </div>
+                    </div>
                     <div class="prd-field">
                         <label>Alícuota de IVA</label>
                         <select id="f_alicuota_iva" class="prd-input">
@@ -549,23 +572,20 @@
                             <option value="27">Especial (27%)</option>
                         </select>
                     </div>
-                    <div class="prd-field">
-                        <label>¿El precio ya incluye IVA?</label>
-                        <div class="prd-precio-toggle">
-                            <button type="button" class="prd-precio-toggle-btn prd-precio-toggle-btn--active" data-incluye-iva="1">Sí</button>
-                            <button type="button" class="prd-precio-toggle-btn" data-incluye-iva="0">No</button>
-                        </div>
-                        <input type="hidden" id="f_precio_incluye_iva" value="1">
-                    </div>
                 </div>
-                <p class="prd-hint" id="prd-hint-incluye-iva" style="margin-top:-.4rem;">
-                    El precio que cargaste arriba es el precio final que le cobrás al cliente.
-                </p>
-                <div class="prd-precio-costo-badge" id="badge_precio_final_preview" hidden></div>
 
-                <div class="prd-precio-costo-badge" id="badge_costo_actual">
-                    Sin compras registradas todavía.
+                <div class="prd-field">
+                    <label>¿El precio ya incluye IVA?</label>
+                    <div class="prd-precio-toggle prd-precio-toggle--compact">
+                        <button type="button" class="prd-precio-toggle-btn prd-precio-toggle-btn--active" data-incluye-iva="1">Sí</button>
+                        <button type="button" class="prd-precio-toggle-btn" data-incluye-iva="0">No</button>
+                    </div>
+                    <input type="hidden" id="f_precio_incluye_iva" value="1">
+                    <p class="prd-hint prd-hint--sm" id="prd-hint-incluye-iva">
+                        El precio que cargaste arriba es el precio final que le cobrás al cliente.
+                    </p>
                 </div>
+                <div class="prd-precio-costo-badge" id="badge_precio_final_preview" hidden></div>
             </div>
 
             {# — TAB: LOGÍSTICA — #}
@@ -1019,6 +1039,7 @@ const CSRF = '{{ csrf_token }}';
 const URLS = {
     productoAcciones  : '{% url "productos:producto_acciones" %}',
     productoEliminar  : '{% url "productos:producto_eliminar" %}',
+    productoActivarCosto : '{% url "productos:producto_activar_costo" %}',
     categoriaLista    : '{% url "productos:categoria_lista" %}',
     categoriaAcciones : '{% url "productos:categoria_acciones" %}',
     categoriaEliminar : '{% url "productos:categoria_eliminar" %}',

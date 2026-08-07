@@ -150,6 +150,10 @@ async function _ejecutarBusqueda(q, { forzarAgregado = false } = {}) {
                             <span class="cmp-meta-label">Prov.</span>
                             <strong>${_esc(r.proveedor)}</strong>
                         </span>` : ''}
+                        ${r.codigo_proveedor ? `<span class="cmp-meta-chip cmp-meta-chip--prov">
+                            <span class="cmp-meta-label">Cód. prov.</span>
+                            <strong>${_esc(r.codigo_proveedor)}</strong>
+                        </span>` : ''}
                         ${r.variante_desc ? `<span class="cmp-meta-chip cmp-meta-chip--variante">
                             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
                                 <rect x="1" y="1" width="8" height="8" rx="1" stroke="currentColor" stroke-width="1.2"/>
@@ -641,3 +645,27 @@ _renderCarrito();
 _actualizarTotales();
 _bindProveedorCompraInput();
 searchInput.focus();
+
+/* ════════════════════════════════════════════════════════════════
+   CANCELAR (solo relevante en modo edición — ver editingPk)
+   Si no se intercepta, "Cancelar" es un link normal y la compra
+   reactivada por "Editar" en el Historial queda como Borrador
+   fantasma para siempre. Acá se revierte antes de salir de la página.
+════════════════════════════════════════════════════════════════ */
+const btnCancelarCarritoCompra = document.getElementById('cmpBtnCancelar');
+if (btnCancelarCarritoCompra && CFG.editingPk) {
+    btnCancelarCarritoCompra.addEventListener('click', async (e) => {
+        e.preventDefault();
+        try {
+            await fetch(CFG.urlEliminarBorrador, {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CFG.csrfToken },
+                body:    JSON.stringify({ compra_pk: CFG.editingPk }),
+            });
+        } catch {
+            // Si falla la red, igual navegamos — el barrido de borradores
+            // vencidos la revierte sola más tarde.
+        }
+        window.location.href = CFG.urlHistorial;
+    });
+}

@@ -258,7 +258,7 @@
             <span id="vtaTotalItems">0</span> ítem(s) · Total: <strong id="vtaTotalMonto">$0,00</strong>
         </div>
         <div class="vta-cart-footer-actions">
-            <a href="{% url 'productos:gestion_productos' %}" class="vta-btn vta-btn-ghost">Cancelar</a>
+            <a id="vtaBtnCancelar" href="{% url 'productos:gestion_productos' %}" class="vta-btn vta-btn-ghost">Cancelar</a>
             <button id="vtaBtnContinuar" class="vta-btn vta-btn-primary" disabled>
                 <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
                     <path d="M3 7.5H12M8.5 3.5L12.5 7.5L8.5 11.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
@@ -294,6 +294,7 @@ window.VTA_CONFIG = {
     urlActualizarBorrador: "{% url 'ventas:actualizar_borrador' %}",
     urlEliminarBorrador:"{% url 'ventas:eliminar_borrador' %}",
     urlDetalle:         "{% url 'ventas:detalle_venta' pk=0 %}".replace("/0/", "/"),
+    urlHistorial:       "{% url 'ventas:historial_ventas' %}",
     csrfToken:          "{{ csrf_token }}",
     ventaEditarPk:      {{ venta_editar_pk|default:"null" }},
     ventaEditarOfertaGlobalNombre: "{{ venta_editar_oferta_global_nombre|default:''|escapejs }}",

@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from django.db import models
+from django.db import models, transaction
 from django.utils.text import slugify
 from django.utils import timezone
 from django.conf import settings
@@ -527,6 +527,11 @@ class Producto(models.Model):
                         help_text='Se genera automáticamente (PRD-00001).')
     sku           = models.CharField('SKU', max_length=100, blank=True)
     codigo_barras = models.CharField(max_length=100, blank=True)
+    codigo_proveedor = models.CharField('Código del proveedor', max_length=100, blank=True,
+                        help_text='El código con el que EL PROVEEDOR identifica este producto '
+                                   'en su propia factura/presupuesto — no es un código nuestro. '
+                                   'Sirve para buscar el producto exacto cuando llega un '
+                                   'presupuesto de costos actualizados.')
     nombre        = models.CharField(max_length=255)
     nombre_corto  = models.CharField(max_length=80, blank=True,
                         help_text='Para tickets y etiquetas.')
@@ -619,8 +624,24 @@ class Producto(models.Model):
                        help_text='Solo si modo_precio=automático. Ej: 35 → precio = costo × 1.35.')
     costo_actual = models.DecimalField('Costo actual', max_digits=12, decimal_places=2,
                        null=True, blank=True, editable=False,
-                       help_text='Costo del lote activo más reciente. Se recalcula solo desde '
-                                  'compras — nunca se edita a mano.')
+                       help_text='Costo real del último lote de una Compra, o -si el producto '
+                                  'todavía no tiene ninguna- el costo de referencia cargado a '
+                                  'mano (ver "costo"). Nunca se edita a mano directamente.')
+    costo = models.DecimalField('Costo de referencia', max_digits=12, decimal_places=2,
+                       null=True, blank=True,
+                       help_text='Costo cargado a mano. Sirve para productos migrados cuyo stock '
+                                  'ya se pagó antes de usar este sistema (no hay Compra real que '
+                                  'lo respalde) — mientras el producto no tenga ninguna Compra, '
+                                  'alimenta el precio automático y el costo de venta solo. '
+                                  'También sirve para avisar una reposición más cara sin haberla '
+                                  'comprado todavía (ver "activar_costo_referencia()"): al '
+                                  'activarlo, manda por sobre el costo de la última Compra real '
+                                  'hasta que llegue una Compra más nueva.')
+    costo_activado_en = models.DateTimeField(
+        null=True, blank=True, editable=False,
+        help_text='Cuándo se activó por última vez `costo` como el costo vigente a mano (ver '
+                   'Producto.activar_costo_referencia()). Se compara contra la fecha del último '
+                   'lote real para decidir cuál de los dos costos es más reciente.')
 
     # — Impuestos —
     # Se guarda la alícuota porque es un dato del producto (varía según rubro).
@@ -770,21 +791,39 @@ class Producto(models.Model):
         alicuota = Decimal(self.alicuota_iva)
         return (base * (Decimal('1') + alicuota / Decimal('100'))).quantize(Decimal('0.01'))
 
-    def actualizar_costo_y_precio(self):
-        """
-        Recalcula costo_actual desde el lote ACTIVO más reciente del
-        producto, y si modo_precio=AUTOMATICO, recalcula precio_venta a
-        partir de ese costo + porcentaje_ganancia. Se llama únicamente
-        desde compras (confirmar/anular/reactivar/editar_completa/delete
-        de una Compra) — nunca al vender, nunca en el momento de la venta.
-        """
+    def _ultimo_lote_real(self):
         from compras.models import LoteCompra  # import diferido, evita circularidad
-
-        ultimo_lote = LoteCompra.objects.filter(
-            producto=self, activo=True,
+        return LoteCompra.objects.filter(
+            producto=self, activo=True, item_compra__isnull=False,
         ).order_by('-fecha_compra', '-fecha_alta').first()
 
-        nuevo_costo = ultimo_lote.costo_unitario if ultimo_lote else None
+    def _costo_efectivo(self):
+        """
+        Decide qué costo manda: entre la última Compra real y la última
+        activación manual de `costo` (ver activar_costo_referencia()),
+        gana el más reciente. Si no hay ninguna Compra real todavía
+        (producto migrado, nunca comprado en el sistema), usa `costo`
+        directo, sin hacer falta activarlo — ver actualizar_costo_y_precio().
+        Devuelve (nuevo_costo, es_real).
+        """
+        ultimo_lote_real = self._ultimo_lote_real()
+        if ultimo_lote_real is None:
+            return self.costo, False
+        if self.costo_activado_en and self.costo_activado_en > ultimo_lote_real.fecha_alta:
+            return self.costo, False
+        return ultimo_lote_real.costo_unitario, True
+
+    def actualizar_costo_y_precio(self):
+        """
+        Recalcula costo_actual con el costo que gane en _costo_efectivo()
+        (última Compra real vs. última activación manual de `costo` — ver
+        ese método para el criterio). Si modo_precio=AUTOMATICO, recalcula
+        precio_venta a partir de ese costo + porcentaje_ganancia. Se llama
+        desde compras (confirmar/anular/reactivar/editar_completa/delete
+        de una Compra), desde el alta/edición manual del producto y desde
+        activar_costo_referencia() — nunca al vender.
+        """
+        nuevo_costo, _ = self._costo_efectivo()
         update_fields = []
 
         if nuevo_costo != self.costo_actual:
@@ -801,6 +840,34 @@ class Producto(models.Model):
 
         if update_fields:
             self.save(update_fields=update_fields)
+
+    @transaction.atomic
+    def activar_costo_referencia(self):
+        """
+        Hace que `costo` (el costo de referencia cargado a mano) pase a
+        mandar AHORA para el precio automático y el costo de venta, aunque
+        el producto ya tenga una Compra real detrás — para el caso de
+        "subió el precio de reposición pero todavía no volví a comprar".
+        Manda hasta que llegue una Compra más nueva (ahí vuelve a ganar
+        ella sola) o hasta la próxima activación.
+        """
+        if self.costo is None:
+            raise ValueError('Cargá un costo de referencia antes de activarlo.')
+        self.costo_activado_en = timezone.now()
+        self.save(update_fields=['costo_activado_en'])
+        self.actualizar_costo_y_precio()
+
+    @property
+    def costo_actual_es_real(self):
+        """
+        True si costo_actual viene HOY de una Compra real (ver
+        _costo_efectivo()) — False si viene del costo de referencia
+        (`costo`), ya sea porque el producto nunca tuvo una Compra o
+        porque se activó manualmente por sobre la última. El frontend lo
+        usa para saber si escribir en "Costo de referencia" mueve el
+        precio automático ahora mismo o no.
+        """
+        return self._costo_efectivo()[1]
 
     def delete(self, *args, **kwargs):
         """

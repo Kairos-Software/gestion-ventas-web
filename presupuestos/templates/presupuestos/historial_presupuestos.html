@@ -1,0 +1,111 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Historial de Presupuestos{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'ventas/css/historial_ventas.css' %}">
+<style>
+.pre-row {
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    margin-bottom: .75rem;
+    padding: .9rem 1.1rem;
+}
+.pre-row-top {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: .5rem; margin-bottom: .4rem;
+}
+.pre-numero { font-weight: 700; font-size: .95rem; }
+.pre-fecha { color: var(--text-muted); font-size: .8rem; margin-left: .5rem; }
+.pre-monto { font-weight: 700; color: var(--brand-orange); font-size: .95rem; }
+.pre-cliente { color: var(--text-secondary); font-size: .85rem; margin-bottom: .5rem; }
+.pre-footer {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: .5rem; padding-top: .5rem; border-top: 1px solid var(--border-color);
+    font-size: .8rem; color: var(--text-muted);
+}
+.pre-acciones { display: flex; gap: .4rem; }
+.pre-btn-accion {
+    display: inline-flex; align-items: center; gap: .3rem;
+    padding: .3rem .65rem; border-radius: .5rem; font-size: .78rem; font-weight: 600;
+    border: 1px solid var(--border-color); background: var(--bg-secondary);
+    color: var(--text-secondary); cursor: pointer;
+}
+.pre-btn-accion:hover { background: var(--bg-surface-hover); color: var(--text-primary); }
+.pre-btn-accion--eliminar { color: var(--danger, #EF4444); border-color: rgba(239, 68, 68, .25); }
+.pre-btn-accion--eliminar:hover { background: rgba(239, 68, 68, .1); }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if sin_permiso %}
+<div class="vta-notice vta-notice--error">No tenés permiso para ver el historial de presupuestos.</div>
+{% else %}
+<div class="historial-header">
+    <div class="historial-title">
+        <h1>Historial de Presupuestos</h1>
+        <p>Todas las cotizaciones emitidas — no afectan stock ni caja</p>
+    </div>
+</div>
+
+<div class="filtros-card">
+    <div class="filtro-group" style="max-width:260px;">
+        <label>Buscar</label>
+        <input type="text" id="filtroQ" placeholder="N° presupuesto o cliente…">
+    </div>
+    <div class="filtro-group" style="max-width:160px;">
+        <label>Desde</label>
+        <input type="date" id="filtroDesde">
+    </div>
+    <div class="filtro-group" style="max-width:160px;">
+        <label>Hasta</label>
+        <input type="date" id="filtroHasta">
+    </div>
+    <button class="btn-filtrar" id="btnFiltrar">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="margin-right:4px;vertical-align:middle;">
+            <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M11 11L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        Buscar
+    </button>
+    <button class="btn-limpiar" id="btnLimpiar">Limpiar</button>
+</div>
+
+<div class="resumen-bar" id="resumenBar" style="display:none;">
+    <div class="resumen-chip">Resultados: <strong id="resumenTotal">—</strong></div>
+    <div class="resumen-chip">Página <strong id="resumenPag">—</strong></div>
+</div>
+
+<div id="listaContainer">
+    <div class="loading-state"><span class="spinner"></span> Cargando presupuestos…</div>
+</div>
+
+<div class="paginacion" id="paginacion" style="display:none;">
+    <button class="btn-pag" id="btnAnterior">← Anterior</button>
+    <span class="pag-info" id="pagInfo"></span>
+    <button class="btn-pag" id="btnSiguiente">Siguiente →</button>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if not sin_permiso %}
+<script>
+    const HISTORIAL_PRE_URLS = {
+        listar:   "{% url 'presupuestos:listar' %}",
+        editar:   "{% url 'presupuestos:nuevo' %}",
+        eliminar: "{% url 'presupuestos:eliminar' %}",
+        datos:    "{% url 'presupuestos:datos' %}",
+    };
+    const HISTORIAL_PRE_PERMISOS = {
+        editar:   {{ puede_editar|yesno:"true,false" }},
+        eliminar: {{ puede_eliminar|yesno:"true,false" }},
+    };
+    const HISTORIAL_PRE_CSRF = "{{ csrf_token }}";
+</script>
+<script src="{% static 'presupuestos/js/presupuesto_a4.js' %}"></script>
+<script src="{% static 'presupuestos/js/historial_presupuestos.js' %}"></script>
+{% endif %}
+{% endblock %}

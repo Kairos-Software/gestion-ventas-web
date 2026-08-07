@@ -2,6 +2,7 @@ from django.urls import path
 from . import views
 from . import views_historial
 from . import views_acciones
+from . import views_devoluciones
 
 app_name = 'ventas'
 
@@ -12,6 +13,7 @@ urlpatterns = [
     # ══════════════════════════════════════════════════════════════════
     path('nueva/',      views.NuevaVentaView.as_view(),                name='nueva_venta'),
     path('historial/',  views_historial.HistorialVentasView.as_view(), name='historial_ventas'),
+    path('devoluciones/', views_historial.HistorialDevolucionesView.as_view(), name='historial_devoluciones'),
     path('detalle/<int:pk>/', views.DetalleVentaView.as_view(),        name='detalle_venta'),
 
     # ══════════════════════════════════════════════════════════════════
@@ -30,6 +32,7 @@ urlpatterns = [
     #  AJAX — Historial
     # ══════════════════════════════════════════════════════════════════
     path('historial/listar/',  views_historial.ListarVentasAjax.as_view(), name='listar_ventas'),
+    path('devoluciones/listar/', views_historial.ListarDevolucionesAjax.as_view(), name='listar_devoluciones'),
 
     # ══════════════════════════════════════════════════════════════════
     #  AJAX — Acciones sobre ventas existentes
@@ -38,6 +41,7 @@ urlpatterns = [
     path('reactivar/',  views_acciones.ReactivarVentaAjax.as_view(), name='reactivar_venta'),
     path('eliminar/',   views_acciones.EliminarVentaAjax.as_view(),  name='eliminar_venta'),
     path('editar/',     views_acciones.EditarVentaAjax.as_view(),    name='editar_venta'),
+    path('devoluciones/registrar/', views_devoluciones.RegistrarDevolucionAjax.as_view(), name='registrar_devolucion'),
 
     # ══════════════════════════════════════════════════════════════════
     #  AJAX — Documentos adjuntos

@@ -31,7 +31,12 @@ function cerrarModal(id) {
     document.body.style.overflow = '';
 }
 
+// El modal de producto (#modalProducto) queda afuera de este cierre por
+// click-en-el-fondo: es un formulario largo de varias pestañas y un click
+// afuera sin querer (muy fácil en una pantalla grande) borraba todo lo
+// cargado sin avisar. Se sigue pudiendo cerrar con el botón "Cancelar"/"X".
 document.querySelectorAll('.prd-modal-overlay').forEach(overlay => {
+    if (overlay.id === 'modalProducto') return;
     overlay.addEventListener('click', e => {
         if (e.target === overlay) cerrarModal(overlay.id);
     });
@@ -54,18 +59,49 @@ document.querySelectorAll('.prd-tab').forEach(tab => {
 // ════════════════════════════════════════════════════════════════════
 function setModoPrecio(modo) {
     document.getElementById('f_modo_precio').value = modo;
-    document.querySelectorAll('.prd-precio-toggle-btn').forEach(btn => {
+    document.querySelectorAll('.prd-precio-toggle-btn[data-modo]').forEach(btn => {
         btn.classList.toggle('prd-precio-toggle-btn--active', btn.dataset.modo === modo);
     });
 
     const esAutomatico = modo === 'automatico';
     document.getElementById('campo_porcentaje_ganancia').hidden = !esAutomatico;
+    document.getElementById('prd-hint-modo-precio').hidden = !esAutomatico;
 
     const inputPrecio = document.getElementById('f_precio_venta');
     inputPrecio.readOnly = esAutomatico;
     inputPrecio.classList.toggle('prd-input--readonly', esAutomatico);
     _actualizarHintAlicuota();
+    _actualizarPreviewAutomatico();
 }
+
+// Con precio automático, el campo "Precio de venta" (readonly) se
+// convierte en el preview en vivo del cálculo — así se ve el resultado
+// mientras se tipea el costo/%, sin agregar un badge aparte. Usa el costo
+// REAL (última compra) si existe; si no, el costo de referencia cargado a
+// mano — el mismo criterio que Producto.actualizar_costo_y_precio() en
+// el backend (ver window._costoActualEsReal, seteado en actualizarBadgeCosto).
+function _actualizarPreviewAutomatico() {
+    if (document.getElementById('f_modo_precio').value !== 'automatico') return;
+
+    const costoEfectivo = window._costoActualEsReal
+        ? window._costoActualReal
+        : parseFloat(document.getElementById('f_costo').value);
+    const margen = parseFloat(document.getElementById('f_porcentaje_ganancia').value) || 0;
+
+    const inputPrecio = document.getElementById('f_precio_venta');
+    if (isNaN(costoEfectivo)) {
+        inputPrecio.value = '';
+        return;
+    }
+
+    const base = costoEfectivo * (1 + margen / 100);
+    const alicuota = parseFloat(document.getElementById('f_alicuota_iva').value) || 0;
+    const precioFinal = _incluyeIva() ? base : base * (1 + alicuota / 100);
+    inputPrecio.value = precioFinal.toFixed(2);
+}
+document.getElementById('f_costo').addEventListener('input', _actualizarPreviewAutomatico);
+document.getElementById('f_porcentaje_ganancia').addEventListener('input', _actualizarPreviewAutomatico);
+document.getElementById('f_alicuota_iva').addEventListener('change', _actualizarPreviewAutomatico);
 
 // Alícuota de IVA + "¿el precio incluye IVA?" — el hint junto a "Precio de
 // venta" y el preview de precio final reflejan ambos, en vivo. Antes el
@@ -112,19 +148,69 @@ function setIncluyeIva(incluye) {
         btn.classList.toggle('prd-precio-toggle-btn--active', btn.dataset.incluyeIva === (incluye ? '1' : '0'));
     });
     _actualizarHintAlicuota();
+    _actualizarPreviewAutomatico();
 }
 document.querySelectorAll('.prd-precio-toggle-btn[data-incluye-iva]').forEach(btn => {
     btn.addEventListener('click', () => setIncluyeIva(btn.dataset.incluyeIva === '1'));
 });
 
-function actualizarBadgeCosto(costoActual) {
-    const badge = document.getElementById('badge_costo_actual');
+// window._costoActualEsReal / window._costoActualReal: qué costo usa
+// HOY el precio automático — una compra real (si existe) siempre gana
+// por sobre el costo de referencia tipeado a mano (ver
+// Producto.actualizar_costo_y_precio() en el backend). _actualizarPreviewAutomatico()
+// los lee para calcular en vivo el mismo número que va a quedar guardado.
+function actualizarBadgeCosto(costoActual, esReal) {
+    window._costoActualEsReal = !!esReal;
+    window._costoActualReal   = costoActual ? parseFloat(costoActual) : null;
+
+    const badge      = document.getElementById('badge_costo_actual');
+    const hintCosto   = document.getElementById('prd-hint-costo');
+
     if (!costoActual) {
         badge.textContent = 'Sin compras registradas todavía.';
+        hintCosto.textContent = 'Para stock que ya tenías antes de usar el sistema.';
+    } else if (esReal) {
+        badge.textContent = `Último costo de compra: $${parseFloat(costoActual).toFixed(2)} — es el que se usa para el precio automático.`;
+        hintCosto.textContent = 'Ya hay una compra real registrada. Si subió el precio de reposición sin haber comprado todavía, cargá el nuevo costo y tocá "Activar".';
+    } else {
+        badge.textContent = `Costo de referencia en uso: $${parseFloat(costoActual).toFixed(2)}.`;
+        hintCosto.textContent = 'Para stock que ya tenías antes de usar el sistema, o para avisar una reposición más cara.';
+    }
+    _actualizarPreviewAutomatico();
+}
+
+// "Activar" pisa costo_actual con `costo` YA, sin esperar una compra
+// nueva — para cuando subió lo que costaría reponer pero todavía no se
+// volvió a comprar. Manda hasta la próxima compra real (o hasta la
+// próxima activación). Solo existe en edición (necesita un pk).
+document.getElementById('btnActivarCosto').addEventListener('click', async () => {
+    const pk = document.getElementById('prdPk').value;
+    if (!pk) return;
+    const costo = document.getElementById('f_costo').value;
+    if (!costo) {
+        showToast('Cargá un costo de referencia antes de activarlo.', 'error');
         return;
     }
-    badge.textContent = `Último costo de compra: $${parseFloat(costoActual).toFixed(2)}`;
-}
+    try {
+        const res  = await fetch(URLS.productoActivarCosto, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+            body: JSON.stringify({ pk, costo }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            showToast(data.error || 'No se pudo activar el costo.', 'error');
+            return;
+        }
+        actualizarBadgeCosto(data.costo_actual, data.costo_actual_es_real);
+        if (document.getElementById('f_modo_precio').value === 'automatico' && data.precio_venta) {
+            document.getElementById('f_precio_venta').value = data.precio_venta;
+        }
+        showToast('Costo activado.', 'ok');
+    } catch (e) {
+        showToast('Error de red al activar el costo.', 'error');
+    }
+});
 
 document.querySelectorAll('.prd-precio-toggle-btn[data-modo]').forEach(btn => {
     btn.addEventListener('click', () => setModoPrecio(btn.dataset.modo));
@@ -173,10 +259,10 @@ document.getElementById('btnNuevoProducto').addEventListener('click', () => {
 
 function limpiarFormProducto() {
     [
-        'f_codigo','f_sku','f_codigo_barras','f_nombre','f_nombre_corto',
+        'f_codigo','f_sku','f_codigo_barras','f_codigo_proveedor','f_nombre','f_nombre_corto',
         'f_marca','f_modelo','f_fabricante','f_pais_origen',
         'f_unidades_por_presentacion','f_contenido_neto','f_descripcion','f_descripcion_publica',
-        'f_precio_venta','f_porcentaje_ganancia',
+        'f_precio_venta','f_porcentaje_ganancia','f_costo',
         'f_notas','f_tags',
         'f_peso_kg','f_alto_cm','f_ancho_cm','f_profundidad_cm',
         'f_stock_minimo', 'f_posicion_deposito',
@@ -216,9 +302,13 @@ function limpiarFormProducto() {
     _actualizarPanelVariantes(false);
     _actualizarCampoCodigoBarras(false);
     setModoPrecio('manual');
-    actualizarBadgeCosto(null);
+    actualizarBadgeCosto(null, false);
     document.getElementById('f_alicuota_iva').value = '21';
     setIncluyeIva(true);
+    // "Activar costo" solo tiene sentido en un producto que ya existe
+    // (necesita un pk para pisar su costo_actual) — en uno nuevo, el
+    // costo de referencia ya se usa solo al guardar, sin botón.
+    document.getElementById('btnActivarCosto').hidden = true;
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -242,6 +332,7 @@ async function abrirEditar(pk) {
     document.getElementById('f_codigo').value                  = data.codigo || '';
     document.getElementById('f_sku').value                     = data.sku || '';
     document.getElementById('f_codigo_barras').value           = data.codigo_barras || '';
+    document.getElementById('f_codigo_proveedor').value        = data.codigo_proveedor || '';
     document.getElementById('f_nombre').value                  = data.nombre || '';
     document.getElementById('f_nombre_corto').value            = data.nombre_corto || '';
     document.getElementById('f_marca').value                   = data.marca || '';
@@ -261,7 +352,9 @@ async function abrirEditar(pk) {
     document.getElementById('f_precio_venta').value            = data.precio_venta || '';
     setModoPrecio(data.modo_precio || 'manual');
     document.getElementById('f_porcentaje_ganancia').value     = data.porcentaje_ganancia || '';
-    actualizarBadgeCosto(data.costo_actual);
+    document.getElementById('f_costo').value                   = data.costo || '';
+    actualizarBadgeCosto(data.costo_actual, data.costo_actual_es_real);
+    document.getElementById('btnActivarCosto').hidden = false;
     document.getElementById('f_alicuota_iva').value             = data.alicuota_iva || '21';
     setIncluyeIva(data.precio_incluye_iva !== false);
     document.getElementById('f_notas').value                   = data.notas || '';
@@ -323,6 +416,7 @@ async function guardarProducto() {
         codigo:                 document.getElementById('f_codigo').value,
         sku:                    document.getElementById('f_sku').value,
         codigo_barras:          document.getElementById('f_codigo_barras').value,
+        codigo_proveedor:       document.getElementById('f_codigo_proveedor').value,
         nombre:                 document.getElementById('f_nombre').value,
         nombre_corto:           document.getElementById('f_nombre_corto').value,
         descripcion:            document.getElementById('f_descripcion').value,
@@ -343,6 +437,7 @@ async function guardarProducto() {
         precio_venta:           document.getElementById('f_precio_venta').value || null,
         modo_precio:            document.getElementById('f_modo_precio').value,
         porcentaje_ganancia:    document.getElementById('f_porcentaje_ganancia').value || null,
+        costo:                  document.getElementById('f_costo').value || null,
         alicuota_iva:           document.getElementById('f_alicuota_iva').value,
         precio_incluye_iva:     _incluyeIva(),
         estado:                 document.getElementById('f_estado').value,

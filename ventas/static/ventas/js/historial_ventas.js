@@ -344,7 +344,7 @@ function buildVentaHTML(c) {
             <span class="venta-notas">${_esc(c.notas || '')}</span>
             ${porUsuario}
             ${medioBadgeCabecera}
-            <span class="venta-total"${c.oferta_global_nombre ? ` title="Incluye oferta &quot;${_esc(c.oferta_global_nombre)}&quot;: -${c.descuento_global_pct}% sobre el total"` : ''}>${formatMoney(c.total)}</span>
+            <span class="venta-total"${c.oferta_global_nombre ? ` title="Incluye oferta &quot;${_esc(c.oferta_global_nombre)}&quot;: -${c.descuento_global_pct}% sobre el total"` : ''}>${formatMoney(c.total_cobrado)}</span>
             ${c.oferta_global_nombre ? `<span class="descuento-tag" title="Oferta: ${_esc(c.oferta_global_nombre)} (-${c.descuento_global_pct}% sobre el total)">Oferta</span>` : ''}
             <span class="badge-estado ${c.estado}">${_esc(c.estado_label)}</span>
             <svg class="venta-toggle" width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -365,7 +365,10 @@ function buildVentaHTML(c) {
                         ? `<span class="descuento-tag" title="Oferta: ${_esc(c.oferta_global_nombre)}">Oferta "${_esc(c.oferta_global_nombre)}": -${c.descuento_global_pct}% sobre el total</span>`
                         : ''}
                     <span style="font-size:0.875rem;color:var(--text-muted);">Total:</span>
-                    <strong>${formatMoney(c.total)}</strong>
+                    <strong>${formatMoney(c.total_cobrado)}</strong>
+                    ${parseFloat(c.total_recargos) > 0
+                        ? `<span style="font-size:0.78rem;color:var(--text-muted);">(precio ${formatMoney(c.total)} + recargo ${formatMoney(c.total_recargos)})</span>`
+                        : ''}
                 </div>
             </div>
             ${buildAuditoriaHTML(c)}

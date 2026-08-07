@@ -1,10 +1,12 @@
+from decimal import Decimal
+
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import TemplateView
 from django.views import View
 from django.http import JsonResponse
 from django.db.models import Q
 
-from .models import Venta, EstadoVenta, MedioPago
+from .models import Venta, EstadoVenta, MedioPago, DevolucionVenta
 from core.permisos import chequear_permiso
 
 
@@ -219,6 +221,14 @@ class ListarVentasAjax(LoginRequiredMixin, View):
                     ]
                 pagos.append(linea)
 
+            # El total de la venta (v.total) es el precio de lista, sin
+            # recargo — correcto para IVA/ARCA, pero como "Total" del
+            # historial confundía (mostraba menos de lo que el cliente
+            # pagó de verdad). total_cobrado es lo que realmente entró:
+            # precio + recargos de todas las líneas de pago.
+            total_recargos = sum((p.recargo_monto for p in v.pagos.all()), Decimal('0'))
+            total_cobrado = v.total + total_recargos
+
             data.append({
                 'pk':                      v.pk,
                 'numero':                  v.numero,
@@ -227,6 +237,8 @@ class ListarVentasAjax(LoginRequiredMixin, View):
                 'estado':                  v.estado,
                 'estado_label':            v.get_estado_display(),
                 'total':                   str(v.total),
+                'total_recargos':          str(total_recargos),
+                'total_cobrado':           str(total_cobrado),
                 'descuento_global_pct':    str(v.descuento_global_pct),
                 'oferta_global_nombre':    v.oferta_global_nombre,
                 'notas':                   v.notas,
@@ -252,6 +264,94 @@ class ListarVentasAjax(LoginRequiredMixin, View):
                 'puede_editar':            puede_editar   and v.estado == EstadoVenta.ANULADA,
                 'puede_eliminar':          puede_eliminar,
                 'eliminar_revierte_stock': v.estado == EstadoVenta.CONFIRMADA,
+            })
+
+        return JsonResponse({
+            'results':   data,
+            'total':     total,
+            'page':      page,
+            'page_size': self.PAGE_SIZE,
+            'has_next':  (offset + self.PAGE_SIZE) < total,
+            'has_prev':  page > 1,
+        })
+
+
+class HistorialDevolucionesView(LoginRequiredMixin, TemplateView):
+    """Lista centralizada de todas las devoluciones (de cualquier venta) —
+    la venta individual solo muestra un resumen de las suyas, ver
+    detalle_venta.html; acá es donde se buscan/repasan todas juntas."""
+    template_name = 'ventas/historial_devoluciones.html'
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        if not chequear_permiso(self.request.user, 'ver_ventas'):
+            ctx['sin_permiso'] = True
+        return ctx
+
+
+class ListarDevolucionesAjax(LoginRequiredMixin, View):
+    PAGE_SIZE = 20
+
+    def get(self, request):
+        if not chequear_permiso(request.user, 'ver_ventas'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        qs = DevolucionVenta.objects.select_related(
+            'venta', 'cuenta', 'creado_por',
+        ).prefetch_related('items').order_by('-fecha_alta')
+
+        q = request.GET.get('q', '').strip()
+        if q:
+            qs = qs.filter(
+                Q(numero__icontains=q) | Q(descripcion__icontains=q) | Q(venta__numero__icontains=q)
+            )
+
+        fecha_desde = request.GET.get('fecha_desde', '').strip()
+        if fecha_desde:
+            qs = qs.filter(fecha__gte=fecha_desde)
+
+        fecha_hasta = request.GET.get('fecha_hasta', '').strip()
+        if fecha_hasta:
+            qs = qs.filter(fecha__lte=fecha_hasta)
+
+        try:
+            page = max(1, int(request.GET.get('page', 1)))
+        except ValueError:
+            page = 1
+
+        total = qs.count()
+        offset = (page - 1) * self.PAGE_SIZE
+        devoluciones = qs[offset: offset + self.PAGE_SIZE]
+
+        def _nombre_usuario(u):
+            if not u:
+                return None
+            return u.get_full_name() or u.username or None
+
+        data = []
+        for dev in devoluciones:
+            items = [
+                {
+                    'producto_nombre': it.producto_nombre_snapshot,
+                    'combinacion_desc': it.combinacion_desc_snapshot,
+                    'cantidad':   str(it.cantidad),
+                    'es_perdida': it.es_perdida,
+                }
+                for it in dev.items.all()
+            ]
+            data.append({
+                'pk':          dev.pk,
+                'numero':      dev.numero,
+                'fecha':       dev.fecha.strftime('%d/%m/%Y'),
+                'descripcion': dev.descripcion,
+                'venta_pk':     dev.venta_id,
+                'venta_numero': dev.venta.numero,
+                'monto':       str(dev.monto),
+                'cuenta':      dev.cuenta.nombre if dev.cuenta else '',
+                'moneda':      dev.cuenta.moneda if dev.cuenta else '',
+                'items':       items,
+                'tiene_perdida': any(it['es_perdida'] for it in items),
+                'creado_por':  _nombre_usuario(dev.creado_por),
             })
 
         return JsonResponse({

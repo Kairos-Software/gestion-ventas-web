@@ -731,8 +731,22 @@ document.addEventListener('DOMContentLoaded', function () {
 
         cuotasBody.innerHTML = d.cuotas.map(c => {
             let accion = '-';
-            if (c.estado === 'pendiente' && puedeConfirmar && c.habilitada) {
-                accion = `
+            // Mientras el cheque que cobra esta cuota siga pendiente o ya
+            // esté depositado, la cuota sigue "pendiente" pero no se puede
+            // volver a cobrar — mostrar el cheque en trámite en vez de los
+            // controles de cobro (el backend ya lo bloquea, esto es para
+            // que no se vea como si no se hubiera hecho nada).
+            const chequeActivo = c.cheque_pk && (c.cheque_estado === 'pendiente' || c.cheque_estado === 'confirmado');
+            // Si en cambio el cheque más reciente rebotó, la cuota volvió
+            // a estar realmente pendiente — se puede cobrar de nuevo, pero
+            // con una referencia visible al cheque rechazado.
+            const notaChequeRechazado = (c.cheque_pk && c.cheque_estado === 'rechazado' && c.estado === 'pendiente')
+                ? `<span class="cxc-cuota-fecha">Cheque #${c.cheque_numero} rechazado — </span>`
+                : '';
+            if (c.estado === 'pendiente' && chequeActivo) {
+                accion = `Cheque #${c.cheque_numero} (${c.cheque_estado}) <span class="cxc-cuota-fecha">en trámite</span>`;
+            } else if (c.estado === 'pendiente' && puedeConfirmar && c.habilitada) {
+                accion = notaChequeRechazado + `
                     <div class="cxc-cuota-confirmar">
                         <select id="cuentaCuota${c.pk}" class="cxc-cuota-select"
                                 onchange="onCuentaCuotaChange(this, ${c.pk}, ${c.monto}, '${d.moneda}', false)">
@@ -742,7 +756,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         <button type="button" class="btn btn-primary btn--sm" onclick="confirmarCuotaCobro(${c.pk})">Confirmar</button>
                     </div>`;
             } else if (c.estado === 'pendiente' && !c.habilitada && puedeConfirmar) {
-                accion = `
+                accion = notaChequeRechazado + `
                     <div class="cxc-cuota-confirmar">
                         <select id="cuentaCuota${c.pk}" class="cxc-cuota-select"
                                 onchange="onCuentaCuotaChange(this, ${c.pk}, ${c.monto}, '${d.moneda}', true)">
@@ -753,7 +767,13 @@ document.addEventListener('DOMContentLoaded', function () {
                         <span class="cxc-cuota-fecha">Se habilita el ${c.fecha_vencimiento}</span>
                     </div>`;
             } else if (c.estado === 'pendiente' && !c.habilitada) {
-                accion = `<span class="cxc-cuota-fecha">Se habilita el ${c.fecha_vencimiento}</span>`;
+                accion = notaChequeRechazado + `<span class="cxc-cuota-fecha">Se habilita el ${c.fecha_vencimiento}</span>`;
+            } else if (c.estado === 'anulada' && c.cheque_pk) {
+                // Abono de cuotas libres cuyo cheque rebotó: queda como
+                // referencia histórica nada más — no cuenta para el saldo
+                // y no se puede volver a cobrar esta fila (hay que
+                // registrar un abono nuevo).
+                accion = `<span class="cxc-cuota-fecha">Cheque #${c.cheque_numero} rechazado — no cuenta</span>`;
             } else if (c.estado === 'confirmada' && c.es_historica) {
                 let detallePago = '';
                 if (c.cheque_pk && c.cheque_es_historico) {
@@ -1076,5 +1096,27 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // ── Inicialización ─────────────────────────────────────────────
     if (cFechaInicio) cFechaInicio.value = today;
+
+    // Deep-link de filtros: permite llegar acá desde otra pantalla
+    // (ej. "Pendiente de Cobro" en Caja Diaria) ya filtrado por
+    // ?estado=activa, sin tener que tocar nada.
+    const paramsUrl = new URLSearchParams(window.location.search);
+    let hayFiltroPorUrl = false;
+    ['estado', 'moneda', 'q'].forEach((campo) => {
+        const valor = paramsUrl.get(campo);
+        if (valor) {
+            const idCampo = `f${campo.charAt(0).toUpperCase()}${campo.slice(1)}`;
+            const el = document.getElementById(idCampo);
+            if (el) {
+                el.value = valor;
+                hayFiltroPorUrl = true;
+            }
+        }
+    });
+    if (hayFiltroPorUrl) {
+        btnToggleFiltros.setAttribute('aria-expanded', 'true');
+        formFiltros.hidden = false;
+    }
+
     cargarCxc();
 });

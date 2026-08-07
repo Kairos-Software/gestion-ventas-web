@@ -1,0 +1,111 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Historial de Devoluciones{% endblock %}
+
+{% block breadcrumb %}
+    Operaciones &rsaquo; <strong>Historial de Devoluciones</strong>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'ventas/css/historial_ventas.css' %}">
+<style>
+/* Fila de devolución — más simple que .venta-row: no es acordeón,
+   se muestra todo de una porque una devolución no tiene tanto detalle
+   como una venta completa. */
+.dev-row {
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    margin-bottom: .75rem;
+    padding: .9rem 1.1rem;
+}
+.dev-row-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: .5rem;
+    margin-bottom: .4rem;
+}
+.dev-numero { font-weight: 700; font-size: .95rem; }
+.dev-fecha { color: var(--text-muted); font-size: .8rem; margin-left: .5rem; }
+.dev-monto { font-weight: 700; color: var(--brand-orange); font-size: .95rem; }
+.dev-descripcion { color: var(--text-secondary); font-size: .85rem; margin-bottom: .5rem; }
+.dev-items { display: flex; flex-direction: column; gap: .2rem; margin-bottom: .5rem; }
+.dev-item-line { font-size: .8rem; color: var(--text-secondary); }
+.dev-item-line .perdida-tag {
+    color: var(--danger, #ef4444); font-weight: 600; font-size: .72rem;
+    margin-left: .3rem;
+}
+.dev-footer {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: .5rem;
+    padding-top: .5rem; border-top: 1px solid var(--border-color);
+    font-size: .8rem; color: var(--text-muted);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="historial-header">
+    <div class="historial-title">
+        <h1>Historial de Devoluciones</h1>
+        <p>Todas las devoluciones registradas, de cualquier venta</p>
+    </div>
+</div>
+
+<!-- ── Filtros ── -->
+<div class="filtros-card">
+    <div class="filtro-group" style="max-width:260px;">
+        <label>Buscar</label>
+        <input type="text" id="filtroQ" placeholder="N° devolución, N° venta o descripción…">
+    </div>
+    <div class="filtro-group" style="max-width:160px;">
+        <label>Desde</label>
+        <input type="date" id="filtroDesde">
+    </div>
+    <div class="filtro-group" style="max-width:160px;">
+        <label>Hasta</label>
+        <input type="date" id="filtroHasta">
+    </div>
+    <button class="btn-filtrar" id="btnFiltrar">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="margin-right:4px;vertical-align:middle;">
+            <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M11 11L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        Buscar
+    </button>
+    <button class="btn-limpiar" id="btnLimpiar">Limpiar</button>
+</div>
+
+<!-- ── Resumen ── -->
+<div class="resumen-bar" id="resumenBar" style="display:none;">
+    <div class="resumen-chip">Resultados: <strong id="resumenTotal">—</strong></div>
+    <div class="resumen-chip">Página <strong id="resumenPag">—</strong></div>
+</div>
+
+<!-- ── Lista ── -->
+<div id="listaContainer">
+    <div class="loading-state">
+        <span class="spinner"></span> Cargando devoluciones…
+    </div>
+</div>
+
+<!-- ── Paginación ── -->
+<div class="paginacion" id="paginacion" style="display:none;">
+    <button class="btn-pag" id="btnAnterior">← Anterior</button>
+    <span class="pag-info" id="pagInfo"></span>
+    <button class="btn-pag" id="btnSiguiente">Siguiente →</button>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const HISTORIAL_DEV_URLS = {
+        listar:       "{% url 'ventas:listar_devoluciones' %}",
+        detalleVenta: "{% url 'ventas:detalle_venta' pk=0 %}",
+    };
+</script>
+<script src="{% static 'ventas/js/historial_devoluciones.js' %}"></script>
+{% endblock %}

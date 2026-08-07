@@ -121,7 +121,7 @@
             Total: <strong style="color:var(--brand-orange); font-family:'Plus Jakarta Sans',sans-serif; font-size:1rem;" id="cmpTotalMonto">$0,00</strong>
         </div>
         <div style="display:flex; gap:.6rem; align-items:center;">
-            <a href="{% url 'productos:gestion_productos' %}" class="cmp-btn cmp-btn-ghost" style="width:auto; margin:0;">
+            <a id="cmpBtnCancelar" href="{% url 'productos:gestion_productos' %}" class="cmp-btn cmp-btn-ghost" style="width:auto; margin:0;">
                 Cancelar
             </a>
             <button id="cmpBtnContinuar" class="cmp-btn cmp-btn-primary" style="width:auto; margin:0;" disabled>
@@ -153,6 +153,8 @@ window.CMP_CONFIG = {
     urlGuardarBorrador: "{% url 'compras:guardar_borrador' %}",
     urlActualizarBorrador: "{% url 'compras:actualizar_borrador' %}",
     urlDetalle:         "{% url 'compras:detalle_compra' pk=0 %}".replace("/0/", "/"),
+    urlEliminarBorrador:"{% url 'compras:eliminar_borrador' %}",
+    urlHistorial:       "{% url 'compras:historial_compras' %}",
     editingPk:          {{ editing_pk|default:"null" }},
     csrfToken:          "{{ csrf_token }}",
     listasDescuento:    JSON.parse(document.getElementById('cmpListasDescuento').textContent),

@@ -110,6 +110,8 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     // ── Cargar cheques ────────────────────────────────────────────
+    let ultimosCheques = [];
+
     async function cargarCheques() {
         const params = new URLSearchParams({
             pagina: paginaActual,
@@ -121,6 +123,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const response = await fetch(`${urls.listar}?${params}`);
             const data = await response.json();
 
+            ultimosCheques = data.results;
             renderizarCheques(data.results);
             renderizarPaginacion(data.total, data.pagina, data.por_pagina);
         } catch (error) {
@@ -335,7 +338,12 @@ document.addEventListener('DOMContentLoaded', function () {
     };
 
     window.eliminarCheque = async function (pk) {
-        if (!await KaiConfirm('¿Estás seguro de eliminar este cheque?', { danger: true, confirmText: 'Eliminar' })) return;
+        const cheque = ultimosCheques.find(c => c.pk === pk);
+        const mensaje = cheque && cheque.tiene_origen_real
+            ? 'Este cheque nació de una venta/compra/cuota — si lo eliminás se pierde ese historial para siempre. ' +
+              'Es mejor "Rechazar" desde acá si lo que pasó es que rebotó. ¿Eliminarlo igual?'
+            : '¿Estás seguro de eliminar este cheque?';
+        if (!await KaiConfirm(mensaje, { danger: true, confirmText: 'Eliminar' })) return;
 
         try {
             const response = await fetch(`${urlEliminarBase}${pk}/`, {
@@ -467,5 +475,27 @@ document.addEventListener('DOMContentLoaded', function () {
     // ── Inicialización ─────────────────────────────────────────────
     document.getElementById('f_fecha_emision').value = today;
     document.getElementById('f_fecha_cobro').value = today;
+
+    // Deep-link de filtros: permite llegar acá desde otra pantalla
+    // (ej. "Pendiente de Cobro" en Caja Diaria) ya filtrado por
+    // ?tipo=a_cobrar&estado=pendiente, sin tener que tocar nada.
+    const paramsUrl = new URLSearchParams(window.location.search);
+    let hayFiltroPorUrl = false;
+    ['tipo', 'estado', 'moneda', 'q'].forEach((campo) => {
+        const valor = paramsUrl.get(campo);
+        if (valor) {
+            const idCampo = campo === 'q' ? 'fQ' : `f${campo.charAt(0).toUpperCase()}${campo.slice(1)}`;
+            const el = document.getElementById(idCampo);
+            if (el) {
+                el.value = valor;
+                hayFiltroPorUrl = true;
+            }
+        }
+    });
+    if (hayFiltroPorUrl) {
+        btnToggleFiltros.setAttribute('aria-expanded', 'true');
+        formFiltros.hidden = false;
+    }
+
     cargarCheques();
 });

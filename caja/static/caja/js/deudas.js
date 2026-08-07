@@ -705,8 +705,22 @@ document.addEventListener('DOMContentLoaded', function () {
 
         cuotasBody.innerHTML = d.cuotas.map(c => {
             let accion = '-';
-            if (c.estado === 'pendiente' && puedeConfirmar && c.habilitada) {
-                accion = soloCheque
+            // Mientras el cheque que paga esta cuota siga pendiente o ya
+            // esté cobrado, la cuota sigue "pendiente" pero no se puede
+            // volver a pagar — mostrar el cheque en trámite en vez de los
+            // controles de pago (el backend ya lo bloquea, esto es para
+            // que no se vea como si no se hubiera hecho nada).
+            const chequeActivo = c.cheque_pk && (c.cheque_estado === 'pendiente' || c.cheque_estado === 'confirmado');
+            // Si en cambio el cheque más reciente rebotó, la cuota volvió
+            // a estar realmente pendiente — se puede pagar de nuevo, pero
+            // con una referencia visible al cheque rechazado.
+            const notaChequeRechazado = (c.cheque_pk && c.cheque_estado === 'rechazado' && c.estado === 'pendiente')
+                ? `<span class="deudas-cuota-fecha">Cheque #${c.cheque_numero} rechazado — </span>`
+                : '';
+            if (c.estado === 'pendiente' && chequeActivo) {
+                accion = `Cheque #${c.cheque_numero} (${c.cheque_estado}) <span class="deudas-cuota-fecha">en trámite</span>`;
+            } else if (c.estado === 'pendiente' && puedeConfirmar && c.habilitada) {
+                accion = notaChequeRechazado + (soloCheque
                     ? `<button type="button" class="btn btn-primary btn--sm" onclick="abrirModalChequeCuota(${c.pk}, ${c.monto}, '${d.moneda}', false)">Pagar con cheque</button>`
                     : `
                     <div class="deudas-cuota-confirmar">
@@ -716,9 +730,9 @@ document.addEventListener('DOMContentLoaded', function () {
                             <option value="__cheque__">— Pagar con cheque —</option>
                         </select>
                         <button type="button" class="btn btn-primary btn--sm" onclick="confirmarCuota(${c.pk})">Confirmar</button>
-                    </div>`;
+                    </div>`);
             } else if (c.estado === 'pendiente' && !c.habilitada && puedeConfirmar) {
-                accion = soloCheque
+                accion = notaChequeRechazado + (soloCheque
                     ? `
                     <div class="deudas-cuota-confirmar">
                         <button type="button" class="btn btn-secondary btn--sm" onclick="abrirModalChequeCuota(${c.pk}, ${c.monto}, '${d.moneda}', true)">Adelantar pago con cheque</button>
@@ -733,9 +747,15 @@ document.addEventListener('DOMContentLoaded', function () {
                         </select>
                         <button type="button" class="btn btn-secondary btn--sm" onclick="confirmarCuota(${c.pk}, true)">Adelantar pago</button>
                         <span class="deudas-cuota-fecha">Se habilita el ${c.fecha_vencimiento}</span>
-                    </div>`;
+                    </div>`);
             } else if (c.estado === 'pendiente' && !c.habilitada) {
-                accion = `<span class="deudas-cuota-fecha">Se habilita el ${c.fecha_vencimiento}</span>`;
+                accion = notaChequeRechazado + `<span class="deudas-cuota-fecha">Se habilita el ${c.fecha_vencimiento}</span>`;
+            } else if (c.estado === 'anulada' && c.cheque_pk) {
+                // Abono de cuotas libres cuyo cheque rebotó: queda como
+                // referencia histórica nada más — no cuenta para el saldo
+                // y no se puede volver a pagar esta fila (hay que
+                // registrar un abono nuevo).
+                accion = `<span class="deudas-cuota-fecha">Cheque #${c.cheque_numero} rechazado — no cuenta</span>`;
             } else if (c.estado === 'confirmada' && c.es_historica) {
                 let detallePago = '';
                 if (c.cheque_pk && c.cheque_es_historico) {

@@ -19,6 +19,7 @@ urlpatterns = [
     path('',                      views_productos.GestionProductosView.as_view(),       name='gestion_productos'),
     path('acciones/',             views_productos.ProductoCrearEditarAjax.as_view(),    name='producto_acciones'),
     path('eliminar/',             views_productos.ProductoEliminarAjax.as_view(),       name='producto_eliminar'),
+    path('activar-costo/',        views_productos.ProductoActivarCostoAjax.as_view(), name='producto_activar_costo'),
     path('buscar/',               views_productos.ProductoBuscarAjax.as_view(),         name='producto_buscar'),
 
     # — Imágenes —

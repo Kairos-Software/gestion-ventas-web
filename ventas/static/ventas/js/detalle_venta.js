@@ -980,7 +980,10 @@ if (VDT.esBorrador) {
 
     if (btnCancelar) {
         btnCancelar.addEventListener('click', async () => {
-            const ok = await KaiConfirm('¿Cancelar esta venta? El borrador y sus ítems se van a borrar.', { danger: true, confirmText: 'Cancelar venta' });
+            const mensaje = VDT.esEdicionReactivada
+                ? '¿Cancelar esta edición? La venta vuelve a quedar anulada, tal como estaba antes de editarla — no se pierde.'
+                : '¿Cancelar esta venta? El borrador y sus ítems se van a borrar.';
+            const ok = await KaiConfirm(mensaje, { danger: true, confirmText: 'Cancelar venta' });
             if (!ok) return;
 
             btnCancelar.disabled  = true;
@@ -997,7 +1000,10 @@ if (VDT.esBorrador) {
                 const data = await res.json();
 
                 if (data.ok) {
-                    window.location.href = VDT.urlNuevaVenta;
+                    // Si no se borró (venta real revertida a anulada), va al
+                    // Historial para que se vea de una que sigue ahí — no
+                    // tiene sentido mandarlo al carrito vacío en ese caso.
+                    window.location.href = data.borrado ? VDT.urlNuevaVenta : VDT.urlHistorial;
                 } else {
                     vdtToast('Error', data.error || 'No se pudo cancelar la venta.');
                     btnCancelar.disabled  = false;
@@ -1104,3 +1110,144 @@ function vdtImprimirTicket() {
     }
     ticketAbrirSelector();
 }
+
+/* ════════════════════════════════════════════════════════════════
+   DEVOLUCIONES — alternativa a editar/reactivar la venta para el
+   caso "el cliente devuelve algo". La venta no se toca; se registra
+   un objeto aparte que repone stock al lote exacto de origen y,
+   opcionalmente, reembolsa plata. Por simplicidad, esta pantalla
+   trata cada ítem como "vuelve entero a stock" o "está roto entero"
+   — no divide una misma línea entre las dos ramas (el backend sí lo
+   soporta si hiciera falta más adelante).
+════════════════════════════════════════════════════════════════ */
+
+function vdtAbrirModalDevolucion() {
+    const modal = document.getElementById('vdtModalDevolucion');
+    if (!modal) return;
+
+    const tbody = document.getElementById('vdvItemsBody');
+    tbody.innerHTML = (VDT.itemsDevolucion || []).map(item => {
+        const disponible = parseFloat(item.disponible) || 0;
+        if (disponible <= 0) return '';
+        return `
+        <tr data-item-pk="${item.pk}" data-precio="${item.precio_unitario}" data-descuento="${item.descuento_pct}" data-disponible="${disponible}">
+            <td style="padding:.4rem .25rem">${vdtEsc(item.nombre)}</td>
+            <td style="text-align:center; padding:.4rem .25rem">${disponible}</td>
+            <td style="text-align:center; padding:.4rem .25rem">
+                <input type="number" class="vdv-cantidad" min="0" max="${disponible}" step="any" value="0"
+                    style="width:70px; text-align:center; padding:.3rem; border:1px solid var(--border-color); border-radius:.4rem">
+            </td>
+            <td style="text-align:center; padding:.4rem .25rem">
+                <input type="checkbox" class="vdv-roto">
+            </td>
+        </tr>`;
+    }).join('');
+
+    if (!tbody.innerHTML.trim()) {
+        tbody.innerHTML = '<tr><td colspan="4" style="padding:.75rem; text-align:center; color:var(--text-muted)">No queda nada disponible para devolver de esta venta.</td></tr>';
+    }
+
+    const selectCuenta = document.getElementById('vdvCuenta');
+    selectCuenta.innerHTML = '<option value="">— No devolver plata (solo cambio) —</option>' +
+        (VDT.cuentasReembolso || []).map(c => `<option value="${c.pk}" data-moneda="${c.moneda}">${vdtEsc(c.nombre)} (${c.moneda})</option>`).join('');
+
+    document.getElementById('vdvMonto').value = '0';
+    document.getElementById('vdvDescripcion').value = '';
+    document.getElementById('vdvMsg').textContent = '';
+
+    tbody.querySelectorAll('.vdv-cantidad, .vdv-roto').forEach(el => {
+        el.addEventListener('input', vdtRecalcularMontoDevolucion);
+    });
+
+    modal.style.display = 'flex';
+}
+
+function vdtCerrarModalDevolucion() {
+    document.getElementById('vdtModalDevolucion').style.display = 'none';
+}
+
+function vdtRecalcularMontoDevolucion() {
+    let total = 0;
+    document.querySelectorAll('#vdvItemsBody tr[data-item-pk]').forEach(tr => {
+        const cantidad = parseFloat(tr.querySelector('.vdv-cantidad').value) || 0;
+        if (cantidad <= 0) return;
+        const precio = parseFloat(tr.dataset.precio) || 0;
+        const descuento = parseFloat(tr.dataset.descuento) || 0;
+        total += cantidad * precio * (1 - descuento / 100);
+    });
+    document.getElementById('vdvMonto').value = total.toFixed(2);
+}
+
+(function () {
+    const btnAbrir = document.getElementById('vdtBtnDevolucion');
+    if (btnAbrir) btnAbrir.addEventListener('click', vdtAbrirModalDevolucion);
+
+    const btnCerrar = document.getElementById('vdvBtnCerrar');
+    if (btnCerrar) btnCerrar.addEventListener('click', vdtCerrarModalDevolucion);
+    const btnCancelar = document.getElementById('vdvBtnCancelar');
+    if (btnCancelar) btnCancelar.addEventListener('click', vdtCerrarModalDevolucion);
+
+    const btnGuardar = document.getElementById('vdvBtnGuardar');
+    if (!btnGuardar) return;
+
+    btnGuardar.addEventListener('click', async () => {
+        const msg = document.getElementById('vdvMsg');
+        msg.textContent = '';
+
+        const items = [];
+        document.querySelectorAll('#vdvItemsBody tr[data-item-pk]').forEach(tr => {
+            const cantidad = parseFloat(tr.querySelector('.vdv-cantidad').value) || 0;
+            if (cantidad <= 0) return;
+            items.push({
+                item_venta_pk: parseInt(tr.dataset.itemPk, 10),
+                cantidad: cantidad,
+                es_perdida: tr.querySelector('.vdv-roto').checked,
+            });
+        });
+
+        if (!items.length) {
+            msg.textContent = 'Cargá alguna cantidad a devolver.';
+            return;
+        }
+        const descripcion = document.getElementById('vdvDescripcion').value.trim();
+        if (!descripcion) {
+            msg.textContent = 'La descripción es obligatoria.';
+            return;
+        }
+
+        const cuentaSelect = document.getElementById('vdvCuenta');
+        const cuentaPk = cuentaSelect.value || null;
+        const monto = parseFloat(document.getElementById('vdvMonto').value) || 0;
+        if (monto > 0 && !cuentaPk) {
+            msg.textContent = 'Elegí de qué cuenta sale el reembolso.';
+            return;
+        }
+
+        btnGuardar.disabled = true;
+        btnGuardar.textContent = 'Registrando…';
+
+        try {
+            const res = await fetch(VDT.urlRegistrarDevolucion, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': VDT.csrfToken },
+                body: JSON.stringify({
+                    venta_pk: VDT.ventaPk,
+                    descripcion, cuenta_pk: cuentaPk, monto,
+                    items,
+                }),
+            });
+            const data = await res.json();
+            if (data.ok) {
+                window.location.reload();
+            } else {
+                msg.textContent = data.error || 'No se pudo registrar la devolución.';
+                btnGuardar.disabled = false;
+                btnGuardar.textContent = 'Registrar devolución';
+            }
+        } catch {
+            msg.textContent = 'Error de conexión. Intentá de nuevo.';
+            btnGuardar.disabled = false;
+            btnGuardar.textContent = 'Registrar devolución';
+        }
+    });
+})();

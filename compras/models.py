@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.db import models
@@ -305,14 +305,18 @@ def _crear_deudas_desde_pagos(compra, pagos_resueltos, pagos_creados):
 
 def _anular_deudas_de_compra(compra):
     """
-    Anula las Deudas activas vinculadas a las líneas de crédito de esta
+    Elimina las Deudas activas vinculadas a las líneas de crédito de esta
     compra. Deuda.anular() ya bloquea si hay cuotas confirmadas — el
     ValueError se propaga tal cual, mismo criterio que el resto de las
-    validaciones de este archivo (fail fast, antes de tocar stock).
+    validaciones de este archivo (fail fast, antes de tocar stock). Una
+    vez que anular() confirma que no hay nada real pagado, se borra la
+    Deuda del todo (Deuda.delete() ya limpia sus propios movimientos) en
+    vez de dejarla ANULADA para siempre sin ninguna compra real detrás.
     """
     from caja.models import Deuda, EstadoDeuda
     for deuda in Deuda.objects.filter(pago_compra__compra=compra, estado=EstadoDeuda.ACTIVA):
         deuda.anular()
+        deuda.delete(_permitir_con_origen=True)
 
 
 def _crear_cheques_desde_pagos(compra, pagos_resueltos, pagos_creados):
@@ -359,15 +363,18 @@ def _crear_cheques_desde_pagos(compra, pagos_resueltos, pagos_creados):
 
 def _anular_cheques_de_compra(compra):
     """
-    Anula los cheques PENDIENTES vinculados a las líneas de pago con
+    Elimina los cheques PENDIENTES vinculados a las líneas de pago con
     cheque de esta compra. Si alguno ya está CONFIRMADO (efectivamente
     pagado), no se puede anular la compra sin resolver eso antes — mismo
-    criterio fail-fast que _anular_deudas_de_compra.
+    criterio fail-fast que _anular_deudas_de_compra. Una vez anulado, se
+    borra del todo (Cheque.delete() ya lo permite para un ANULADO) en vez
+    de dejarlo como fantasma sin ninguna compra real detrás.
     """
     from caja.models import Cheque, EstadoCheque
     for cheque in Cheque.objects.filter(pago_compra__compra=compra).exclude(estado=EstadoCheque.ANULADO):
         if cheque.estado == EstadoCheque.PENDIENTE:
             cheque.anular()
+            cheque.delete(_permitir_con_origen=True)
         elif cheque.estado == EstadoCheque.CONFIRMADO:
             raise ValueError(
                 f'El cheque {cheque.numero_cheque or "s/n"} de esta compra ya está confirmado '
@@ -638,7 +645,44 @@ class Compra(models.Model):
         _actualizar_precios_automaticos(self)
 
         self.estado = EstadoCompra.BORRADOR
-        self.save(update_fields=['estado'])
+        # fecha_modificacion queda actualizada aunque no cambie nada más —
+        # sirve para medir después cuánto lleva abandonada si nadie termina
+        # de editarla (ver descartar_borradores_vencidos).
+        self.save(update_fields=['estado', 'fecha_modificacion'])
+
+    def _es_reactivada(self):
+        """
+        True si este BORRADOR viene de reactivar() una compra ANULADA real
+        (con ItemCompra/LoteCompra históricos detrás), no de un borrador
+        nuevo genuino. A diferencia de Venta, Compra no trackea
+        fecha_anulacion — se infiere por si tiene algún lote real asociado
+        (los lotes solo se crean al confirmar(), y reactivar() no los
+        borra, solo los reactiva).
+        """
+        from .models import LoteCompra
+        return LoteCompra.objects.filter(item_compra__compra=self).exists()
+
+    @transaction.atomic
+    def descartar_edicion(self):
+        """
+        Descarta un borrador desde "Cancelar" (carrito o detalle). Si
+        `_es_reactivada()` — viene de reactivar() una compra ANULADA real —
+        no se borra, vuelve a ANULADA tal cual estaba (con los lotes
+        desactivados otra vez). Si no, es un borrador nuevo genuino y se
+        borra directo.
+        """
+        if Compra.objects.select_for_update().get(pk=self.pk).estado != EstadoCompra.BORRADOR:
+            raise ValueError('Solo se pueden descartar borradores.')
+
+        if self._es_reactivada():
+            for item in self.items.all():
+                item.lotes.update(activo=False)
+            self.estado = EstadoCompra.ANULADA
+            self.save(update_fields=['estado'])
+            return False  # no se borró, se revirtió
+        else:
+            self.delete()
+            return True  # se borró de verdad
 
     @transaction.atomic
     def editar_completa(self, fecha, notas, items_data, medio_pago=None, pagos=None):
@@ -1007,6 +1051,52 @@ class PagoCompra(models.Model):
         if self.cotizacion and self.cuenta_id and self.cuenta.moneda != Moneda.ARS:
             return (self.monto * self.cotizacion).quantize(Decimal('0.01'))
         return self.monto
+
+
+# ══════════════════════════════════════════════════════════════════
+#  HELPER — borradores abandonados
+# ══════════════════════════════════════════════════════════════════
+
+HORAS_DESCARTE_BORRADOR = 24
+
+
+def descartar_borradores_vencidos(excluir_pk=None):
+    """
+    Limpia los borradores de compra abandonados hace más de
+    HORAS_DESCARTE_BORRADOR horas. Mismo criterio que su equivalente en
+    ventas/models.py:
+
+    1. Borrador nuevo genuino (nunca fue una compra real — sin lotes
+       asociados): se borra directo, nunca tocó stock ni caja.
+    2. Compra ANULADA reactivada para editar (ver `reactivar()`) y
+       abandonada sin terminar: tiene ItemCompra/LoteCompra históricos
+       reales detrás, así que NO se borra — se revierte a ANULADA (con
+       los lotes desactivados otra vez), tal como estaba antes de tocar
+       "Editar". Se mide el abandono con `fecha_modificacion` (que
+       `reactivar()` actualiza a propósito), no `fecha_alta`.
+
+    `excluir_pk` es el borrador que se está por editar en esta misma
+    request — nunca hay que tocar el que el usuario está por retomar.
+    """
+    from .models import LoteCompra
+
+    umbral = timezone.now() - timedelta(hours=HORAS_DESCARTE_BORRADOR)
+    candidatos = Compra.objects.filter(estado=EstadoCompra.BORRADOR, fecha_modificacion__lt=umbral)
+    if excluir_pk:
+        candidatos = candidatos.exclude(pk=excluir_pk)
+
+    pks_reactivados = set(
+        LoteCompra.objects.filter(item_compra__compra__in=candidatos)
+        .values_list('item_compra__compra_id', flat=True)
+    )
+    for compra in candidatos:
+        if compra.pk in pks_reactivados:
+            for item in compra.items.all():
+                item.lotes.update(activo=False)
+            compra.estado = EstadoCompra.ANULADA
+            compra.save(update_fields=['estado'])
+        else:
+            compra.delete()
 
 
 # ══════════════════════════════════════════════════════════════════

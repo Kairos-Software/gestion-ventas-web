@@ -306,6 +306,48 @@
     color: var(--danger);
 }
 
+.ht-correccion {
+    display: block;
+    padding: 0.6rem 0.9rem;
+    border-radius: var(--radius-sm);
+    background: rgba(180, 83, 9, 0.08);
+    border: 1px solid rgba(180, 83, 9, 0.25);
+    font-size: 0.82rem;
+    color: var(--warning, #b45309);
+    margin: 0.75rem 0;
+}
+
+.ht-correccion summary {
+    cursor: pointer;
+    font-weight: 700;
+    list-style: none;
+}
+
+.ht-correccion summary::-webkit-details-marker {
+    display: none;
+}
+
+.ht-correccion-lista {
+    margin-top: 0.6rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid rgba(180, 83, 9, 0.2);
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    font-weight: 400;
+}
+
+.ht-correccion-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.ht-correccion-item a {
+    color: inherit;
+    text-decoration: underline;
+}
+
 .ht-footer {
     display: flex;
     flex-wrap: wrap;
@@ -450,6 +492,43 @@
     font-weight: 800;
     color: var(--brand-orange);
     font-family: var(--font-heading);
+}
+
+.hd-medios-pago--pendiente h4 {
+    color: var(--warning, #b45309);
+}
+
+.hd-medios-pago--pendiente .hd-medio-row {
+    background: rgba(180, 83, 9, 0.06);
+    border-color: rgba(180, 83, 9, 0.22);
+}
+
+.hd-medios-pago--pendiente .hd-medio-value {
+    color: var(--warning, #b45309);
+}
+
+.hd-medios-nota {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin: -0.5rem 0 0.75rem;
+}
+
+.hd-medios-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.1rem;
+    margin-top: 0.6rem;
+}
+
+.hd-medios-link {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--warning, #b45309);
+    text-decoration: none;
+}
+
+.hd-medios-link:hover {
+    text-decoration: underline;
 }
 
 /* ══════════════════════════════════════════════════════════════════

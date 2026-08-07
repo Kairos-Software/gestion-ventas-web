@@ -51,6 +51,7 @@ class OrigenMovimiento(models.TextChoices):
     DEUDA_TARJETA       = 'deuda_tarjeta',       'Compra con tarjeta (débito en tarjeta)'
     CUOTA_DEUDA_TARJETA = 'cuota_deuda_tarjeta', 'Pago de cuota (capital acreditado a tarjeta)'
     CUOTA_COBRO = 'cuota_cobro', 'Cobro de cuota (venta en cuotas)'
+    DEVOLUCION_VENTA = 'devolucion_venta', 'Devolución de venta'
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -284,6 +285,7 @@ class MovimientoCaja(models.Model):
 
 CONCEPTO_VENTA_NOMBRE  = 'Venta'
 CONCEPTO_COMPRA_NOMBRE = 'Compra'
+CONCEPTO_DEVOLUCION_VENTA_NOMBRE = 'Devolución de venta'
 CUENTA_EFECTIVO_DEFAULT_NOMBRE = 'Efectivo'
 
 
@@ -371,6 +373,16 @@ def sincronizar_movimiento_venta(venta):
       esperando al cierre de turno (ver TurnoCaja.cerrar), que es el
       único momento en que se concilia contra lo contado físicamente
       — por eso "caja diaria" existe como concepto, solo para eso.
+      PERO esto solo tiene sentido si existe un turno ABIERTO que
+      efectivamente vaya a cerrar y tomar esta venta en su ventana de
+      fecha_alta (ver TurnoCaja._ventas_en_turno). Si el turno al que
+      pertenece esta venta ya está CERRADO (por ejemplo: se anuló y
+      reeditó una venta vieja desde el Historial, después de que su
+      turno original ya cerró) — o directamente no hay ningún turno
+      que la cubra — ningún cierre futuro va a volver a mirar para
+      atrás y contarla: ese efectivo quedaría perdido para siempre en
+      Caja Grande. En ese caso se banca acá mismo, de inmediato, igual
+      que el resto de los medios.
     - ANULADA: no debe quedar ningún movimiento (la venta no se concretó).
 
     Se llama desde Venta.confirmar(), Venta.anular() y
@@ -386,15 +398,15 @@ def sincronizar_movimiento_venta(venta):
 
     concepto = _concepto_default(CONCEPTO_VENTA_NOMBRE, TipoMovimientoCaja.INGRESO)
 
-    pagos_no_efectivo = (
-        venta.pagos
-        .exclude(medio=MedioPago.EFECTIVO)
-        .exclude(cuenta__isnull=True)
-        .select_related('cuenta')
-    )
+    turno = TurnoCaja.turno_que_contiene(venta.fecha_alta)
+    turno_va_a_conciliarla = turno is not None and turno.estado == EstadoTurno.ABIERTO
+
+    pagos_a_sincronizar = venta.pagos.exclude(cuenta__isnull=True).select_related('cuenta')
+    if turno_va_a_conciliarla:
+        pagos_a_sincronizar = pagos_a_sincronizar.exclude(medio=MedioPago.EFECTIVO)
 
     movimientos = []
-    for pago in pagos_no_efectivo:
+    for pago in pagos_a_sincronizar:
         movimientos.append(MovimientoCaja.objects.create(
             caja        = TipoCaja.GRANDE,
             cuenta      = pago.cuenta,
@@ -411,6 +423,57 @@ def sincronizar_movimiento_venta(venta):
             creado_por  = venta.confirmado_por,
         ))
     return movimientos
+
+
+@transaction.atomic
+def sincronizar_movimiento_devolucion(devolucion):
+    """
+    Sincroniza el MovimientoCaja (EGRESO) del reembolso de una
+    DevolucionVenta. Mismo patrón borrar-y-recrear que
+    sincronizar_movimiento_venta, por si en el futuro se agrega poder
+    editarla/anularla.
+
+    Mismo criterio de turno abierto/cerrado que las ventas en efectivo,
+    pero evaluado sobre el momento en que se REGISTRA la devolución (no
+    el de la venta original): si hay un turno ABIERTO que la vaya a
+    conciliar, se difiere hasta su cierre (TurnoCaja.cerrar ya resta
+    esto del efectivo esperado — ver _devoluciones_en_turno) — el
+    cajero entregó el efectivo físico al toque, pero el sistema recién
+    lo descuenta de Caja Grande cuando el turno se cierra y se concilia,
+    igual que una venta en efectivo. Si no hay turno abierto que la
+    cubra, se banca de inmediato, como cualquier otro egreso.
+
+    Se llama desde registrar_devolucion() — no hay forma de editar o
+    anular una devolución todavía.
+    """
+    _borrar_movimiento_origen('ventas', OrigenMovimiento.DEVOLUCION_VENTA, devolucion.pk)
+
+    if not devolucion.cuenta_id or not devolucion.monto:
+        return None
+
+    concepto = _concepto_default(CONCEPTO_DEVOLUCION_VENTA_NOMBRE, TipoMovimientoCaja.EGRESO)
+
+    es_efectivo = devolucion.cuenta.tipo == TipoCuenta.EFECTIVO
+    turno = TurnoCaja.turno_que_contiene(timezone.now())
+    turno_va_a_conciliarla = es_efectivo and turno is not None and turno.estado == EstadoTurno.ABIERTO
+    if turno_va_a_conciliarla:
+        return None
+
+    return MovimientoCaja.objects.create(
+        caja        = TipoCaja.GRANDE,
+        cuenta      = devolucion.cuenta,
+        concepto    = concepto,
+        tipo        = TipoMovimientoCaja.EGRESO,
+        monto       = devolucion.monto,
+        moneda      = devolucion.cuenta.moneda,
+        fecha       = devolucion.fecha,
+        descripcion = f'Devolución {devolucion.numero} (venta {devolucion.venta.numero})',
+        referencia  = devolucion.venta.numero,
+        origen      = OrigenMovimiento.DEVOLUCION_VENTA,
+        origen_app  = 'ventas',
+        origen_id   = devolucion.pk,
+        creado_por  = devolucion.creado_por,
+    )
 
 
 @transaction.atomic
@@ -516,6 +579,10 @@ class TurnoCaja(models.Model):
       en caja grande, egreso en caja diaria).
     - Solo se permite efectivo para apertura/cierre (lo que se contabiliza a mano).
     - Las ventas requieren un turno abierto para poder realizarse.
+    - `total_recaudado` es SOLO plata real (efectivo/transferencia/débito/
+      crédito/QR). Cheque y cuotas se venden en el turno pero no son plata
+      todavía — quedan aparte en `total_financiado_pendiente`, para no
+      mostrar como "recaudado" algo que todavía puede no cobrarse nunca.
     """
     
     numero = models.PositiveIntegerField()
@@ -572,11 +639,17 @@ class TurnoCaja(models.Model):
     
     def __str__(self):
         return f'Turno #{self.numero} - {self.fecha_apertura:%d/%m/%Y %H:%M}'
-    
+
+    # Medios de pago que NO meten plata real en caja en el momento de la
+    # venta: cheque (hasta que se cobra) y cuotas (financiación propia,
+    # hasta que cada cuota se confirma). Ver MedioPago en ventas/models.py.
+    MEDIOS_PENDIENTES = {'cheque', 'cuotas'}
+
     @property
     def totales_medio_pago(self):
         """
-        Totales recaudados por medio de pago.
+        Totales de ventas por medio de pago (TODOS los medios, incluidos
+        cheque/cuotas) — desglose completo informativo.
 
         Si el turno ya está CERRADO y tiene snapshot guardado, se
         devuelve ese snapshot congelado (para que el historial no
@@ -593,8 +666,64 @@ class TurnoCaja(models.Model):
         return self._totales_medio_pago
 
     @property
+    def totales_medio_pago_inmediato(self):
+        """Medios que ya son plata real en caja (efectivo, transferencia, débito, crédito, QR)."""
+        return {k: v for k, v in self.totales_medio_pago.items() if k not in self.MEDIOS_PENDIENTES}
+
+    @property
+    def totales_medio_pago_pendiente(self):
+        """Cheque y cuotas: monto vendido pero todavía no cobrado — no es plata real todavía."""
+        return {k: v for k, v in self.totales_medio_pago.items() if k in self.MEDIOS_PENDIENTES}
+
+    @property
     def total_recaudado(self):
-        return sum(self.totales_medio_pago.values())
+        """
+        Plata real que entró en el turno. NO incluye cheques ni cuotas
+        vendidos en el turno pero todavía no cobrados — eso se expone
+        aparte en total_financiado_pendiente, para no mezclar una venta
+        con el cobro real de esa venta.
+        """
+        return sum(self.totales_medio_pago_inmediato.values())
+
+    @property
+    def total_financiado_pendiente(self):
+        """Monto vendido con cheque/cuotas en este turno, todavía sin cobrar."""
+        return sum(self.totales_medio_pago_pendiente.values())
+
+    @property
+    def correcciones_posteriores(self):
+        """
+        Ventas que pertenecieron a este turno (por fecha_alta, dentro de
+        su ventana de apertura/cierre) y se anularon DESPUÉS de que el
+        turno ya había cerrado — algo que el cierre original no podía
+        saber en su momento. `totales_cierre` queda intacto a propósito
+        (nunca se reescribe retroactivamente); esto es solo para poder
+        avisar que existe una corrección posterior, como una nota de
+        ajuste que referencia un cierre ya hecho, sin tocarlo.
+        """
+        if self.estado != EstadoTurno.CERRADO or not self.fecha_cierre:
+            from ventas.models import Venta
+            return Venta.objects.none()
+        from ventas.models import Venta, EstadoVenta
+        return Venta.objects.filter(
+            fecha_alta__gte=self.fecha_apertura, fecha_alta__lte=self.fecha_cierre,
+            estado=EstadoVenta.ANULADA, fecha_anulacion__gt=self.fecha_cierre,
+        ).order_by('-fecha_anulacion')
+
+    @property
+    def impacto_correcciones_posteriores(self):
+        """
+        Cuánto del total_recaudado original quedó desactualizado por esas
+        correcciones — solo medios inmediatos (cheque/cuotas nunca
+        entraron en total_recaudado, así que anularlos no lo cambia).
+        """
+        total = Decimal('0')
+        for venta in self.correcciones_posteriores:
+            total += sum(
+                (p.monto for p in venta.pagos.all() if p.medio not in self.MEDIOS_PENDIENTES),
+                Decimal('0'),
+            )
+        return total
 
     @property
     def efectivo_ventas(self):
@@ -740,6 +869,29 @@ class TurnoCaja(models.Model):
             fecha_alta__lte=self.fecha_cierre if self.fecha_cierre else timezone.now()
         )
 
+    def _devoluciones_en_turno(self):
+        """Devoluciones de venta reembolsadas en EFECTIVO dentro de la
+        ventana horaria de este turno — ver calcular_efectivo_devuelto_en_turno."""
+        from ventas.models import DevolucionVenta
+        return DevolucionVenta.objects.filter(
+            cuenta__tipo=TipoCuenta.EFECTIVO,
+            fecha_alta__gte=self.fecha_apertura,
+            fecha_alta__lte=self.fecha_cierre if self.fecha_cierre else timezone.now(),
+        )
+
+    def calcular_efectivo_devuelto_en_turno(self):
+        """
+        Total reembolsado en efectivo durante este turno (ver
+        sincronizar_movimiento_devolucion: mientras el turno está
+        ABIERTO ese egreso se difiere, igual que las ventas en
+        efectivo). Hace falta restarlo del efectivo "esperado" al
+        cerrar — el cajero ya entregó ese efectivo físico al cliente,
+        así que lo que queda contado en el cajón está de por sí por
+        debajo de "inicial + ventas"; si no se resta acá, el cierre
+        muestra un faltante que en realidad no es tal.
+        """
+        return self._devoluciones_en_turno().aggregate(total=Sum('monto'))['total'] or Decimal('0')
+
     def calcular_totales_por_medio_pago(self):
         """
         Calcula los totales de ventas agrupados por medio de pago
@@ -822,10 +974,12 @@ class TurnoCaja(models.Model):
             # Calcular totales por medio de pago (en caliente, todavía
             # no está cerrado el turno en este punto)
             totales = self.calcular_totales_por_medio_pago()
-            total_recaudado = sum(totales.values())
+            total_recaudado = sum(v for k, v in totales.items() if k not in self.MEDIOS_PENDIENTES)
+            total_financiado_pendiente = sum(v for k, v in totales.items() if k in self.MEDIOS_PENDIENTES)
 
             efectivo_ventas = totales.get('efectivo', 0)
-            esperado = self.monto_inicial_efectivo + efectivo_ventas
+            efectivo_devuelto = self.calcular_efectivo_devuelto_en_turno()
+            esperado = self.monto_inicial_efectivo + efectivo_ventas - efectivo_devuelto
 
             # ── Congelar estado del turno ───────────────────────────
             self.monto_final_efectivo = monto_final_efectivo
@@ -837,9 +991,11 @@ class TurnoCaja(models.Model):
             self.totales_cierre = {
                 'totales_medio_pago': {k: str(v) for k, v in totales.items()},
                 'total_recaudado': str(total_recaudado),
+                'total_financiado_pendiente': str(total_financiado_pendiente),
                 'ganancia_turno': str(total_recaudado - (self.monto_inicial_efectivo or 0)),
                 'esperado_efectivo': str(esperado),
                 'declarado_efectivo': str(monto_final_efectivo),
+                'efectivo_devuelto': str(efectivo_devuelto),
             }
             self.save()
 
@@ -1439,7 +1595,11 @@ class Deuda(models.Model):
         puede tocar si TODAVÍA no se confirmó ninguna cuota — ni real ni
         histórica —, porque cambiar esos datos después desalinearía lo
         que ya se registró (y, en el caso de cuotas reales, lo que ya
-        se imprimió/mostró como pagado).
+        se imprimió/mostró como pagado) — y solo si la deuda no nació de
+        una compra real (`pago_compra`): el monto/interés/cuotas de una
+        compra a crédito ya confirmada no se tocan a mano, solo los de
+        un préstamo o una carga inicial (mismo criterio que
+        CuentaPorCobrar.editar() con `pago_venta`).
         """
         toca_plan = any(v is not None for v in (
             monto_original, porcentaje_interes, cantidad_cuotas, fecha_inicio,
@@ -1448,6 +1608,8 @@ class Deuda(models.Model):
         if toca_plan:
             if self.estado != EstadoDeuda.ACTIVA:
                 raise ValueError('No se puede editar una deuda anulada.')
+            if self.pago_compra_id:
+                raise ValueError('Esta deuda nació de una compra — no se puede editar su plan de pago.')
             if self.cuotas.filter(estado=EstadoCuota.CONFIRMADA).exists():
                 raise ValueError(
                     'Esta deuda ya tiene cuotas confirmadas — no se puede editar el monto, '
@@ -1513,6 +1675,17 @@ class Deuda(models.Model):
         # confirmada de verdad.
         if self.cuotas.filter(estado=EstadoCuota.CONFIRMADA, es_historica=False).exists():
             raise ValueError('No se puede anular: ya hay cuotas confirmadas de esta deuda.')
+        # Una cuota PENDIENTE puede tener igual un cheque en trámite o ya
+        # cobrado (ver CuotaDeuda.confirmar_con_cheque) — si se anulara la
+        # deuda ahora, ese cheque quedaría cobrándose para una deuda que
+        # ya no existe.
+        if Cheque.objects.filter(
+            cuota_deuda__deuda=self, estado__in=(EstadoCheque.PENDIENTE, EstadoCheque.CONFIRMADO),
+        ).exists():
+            raise ValueError(
+                'No se puede anular: hay un cheque pendiente o cobrado ligado a una cuota de esta '
+                'deuda — resolvelo primero (cobralo o rechazalo) desde Cheques.'
+            )
 
         self.estado = EstadoDeuda.ANULADA
         self.save(update_fields=['estado'])
@@ -1521,17 +1694,31 @@ class Deuda(models.Model):
         sincronizar_movimiento_deuda(self)
         sincronizar_movimiento_deuda_tarjeta(self)
 
-    def delete(self, *args, **kwargs):
+    def delete(self, *args, _permitir_con_origen=False, **kwargs):
         """
-        A pedido explícito: se puede eliminar una deuda aunque ya tenga
-        cuotas pagadas (todas o algunas), reales o históricas — para
-        poder deshacer una carga mal hecha sin dejar basura. Al borrar
-        se limpian TODOS los movimientos de caja que haya generado
-        (nivel deuda y nivel cuota) y TODOS los cheques asociados a sus
-        cuotas, sin importar su estado — la idea es que quede como si
-        la deuda nunca hubiera existido. La vista que llama a esto debe
-        advertirle al usuario antes.
+        Se puede eliminar una deuda aunque ya tenga cuotas pagadas (todas
+        o algunas), reales o históricas — para poder deshacer una carga
+        mal hecha sin dejar basura. Al borrar se limpian TODOS los
+        movimientos de caja que haya generado (nivel deuda y nivel cuota)
+        y TODOS los cheques asociados a sus cuotas, sin importar su
+        estado — la idea es que quede como si la deuda nunca hubiera
+        existido. La vista que llama a esto debe advertirle al usuario
+        antes.
+
+        Si `pago_compra_id` está seteado (nació de una compra real), NO
+        se puede borrar directamente desde acá — dejaría a la compra con
+        una línea de pago "a crédito" sin ninguna deuda real detrás
+        (mismo problema que ya evitamos en `editar()`, pero para delete).
+        La única forma de sacarse de encima una deuda con origen real es
+        borrar la compra entera (`Compra.delete()`, que sí la limpia bien
+        en cascada). `_permitir_con_origen=True` es solo para ese cascade
+        interno — nunca lo use una vista directamente.
         """
+        if self.pago_compra_id and not _permitir_con_origen:
+            raise ValueError(
+                'Esta deuda nació de una compra real — no se puede eliminar directamente. '
+                'Si querés deshacerte de ella, eliminá la compra completa desde su historial.'
+            )
         with transaction.atomic():
             movimientos = MovimientoCaja.objects.filter(
                 origen__in=(OrigenMovimiento.DEUDA, OrigenMovimiento.DEUDA_TARJETA),
@@ -1652,6 +1839,10 @@ class CuotaDeuda(models.Model):
         # — un doble clic en "Pagar cuota" no debe generar dos egresos.
         if CuotaDeuda.objects.select_for_update().get(pk=self.pk).estado != EstadoCuota.PENDIENTE:
             raise ValueError('Solo se pueden confirmar cuotas pendientes.')
+        if self.cheques.filter(estado__in=(EstadoCheque.PENDIENTE, EstadoCheque.CONFIRMADO)).exists():
+            raise ValueError(
+                'Esta cuota ya tiene un cheque en trámite o cobrado — resolvelo antes de pagarla de otra forma.'
+            )
         if not self.habilitada and not adelantar:
             fecha_habilitacion = self.fecha_vencimiento - timedelta(days=DIAS_HABILITACION_CUOTA)
             raise ValueError(
@@ -1679,16 +1870,20 @@ class CuotaDeuda(models.Model):
         """
         Alternativa a confirmar(): en vez de descontar de una cuenta al
         toque, esta cuota se paga con un cheque propio (A_PAGAR) por su
-        monto exacto. La cuota queda CONFIRMADA de inmediato (el
-        compromiso de pago quedó saldado con el cheque), pero el egreso
-        real de caja recién ocurre cuando ESE cheque se confirma por
-        separado desde la pantalla de Cheques — mismo criterio que
-        compras/ventas pagadas con cheque. `cuenta_pago` queda vacío a
-        propósito (ver sincronizar_movimiento_cuota, que no genera
-        movimiento si no hay cuenta real todavía).
+        monto exacto. La cuota NO queda confirmada acá — sigue PENDIENTE,
+        con el cheque ya vinculado (`cuota_deuda`), hasta que ESE cheque
+        se cobre/paga de verdad y se confirme por separado desde la
+        pantalla de Cheques (ver `_sincronizar_cuota_desde_cheque`, que
+        recién ahí la pasa a CONFIRMADA). Si el cheque rebota, la cuota
+        nunca llegó a confirmarse — nada que revertir. `cuenta_pago`
+        queda vacío a propósito, igual que antes.
         """
         if CuotaDeuda.objects.select_for_update().get(pk=self.pk).estado != EstadoCuota.PENDIENTE:
             raise ValueError('Solo se pueden confirmar cuotas pendientes.')
+        if self.cheques.filter(estado__in=(EstadoCheque.PENDIENTE, EstadoCheque.CONFIRMADO)).exists():
+            raise ValueError(
+                'Esta cuota ya tiene un cheque en trámite o cobrado — resolvelo antes de pagarla de otra forma.'
+            )
         if not self.habilitada and not adelantar:
             fecha_habilitacion = self.fecha_vencimiento - timedelta(days=DIAS_HABILITACION_CUOTA)
             raise ValueError(
@@ -1732,11 +1927,6 @@ class CuotaDeuda(models.Model):
         # las notas, no reemplaza a la factura real.
         numero_factura = deuda.numero_comprobante or origen_desc
 
-        self.estado = EstadoCuota.CONFIRMADA
-        self.fecha_confirmacion = timezone.now()
-        self.confirmado_por = usuario
-        self.save(update_fields=['estado', 'fecha_confirmacion', 'confirmado_por'])
-
         cheque = Cheque.objects.create(
             tipo=TipoCheque.A_PAGAR,
             numero_cheque=str(cheque_data.get('numero_cheque', '') or '').strip(),
@@ -1755,9 +1945,6 @@ class CuotaDeuda(models.Model):
         )
         if financiadora:
             fondear_chequera(financiadora, cuenta_origen, monto_cheque, timezone.now().date(), cheque, usuario)
-
-        sincronizar_movimiento_cuota(self)
-        sincronizar_movimiento_cuota_tarjeta(self)
 
 
 def _calcular_plan_cuotas(monto_original, porcentaje_interes, cantidad_cuotas, fecha_inicio):
@@ -2359,20 +2546,41 @@ class CuentaPorCobrar(models.Model):
         # a diferencia de una cuota confirmada de verdad.
         if self.cuotas.filter(estado=EstadoCuota.CONFIRMADA, es_historica=False).exists():
             raise ValueError('No se puede anular: ya hay cuotas cobradas de esta cuenta.')
+        # Una cuota PENDIENTE puede tener igual un cheque en trámite o ya
+        # cobrado (ver CuotaCobro.confirmar_con_cheque) — si se anulara la
+        # cuenta ahora, ese cheque quedaría cobrándose para una cuenta que
+        # ya no existe.
+        if Cheque.objects.filter(
+            cuota_cobro__cuenta_por_cobrar=self, estado__in=(EstadoCheque.PENDIENTE, EstadoCheque.CONFIRMADO),
+        ).exists():
+            raise ValueError(
+                'No se puede anular: hay un cheque pendiente o cobrado ligado a una cuota de esta '
+                'cuenta — resolvelo primero (cobralo o rechazalo) desde Cheques.'
+            )
 
         self.estado = EstadoDeuda.ANULADA
         self.save(update_fields=['estado'])
         self.cuotas.filter(estado=EstadoCuota.PENDIENTE).update(estado=EstadoCuota.ANULADA)
 
-    def delete(self, *args, **kwargs):
+    def delete(self, *args, _permitir_con_origen=False, **kwargs):
         """
-        A pedido explícito (mismo criterio que Deuda.delete()): se puede
-        eliminar una cuenta por cobrar aunque ya tenga cuotas cobradas
-        (reales o históricas) — para poder deshacer una carga mal hecha sin
-        dejar basura. Al borrar se limpian TODOS los movimientos de caja que
-        haya generado (a nivel cuota, CxC no genera movimiento propio a
-        nivel cabecera) y TODOS los cheques asociados a sus cuotas.
+        Se puede eliminar una cuenta por cobrar aunque ya tenga cuotas
+        cobradas (reales o históricas) — para poder deshacer una carga mal
+        hecha sin dejar basura. Al borrar se limpian TODOS los movimientos
+        de caja que haya generado (a nivel cuota, CxC no genera movimiento
+        propio a nivel cabecera) y TODOS los cheques asociados a sus
+        cuotas.
+
+        Si `pago_venta_id` está seteado (nació de una venta real), NO se
+        puede borrar directamente desde acá — mismo criterio que
+        `Deuda.delete()`, ver su docstring. `_permitir_con_origen=True` es
+        solo para el cascade interno de `Venta.delete()`.
         """
+        if self.pago_venta_id and not _permitir_con_origen:
+            raise ValueError(
+                'Esta cuenta por cobrar nació de una venta real — no se puede eliminar directamente. '
+                'Si querés deshacerte de ella, eliminá la venta completa desde su historial.'
+            )
         with transaction.atomic():
             cuota_pks = list(self.cuotas.values_list('pk', flat=True))
             movimientos = MovimientoCaja.objects.filter(
@@ -2460,6 +2668,10 @@ class CuotaCobro(models.Model):
         # un doble clic en "Confirmar cobro" no debe generar dos ingresos.
         if CuotaCobro.objects.select_for_update().get(pk=self.pk).estado != EstadoCuota.PENDIENTE:
             raise ValueError('Solo se pueden confirmar cuotas pendientes.')
+        if self.cheques.filter(estado__in=(EstadoCheque.PENDIENTE, EstadoCheque.CONFIRMADO)).exists():
+            raise ValueError(
+                'Esta cuota ya tiene un cheque en trámite o cobrado — resolvelo antes de cobrarla de otra forma.'
+            )
         if not self.habilitada and not adelantar:
             fecha_habilitacion = self.fecha_vencimiento - timedelta(days=DIAS_HABILITACION_CUOTA)
             raise ValueError(
@@ -2485,15 +2697,21 @@ class CuotaCobro(models.Model):
     def confirmar_con_cheque(self, cheque_data, usuario, adelantar=False):
         """
         Alternativa a confirmar(): esta cuota se cobra con un cheque de
-        un tercero (A_COBRAR) por su monto exacto. La cuota queda
-        CONFIRMADA de inmediato, pero el ingreso real de caja recién
-        ocurre cuando ESE cheque se deposita/confirma por separado desde
-        Cheques — mismo criterio que ventas cobradas con cheque.
-        `cuenta_cobro` queda vacío a propósito (se elige recién al
-        confirmar el cheque, como cualquier A_COBRAR).
+        un tercero (A_COBRAR) por su monto exacto. La cuota NO queda
+        confirmada acá — sigue PENDIENTE, con el cheque ya vinculado
+        (`cuota_cobro`), hasta que ESE cheque se deposite/confirme de
+        verdad por separado desde Cheques (ver
+        `_sincronizar_cuota_desde_cheque`, que recién ahí la pasa a
+        CONFIRMADA). Si el cheque rebota, la cuota nunca llegó a
+        confirmarse — nada que revertir. `cuenta_cobro` queda vacío a
+        propósito, igual que antes.
         """
         if CuotaCobro.objects.select_for_update().get(pk=self.pk).estado != EstadoCuota.PENDIENTE:
             raise ValueError('Solo se pueden confirmar cuotas pendientes.')
+        if self.cheques.filter(estado__in=(EstadoCheque.PENDIENTE, EstadoCheque.CONFIRMADO)).exists():
+            raise ValueError(
+                'Esta cuota ya tiene un cheque en trámite o cobrado — resolvelo antes de cobrarla de otra forma.'
+            )
         if not self.habilitada and not adelantar:
             fecha_habilitacion = self.fecha_vencimiento - timedelta(days=DIAS_HABILITACION_CUOTA)
             raise ValueError(
@@ -2520,11 +2738,6 @@ class CuotaCobro(models.Model):
         cxc = self.cuenta_por_cobrar
         origen_desc = cxc.pago_venta.venta.numero if cxc.pago_venta_id else f'Cuenta por cobrar #{cxc.pk}'
 
-        self.estado = EstadoCuota.CONFIRMADA
-        self.fecha_confirmacion = timezone.now()
-        self.confirmado_por = usuario
-        self.save(update_fields=['estado', 'fecha_confirmacion', 'confirmado_por'])
-
         Cheque.objects.create(
             tipo=TipoCheque.A_COBRAR,
             numero_cheque=str(cheque_data.get('numero_cheque', '') or '').strip(),
@@ -2540,8 +2753,6 @@ class CuotaCobro(models.Model):
             cuota_cobro=self,
             creado_por=usuario,
         )
-
-        sincronizar_movimiento_cuota_cobro(self)
 
 
 def generar_cuotas_cobro(cuenta_por_cobrar):
@@ -2815,6 +3026,7 @@ class Cheque(models.Model):
         self.save(update_fields=['estado', 'fecha_confirmacion', 'confirmado_por', 'cuenta_destino'])
 
         sincronizar_movimiento_cheque(self)
+        _sincronizar_cuota_desde_cheque(self)
 
     @transaction.atomic
     def rechazar(self):
@@ -2826,6 +3038,7 @@ class Cheque(models.Model):
         self.save(update_fields=['estado'])
 
         sincronizar_movimiento_cheque(self)
+        _sincronizar_cuota_desde_cheque(self)
 
     @transaction.atomic
     def anular(self):
@@ -2835,19 +3048,50 @@ class Cheque(models.Model):
         self.estado = EstadoCheque.ANULADO
         self.save(update_fields=['estado'])
 
-    def delete(self, *args, **kwargs):
+    def delete(self, *args, _permitir_con_origen=False, **kwargs):
         # Un histórico CONFIRMADO nunca generó movimiento real (ver
         # sincronizar_movimiento_cheque) — no hace falta pasar por
         # rechazar() antes, se puede borrar directo como cualquier otro.
         if self.estado == EstadoCheque.CONFIRMADO and not self.es_historico:
             raise ValueError('No se puede eliminar un cheque confirmado — hay que rechazarlo primero.')
+        # Si `pago_venta_id`/`pago_compra_id` está seteado (nació de ser el
+        # medio de pago de una venta/compra real), no se puede borrar
+        # directamente desde acá — la venta/compra quedaría confirmada con
+        # una línea de pago "con cheque" sin ningún cheque real detrás,
+        # como si esa plata jamás fuera a cobrarse/pagarse pero sin que
+        # quede ningún rastro de eso (mismo problema ya evitado en
+        # Deuda.delete()/CuentaPorCobrar.delete()). La única forma de
+        # sacarse de encima este cheque es anular/eliminar la venta/compra
+        # entera (_anular_cheques_de_venta/_anular_cheques_de_compra, que
+        # sí lo limpian bien). `_permitir_con_origen=True` es solo para
+        # ese cascade.
+        if (self.pago_venta_id or self.pago_compra_id) and not _permitir_con_origen:
+            raise ValueError(
+                'Este cheque es el medio de pago de una venta/compra real — no se puede eliminar '
+                'directamente. Si querés deshacerte de él, eliminá o anulá la venta/compra completa.'
+            )
         with transaction.atomic():
             movimiento = MovimientoCaja.objects.filter(
                 origen=OrigenMovimiento.CHEQUE, origen_app='caja', origen_id=self.pk,
             ).first()
             if movimiento:
                 movimiento.delete()
+
+            # Si este cheque pagaba/cobraba un ABONO de cuotas libres (no
+            # una cuota FIJA, que es un lugar fijo del plan y no se toca),
+            # ese abono nace y muere junto con el cheque que lo respalda —
+            # al borrar el cheque a mano (en vez de rechazarlo, que sí deja
+            # historial), se borra el abono entero, como si nunca hubiera
+            # existido, en vez de dejarlo como una fila fantasma pagable.
+            cuota_deuda = self.cuota_deuda if self.cuota_deuda_id else None
+            cuota_cobro = self.cuota_cobro if self.cuota_cobro_id else None
+
             super().delete(*args, **kwargs)
+
+            if cuota_deuda and cuota_deuda.deuda.modo_cuotas == ModoCuotas.LIBRE:
+                cuota_deuda.delete()
+            if cuota_cobro and cuota_cobro.cuenta_por_cobrar.modo_cuotas == ModoCuotas.LIBRE:
+                cuota_cobro.delete()
 
 
 @transaction.atomic
@@ -2891,6 +3135,62 @@ def sincronizar_movimiento_cheque(cheque):
             referencia=f'Cheque #{cheque.pk}', origen=OrigenMovimiento.CHEQUE,
             origen_app='caja', origen_id=cheque.pk, creado_por=cheque.confirmado_por,
         )
+
+
+def _estado_rechazo_cuota(modo_cuotas):
+    """
+    Qué le pasa a una cuota cuyo cheque rebotó, según el tipo de plan:
+    - FIJAS: la cuota es un lugar fijo del plan (ej. "cuota 2/3") que
+      igual hay que terminar de pagar — vuelve a PENDIENTE para poder
+      reintentarla con otro medio u otro cheque.
+    - LIBRE: un abono no es un lugar fijo, es el registro de un pago
+      puntual — si ese pago no se concretó, no tiene sentido "reintentar
+      esa misma fila": queda ANULADA (no cuenta, no se puede volver a
+      tocar) y para seguir pagando se registra un abono nuevo.
+    """
+    return EstadoCuota.PENDIENTE if modo_cuotas == ModoCuotas.FIJAS else EstadoCuota.ANULADA
+
+
+@transaction.atomic
+def _sincronizar_cuota_desde_cheque(cheque):
+    """
+    Cuando un cheque que paga una cuota de Deuda (`cuota_deuda`) o cobra
+    una de CuentaPorCobrar (`cuota_cobro`) cambia de estado, la cuota
+    tiene que reflejar la realidad: mientras el cheque esté PENDIENTE, la
+    cuota sigue PENDIENTE (el pago todavía no es real); recién cuando el
+    cheque se CONFIRMA (se cobra/paga de verdad) la cuota pasa a
+    CONFIRMADA. Si el cheque se RECHAZA, ver `_estado_rechazo_cuota`. No
+    toca cuotas ya ANULADAS (la deuda/cuenta que las contenía se anuló
+    por otro lado).
+    """
+    if cheque.cuota_deuda_id:
+        cuota = cheque.cuota_deuda
+        nuevo_estado = (
+            EstadoCuota.CONFIRMADA if cheque.estado == EstadoCheque.CONFIRMADO
+            else _estado_rechazo_cuota(cuota.deuda.modo_cuotas) if cheque.estado == EstadoCheque.RECHAZADO
+            else EstadoCuota.PENDIENTE
+        )
+        if cuota.estado != EstadoCuota.ANULADA and cuota.estado != nuevo_estado:
+            cuota.estado = nuevo_estado
+            cuota.fecha_confirmacion = cheque.fecha_confirmacion if nuevo_estado == EstadoCuota.CONFIRMADA else None
+            cuota.confirmado_por = cheque.confirmado_por if nuevo_estado == EstadoCuota.CONFIRMADA else None
+            cuota.save(update_fields=['estado', 'fecha_confirmacion', 'confirmado_por'])
+            # Compra a crédito: el capital recién se acredita a la tarjeta
+            # cuando el cheque se cobra de verdad, no cuando se emitió.
+            sincronizar_movimiento_cuota_tarjeta(cuota)
+
+    if cheque.cuota_cobro_id:
+        cuota = cheque.cuota_cobro
+        nuevo_estado = (
+            EstadoCuota.CONFIRMADA if cheque.estado == EstadoCheque.CONFIRMADO
+            else _estado_rechazo_cuota(cuota.cuenta_por_cobrar.modo_cuotas) if cheque.estado == EstadoCheque.RECHAZADO
+            else EstadoCuota.PENDIENTE
+        )
+        if cuota.estado != EstadoCuota.ANULADA and cuota.estado != nuevo_estado:
+            cuota.estado = nuevo_estado
+            cuota.fecha_confirmacion = cheque.fecha_confirmacion if nuevo_estado == EstadoCuota.CONFIRMADA else None
+            cuota.confirmado_por = cheque.confirmado_por if nuevo_estado == EstadoCuota.CONFIRMADA else None
+            cuota.save(update_fields=['estado', 'fecha_confirmacion', 'confirmado_por'])
 
 
 @transaction.atomic

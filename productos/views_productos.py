@@ -40,6 +40,7 @@ def _serializar_producto(p):
         'codigo':                p.codigo,
         'sku':                   p.sku,
         'codigo_barras':         p.codigo_barras,
+        'codigo_proveedor':      p.codigo_proveedor,
         'nombre':                p.nombre,
         'nombre_corto':          p.nombre_corto,
         'descripcion':           p.descripcion,
@@ -62,6 +63,8 @@ def _serializar_producto(p):
         'modo_precio':           p.modo_precio,
         'porcentaje_ganancia':   str(p.porcentaje_ganancia) if p.porcentaje_ganancia is not None else '',
         'costo_actual':          str(p.costo_actual) if p.costo_actual is not None else '',
+        'costo_actual_es_real':  p.costo_actual_es_real if p.pk else False,
+        'costo':                 str(p.costo) if p.costo is not None else '',
         'alicuota_iva':          p.alicuota_iva,
         'precio_incluye_iva':    p.precio_incluye_iva,
         'stock_actual':          str(p.stock_actual),
@@ -290,7 +293,8 @@ class GestionProductosView(LoginRequiredMixin, TemplateView):
                  | qs.filter(codigo__icontains=q)       \
                  | qs.filter(sku__icontains=q)          \
                  | qs.filter(marca__icontains=q)        \
-                 | qs.filter(codigo_barras__icontains=q)
+                 | qs.filter(codigo_barras__icontains=q) \
+                 | qs.filter(codigo_proveedor__icontains=q)
 
         estado    = self.request.GET.get('estado', '')
         categoria = self.request.GET.get('categoria', '')
@@ -452,6 +456,52 @@ class ProductoCrearEditarAjax(LoginRequiredMixin, View):
         return JsonResponse({'ok': False, 'errors': form.errors}, status=400)
 
 
+class ProductoActivarCostoAjax(LoginRequiredMixin, View):
+    """POST → activa `costo` (el de referencia) como el costo vigente ahora,
+    aunque el producto ya tenga una Compra real (ver
+    Producto.activar_costo_referencia()). Si se manda `costo` en el body,
+    lo guarda antes de activarlo — el modal manda el valor recién tipeado,
+    sin obligar a "Guardar producto" primero."""
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_productos'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        pk = body.get('pk')
+        if not pk:
+            return JsonResponse({'error': 'PK requerido.'}, status=400)
+
+        producto = get_object_or_404(Producto, pk=pk)
+
+        costo_raw = body.get('costo')
+        if costo_raw not in (None, ''):
+            try:
+                costo = Decimal(str(costo_raw))
+            except (InvalidOperation, ValueError):
+                return JsonResponse({'error': 'Costo inválido.'}, status=400)
+            if costo <= 0:
+                return JsonResponse({'error': 'El costo debe ser mayor a 0.'}, status=400)
+            producto.costo = costo
+            producto.save(update_fields=['costo'])
+
+        try:
+            producto.activar_costo_referencia()
+        except ValueError as e:
+            return JsonResponse({'error': str(e)}, status=400)
+
+        return JsonResponse({
+            'ok': True,
+            'costo_actual': str(producto.costo_actual) if producto.costo_actual is not None else '',
+            'costo_actual_es_real': producto.costo_actual_es_real,
+            'precio_venta': str(producto.precio_venta) if producto.precio_venta is not None else '',
+        })
+
+
 class ProductoEliminarAjax(LoginRequiredMixin, View):
     """POST → elimina un producto (y sus imágenes físicas del disco)."""
 
@@ -492,7 +542,8 @@ class ProductoBuscarAjax(LoginRequiredMixin, View):
         q  = request.GET.get('q', '').strip()
         qs = Producto.objects.filter(estado='activo').order_by('nombre')
         if q:
-            qs = qs.filter(nombre__icontains=q) | qs.filter(codigo__icontains=q)
+            qs = qs.filter(nombre__icontains=q) | qs.filter(codigo__icontains=q) \
+                 | qs.filter(codigo_proveedor__icontains=q)
 
         data = []
         for p in qs[:20]:

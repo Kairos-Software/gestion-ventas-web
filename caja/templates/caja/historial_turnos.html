@@ -110,13 +110,42 @@ Historial de Turnos
                     <span class="hd-resumen-label">Efectivo en caja</span>
                     <span class="hd-resumen-value">${{ turno.efectivo_total|floatformat:"2" }}</span>
                 </div>
+                {% if turno.total_financiado_pendiente %}
+                <div class="hd-resumen-row">
+                    <span class="hd-resumen-label">Pendiente de cobro</span>
+                    <span class="hd-resumen-value" style="color:var(--warning, #b45309)">${{ turno.total_financiado_pendiente|floatformat:"2" }}</span>
+                </div>
+                {% endif %}
             </div>
 
+            <!-- Correcciones posteriores al cierre: el total de arriba
+                 queda intacto (nunca se reescribe), esto es solo un aviso
+                 de que algo cambió después — como una nota de ajuste que
+                 referencia un cierre ya hecho, sin tocarlo. -->
+            {% with correcciones=turno.correcciones_posteriores %}
+            {% if correcciones %}
+            <details class="ht-correccion">
+                <summary>
+                    ⚠ {{ correcciones|length }} ajuste{{ correcciones|length|pluralize }} posterior{{ correcciones|length|pluralize:",es" }} al cierre
+                    (-${{ turno.impacto_correcciones_posteriores|floatformat:"2" }})
+                </summary>
+                <div class="ht-correccion-lista">
+                    {% for venta in correcciones %}
+                    <div class="ht-correccion-item">
+                        <span><a href="{% url 'ventas:detalle_venta' pk=venta.pk %}" target="_blank" rel="noopener">{{ venta.numero }}</a> — anulada el {{ venta.fecha_anulacion|date:"d/m/Y H:i" }}{% if venta.anulado_por %} por {{ venta.anulado_por.get_full_name|default:venta.anulado_por.username }}{% endif %}</span>
+                        <span>${{ venta.total|floatformat:"2" }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </details>
+            {% endif %}
+            {% endwith %}
+
             <!-- Ventas por medio de pago -->
-            {% with totales=turno.totales_medio_pago %}
+            {% with totales=turno.totales_medio_pago_inmediato %}
             {% if totales %}
             <div class="hd-medios-pago">
-                <h4>Ventas por medio de pago</h4>
+                <h4>Recaudado por medio de pago</h4>
                 <div class="hd-medios-list">
                     {% for medio, monto in totales.items %}
                     <div class="hd-medio-row">
@@ -128,6 +157,30 @@ Historial de Turnos
             </div>
             {% endif %}
             {% endwith %}
+
+            <!-- Cheque/cuotas vendidos en el turno pero todavía sin cobrar -->
+            {% if turno.total_financiado_pendiente %}
+            <div class="hd-medios-pago hd-medios-pago--pendiente">
+                <h4>Pendiente de cobro (cheque / cuotas)</h4>
+                <p class="hd-medios-nota">Vendido en este turno pero todavía no es plata real.</p>
+                <div class="hd-medios-list">
+                    {% for medio, monto in turno.totales_medio_pago_pendiente.items %}
+                    <div class="hd-medio-row">
+                        <span class="hd-medio-label">{{ medio|title }}</span>
+                        <span class="hd-medio-value">${{ monto|floatformat:"2" }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="hd-medios-links">
+                    {% if turno.totales_medio_pago_pendiente.cheque %}
+                    <a href="{% url 'caja:cheques' %}?tipo=a_cobrar&estado=pendiente" class="hd-medios-link">Ver cheques a cobrar pendientes →</a>
+                    {% endif %}
+                    {% if turno.totales_medio_pago_pendiente.cuotas %}
+                    <a href="{% url 'caja:cuentas_cobrar' %}?estado=activa" class="hd-medios-link">Ver cuentas por cobrar activas →</a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
 
             <!-- Detalle de efectivo -->
             <div class="hd-medios-pago" style="margin-top:1rem">

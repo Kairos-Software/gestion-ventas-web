@@ -98,6 +98,16 @@ Caja Diaria
         <div class="cd-resumen-card-label">Ganancia del Turno</div>
         <div class="cd-resumen-card-value">${{ ganancia_turno|floatformat:"2" }}</div>
     </div>
+    <div class="cd-resumen-card cd-resumen-card--pendiente">
+        <div class="cd-resumen-card-icon">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <circle cx="10" cy="10" r="7.5" stroke="currentColor" stroke-width="1.5" />
+                <path d="M10 6.5V10.5M10 13.2V13.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+            </svg>
+        </div>
+        <div class="cd-resumen-card-label">Pendiente de Cobro</div>
+        <div class="cd-resumen-card-value">${{ total_financiado_pendiente|floatformat:"2" }}</div>
+    </div>
     <div class="cd-resumen-card">
         <div class="cd-resumen-card-icon">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -164,7 +174,7 @@ Caja Diaria
         <!-- Medios de pago + botón cerrar -->
         <div class="cd-medios-y-accion">
             <div class="cd-totales-section">
-                <h4>Ventas por medio de pago</h4>
+                <h4>Recaudado por medio de pago</h4>
                 {% if totales_medio_pago %}
                 <div class="cd-totales-list">
                     {% for medio, monto in totales_medio_pago.items %}
@@ -190,6 +200,42 @@ Caja Diaria
                 <p class="cd-empty-inline">Sin ventas en este turno.</p>
                 {% endif %}
             </div>
+
+            {% if total_financiado_pendiente %}
+            <div class="cd-totales-section cd-totales-section--pendiente">
+                <h4>Pendiente de cobro (cheque / cuotas)</h4>
+                <p class="cd-empty-inline" style="margin-bottom:0.6rem">
+                    Vendido en este turno pero todavía no es plata real — no suma al Total Recaudado ni a la Ganancia.
+                </p>
+                <div class="cd-totales-list">
+                    {% for medio, monto in totales_medio_pago_pendiente.items %}
+                    <div class="cd-total-row cd-total-row--pendiente" data-medio="{{ medio|lower }}">
+                        <span class="cd-total-label">
+                            <span class="cd-total-icon">
+                                <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                                    <rect x="1.5" y="4" width="13" height="9" rx="1.5" stroke="currentColor"
+                                        stroke-width="1.3" />
+                                    <path d="M1.5 6.5H14.5" stroke="currentColor" stroke-width="1.3" />
+                                    <path d="M4 10.5H7" stroke="currentColor" stroke-width="1.3"
+                                        stroke-linecap="round" />
+                                </svg>
+                            </span>
+                            {{ medio|title }}
+                        </span>
+                        <span class="cd-total-value">${{ monto|floatformat:"2" }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="cd-totales-links">
+                    {% if totales_medio_pago_pendiente.cheque %}
+                    <a href="{% url 'caja:cheques' %}?tipo=a_cobrar&estado=pendiente" class="cd-totales-link">Ver cheques a cobrar pendientes →</a>
+                    {% endif %}
+                    {% if totales_medio_pago_pendiente.cuotas %}
+                    <a href="{% url 'caja:cuentas_cobrar' %}?estado=activa" class="cd-totales-link">Ver cuentas por cobrar activas →</a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
             {% if puede_abrir_cerrar_turno %}
             <button class="vta-btn vta-btn-primary cd-btn-cerrar" onclick="cdCerrarTurno()">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">

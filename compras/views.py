@@ -12,7 +12,7 @@ from django.db import transaction
 from django.db.models import Q
 
 from productos.models import Producto, Proveedor, CombinacionVariante, ListaDescuento, cantidad_valida_para_unidad
-from .models import Compra, ItemCompra, EstadoCompra, MedioPagoCompra
+from .models import Compra, ItemCompra, EstadoCompra, MedioPagoCompra, descartar_borradores_vencidos
 from core.permisos import chequear_permiso
 from caja.models import CuentaCaja, TipoCaja
 
@@ -48,6 +48,8 @@ class NuevaCompraView(LoginRequiredMixin, TemplateView):
         ctx['items_json'] = []
 
         editar_pk = self.request.GET.get('editar', '').strip()
+        descartar_borradores_vencidos(excluir_pk=editar_pk or None)
+
         if editar_pk:
             compra = Compra.objects.filter(pk=editar_pk, estado=EstadoCompra.BORRADOR).first()
             if compra:
@@ -152,16 +154,24 @@ class BuscarProductoAjax(LoginRequiredMixin, View):
             })
 
         producto_exacto = (
-            base_qs.filter(codigo_barras__iexact=q, gestiona_variantes=False)
-            .exclude(codigo_barras='')
+            base_qs.filter(
+                Q(codigo_barras__iexact=q, gestiona_variantes=False)
+                | Q(codigo_proveedor__iexact=q)
+            )
+            .exclude(codigo_barras='', codigo_proveedor='')
             .first()
         )
         if producto_exacto:
             return JsonResponse({'results': [self._fila_simple(producto_exacto, match_exacto=True)]})
 
         # ── 2) Búsqueda parcial por texto ──
+        # codigo_proveedor entra acá especialmente: es el código con el
+        # que EL PROVEEDOR identifica el producto en su factura/presupuesto
+        # — al cargar una compra tipeando lo que trae el remito, esto
+        # encuentra el producto exacto sin tener que buscarlo por nombre.
         productos_match = base_qs.filter(
             Q(nombre__icontains=q) | Q(codigo__icontains=q) | Q(codigo_barras__icontains=q)
+            | Q(codigo_proveedor__icontains=q)
         ).distinct().order_by('nombre')
 
         combinaciones_match = (
@@ -208,6 +218,7 @@ class BuscarProductoAjax(LoginRequiredMixin, View):
             'producto_pk':        p.pk,
             'producto_nombre':    p.nombre,
             'codigo':             p.codigo,
+            'codigo_proveedor':   p.codigo_proveedor,
             'unidad_medida':      p.get_unidad_medida_display(),
             'stock_minimo':       float(p.stock_minimo),
             'categoria':          p.categoria.nombre if p.categoria else '',
@@ -769,8 +780,10 @@ class EliminarBorradorAjax(LoginRequiredMixin, View):
                 status=400
             )
 
-        compra.delete()
-        return JsonResponse({'ok': True})
+        # Si era una compra real reactivada para editar, descartar_edicion()
+        # la revierte a ANULADA en vez de borrarla — ver su docstring.
+        borrado = compra.descartar_edicion()
+        return JsonResponse({'ok': True, 'borrado': borrado})
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -935,6 +948,7 @@ class DetalleCompraView(LoginRequiredMixin, View):
             'pagos':      compra.pagos.all(),
             # — Flags para el template —
             'es_borrador': compra.estado == EstadoCompra.BORRADOR,
+            'es_edicion_reactivada': compra.estado == EstadoCompra.BORRADOR and compra._es_reactivada(),
             'compra_moneda': moneda_compra,
             'cuentas_json': cuentas_json,
             'tarjetas_json': tarjetas_json,

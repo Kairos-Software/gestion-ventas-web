@@ -9,7 +9,7 @@ from django.shortcuts import get_object_or_404
 from django.urls import reverse
 
 from core.permisos import chequear_permiso
-from .models import TurnoCaja, EstadoTurno
+from .models import TurnoCaja, EstadoTurno, MovimientoCaja, OrigenMovimiento
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -32,8 +32,10 @@ class CajaDiariaView(LoginRequiredMixin, TemplateView):
         ctx['turno_actual'] = turno_actual
         
         if turno_actual:
-            ctx['totales_medio_pago'] = turno_actual.totales_medio_pago
+            ctx['totales_medio_pago'] = turno_actual.totales_medio_pago_inmediato
+            ctx['totales_medio_pago_pendiente'] = turno_actual.totales_medio_pago_pendiente
             ctx['total_recaudado'] = turno_actual.total_recaudado
+            ctx['total_financiado_pendiente'] = turno_actual.total_financiado_pendiente
             ctx['monto_inicial'] = turno_actual.monto_inicial_efectivo
             ctx['efectivo_ventas'] = turno_actual.efectivo_ventas
             ctx['efectivo_total'] = turno_actual.efectivo_total
@@ -249,8 +251,9 @@ class EstadoCajaDiariaAjax(LoginRequiredMixin, View):
                 'mensaje': 'No hay un turno abierto'
             })
         
-        totales = turno.totales_medio_pago
-        
+        totales = turno.totales_medio_pago_inmediato
+        totales_pendientes = turno.totales_medio_pago_pendiente
+
         return JsonResponse({
             'hay_turno': True,
             'turno': {
@@ -260,6 +263,7 @@ class EstadoCajaDiariaAjax(LoginRequiredMixin, View):
                 'abierto_por': turno.abierto_por.get_full_name() if turno.abierto_por else 'N/A',
                 'efectivo_total': str(turno.efectivo_total),
                 'total_recaudado': str(turno.total_recaudado),
+                'total_financiado_pendiente': str(turno.total_financiado_pendiente),
                 'ganancia_turno': str(turno.ganancia_turno),
                 'efectivo_ventas': str(turno.efectivo_ventas),
                 # Desglose declarado en la apertura — el frontend lo usa
@@ -270,6 +274,7 @@ class EstadoCajaDiariaAjax(LoginRequiredMixin, View):
                 ],
             },
             'totales_medio_pago': {k: str(v) for k, v in totales.items()},
+            'totales_medio_pago_pendiente': {k: str(v) for k, v in totales_pendientes.items()},
         })
 
 
@@ -301,6 +306,7 @@ class HistorialTurnosAjax(LoginRequiredMixin, View):
                 'abierto_por': turno.abierto_por.get_full_name() if turno.abierto_por else 'N/A',
                 'cerrado_por': turno.cerrado_por.get_full_name() if turno.cerrado_por else None,
                 'total_recaudado': str(turno.total_recaudado),
+                'total_financiado_pendiente': str(turno.total_financiado_pendiente),
                 'efectivo_ventas': str(turno.efectivo_ventas),
                 'efectivo_total': str(turno.efectivo_total),
                 'ganancia_turno': str(turno.ganancia_turno),
@@ -389,21 +395,35 @@ class HistorialDiarioView(LoginRequiredMixin, TemplateView):
             # para que los turnos ya CERRADOS usen su snapshot congelado en
             # vez de recalcularse en caliente contra PagoVenta.
             totales_medio_pago = {}
+            total_recaudado_dia = Decimal('0')
+            total_financiado_pendiente_dia = Decimal('0')
             hay_alerta = False
             for turno in turnos_fecha:
                 totales = turno.totales_medio_pago
                 for medio, monto in totales.items():
                     totales_medio_pago[medio] = totales_medio_pago.get(medio, 0) + monto
+                total_recaudado_dia += turno.total_recaudado
+                total_financiado_pendiente_dia += turno.total_financiado_pendiente
                 if turno.alerta_diferencia:
                     hay_alerta = True
-            
+
+            totales_medio_pago_inmediato = {
+                k: v for k, v in totales_medio_pago.items() if k not in TurnoCaja.MEDIOS_PENDIENTES
+            }
+            totales_medio_pago_pendiente = {
+                k: v for k, v in totales_medio_pago.items() if k in TurnoCaja.MEDIOS_PENDIENTES
+            }
+
             historial.append({
                 'fecha': fecha,
                 'cantidad_turnos': entry['cantidad_turnos'],
                 'total_monto_inicial': entry['total_monto_inicial'] or 0,
                 'total_monto_final': entry['total_monto_final'] or 0,
                 'total_diferencia': entry['total_diferencia'] or 0,
-                'totales_medio_pago': totales_medio_pago,
+                'total_recaudado': total_recaudado_dia,
+                'total_financiado_pendiente': total_financiado_pendiente_dia,
+                'totales_medio_pago': totales_medio_pago_inmediato,
+                'totales_medio_pago_pendiente': totales_medio_pago_pendiente,
                 'turnos': turnos_fecha,
                 'hay_alerta': hay_alerta,
             })
@@ -430,8 +450,17 @@ class EliminarHistorialAjax(LoginRequiredMixin, View):
         
         try:
             cantidad = TurnoCaja.objects.count()
+            turno_ids = list(TurnoCaja.objects.values_list('pk', flat=True))
+
+            # Los movimientos de apertura/cierre de efectivo de cada turno
+            # no tienen FK real hacia TurnoCaja (origen_id es un entero
+            # suelto) — si no se borran acá quedan huérfanos, apuntando a
+            # un turno que ya no existe.
+            MovimientoCaja.objects.filter(
+                origen=OrigenMovimiento.AJUSTE, origen_app='caja', origen_id__in=turno_ids,
+            ).delete()
             TurnoCaja.objects.all().delete()
-            
+
             return JsonResponse({
                 'ok': True,
                 'mensaje': f'Se eliminaron {cantidad} turnos del historial.'

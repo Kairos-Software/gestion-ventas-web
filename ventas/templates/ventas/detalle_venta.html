@@ -1140,7 +1140,35 @@
                         </svg>
                         Imprimir / guardar PDF
                     </button>
+                    {% if venta.estado == 'confirmada' and puede_registrar_devoluciones %}
+                    <button id="vdtBtnDevolucion" class="vta-btn vta-btn-ghost" style="width:100%;justify-content:center" onclick="vdtAbrirModalDevolucion()">
+                        Registrar devolución
+                    </button>
+                    {% endif %}
                 </div>
+
+                {# — Historial de devoluciones ya registradas — #}
+                {% if devoluciones %}
+                <div style="margin-top:1rem;padding-top:.75rem;border-top:1px solid var(--border-color)">
+                    <div style="font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:.5rem">
+                        Devoluciones registradas
+                    </div>
+                    {% for dev in devoluciones %}
+                    <div style="font-size:.8rem;padding:.5rem 0;border-bottom:1px solid var(--border-color)">
+                        <div style="display:flex;justify-content:space-between;font-weight:600">
+                            <span>{{ dev.numero }}</span>
+                            {% if dev.monto %}<span>${{ dev.monto|floatformat:"2" }}{% if dev.cuenta %} · {{ dev.cuenta.nombre }}{% endif %}</span>{% endif %}
+                        </div>
+                        <div style="color:var(--text-muted);font-size:.75rem">{{ dev.fecha|date:"d/m/Y" }} — {{ dev.descripcion }}</div>
+                        {% for it in dev.items.all %}
+                        <div style="color:var(--text-muted);font-size:.72rem;padding-left:.5rem">
+                            · {{ it.cantidad|floatformat:"-3" }} × {{ it.producto_nombre_snapshot }}{% if it.es_perdida %} <span style="color:var(--danger)">(pérdida)</span>{% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
 
             </div>
         </div>
@@ -1321,6 +1349,67 @@ de pago. El Cheque real se crea recién al confirmar la venta.
             </button>
             <button type="button" id="vchBtnGuardar" class="vta-btn vta-btn-primary" style="width:auto; margin:0">
                 Guardar
+            </button>
+        </div>
+    </div>
+</div>
+
+{# ══ MODAL DEVOLUCIÓN — alternativa a editar/reactivar la venta para el caso "el cliente devuelve algo" ══ #}
+<div id="vdtModalDevolucion" style="
+    display:none; position:fixed; inset:0; z-index:9100;
+    background:rgba(0,0,0,.45); align-items:center; justify-content:center; padding:1rem;">
+    <div style="
+        background:var(--bg-white,#fff); border-radius:1rem;
+        max-width:640px; width:100%; max-height:90vh; overflow-y:auto;
+        padding:1.75rem 2rem; position:relative; box-shadow:0 20px 60px rgba(0,0,0,.25);">
+        <button type="button" id="vdvBtnCerrar" style="
+            position:absolute; top:1rem; right:1rem; background:none; border:none;
+            cursor:pointer; color:var(--text-muted); font-size:1.25rem; line-height:1;">✕</button>
+        <div style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1rem; font-weight:800; margin-bottom:.25rem">
+            Registrar devolución
+        </div>
+        <div style="font-size:.78rem; color:var(--text-muted); margin-bottom:1rem">
+            La venta no se toca — queda como registro aparte, repone stock al lote exacto de origen.
+        </div>
+
+        <table style="width:100%; border-collapse:collapse; font-size:.8125rem; margin-bottom:1rem">
+            <thead>
+                <tr style="border-bottom:1px solid var(--border-color)">
+                    <th style="text-align:left; padding:.35rem .25rem; color:var(--text-muted); font-size:.68rem; text-transform:uppercase">Producto</th>
+                    <th style="text-align:center; padding:.35rem .25rem; color:var(--text-muted); font-size:.68rem; text-transform:uppercase">Disponible</th>
+                    <th style="text-align:center; padding:.35rem .25rem; color:var(--text-muted); font-size:.68rem; text-transform:uppercase">A devolver</th>
+                    <th style="text-align:center; padding:.35rem .25rem; color:var(--text-muted); font-size:.68rem; text-transform:uppercase">¿Roto?</th>
+                </tr>
+            </thead>
+            <tbody id="vdvItemsBody"></tbody>
+        </table>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:.6rem; margin-bottom:.6rem;">
+            <div>
+                <span class="vdt-pago-cuotas-label">Cuenta de reembolso</span>
+                <select id="vdvCuenta" class="vdt-pago-monto">
+                    <option value="">— No devolver plata (solo cambio) —</option>
+                </select>
+            </div>
+            <div>
+                <span class="vdt-pago-cuotas-label">Monto a reembolsar</span>
+                <input type="number" id="vdvMonto" class="vdt-pago-monto" min="0" step="0.01" value="0">
+            </div>
+        </div>
+
+        <div style="margin-bottom:.75rem;">
+            <span class="vdt-pago-cuotas-label">Descripción / motivo *</span>
+            <input type="text" id="vdvDescripcion" class="vdt-pago-monto" placeholder="Ej: el cliente trajo 2 unidades, una llegó rota">
+        </div>
+
+        <div id="vdvMsg" style="color:var(--danger, #ef4444); font-size:.78rem; margin-bottom:.5rem;"></div>
+
+        <div style="display:flex; gap:.5rem; justify-content:flex-end">
+            <button type="button" id="vdvBtnCancelar" class="vta-btn vta-btn-ghost" style="width:auto; margin:0">
+                Cancelar
+            </button>
+            <button type="button" id="vdvBtnGuardar" class="vta-btn vta-btn-primary" style="width:auto; margin:0">
+                Registrar devolución
             </button>
         </div>
     </div>
@@ -1512,12 +1601,28 @@ de pago. El Cheque real se crea recién al confirmar la venta.
 <script id="cuentas-data" type="application/json">{{ cuentas_json|safe }}</script>
 <script id="tarjetas-data" type="application/json">{{ tarjetas_json|safe }}</script>
 <script id="recargos-data" type="application/json">{{ recargos_json|safe }}</script>
+<script id="cuentas-reembolso-data" type="application/json">{{ cuentas_reembolso_json|safe }}</script>
+<script id="items-devolucion-data" type="application/json">
+[
+    {% for item in items %}
+    {
+        "pk": {{ item.pk }},
+        "nombre": "{{ item.nombre_producto_display|escapejs }}{% if item.nombre_combinacion_display %} — {{ item.nombre_combinacion_display|escapejs }}{% endif %}",
+        "cantidad": {{ item.cantidad|stringformat:".3f" }},
+        "disponible": {{ item.disponible_devolucion|stringformat:".3f" }},
+        "precio_unitario": {{ item.precio_unitario|stringformat:".2f" }},
+        "descuento_pct": {{ item.descuento_pct|stringformat:".4f" }}
+    }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+]
+</script>
 <script>
     window.VDT_CONFIG = {
         ventaPk: {{ venta.pk }},
         ventaTotal: {{ venta.total|stringformat:".2f" }},
         ventaMoneda: "{{ venta_moneda }}",
         esBorrador: {{ es_borrador|yesno:"true,false" }},
+        esEdicionReactivada: {{ venta.fecha_anulacion|yesno:"true,false" }},
         urlConfirmar: "{{ url_confirmar }}",
         urlEliminarBorrador: "{{ url_eliminar_borrador }}",
         urlNuevaVenta: "{{ url_nueva_venta }}",
@@ -1527,6 +1632,8 @@ de pago. El Cheque real se crea recién al confirmar la venta.
         urlDocEliminar: "{{ url_doc_eliminar }}",
         urlFacturar: "{{ url_facturar }}",
         urlBuscarCliente: "{{ url_buscar_cliente }}",
+        urlRegistrarDevolucion: "{{ url_registrar_devolucion }}",
+        puedeRegistrarDevoluciones: {{ puede_registrar_devoluciones|yesno:"true,false" }},
         csrfToken: "{{ csrf_token }}",
         clienteUnicoPk: {{ cliente_unico_venta.pk|default:"null" }},
         clienteUnicoNombre: "{{ cliente_unico_venta.get_nombre_display|default:'' }}",
@@ -1539,6 +1646,8 @@ de pago. El Cheque real se crea recién al confirmar la venta.
         cuentas: JSON.parse(document.getElementById('cuentas-data').textContent),
         tarjetas: JSON.parse(document.getElementById('tarjetas-data').textContent),
         recargos: JSON.parse(document.getElementById('recargos-data').textContent),
+        cuentasReembolso: JSON.parse(document.getElementById('cuentas-reembolso-data').textContent),
+        itemsDevolucion: JSON.parse(document.getElementById('items-devolucion-data').textContent),
     };
 </script>
 {# Generadores de ticket — orden importante #}

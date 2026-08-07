@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'productos',  # tu aplicación productos
     'compras',  # tu aplicación compras
     'ventas',  # tu aplicación ventas
+    'presupuestos',  # cotizaciones sin valor legal para clientes mayoristas
     'caja',  # tu aplicación caja
     'asistencia',  # reportes, alertas (whatsapp/mail) y a futuro chat con IA
     'catalogo',  # catálogo público (landing) — sin login

@@ -959,6 +959,31 @@ if (btnContinuar) {
 }
 
 /* ════════════════════════════════════════════════════════════════
+   CANCELAR (solo relevante en modo edición — ver ventaEditarPk)
+   Si no se intercepta, "Cancelar" es un link normal y la venta
+   reactivada por "Editar" en el Historial queda como Borrador
+   fantasma para siempre (no vuelve a Anulada, no aparece en ningún
+   lado). Acá se revierte antes de salir de la página.
+════════════════════════════════════════════════════════════════ */
+const btnCancelarCarrito = document.getElementById('vtaBtnCancelar');
+if (btnCancelarCarrito && CFG.ventaEditarPk) {
+    btnCancelarCarrito.addEventListener('click', async (e) => {
+        e.preventDefault();
+        try {
+            await fetch(CFG.urlEliminarBorrador, {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CFG.csrfToken },
+                body:    JSON.stringify({ venta_pk: CFG.ventaEditarPk }),
+            });
+        } catch {
+            // Si falla la red, igual navegamos — el barrido de borradores
+            // vencidos la revierte sola más tarde (ver descartar_borradores_vencidos).
+        }
+        window.location.href = CFG.urlHistorial;
+    });
+}
+
+/* ════════════════════════════════════════════════════════════════
    INIT
 ════════════════════════════════════════════════════════════════ */
 _bindClienteVentaInput();

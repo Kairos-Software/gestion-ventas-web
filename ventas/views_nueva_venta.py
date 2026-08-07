@@ -1046,8 +1046,10 @@ class EliminarBorradorAjax(LoginRequiredMixin, View):
                 status=400
             )
 
-        venta.delete()
-        return JsonResponse({'ok': True})
+        # Si era una venta real reactivada para editar, descartar_edicion()
+        # la revierte a ANULADA en vez de borrarla — ver su docstring.
+        borrado = venta.descartar_edicion()
+        return JsonResponse({'ok': True, 'borrado': borrado})
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -1227,11 +1229,50 @@ class DetalleVentaView(LoginRequiredMixin, View):
         pagos_lista = list(venta.pagos.all())
         total_recargo = sum((p.recargo_monto for p in pagos_lista), Decimal('0'))
 
+        # — Devoluciones (solo tiene sentido sobre una venta ya confirmada) —
+        # cuentas_reembolso_json es igual a cuentas_json pero SIN excluir
+        # Efectivo: ese exclude de arriba es específico del cobro con
+        # tarjeta/QR/transferencia, un reembolso sí puede salir de efectivo.
+        items_lista = list(venta.items.select_related('producto', 'cliente', 'combinacion').all())
+        devoluciones = list(
+            venta.devoluciones.select_related('cuenta').prefetch_related('items').order_by('-fecha_alta')
+        ) if venta.estado == EstadoVenta.CONFIRMADA else []
+
+        # cantidad_devuelta/disponible_devolucion se setean SIEMPRE (no
+        # solo si está confirmada) para que items-devolucion-data en el
+        # template pueda leerlos sin condicionales — en un borrador
+        # nunca hubo devoluciones, así que disponible = cantidad.
+        cantidad_devuelta_por_item = {}
+        for dev in devoluciones:
+            for dev_item in dev.items.all():
+                if dev_item.item_venta_id:
+                    cantidad_devuelta_por_item[dev_item.item_venta_id] = (
+                        cantidad_devuelta_por_item.get(dev_item.item_venta_id, Decimal('0')) + dev_item.cantidad
+                    )
+        for item in items_lista:
+            item.cantidad_devuelta = cantidad_devuelta_por_item.get(item.pk, Decimal('0'))
+            item.disponible_devolucion = item.cantidad - item.cantidad_devuelta
+
+        cuentas_reembolso_json = '[]'
+        if venta.estado == EstadoVenta.CONFIRMADA:
+            cuentas_reembolso = (
+                CuentaCaja.objects
+                .filter(caja=TipoCaja.GRANDE, activa=True, es_credito=False)
+                .order_by('orden', 'nombre')
+            )
+            cuentas_reembolso_json = json.dumps([
+                {'pk': c.pk, 'nombre': c.nombre, 'moneda': c.moneda, 'tipo': c.tipo}
+                for c in cuentas_reembolso
+            ])
+
         from django.urls import reverse
         return _render(request, self.template_name, {
             'venta':      venta,
-            'items':      venta.items.select_related('producto', 'cliente', 'combinacion').all(),
+            'items':      items_lista,
             'documentos': venta.documentos.all(),
+            'devoluciones': devoluciones,
+            'cuentas_reembolso_json': cuentas_reembolso_json,
+            'puede_registrar_devoluciones': chequear_permiso(request.user, 'registrar_devoluciones'),
             'pagos':      pagos_lista,
             'total_recargo': total_recargo,
             'total_a_cobrar': venta.total + total_recargo,
@@ -1256,4 +1297,5 @@ class DetalleVentaView(LoginRequiredMixin, View):
             'url_doc_eliminar':      reverse('ventas:documento_eliminar'),
             'url_facturar':          reverse('ventas:venta_facturar', args=[venta.pk]),
             'url_buscar_cliente':    reverse('ventas:buscar_cliente'),
+            'url_registrar_devolucion': reverse('ventas:registrar_devolucion'),
         })

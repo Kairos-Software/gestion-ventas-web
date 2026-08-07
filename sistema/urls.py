@@ -13,6 +13,7 @@ urlpatterns = [
     path('productos/', include('productos.urls', namespace='productos')),  # ← esto
     path('compras/', include('compras.urls', namespace='compras')),  # ← esto
     path('ventas/', include('ventas.urls', namespace='ventas')),  # ← esto
+    path('presupuestos/', include('presupuestos.urls', namespace='presupuestos')),
     path('caja/', include('caja.urls', namespace='caja')),
     path('asistencia/', include('asistencia.urls', namespace='asistencia')),
 ]

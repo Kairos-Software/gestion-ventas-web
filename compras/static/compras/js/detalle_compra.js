@@ -764,7 +764,10 @@ if (CDT.esBorrador) {
 
     /* ── Cancelar compra (descarta todo el borrador) ──────────── */
     btnVolver.addEventListener('click', async () => {
-        const ok = await KaiConfirm('¿Cancelar esta compra? El borrador y todos los productos cargados se van a perder.', { danger: true, confirmText: 'Cancelar compra' });
+        const mensajeCancelar = CDT.esEdicionReactivada
+            ? '¿Cancelar esta edición? La compra vuelve a quedar anulada, tal como estaba antes de editarla — no se pierde.'
+            : '¿Cancelar esta compra? El borrador y todos los productos cargados se van a perder.';
+        const ok = await KaiConfirm(mensajeCancelar, { danger: true, confirmText: 'Cancelar compra' });
         if (!ok) return;
 
         btnVolver.disabled  = true;
@@ -781,7 +784,9 @@ if (CDT.esBorrador) {
             const data = await res.json();
 
             if (data.ok) {
-                window.location.href = CDT.urlNuevaCompra;
+                // Si no se borró (compra real revertida a anulada), va al
+                // Historial para que se vea de una que sigue ahí.
+                window.location.href = data.borrado ? CDT.urlNuevaCompra : CDT.urlHistorial;
             } else {
                 cdtToast('Error', data.error || 'No se pudo cancelar la compra.');
                 btnVolver.disabled  = false;

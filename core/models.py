@@ -70,6 +70,12 @@ PERMISOS_CHOICES = [
     ('crear_ventas',      'Crear nuevas ventas'),
     ('editar_ventas',     'Editar ventas existentes'),
     ('eliminar_ventas',   'Eliminar ventas'),
+    ('registrar_devoluciones', 'Registrar devoluciones de venta'),
+
+    # ── Módulo: Presupuestos ────────────────────────────────────────
+    ('ver_presupuestos',      'Ver historial de presupuestos'),
+    ('crear_presupuestos',    'Crear nuevos presupuestos'),
+    ('eliminar_presupuestos', 'Eliminar presupuestos'),
 
     # ── Módulo: Pedidos del catálogo ──────────────────────────────
     ('ver_pedidos', 'Ver los pedidos hechos desde el catálogo público y convertirlos en venta'),

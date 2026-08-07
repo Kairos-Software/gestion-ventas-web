@@ -18,6 +18,7 @@ from core.permisos import chequear_permiso
 from .models import (
     CuentaPorCobrar, CuotaCobro, CuentaCaja, TipoCaja, EstadoDeuda, EstadoCuota,
     CuentaPorCobrarDocumento, ModoCuotas, _calcular_plan_cuotas,
+    Cheque, EstadoCheque, TipoCheque,
 )
 
 
@@ -224,6 +225,10 @@ class ListarCuentasCobrarAjax(LoginRequiredMixin, View):
         # abonos sueltos) — su saldo no existe como fila en la tabla, solo
         # como la property `saldo_pendiente` calculada en Python, así que
         # hay que sumarlas aparte iterando las cuentas activas en modo libre.
+        # Cheques A_COBRAR pendientes (de una cuota o directo de una venta,
+        # ver pago_venta en Cheque) también son plata que todavía no se
+        # cobró de verdad — sin esto, un cheque que paga una venta entera
+        # (no una cuota) quedaba invisible en este total.
         totales_pendientes = {}
         agregado_fijas = (
             CuotaCobro.objects
@@ -243,6 +248,26 @@ class ListarCuentasCobrarAjax(LoginRequiredMixin, View):
             saldo = cxc_libre.saldo_pendiente
             if saldo:
                 totales_pendientes[cxc_libre.moneda] = totales_pendientes.get(cxc_libre.moneda, Decimal('0')) + saldo
+
+        # Ojo: un cheque con cuota_cobro_id ya está representado en
+        # agregado_fijas/cuentas_libres de arriba — la cuota que paga
+        # sigue PENDIENTE mientras el cheque está en trámite (ver
+        # CuotaCobro.confirmar_con_cheque), así que sumarlo de nuevo acá
+        # sería contar la misma plata dos veces. Solo entran los cheques
+        # que son la ÚNICA representación de esa deuda: los que pagan una
+        # venta directo (pago_venta) o los cargados sueltos a mano.
+        agregado_cheques = (
+            Cheque.objects
+            .filter(
+                tipo=TipoCheque.A_COBRAR, estado=EstadoCheque.PENDIENTE, es_historico=False,
+                cuota_cobro_id__isnull=True,
+            )
+            .values('moneda')
+            .annotate(total=Sum('monto'))
+        )
+        for row in agregado_cheques:
+            moneda = row['moneda']
+            totales_pendientes[moneda] = totales_pendientes.get(moneda, Decimal('0')) + row['total']
 
         totales_pendientes = {moneda: str(total) for moneda, total in totales_pendientes.items() if total}
 
@@ -466,15 +491,20 @@ class ConfirmarCuotaCobroAjax(LoginRequiredMixin, View):
             adelantar = bool(data.get('adelantar', False))
 
             if data.get('cheque'):
+                # Cobrada con cheque: todavía no es un cobro real (ver
+                # CuotaCobro.confirmar_con_cheque) — el mail de "cobro
+                # confirmado" se manda recién cuando ESE cheque se
+                # deposita de verdad (ver ConfirmarChequeAjax en
+                # views_cheques.py).
                 cuota.confirmar_con_cheque(data.get('cheque'), request.user, adelantar=adelantar)
             else:
                 cuota.confirmar(data.get('cuenta_pk'), request.user, adelantar=adelantar)
 
-            # En segundo plano: mismo criterio que ConfirmarCuotaAjax
-            # (caja/views_deudas.py) para no colgar el pedido HTTP con
-            # el ida y vuelta del SMTP.
-            from asistencia.services.eventos import notificar_cuota_cobro_confirmada, enviar_en_background
-            enviar_en_background(notificar_cuota_cobro_confirmada, cuota)
+                # En segundo plano: mismo criterio que ConfirmarCuotaAjax
+                # (caja/views_deudas.py) para no colgar el pedido HTTP con
+                # el ida y vuelta del SMTP.
+                from asistencia.services.eventos import notificar_cuota_cobro_confirmada, enviar_en_background
+                enviar_en_background(notificar_cuota_cobro_confirmada, cuota)
 
             return JsonResponse({'success': True, 'cuota': _serializar_cuota(cuota)})
 
@@ -518,6 +548,9 @@ class RegistrarAbonoCobroAjax(LoginRequiredMixin, View):
                     return JsonResponse({'error': 'Fecha inválida.'}, status=400)
 
             if data.get('cheque'):
+                # Cobrado con cheque: el mail se manda recién cuando ESE
+                # cheque se deposita de verdad (ver ConfirmarChequeAjax
+                # en views_cheques.py).
                 cuota = cxc.registrar_abono(
                     monto=monto, usuario=request.user, cheque_data=data.get('cheque'), fecha=fecha,
                 )
@@ -525,9 +558,8 @@ class RegistrarAbonoCobroAjax(LoginRequiredMixin, View):
                 cuota = cxc.registrar_abono(
                     monto=monto, usuario=request.user, cuenta_pk=data.get('cuenta_pk'), fecha=fecha,
                 )
-
-            from asistencia.services.eventos import notificar_cuota_cobro_confirmada, enviar_en_background
-            enviar_en_background(notificar_cuota_cobro_confirmada, cuota)
+                from asistencia.services.eventos import notificar_cuota_cobro_confirmada, enviar_en_background
+                enviar_en_background(notificar_cuota_cobro_confirmada, cuota)
 
             return JsonResponse({
                 'success': True,
