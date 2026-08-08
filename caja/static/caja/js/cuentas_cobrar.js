@@ -674,7 +674,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 ${item('Descripción', puedeEditar
                     ? `<input type="text" id="detDescripcion" value="${_cxcEscInput(d.descripcion)}">`
                     : (d.descripcion || '-'), true)}
-                ${item('N° de comprobante', puedeEditar
+                ${item('N° de comprobante', (puedeEditar && !d.venta_numero)
                     ? `<input type="text" id="detNumeroComprobante" placeholder="Opcional" value="${_cxcEscInput(d.numero_comprobante)}">`
                     : (d.numero_comprobante || '-'))}
                 ${item('Moneda', puedeEditarPlan

@@ -622,9 +622,12 @@ document.addEventListener('DOMContentLoaded', function () {
         // "Ya se empezó a pagar" cuenta también las cuotas históricas —
         // una vez que hay algo confirmado (real o de carga inicial), el
         // monto/interés/cuotas/fecha/cuenta quedan fijos: cambiarlos
-        // desalinearía lo que ya se registró e imprimió.
+        // desalinearía lo que ya se registró e imprimió. Si la deuda nació
+        // de una compra real (pago_compra), el plan queda bloqueado siempre
+        // — mismo criterio que Deuda.editar() en el backend (que ya lo
+        // exige) y que cuentas_cobrar.js del lado de CxC/ventas.
         const hayPagos = d.cuotas.some(c => c.estado === 'confirmada');
-        const puedeEditarPlan = puedeEditar && !hayPagos;
+        const puedeEditarPlan = puedeEditar && !hayPagos && !d.compra_numero;
 
         const cuentaEditable = (puedeEditarPlan && tieneCuentaPropia)
             ? cuentasPorMoneda(d.moneda, d.tipo === 'compra_credito') : [];
@@ -665,6 +668,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 ${item('Estado', `<span class="deudas-badge-estado deudas-badge-estado--${d.estado}">${d.estado_display}</span>${d.es_carga_inicial ? ` <span class="deudas-badge-carga-inicial">Carga inicial</span>` : ''}`)}
             </div>
             ${hayPagos && puedeEditar ? `<p class="deudas-edicion-nota">Esta deuda ya tiene cuotas confirmadas — el monto, interés, cantidad de cuotas, fecha de inicio, moneda y cuenta ya no se pueden editar.</p>` : ''}
+            ${!hayPagos && d.compra_numero && puedeEditar ? `<p class="deudas-edicion-nota">Esta deuda nació de una compra — su plan de pago no se puede editar acá.</p>` : ''}
         `;
 
         detNotas.value = d.notas || '';

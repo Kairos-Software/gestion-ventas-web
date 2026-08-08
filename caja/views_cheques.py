@@ -274,6 +274,18 @@ class EditarChequeAjax(LoginRequiredMixin, View):
                              'su monto, moneda, fechas ni cuenta.',
                 }, status=400)
 
+            # numero_factura: en un cheque A_PAGAR es la factura real del
+            # proveedor (tipeada a mano, puede tener un typo) — sigue
+            # editable siempre. En un cheque A_COBRAR con origen real es
+            # nuestro propio N° de venta, generado por el sistema — no
+            # tiene sentido de negocio que se edite a mano (mismo criterio
+            # que CuentaPorCobrar.editar() con numero_comprobante).
+            if tiene_origen_real and cheque.tipo == TipoCheque.A_COBRAR and 'numero_factura' in data:
+                return JsonResponse({
+                    'error': 'Este cheque nació de una venta — su N° de comprobante lo generó '
+                             'el sistema y no se puede editar.',
+                }, status=400)
+
             if 'numero_cheque' in data:
                 cheque.numero_cheque = data.get('numero_cheque', '').strip()
             if 'numero_factura' in data:

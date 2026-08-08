@@ -1616,6 +1616,17 @@ class Deuda(models.Model):
                     'interés, cantidad de cuotas, fecha de inicio, moneda ni cuenta.'
                 )
 
+        # El N° de comprobante de una Deuda es la factura real del
+        # proveedor (a diferencia de CuentaPorCobrar, acá SÍ es editable
+        # siempre, aunque haya nacido de una compra) — pero si cambia,
+        # hay que corregirlo también en los cheques ya emitidos para
+        # cuotas de esta deuda, si no la búsqueda por el número corregido
+        # deja de encontrarlos (quedarían con el valor viejo para
+        # siempre). Se compara ANTES de pisar self.numero_comprobante.
+        cambia_comprobante = (
+            numero_comprobante is not None and numero_comprobante != self.numero_comprobante
+        )
+
         if descripcion is not None:
             self.descripcion = descripcion
         if notas is not None:
@@ -1650,6 +1661,15 @@ class Deuda(models.Model):
                 self.cuenta_acreditacion = cuenta_acreditacion
 
         self.save()
+
+        if cambia_comprobante:
+            # Mismo fallback que usa CuotaDeuda.confirmar_con_cheque() al
+            # crear el cheque por primera vez — para no dejar numero_factura
+            # vacío si se borra el comprobante.
+            origen_desc = self.pago_compra.compra.numero if self.pago_compra_id else f'Deuda #{self.pk}'
+            Cheque.objects.filter(cuota_deuda__deuda=self).update(
+                numero_factura=self.numero_comprobante or origen_desc
+            )
 
         if toca_plan:
             # Con 0 cuotas confirmadas, todas las que había eran
@@ -2481,13 +2501,25 @@ class CuentaPorCobrar(models.Model):
                monto_original=None, porcentaje_interes=None, cantidad_cuotas=None,
                fecha_inicio=None, moneda=None):
         """
-        Edita una cuenta por cobrar existente. `descripcion`/`notas`/
-        `numero_comprobante` se pueden tocar siempre. El resto (todo lo que
-        define el plan de cobro) solo se puede tocar si TODAVÍA no se
-        confirmó ninguna cuota — ni real ni histórica — Y la cuenta no nació
-        de una venta real (`pago_venta`): el monto/cuotas de una venta ya
-        confirmada no se tocan a mano, solo los de una carga inicial.
+        Edita una cuenta por cobrar existente. `descripcion`/`notas` se
+        pueden tocar siempre. `numero_comprobante` también, EXCEPTO si la
+        cuenta nació de una venta real: ahí ya lo autocompletó el sistema
+        con el número de venta (ver Venta.confirmar()) para poder buscar
+        la cuenta y sus cheques por ese número — no tiene sentido de
+        negocio que se edite a mano (a diferencia de una Deuda por compra,
+        donde ese campo es la factura real del proveedor, tipeada por el
+        usuario). El resto (todo lo que define el plan de cobro) solo se
+        puede tocar si TODAVÍA no se confirmó ninguna cuota — ni real ni
+        histórica — Y la cuenta no nació de una venta real (`pago_venta`):
+        el monto/cuotas de una venta ya confirmada no se tocan a mano,
+        solo los de una carga inicial.
         """
+        if numero_comprobante is not None and self.pago_venta_id:
+            raise ValueError(
+                'Esta cuenta nació de una venta — su N° de comprobante lo generó el '
+                'sistema y no se puede editar.'
+            )
+
         toca_plan = any(v is not None for v in (
             monto_original, porcentaje_interes, cantidad_cuotas, fecha_inicio, moneda,
         ))

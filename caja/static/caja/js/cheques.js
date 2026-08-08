@@ -261,21 +261,29 @@ document.addEventListener('DOMContentLoaded', function () {
         e.preventDefault();
 
         const pk = document.getElementById('chqPk').value;
+        const f_monto_el = document.getElementById('f_monto');
+        const f_fecha_emision_el = document.getElementById('f_fecha_emision');
+        const f_fecha_cobro_el = document.getElementById('f_fecha_cobro');
+        const f_numero_factura_el = document.getElementById('f_numero_factura');
         const data = {
             tipo: f_tipo.value,
             numero_cheque: document.getElementById('f_numero_cheque').value,
-            numero_factura: document.getElementById('f_numero_factura').value,
-            monto: document.getElementById('f_monto').value,
-            moneda: f_moneda.value,
-            fecha_emision: document.getElementById('f_fecha_emision').value,
-            fecha_cobro: document.getElementById('f_fecha_cobro').value,
             emisor: document.getElementById('f_emisor').value,
             receptor: document.getElementById('f_receptor').value,
             banco: document.getElementById('f_banco').value,
             notas: document.getElementById('f_notas').value,
         };
+        // Campos bloqueados por origen real (deshabilitados en editarCheque()
+        // más abajo) — no se mandan, así el backend no los rechaza por venir
+        // presentes aunque no hayan cambiado (ver EditarChequeAjax). Al crear
+        // un cheque nuevo ninguno está deshabilitado, así que siempre viajan.
+        if (!f_numero_factura_el.disabled) data.numero_factura = f_numero_factura_el.value;
+        if (!f_monto_el.disabled) data.monto = f_monto_el.value;
+        if (!f_moneda.disabled) data.moneda = f_moneda.value;
+        if (!f_fecha_emision_el.disabled) data.fecha_emision = f_fecha_emision_el.value;
+        if (!f_fecha_cobro_el.disabled) data.fecha_cobro = f_fecha_cobro_el.value;
         if (f_tipo.value === 'a_pagar') {
-            data.cuenta_origen_pk = f_cuenta_origen.value;
+            if (!f_cuenta_origen.disabled) data.cuenta_origen_pk = f_cuenta_origen.value;
             if (!pk && f_cuenta_financiadora.value) {
                 data.cuenta_financiadora_pk = f_cuenta_financiadora.value;
             }
@@ -333,6 +341,27 @@ document.addEventListener('DOMContentLoaded', function () {
         [...formCheque.querySelectorAll('input, select, button.chq-tipo-btn')].forEach(el => {
             el.disabled = soloVer;
         });
+
+        // Mientras está pendiente, un cheque con origen real (nació de una
+        // venta/compra/cuota) sigue dejando ver el formulario completo,
+        // pero el backend va a rechazar monto/moneda/fechas/cuenta si se
+        // tocan (ver EditarChequeAjax) — reflejarlo acá, mismo criterio
+        // que ya se aplicó en deudas.js/cuentas_cobrar.js. numero_cheque
+        // (el número físico real, escrito a mano por quien lo emitió)
+        // sigue editable siempre, en ambos tipos.
+        if (!soloVer && cheque.tiene_origen_real) {
+            document.getElementById('f_monto').disabled = true;
+            f_moneda.disabled = true;
+            document.getElementById('f_fecha_emision').disabled = true;
+            document.getElementById('f_fecha_cobro').disabled = true;
+            if (cheque.tipo === 'a_pagar') f_cuenta_origen.disabled = true;
+            // numero_factura: en a_pagar es la factura real del proveedor
+            // (tipeada a mano, puede corregirse) — solo se bloquea en
+            // a_cobrar, donde es nuestro propio N° de venta.
+            if (cheque.tipo === 'a_cobrar') {
+                document.getElementById('f_numero_factura').disabled = true;
+            }
+        }
 
         abrirModal();
     };

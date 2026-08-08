@@ -912,6 +912,7 @@ class Venta(models.Model):
                         fecha_inicio=info['fecha_inicio_cobro'],
                         moneda=Moneda.ARS,
                         descripcion=f'Venta {self.numero}',
+                        numero_comprobante=self.numero,
                         creado_por=confirmado_por,
                     )
                 if p['cheques_info'] is not None:
