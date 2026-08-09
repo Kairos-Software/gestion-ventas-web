@@ -427,9 +427,21 @@ def ofertas_vigentes_hoy():
 # ══════════════════════════════════════════════════════════════════
 
 class TipoProducto(models.Model):
+    """
+    Un tipo vive DENTRO de una categoría (ej: categoría "Camperas" → tipos
+    "Con capucha"/"De cuero"/"Con cierre") — no es un campo global, porque
+    los tipos de una categoría no tienen sentido en otra (un zapato no
+    tiene "capucha"). `categoria` es nullable para no romper los tipos
+    cargados antes de este cambio, que quedan sin categoría asignada hasta
+    que se editen a mano — no hay forma de adivinar a cuál pertenecen.
+    """
     nombre      = models.CharField(max_length=100, unique=True)
     slug        = models.SlugField(max_length=110, unique=True, blank=True)
     descripcion = models.CharField(max_length=300, blank=True)
+    categoria   = models.ForeignKey(
+        CategoriaProducto, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='tipos', verbose_name='Categoría',
+    )
     activo      = models.BooleanField(default=True)
     orden       = models.PositiveSmallIntegerField(default=0)
     fecha_alta  = models.DateTimeField(auto_now_add=True)

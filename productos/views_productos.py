@@ -255,12 +255,14 @@ def _serializar_lista_descuento(l):
 
 def _serializar_tipo(t):
     return {
-        'pk':           t.pk,
-        'nombre':       t.nombre,
-        'descripcion':  t.descripcion,
-        'orden':        t.orden,
-        'activo':       t.activo,
-        'total':        t.total_productos,
+        'pk':               t.pk,
+        'nombre':           t.nombre,
+        'descripcion':      t.descripcion,
+        'categoria_id':     t.categoria_id,
+        'categoria_nombre': t.categoria.nombre if t.categoria_id else '',
+        'orden':            t.orden,
+        'activo':           t.activo,
+        'total':            t.total_productos,
     }
 
 
@@ -1290,13 +1292,18 @@ class ListaDescuentoEliminarAjax(LoginRequiredMixin, View):
 # ══════════════════════════════════════════════════════════════════
 
 class TipoListaAjax(LoginRequiredMixin, View):
-    """GET → lista todos los tipos."""
+    """GET → lista todos los tipos. `?categoria_id=` acota a los tipos de
+    esa categoría — lo usa el cascade categoría→tipo del formulario de
+    producto y del filtro de la lista (ver productos.html/productos.js)."""
 
     def get(self, request):
         if not chequear_permiso(request.user, 'ver_productos'):
             return JsonResponse({'error': 'Sin permiso.'}, status=403)
 
-        qs   = TipoProducto.objects.all().order_by('orden', 'nombre')
+        qs = TipoProducto.objects.all().order_by('orden', 'nombre')
+        categoria_id = request.GET.get('categoria_id')
+        if categoria_id:
+            qs = qs.filter(categoria_id=categoria_id)
         data = [_serializar_tipo(t) for t in qs]
         return JsonResponse({'results': data})
 
@@ -1329,8 +1336,19 @@ class TipoAccionesAjax(LoginRequiredMixin, View):
         if qs.exists():
             return JsonResponse({'ok': False, 'errors': {'nombre': ['Ya existe un tipo con ese nombre.']}}, status=400)
 
+        categoria_id = body.get('categoria_id') or None
+        categoria = None
+        if categoria_id:
+            categoria = CategoriaProducto.objects.filter(pk=categoria_id).first()
+            if not categoria:
+                return JsonResponse({'ok': False, 'errors': {'categoria_id': ['Categoría inválida.']}}, status=400)
+        elif not tipo.pk:
+            return JsonResponse({'ok': False, 'errors': {'categoria_id': ['La categoría es obligatoria.']}}, status=400)
+
         tipo.nombre      = nombre
         tipo.descripcion = body.get('descripcion', tipo.descripcion if tipo.pk else '')
+        if categoria_id:
+            tipo.categoria = categoria
         tipo.orden       = int(body.get('orden', tipo.orden if tipo.pk else 0))
         tipo.activo      = body.get('activo', True)
         tipo.save()

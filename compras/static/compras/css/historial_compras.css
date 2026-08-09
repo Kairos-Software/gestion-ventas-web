@@ -702,7 +702,7 @@
     .items-table th:nth-child(n+5),
     .items-table td:nth-child(n+5) { display: none; }
 
-    .filtros-card              { flex-direction: column; }
+    .filtros-card              { flex-direction: column; align-items: stretch; }
     .filtro-group              { min-width: unset; max-width: unset !important; }
     .btn-filtrar, .btn-limpiar { width: 100%; justify-content: center; }
 

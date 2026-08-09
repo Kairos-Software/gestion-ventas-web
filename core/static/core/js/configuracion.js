@@ -46,6 +46,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
                 body: JSON.stringify({
                     nombre_comercial: document.getElementById('idNombreComercial').value,
+                    eslogan:          document.getElementById('idEslogan').value,
                     razon_social:     document.getElementById('idRazonSocial').value,
                     cuit:             document.getElementById('idCuit').value,
                     condicion_iva:    document.getElementById('idCondicionIva').value,

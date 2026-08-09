@@ -11,6 +11,7 @@ urlpatterns = [
     path('', views.CatalogoHomeView.as_view(), name='home'),
     path('la-tienda/', views.TiendaInstitucionalView.as_view(), name='institucional'),
     path('producto/<int:pk>/', views.ProductoDetalleView.as_view(), name='producto_detalle'),
+    path('buscar/sugerencias/', views.BuscarSugerenciasAjax.as_view(), name='buscar_sugerencias'),
 
     # Interno — pantalla de Configuración del sistema (ver core/views.py:configuracion).
     path('config/guardar/', views_config.CatalogoConfigGuardarAjax.as_view(), name='config_guardar'),

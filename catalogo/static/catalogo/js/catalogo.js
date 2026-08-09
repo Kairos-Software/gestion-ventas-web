@@ -49,11 +49,27 @@ function toggleFiltrosMobile(abrir) {
 }
 
 /* Header que se "achica" al scrollear, y se oculta al bajar / reaparece
-   rápido al subir — puramente visual, no depende de ningún dato. */
+   rápido al subir — puramente visual, no depende de ningún dato.
+   También publica --kc-header-offset (0 cuando el header está oculto,
+   su alto real cuando está visible) y --kc-scroll-offset (+ el alto de
+   la sub-nav de "La tienda", si existe) como variables CSS — así
+   cualquier barra sticky de más abajo (ver .kc-inst-subnav en
+   catalogo.css) puede acomodarse contra la posición REAL del header en
+   vez de asumir un alto fijo que se desincroniza apenas el header se
+   oculta. */
 (function () {
     var header = document.getElementById('kcHeader');
     if (!header) return;
+    var subnav = document.querySelector('.kc-inst-subnav');
     var ultimoScroll = window.scrollY;
+
+    function actualizarOffsets() {
+        var headerOffset = header.classList.contains('kc-header--oculto') ? 0 : header.offsetHeight;
+        document.documentElement.style.setProperty('--kc-header-offset', headerOffset + 'px');
+        document.documentElement.style.setProperty(
+            '--kc-scroll-offset', (headerOffset + (subnav ? subnav.offsetHeight : 0)) + 'px'
+        );
+    }
 
     window.addEventListener('scroll', function () {
         var actual = window.scrollY;
@@ -68,7 +84,10 @@ function toggleFiltrosMobile(abrir) {
             header.classList.remove('kc-header--oculto');
         }
         ultimoScroll = actual;
+        actualizarOffsets();
     }, { passive: true });
+
+    actualizarOffsets();
 })();
 
 /* Buscador mobile (icono que expande el form) — el input de búsqueda del
@@ -195,4 +214,140 @@ function toggleFiltrosMobile(abrir) {
         var btn = e.target.closest('[data-carrito-agregar]');
         if (btn) mostrarToast(btn.dataset.nombre || 'Producto');
     });
+})();
+
+/* Desplegable de sugerencias en vivo del buscador del header — a medida
+   que se escribe, pide sugerencias al servidor (debounce 250ms) y las
+   muestra abajo del input. Clickear cualquier sugerencia (o apretar
+   Enter, que sigue andando solo porque no se toca el submit nativo del
+   form) lleva siempre a la misma pantalla de resultados — las
+   sugerencias son una vista previa, no un atajo a la ficha del producto. */
+(function () {
+    var form = document.querySelector('.kc-search');
+    var input = form ? form.querySelector('input[name="q"]') : null;
+    var dropdown = document.getElementById('kcSearchDropdown');
+    if (!form || !input || !dropdown || !window.KC_URLS || !window.KC_URLS.buscarSugerencias) return;
+
+    var timer = null;
+
+    function urlResultados() {
+        var base = form.action.split('#')[0].split('?')[0];
+        return base + '?q=' + encodeURIComponent(input.value.trim()) + '#kcCatalogo';
+    }
+
+    function ocultar() {
+        dropdown.classList.remove('kc-search-dropdown--abierto');
+        dropdown.innerHTML = '';
+    }
+
+    function escapeHtml(s) {
+        var div = document.createElement('div');
+        div.textContent = s;
+        return div.innerHTML;
+    }
+
+    function render(resultados) {
+        if (!resultados.length) { ocultar(); return; }
+        var destino = urlResultados();
+        var html = resultados.map(function (r) {
+            return '<a class="kc-search-dropdown-item" href="' + destino + '">' +
+                '<span class="kc-search-dropdown-img">' + (r.imagen ? '<img src="' + r.imagen + '" alt="">' : '') + '</span>' +
+                '<span class="kc-search-dropdown-info">' +
+                    '<span class="kc-search-dropdown-nombre">' + escapeHtml(r.nombre) + '</span>' +
+                    '<span class="kc-search-dropdown-precio">' + escapeHtml(r.precio) + '</span>' +
+                '</span>' +
+            '</a>';
+        }).join('');
+        html += '<a class="kc-search-dropdown-vertodos" href="' + destino + '">Ver todos los resultados →</a>';
+        dropdown.innerHTML = html;
+        dropdown.classList.add('kc-search-dropdown--abierto');
+    }
+
+    input.addEventListener('input', function () {
+        clearTimeout(timer);
+        var q = input.value.trim();
+        if (q.length < 2) { ocultar(); return; }
+        timer = setTimeout(function () {
+            fetch(window.KC_URLS.buscarSugerencias + '?q=' + encodeURIComponent(q))
+                .then(function (r) { return r.json(); })
+                .then(function (data) { render(data.resultados || []); })
+                .catch(function () { ocultar(); });
+        }, 250);
+    });
+
+    document.addEventListener('click', function (e) {
+        if (!form.contains(e.target)) ocultar();
+    });
+    input.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') ocultar();
+    });
+})();
+
+/* Sub-nav ancorado de "La tienda" (exclusivo de Almacén, ver
+   institucional.html) — scroll suave al click + resalta la sección
+   visible mientras se scrollea. No hace nada si la página no tiene esta
+   barra (las otras 3 plantillas no la tienen todavía). */
+(function () {
+    var subnav = document.querySelector('.kc-inst-subnav');
+    if (!subnav) return;
+    var links = Array.prototype.slice.call(subnav.querySelectorAll('a'));
+    var secciones = links
+        .map(function (a) { return document.querySelector(a.getAttribute('href')); })
+        .filter(Boolean);
+
+    links.forEach(function (a) {
+        a.addEventListener('click', function (e) {
+            var destino = document.querySelector(a.getAttribute('href'));
+            if (!destino) return;
+            e.preventDefault();
+            destino.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    });
+
+    if (!('IntersectionObserver' in window) || !secciones.length) return;
+    var observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+            if (!entry.isIntersecting) return;
+            links.forEach(function (a) {
+                a.classList.toggle('kc-inst-subnav-activo', a.getAttribute('href') === '#' + entry.target.id);
+            });
+        });
+    }, { rootMargin: '-45% 0px -50% 0px' });
+    secciones.forEach(function (sec) { observer.observe(sec); });
+})();
+
+/* Filtro de Categoría/Tipo del catálogo (sidebar) — a pedido del dueño,
+   elegir categorías/tipos ya NO aplica al toque: se tildan checkboxes y
+   recién se filtra al apretar "Aplicar filtros" (mismo botón/patrón que ya
+   usa el filtro de Precio). "Tipo" además arranca oculto y solo aparece
+   cuando hay alguna categoría tildada — mostrar todos los tipos de entrada
+   no tiene sentido si ninguno tiene relación con la categoría que se busca
+   (ej: "estampado" no aplica si se está buscando "zapatos"). */
+(function () {
+    var form = document.getElementById('formFiltroCatTipo');
+    if (!form) return;
+    var categoriaBoxes = Array.prototype.slice.call(form.querySelectorAll('input[name="categoria"]'));
+    var grupoTipo = document.getElementById('kcGrupoTipo');
+    var tipoLabels = grupoTipo ? Array.prototype.slice.call(grupoTipo.querySelectorAll('.kc-filtro-check')) : [];
+
+    function categoriasElegidas() {
+        return categoriaBoxes.filter(function (c) { return c.checked; }).map(function (c) { return c.value; });
+    }
+
+    function actualizarTipos() {
+        if (!grupoTipo) return;
+        var elegidas = categoriasElegidas();
+        grupoTipo.hidden = elegidas.length === 0;
+        tipoLabels.forEach(function (label) {
+            var coincide = elegidas.indexOf(label.dataset.categoria) !== -1;
+            label.hidden = !coincide;
+            if (!coincide) {
+                var box = label.querySelector('input[type="checkbox"]');
+                if (box) box.checked = false;
+            }
+        });
+    }
+
+    categoriaBoxes.forEach(function (c) { c.addEventListener('change', actualizarTipos); });
+    actualizarTipos();
 })();

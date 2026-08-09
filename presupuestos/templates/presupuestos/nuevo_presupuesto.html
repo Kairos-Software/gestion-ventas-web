@@ -44,12 +44,20 @@ carrito, sin duplicar ~700 líneas de CSS para un módulo que la calca.
     .vta-btn-remove:hover { background: rgba(239, 68, 68, .18) !important; border-color: rgba(239, 68, 68, .4); }
 
     /* Campo libre de nombre de cliente — presupuesto acepta un cliente
-       que todavía no está registrado como Cliente en el sistema. */
+       que todavía no está registrado como Cliente en el sistema.
+       Es un tercer elemento que .vta-cliente-venta (pensada para uno
+       solo, en ventas.css) no contempla — lo mandamos siempre a su
+       propia línea así nunca compite por ancho con el buscador. */
+    .vta-cliente-venta {
+        flex-wrap: wrap;
+    }
     .pre-cliente-libre {
         margin-top: .4rem;
+        flex: 1 1 100%;
     }
     .pre-cliente-libre input {
         font-size: .8rem;
+        width: 100%;
     }
 </style>
 {% endblock %}
@@ -128,7 +136,7 @@ carrito, sin duplicar ~700 líneas de CSS para un módulo que la calca.
             </div>
             <div class="pre-cliente-libre">
                 <input type="text" id="preClienteLibre" class="vta-input-inline"
-                       placeholder="…o escribí un nombre libre si todavía no es un cliente registrado" style="width:280px;">
+                       placeholder="…o escribí un nombre libre si todavía no es un cliente registrado">
             </div>
         </div>
     </div>

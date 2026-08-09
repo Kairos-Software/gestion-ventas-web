@@ -35,19 +35,20 @@
                 {% endif %}
                 <span class="kc-brand-text">
                     <span class="kc-brand-name">{{ empresa.nombre_comercial }}</span>
-                    {% if empresa.domicilio %}<span class="kc-brand-sub">{{ empresa.domicilio }}</span>{% endif %}
+                    {% if empresa.eslogan %}<span class="kc-brand-sub">{{ empresa.eslogan }}</span>{% endif %}
                 </span>
             </a>
 
-            <form class="kc-search" method="get" action="{% url 'catalogo:home' %}#kcCatalogo">
+            <form class="kc-search" method="get" action="{% url 'catalogo:home' %}#kcCatalogo" autocomplete="off">
                 <button type="submit" class="kc-search-btn" aria-label="Buscar">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                 </button>
                 <input type="text" name="q" placeholder="Buscar productos…" value="{{ request.GET.q }}">
+                <div class="kc-search-dropdown" id="kcSearchDropdown"></div>
             </form>
 
             <nav class="kc-main-nav">
-                <a href="{% url 'catalogo:home' %}" class="{% if seccion_activa != 'ofertas' and seccion_activa != 'paquetes' %}kc-nav-activo{% endif %}"><span id="kcNavCatalogo">{{ config_catalogo.nav_catalogo_label|default:default_nav_catalogo }}</span></a>
+                <a href="{% url 'catalogo:home' %}" class="{% if request.resolver_match.url_name == 'home' and seccion_activa != 'ofertas' and seccion_activa != 'paquetes' %}kc-nav-activo{% endif %}"><span id="kcNavCatalogo">{{ config_catalogo.nav_catalogo_label|default:default_nav_catalogo }}</span></a>
                 <a href="{% url 'catalogo:home' %}?seccion=ofertas#kcCatalogo" class="{% if seccion_activa == 'ofertas' %}kc-nav-activo{% endif %}"><span id="kcNavOfertas">{{ config_catalogo.nav_ofertas_label|default:default_nav_ofertas }}</span></a>
                 <a href="{% url 'catalogo:home' %}?seccion=paquetes#kcCatalogo" class="{% if seccion_activa == 'paquetes' %}kc-nav-activo{% endif %}"><span id="kcNavCombos">{{ config_catalogo.nav_combos_label|default:default_nav_combos }}</span></a>
                 <a href="{% url 'catalogo:institucional' %}" class="{% if request.resolver_match.url_name == 'institucional' %}kc-nav-activo{% endif %}"><span id="kcNavTienda">{{ config_catalogo.nav_tienda_label|default:default_nav_tienda }}</span></a>
@@ -169,7 +170,10 @@
     {{ ofertas_umbral_json|json_script:"kcOfertasUmbral" }}
     {{ ofertas_nxm_json|json_script:"kcOfertasNxm" }}
     <script>
-        window.KC_URLS = { pedidoCrear: "{% url 'catalogo:pedido_crear' %}" };
+        window.KC_URLS = {
+            pedidoCrear: "{% url 'catalogo:pedido_crear' %}",
+            buscarSugerencias: "{% url 'catalogo:buscar_sugerencias' %}",
+        };
         window.KC_OFERTAS_UMBRAL = JSON.parse(document.getElementById('kcOfertasUmbral').textContent) || [];
         window.KC_OFERTAS_NXM = JSON.parse(document.getElementById('kcOfertasNxm').textContent) || [];
     </script>

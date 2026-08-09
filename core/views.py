@@ -151,7 +151,6 @@ def catalogo_online(request):
     productos_para_hero = (
         Producto.objects
         .filter(publicado=True, estado__in=[EstadoProducto.ACTIVO, EstadoProducto.AGOTADO])
-        .exclude(precio_venta=None)
         .order_by('es_paquete', 'nombre')
     )
     config_catalogo = ConfiguracionCatalogo.get_solo()
@@ -177,6 +176,18 @@ def catalogo_online(request):
         config_catalogo.plantilla,
         (ConfiguracionCatalogo.DEFAULT_COLOR_MARCA, ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO),
     )
+    # Mismo criterio que arriba pero para el valor REAL guardado (no el
+    # default) — cada plantilla tiene sus propios campos de color desde
+    # ahora, así que el input tiene que arrancar mostrando el de la
+    # plantilla activa, no siempre el de "almacen".
+    valores_color_por_plantilla = {
+        PlantillaCatalogo.BENTO: (config_catalogo.color_marca_bento, config_catalogo.color_marca_secundario_bento),
+        PlantillaCatalogo.LUMINA: (config_catalogo.color_marca_lumina, config_catalogo.color_marca_secundario_lumina),
+    }
+    color_marca_actual, color_marca_secundario_actual = valores_color_por_plantilla.get(
+        config_catalogo.plantilla,
+        (config_catalogo.color_marca, config_catalogo.color_marca_secundario),
+    )
     return render(request, 'core/catalogo_online.html', {
         'datos_empresa':          DatosEmpresa.get_solo(),
         'configuracion_catalogo': config_catalogo,
@@ -195,6 +206,8 @@ def catalogo_online(request):
         'default_color_marca_secundario_lumina': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_LUMINA,
         'default_color_marca_actual': default_color_marca_actual,
         'default_color_marca_secundario_actual': default_color_marca_secundario_actual,
+        'color_marca_actual': color_marca_actual,
+        'color_marca_secundario_actual': color_marca_secundario_actual,
         'default_nav_catalogo':   ConfiguracionCatalogo.DEFAULT_NAV_CATALOGO,
         'default_nav_ofertas':    ConfiguracionCatalogo.DEFAULT_NAV_OFERTAS,
         'default_nav_combos':     ConfiguracionCatalogo.DEFAULT_NAV_COMBOS,

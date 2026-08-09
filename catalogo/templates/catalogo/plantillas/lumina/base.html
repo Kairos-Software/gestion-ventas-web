@@ -15,13 +15,14 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Quicksand:wght@600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'catalogo/css/lumina.css' %}">
     <style>
-        /* Mismo campo compartido que ya usan Almacén/Bento/Kinetic (color_marca/
-           color_marca_secundario) — acá pisa la salvia/terracota por defecto de
-           Lumina. Tienen que quedar en :root (no en .kc-lumina/body) para que
-           catalogo_online.js pueda pisarlas en vivo sin guardar — ver lumina.css. */
+        /* Campos propios de Lumina (color_marca_lumina/color_marca_secundario_
+           lumina) — independientes de los de Almacén/Bento, así elegir un color
+           acá no "contamina" a las demás plantillas ni viceversa. Tienen que
+           quedar en :root (no en .kc-lumina/body) para que catalogo_online.js
+           pueda pisarlas en vivo sin guardar — ver lumina.css. */
         :root {
-            --l-primary: {{ config_catalogo.color_marca|default:default_color_marca_lumina }};
-            --l-secondary: {{ config_catalogo.color_marca_secundario|default:default_color_marca_secundario_lumina }};
+            --l-primary: {{ config_catalogo.color_marca_lumina|default:default_color_marca_lumina }};
+            --l-secondary: {{ config_catalogo.color_marca_secundario_lumina|default:default_color_marca_secundario_lumina }};
         }
     </style>
     {% block extra_css %}{% endblock %}

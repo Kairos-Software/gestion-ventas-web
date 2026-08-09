@@ -14,17 +14,17 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{% static 'catalogo/css/bento.css' %}">
 <style>
-    /* Mismos 2 campos compartidos que ya usa Almacén (color_marca/color_marca_
-       secundario) — acá pisan las variables propias de Bento en vez de --primary/
-       --navy. Los valores por defecto son los propios de Bento (los mismos ya
-       hardcodeados en bento.css), NO los de Almacén (default_color_marca es
-       naranja) — si no, un Bento sin personalizar se vería naranja en vez de
-       verde lima. */
+    /* Campos propios de Bento (color_marca_bento/color_marca_secundario_bento)
+       — independientes de los de Almacén, así elegir un color acá no
+       "contamina" a las demás plantillas ni viceversa. Los valores por
+       defecto son los propios de Bento (los mismos ya hardcodeados en
+       bento.css), NO los de Almacén (default_color_marca es naranja) — si
+       no, un Bento sin personalizar se vería naranja en vez de verde lima. */
     :root {
-        --lime: {{ config_catalogo.color_marca|default:default_color_marca_bento }};
+        --lime: {{ config_catalogo.color_marca_bento|default:default_color_marca_bento }};
         --lime-dark: color-mix(in srgb, var(--lime) 80%, black);
         --lime-soft: color-mix(in srgb, var(--lime) 12%, white);
-        --indigo: {{ config_catalogo.color_marca_secundario|default:default_color_marca_secundario_bento }};
+        --indigo: {{ config_catalogo.color_marca_secundario_bento|default:default_color_marca_secundario_bento }};
         --indigo-2: color-mix(in srgb, var(--indigo) 82%, black);
     }
 </style>
@@ -121,8 +121,8 @@
 <aside class="drawer" id="kcFiltroDrawer">
   <div class="drawer-head"><h3>Filtros</h3><button type="button" class="drawer-close" id="kcFiltroClose">✕</button></div>
   <form class="drawer-body" method="get" action="{% url 'catalogo:home' %}" id="formFiltrosBento">
-    {% if categoria_activa %}<input type="hidden" name="categoria" value="{{ categoria_activa }}">{% endif %}
-    {% if tipo_activo %}<input type="hidden" name="tipo" value="{{ tipo_activo }}">{% endif %}
+    {% for c in categoria_activa %}<input type="hidden" name="categoria" value="{{ c }}">{% endfor %}
+    {% for t in tipo_activo %}<input type="hidden" name="tipo" value="{{ t }}">{% endfor %}
     {% if marca_activa %}<input type="hidden" name="marca" value="{{ marca_activa }}">{% endif %}
     {% if seccion_activa != 'todos' %}<input type="hidden" name="seccion" value="{{ seccion_activa }}">{% endif %}
     <div class="d-group">

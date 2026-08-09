@@ -35,6 +35,7 @@ class EmpresaGuardarAjax(LoginRequiredMixin, View):
 
         empresa = DatosEmpresa.get_solo()
         empresa.nombre_comercial = nombre_comercial
+        empresa.eslogan          = (body.get('eslogan') or '').strip()
         empresa.razon_social     = (body.get('razon_social') or '').strip()
         empresa.cuit             = (body.get('cuit') or '').strip()
         empresa.condicion_iva    = condicion_iva

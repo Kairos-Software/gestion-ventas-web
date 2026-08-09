@@ -122,8 +122,8 @@
         </button>
         {% if mostrar_productos and productos %}
         <form method="get" class="l-orden" id="formOrden" action="{% url 'catalogo:home' %}#kcCatalogo">
-            {% if categoria_activa %}<input type="hidden" name="categoria" value="{{ categoria_activa }}">{% endif %}
-            {% if tipo_activo %}<input type="hidden" name="tipo" value="{{ tipo_activo }}">{% endif %}
+            {% for c in categoria_activa %}<input type="hidden" name="categoria" value="{{ c }}">{% endfor %}
+            {% for t in tipo_activo %}<input type="hidden" name="tipo" value="{{ t }}">{% endfor %}
             {% if marca_activa %}<input type="hidden" name="marca" value="{{ marca_activa }}">{% endif %}
             {% if seccion_activa != 'todos' %}<input type="hidden" name="seccion" value="{{ seccion_activa }}">{% endif %}
             {% if request.GET.q %}<input type="hidden" name="q" value="{{ request.GET.q }}">{% endif %}
@@ -195,8 +195,8 @@
 
             <form class="l-filtro-grupo" method="get" id="formPrecio" action="{% url 'catalogo:home' %}#kcCatalogo">
                 <h3>Precio</h3>
-                {% if categoria_activa %}<input type="hidden" name="categoria" value="{{ categoria_activa }}">{% endif %}
-                {% if tipo_activo %}<input type="hidden" name="tipo" value="{{ tipo_activo }}">{% endif %}
+                {% for c in categoria_activa %}<input type="hidden" name="categoria" value="{{ c }}">{% endfor %}
+                {% for t in tipo_activo %}<input type="hidden" name="tipo" value="{{ t }}">{% endfor %}
                 {% if marca_activa %}<input type="hidden" name="marca" value="{{ marca_activa }}">{% endif %}
                 {% if seccion_activa != 'todos' %}<input type="hidden" name="seccion" value="{{ seccion_activa }}">{% endif %}
                 <div class="l-precio-inputs">

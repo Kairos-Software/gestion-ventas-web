@@ -60,7 +60,8 @@
             <div class="est-row-2" style="align-items:center;">
                 <div>
                     {% for f in facturacion_arca.por_tipo %}
-                    <div class="est-ranking-row">
+                    <div class="est-ranking-row" data-valor="{{ f.total|floatformat:0 }}">
+                        <span class="est-ranking-bar"></span>
                         <div class="est-ranking-left">
                             <div>
                                 <div class="est-ranking-nombre">{{ f.label }}</div>
@@ -73,7 +74,8 @@
                     </div>
                     {% endfor %}
                     {% if facturacion_arca.total_sin_facturar %}
-                    <div class="est-ranking-row">
+                    <div class="est-ranking-row" data-valor="{{ facturacion_arca.total_sin_facturar|floatformat:0 }}">
+                        <span class="est-ranking-bar"></span>
                         <div class="est-ranking-left">
                             <div>
                                 <div class="est-ranking-nombre">Sin facturar</div>
@@ -115,7 +117,8 @@
         <div class="card-body">
             {% if ranking_empleados %}
                 {% for e in ranking_empleados %}
-                <div class="est-ranking-row">
+                <div class="est-ranking-row" data-valor="{{ e.ganancia|floatformat:0 }}">
+                    <span class="est-ranking-bar"></span>
                     <div class="est-ranking-left">
                         <span class="est-ranking-pos">{{ forloop.counter }}</span>
                         <div>
@@ -147,7 +150,8 @@
         <div class="card-body">
             {% if ranking_productos %}
                 {% for p in ranking_productos %}
-                <div class="est-ranking-row">
+                <div class="est-ranking-row" data-valor="{{ p.ganancia|floatformat:0 }}">
+                    <span class="est-ranking-bar"></span>
                     <div class="est-ranking-left">
                         <span class="est-ranking-pos">{{ forloop.counter }}</span>
                         <div>
@@ -182,7 +186,8 @@
         <div class="card-body">
             {% if ranking_categorias %}
                 {% for cat in ranking_categorias %}
-                <div class="est-ranking-row">
+                <div class="est-ranking-row" data-valor="{{ cat.ganancia|floatformat:0 }}">
+                    <span class="est-ranking-bar"></span>
                     <div class="est-ranking-left">
                         <span class="est-ranking-pos">{{ forloop.counter }}</span>
                         <div>
@@ -233,7 +238,8 @@
                 <div class="est-row-2" style="align-items:center;">
                     <div>
                         {% for m in por_medio_pago %}
-                        <div class="est-ranking-row">
+                        <div class="est-ranking-row" data-valor="{{ m.total|floatformat:0 }}">
+                            <span class="est-ranking-bar"></span>
                             <div class="est-ranking-left">
                                 <div>
                                     <div class="est-ranking-nombre">{{ m.medio_label }}</div>
@@ -270,7 +276,8 @@
         <div class="card-body">
             {% if impacto_descuentos.ofertas or impacto_descuentos.listas_descuento %}
                 {% for o in impacto_descuentos.ofertas %}
-                <div class="est-ranking-row">
+                <div class="est-ranking-row" data-valor="{{ o.descuento_total|floatformat:0 }}" data-tipo="negativo">
+                    <span class="est-ranking-bar"></span>
                     <div class="est-ranking-left">
                         <div>
                             <div class="est-ranking-nombre">{{ o.nombre }}</div>
@@ -283,7 +290,8 @@
                 </div>
                 {% endfor %}
                 {% for l in impacto_descuentos.listas_descuento %}
-                <div class="est-ranking-row">
+                <div class="est-ranking-row" data-valor="{{ l.descuento_total|floatformat:0 }}" data-tipo="negativo">
+                    <span class="est-ranking-bar"></span>
                     <div class="est-ranking-left">
                         <div>
                             <div class="est-ranking-nombre">{{ l.nombre }}</div>
@@ -321,6 +329,7 @@
             'Factura A': '#1E6FA8', 'Factura B': '#10B981',
             'Factura C': '#F59E0B', 'Sin facturar': '#8A9BB0',
         }, { valueKey: 'total', formatValue: (v) => '$' + v.toLocaleString('es-AR') });
+        initRankingBars();
     });
 </script>
 {% endblock %}

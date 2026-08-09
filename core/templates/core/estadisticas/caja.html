@@ -38,27 +38,32 @@
             <div class="ef-ledger-moneda">
                 {% if situacion_financiera.por_moneda|length > 1 %}<p class="ef-ledger-moneda-titulo">{{ m.label }}</p>{% endif %}
                 <div class="est-resumen-tabla">
-                    <div class="est-resumen-fila">
-                        <span class="est-resumen-signo">+</span>
-                        <span class="est-resumen-concepto">Disponible en cuentas</span>
-                        <span class="est-resumen-monto">${{ m.saldo|floatformat:0|intcomma }}</span>
+                    <div class="est-resumen-fila" data-monto="{{ m.saldo|floatformat:0 }}" data-tipo="{% if m.saldo < 0 %}negativo{% else %}positivo{% endif %}">
+                        <span class="est-resumen-bar"></span>
+                        <span class="est-resumen-signo{% if m.saldo < 0 %} menos{% endif %}">+</span>
+                        <span class="est-resumen-concepto">Disponible en cuentas{% if m.saldo < 0 %} <span style="color:var(--danger);font-weight:600;">(cuenta en descubierto)</span>{% endif %}</span>
+                        <span class="est-resumen-monto{% if m.saldo < 0 %} menos{% endif %}">${{ m.saldo|floatformat:0|intcomma }}</span>
                     </div>
-                    <div class="est-resumen-fila">
+                    <div class="est-resumen-fila" data-monto="{{ m.cxc|floatformat:0 }}" data-tipo="positivo">
+                        <span class="est-resumen-bar"></span>
                         <span class="est-resumen-signo">+</span>
                         <span class="est-resumen-concepto">Te deben (clientes en cuotas)</span>
                         <span class="est-resumen-monto">${{ m.cxc|floatformat:0|intcomma }}</span>
                     </div>
-                    <div class="est-resumen-fila">
+                    <div class="est-resumen-fila" data-monto="{{ m.cheques_cobrar|floatformat:0 }}" data-tipo="positivo">
+                        <span class="est-resumen-bar"></span>
                         <span class="est-resumen-signo">+</span>
                         <span class="est-resumen-concepto">Cheques a cobrar</span>
                         <span class="est-resumen-monto">${{ m.cheques_cobrar|floatformat:0|intcomma }}</span>
                     </div>
-                    <div class="est-resumen-fila">
+                    <div class="est-resumen-fila" data-monto="{{ m.deudas|floatformat:0 }}" data-tipo="negativo">
+                        <span class="est-resumen-bar"></span>
                         <span class="est-resumen-signo menos">−</span>
                         <span class="est-resumen-concepto">Debés (créditos y préstamos)</span>
                         <span class="est-resumen-monto menos">${{ m.deudas|floatformat:0|intcomma }}</span>
                     </div>
-                    <div class="est-resumen-fila">
+                    <div class="est-resumen-fila" data-monto="{{ m.cheques_pagar|floatformat:0 }}" data-tipo="negativo">
+                        <span class="est-resumen-bar"></span>
                         <span class="est-resumen-signo menos">−</span>
                         <span class="est-resumen-concepto">Cheques a pagar</span>
                         <span class="est-resumen-monto menos">${{ m.cheques_pagar|floatformat:0|intcomma }}</span>
@@ -165,6 +170,7 @@
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         initChartGastos({{ gastos_categoria_json|safe }});
+        initResumenBars();
     });
 </script>
 {% endblock %}

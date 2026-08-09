@@ -12,26 +12,69 @@ document.addEventListener('DOMContentLoaded', function () {
     const catalogoHomeUrl = window.CATALOGO_HOME_URL || '/';
     const catalogoInstitucionalUrl = window.CATALOGO_INSTITUCIONAL_URL || '/la-tienda/';
 
-    // ── Default de color según la plantilla ACTIVA en el selector — cada
-    //    plantilla tiene su propia identidad (naranja/navy en "almacen",
-    //    verde lima/índigo en "bento", rosa/verde neón en "kinetic", salvia/
-    //    terracota en "lumina"); sin esto, cambiar de plantilla sin haber
-    //    tocado el color todavía dejaba pintado el color de la otra. ──
-    function colorDefaultActual(campo) {
-        const valorPlantilla = document.getElementById('idCatalogoPlantilla')?.value || 'almacen';
-        if (valorPlantilla === 'bento') {
+    // ── Default de color por plantilla — cada plantilla tiene su propia
+    //    identidad (naranja/navy en "almacen", verde lima/índigo en "bento",
+    //    rosa/verde neón en "kinetic" —fija, no editable—, salvia/terracota
+    //    en "lumina"). ──
+    function colorDefaultPara(plantilla, campo) {
+        if (plantilla === 'bento') {
             return campo === 'marca' ? (defaults.colorMarcaBento || '#6fa525') : (defaults.colorMarcaSecundarioBento || '#262b52');
         }
-        if (valorPlantilla === 'kinetic') {
+        if (plantilla === 'kinetic') {
             return campo === 'marca' ? (defaults.colorMarcaKinetic || '#ff3366') : (defaults.colorMarcaSecundarioKinetic || '#00e699');
         }
-        if (valorPlantilla === 'lumina') {
+        if (plantilla === 'lumina') {
             return campo === 'marca' ? (defaults.colorMarcaLumina || '#4a6b5d') : (defaults.colorMarcaSecundarioLumina || '#e76f51');
         }
         return campo === 'marca' ? (defaults.colorMarca || '#ff9343') : (defaults.colorMarcaSecundario || '#111e2f');
     }
-    let colorMarcaTocado = false;
-    let colorMarcaSecundarioTocado = false;
+    function colorDefaultActual(campo) {
+        return colorDefaultPara(document.getElementById('idCatalogoPlantilla')?.value || 'almacen', campo);
+    }
+
+    // ── Colores por plantilla — Almacén/Bento/Lumina tienen cada una su
+    //    propio campo en el modelo (Kinetic no, paleta fija) pero el panel
+    //    solo muestra un par de inputs a la vez; acá se guarda en memoria
+    //    el color de cada plantilla para no perderlo ni mezclarlo con el de
+    //    otra al cambiar de plantilla sin haber guardado todavía. ──
+    const coloresGuardados = window.CONFIG_CATALOGO_COLORES || {};
+    function coloresIniciales(plantilla) {
+        const guardado = coloresGuardados[plantilla] || {};
+        return {
+            marca: guardado.marca || colorDefaultPara(plantilla, 'marca'),
+            secundario: guardado.secundario || colorDefaultPara(plantilla, 'secundario'),
+            marcaTocada: !!guardado.marca,
+            secundarioTocada: !!guardado.secundario,
+        };
+    }
+    const coloresPorPlantilla = {
+        almacen: coloresIniciales('almacen'),
+        bento: coloresIniciales('bento'),
+        lumina: coloresIniciales('lumina'),
+    };
+
+    function guardarColoresVisiblesEn(plantilla) {
+        if (!coloresPorPlantilla[plantilla]) return;
+        coloresPorPlantilla[plantilla] = {
+            marca: document.getElementById('idCatalogoColorMarca').value,
+            secundario: document.getElementById('idCatalogoColorMarcaSecundario')?.value || '',
+            marcaTocada: colorMarcaTocado,
+            secundarioTocada: colorMarcaSecundarioTocado,
+        };
+    }
+
+    function cargarColoresVisiblesDe(plantilla) {
+        const c = coloresPorPlantilla[plantilla] || coloresIniciales(plantilla);
+        document.getElementById('idCatalogoColorMarca').value = c.marca;
+        const secundario = document.getElementById('idCatalogoColorMarcaSecundario');
+        if (secundario) secundario.value = c.secundario;
+        colorMarcaTocado = c.marcaTocada;
+        colorMarcaSecundarioTocado = c.secundarioTocada;
+    }
+
+    const plantillaInicial = document.getElementById('idCatalogoPlantilla')?.value || 'almacen';
+    let colorMarcaTocado = (coloresPorPlantilla[plantillaInicial] || {}).marcaTocada || false;
+    let colorMarcaSecundarioTocado = (coloresPorPlantilla[plantillaInicial] || {}).secundarioTocada || false;
 
     // ── Escalado de iframes de vista previa (mismo truco "device preview" para
     //    el preview grande y las mini-cards de plantilla — una sola implementación) ──
@@ -207,12 +250,14 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('btnResetColorMarca')?.addEventListener('click', function () {
         document.getElementById('idCatalogoColorMarca').value = colorDefaultActual('marca');
         colorMarcaTocado = false;
+        guardarColoresVisiblesEn(inputPlantilla.value);
         aplicarValoresAlPreview();
     });
 
     document.getElementById('btnResetColorMarcaSecundario')?.addEventListener('click', function () {
         document.getElementById('idCatalogoColorMarcaSecundario').value = colorDefaultActual('secundario');
         colorMarcaSecundarioTocado = false;
+        guardarColoresVisiblesEn(inputPlantilla.value);
         aplicarValoresAlPreview();
     });
 
@@ -228,10 +273,26 @@ document.addEventListener('DOMContentLoaded', function () {
     //    pedido del usuario, pero controlan qué panel se ve a la izquierda ──
     const tabs = document.querySelectorAll('.co-tab');
     const panels = document.querySelectorAll('.co-panel');
-    let tabActiva = 'plantillas';
+    // Restaura la pestaña donde estaba el usuario cuando algo (galería,
+    // slides) necesita recargar la página entera — ver recargarPreservandoTab()
+    // más abajo. Sin esto, cualquier recarga completa perdía el lugar donde
+    // se estaba trabajando y volvía siempre a "Plantillas".
+    let tabActiva = sessionStorage.getItem('coTabActiva') || 'plantillas';
     // Qué página muestra el preview grande ahora mismo — "La tienda" y
     // "Contacto" vive en /la-tienda/, el resto en la home del catálogo.
-    let previewPagina = 'home';
+    let previewPagina = sessionStorage.getItem('coPreviewPagina') || 'home';
+    sessionStorage.removeItem('coTabActiva');
+    sessionStorage.removeItem('coPreviewPagina');
+
+    // Único punto de recarga completa de la página — guarda dónde estaba
+    // parado el usuario (pestaña + qué página previsualizaba) para
+    // restaurarlo apenas la página vuelve a cargar, en vez de arrancar
+    // siempre de cero en "Plantillas".
+    function recargarPreservandoTab() {
+        sessionStorage.setItem('coTabActiva', tabActiva);
+        sessionStorage.setItem('coPreviewPagina', previewPagina);
+        window.location.reload();
+    }
 
     function mostrarPanel(tabId) {
         tabActiva = tabId;
@@ -286,23 +347,30 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     aplicarToggleDataPlantilla();
 
+    // El iframe grande arranca siempre apuntando a la home (ver el src fijo
+    // en el template) — si se restauró una pestaña que previsualiza "La
+    // tienda" (ver recargarPreservandoTab), hay que corregirlo acá.
+    if (previewPagina === 'institucional' && previewFrame) {
+        previewFrame.src = catalogoInstitucionalUrl + '?preview_plantilla=' + encodeURIComponent(inputPlantilla.value);
+    }
+
     // ── Elegir plantilla desde las tarjetas ──
     document.querySelectorAll('.co-card-plantilla').forEach(function (card) {
         card.addEventListener('click', function () {
             const valor = card.dataset.plantillaValor;
             if (!inputPlantilla || inputPlantilla.value === valor) return;
+
+            // Guardar en memoria el color de la plantilla que se deja atrás
+            // antes de cambiar — así no se pierde ni se mezcla con el de la
+            // plantilla nueva (cada una tiene su propio campo, ver arriba).
+            guardarColoresVisiblesEn(inputPlantilla.value);
             inputPlantilla.value = valor;
+            cargarColoresVisiblesDe(valor);
 
             document.querySelectorAll('.co-card-plantilla').forEach(function (c) {
                 c.classList.toggle('co-card-plantilla--activa', c === card);
             });
             aplicarToggleDataPlantilla();
-
-            // Si el color todavía no fue tocado a mano, seguir mostrando el
-            // default de la plantilla nueva (no el de la que se dejó atrás) —
-            // el preview en sí se actualiza solo al recargar el iframe abajo.
-            if (!colorMarcaTocado) document.getElementById('idCatalogoColorMarca').value = colorDefaultActual('marca');
-            if (!colorMarcaSecundarioTocado) document.getElementById('idCatalogoColorMarcaSecundario').value = colorDefaultActual('secundario');
 
             // El preview grande cambia al instante (sin guardar) gracias a
             // ?preview_plantilla= en get_template_names() — respeta la página
@@ -314,10 +382,23 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
+    // El valor a guardar de un color: '' si nunca se tocó para esa plantilla
+    // (mantiene el "usa el default" del modelo), el hex elegido si sí.
+    function valorColorGuardado(plantilla, campo) {
+        const c = coloresPorPlantilla[plantilla];
+        const tocada = campo === 'marca' ? c.marcaTocada : c.secundarioTocada;
+        if (!tocada) return '';
+        return campo === 'marca' ? c.marca : c.secundario;
+    }
+
     formCatalogo.addEventListener('submit', function (e) {
         e.preventDefault();
+        // Snapshot de lo que se esté viendo ahora mismo (la plantilla activa
+        // puede no haber pasado por un "cambio de card" todavía) antes de
+        // armar el payload con los colores de las 3 plantillas juntas.
+        guardarColoresVisiblesEn(inputPlantilla.value);
         const msg = document.getElementById('catalogoMsg');
-        fetch(urls.guardar, {
+        const guardarCatalogo = fetch(urls.guardar, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
             body: JSON.stringify({
@@ -327,8 +408,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 hero_producto:      document.getElementById('idCatalogoHeroProducto')?.value || '',
                 sobre_nosotros:     document.getElementById('idCatalogoSobreNosotros').value,
                 contacto_texto:     document.getElementById('idCatalogoContactoTexto').value,
-                color_marca:        document.getElementById('idCatalogoColorMarca').value,
-                color_marca_secundario: document.getElementById('idCatalogoColorMarcaSecundario').value,
+                color_marca:        valorColorGuardado('almacen', 'marca'),
+                color_marca_secundario: valorColorGuardado('almacen', 'secundario'),
+                color_marca_bento:      valorColorGuardado('bento', 'marca'),
+                color_marca_secundario_bento: valorColorGuardado('bento', 'secundario'),
+                color_marca_lumina:     valorColorGuardado('lumina', 'marca'),
+                color_marca_secundario_lumina: valorColorGuardado('lumina', 'secundario'),
                 nav_catalogo_label: document.getElementById('idCatalogoNavCatalogo').value,
                 nav_ofertas_label:  document.getElementById('idCatalogoNavOfertas').value,
                 nav_combos_label:   document.getElementById('idCatalogoNavCombos').value,
@@ -346,19 +431,42 @@ document.addEventListener('DOMContentLoaded', function () {
                 facebook_url:      document.getElementById('idCatalogoFacebook').value,
                 tiktok_url:        document.getElementById('idCatalogoTiktok').value,
             }),
-        })
-        .then(r => r.json())
-        .then(data => {
-            msg.style.color = data.error ? '#e11d48' : 'var(--success)';
-            msg.textContent = data.error || 'Guardado.';
-            // Recargar el iframe solo tiene sentido DESPUÉS de guardar (recién
-            // ahí el servidor persiste hero_titulo/hero_subtitulo/textos nuevos
-            // para esa plantilla) — el cambio de plantilla en sí ya se ve al
-            // instante desde el click en la card, sin esperar este guardado.
-            if (!data.error && previewFrame && previewFrame.contentWindow) {
-                previewFrame.contentWindow.location.reload();
-            }
         });
+
+        // Datos de la empresa (pestaña "Contacto") — misma tabla que
+        // Configuración → Empresa, mismo endpoint, un solo click en este
+        // formulario guarda las dos cosas. Los campos fiscales que no se
+        // muestran acá (razón social/CUIT/condición IVA) viajan igual desde
+        // los inputs ocultos para no perderlos (ver nota en el template).
+        const guardarEmpresa = fetch(empresaUrls.guardar, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+            body: JSON.stringify({
+                nombre_comercial: document.getElementById('idCatalogoEmpresaNombre').value,
+                eslogan:          document.getElementById('idCatalogoEmpresaEslogan').value,
+                domicilio:        document.getElementById('idCatalogoEmpresaDomicilio').value,
+                telefono:         document.getElementById('idCatalogoEmpresaTelefono').value,
+                email:            document.getElementById('idCatalogoEmpresaEmail').value,
+                razon_social:     document.getElementById('idCatalogoEmpresaRazonSocial').value,
+                cuit:             document.getElementById('idCatalogoEmpresaCuit').value,
+                condicion_iva:    document.getElementById('idCatalogoEmpresaCondicionIva').value,
+            }),
+        });
+
+        Promise.all([guardarCatalogo, guardarEmpresa])
+            .then(respuestas => Promise.all(respuestas.map(r => r.json())))
+            .then(([dataCatalogo, dataEmpresa]) => {
+                const error = dataCatalogo.error || dataEmpresa.error;
+                msg.style.color = error ? '#e11d48' : 'var(--success)';
+                msg.textContent = error || 'Guardado.';
+                // Recargar el iframe solo tiene sentido DESPUÉS de guardar (recién
+                // ahí el servidor persiste hero_titulo/hero_subtitulo/textos nuevos
+                // para esa plantilla) — el cambio de plantilla en sí ya se ve al
+                // instante desde el click en la card, sin esperar este guardado.
+                if (!error && previewFrame && previewFrame.contentWindow) {
+                    previewFrame.contentWindow.location.reload();
+                }
+            });
     });
 
     document.getElementById('inputCatalogoHero')?.addEventListener('change', function () {
@@ -504,6 +612,48 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
+    // ── Logo de la empresa — mismo endpoint que usa Configuración → Empresa
+    //    (core:empresa_logo), subida instantánea igual que el resto de las
+    //    imágenes de este panel. Los datos de texto de la empresa viajan
+    //    junto con el resto del formulario (ver el submit de más abajo). ──
+    const empresaUrls = window.CONFIG_EMPRESA_URLS || {};
+
+    document.getElementById('inputCatalogoEmpresaLogo')?.addEventListener('change', function () {
+        if (!this.files[0]) return;
+        const fd = new FormData();
+        fd.append('logo', this.files[0]);
+        fetch(empresaUrls.logo, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrf() },
+            body: fd,
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.ok) {
+                document.getElementById('catalogoEmpresaLogoPreviewBox').innerHTML =
+                    `<img src="${data.logo_url}" alt="Logo">`;
+                document.getElementById('btnEliminarCatalogoEmpresaLogo').style.display = 'inline-block';
+                if (previewFrame && previewFrame.contentWindow) previewFrame.contentWindow.location.reload();
+            }
+        });
+    });
+
+    document.getElementById('btnEliminarCatalogoEmpresaLogo')?.addEventListener('click', function () {
+        fetch(empresaUrls.logo, {
+            method: 'DELETE',
+            headers: { 'X-CSRFToken': csrf() },
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.ok) {
+                document.getElementById('catalogoEmpresaLogoPreviewBox').innerHTML =
+                    '<span style="font-size:0.6rem; color:var(--text-muted);">Sin logo</span>';
+                this.style.display = 'none';
+                if (previewFrame && previewFrame.contentWindow) previewFrame.contentWindow.location.reload();
+            }
+        });
+    });
+
     // ── Galería de fotos de "La tienda" — a diferencia de los slides, la
     //    foto se sube en un solo paso (no hay ningún campo de texto
     //    obligatorio que la bloquee) — ver CatalogoGaleriaImagenAjax. ──
@@ -525,7 +675,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 msg.textContent = data.error;
                 return;
             }
-            window.location.reload();
+            recargarPreservandoTab();
         });
         this.value = '';
     });
@@ -543,7 +693,7 @@ document.addEventListener('DOMContentLoaded', function () {
             .then(r => r.json())
             .then(data => {
                 if (data.error) { KaiToast.show(data.error, 'danger'); return; }
-                window.location.reload();
+                recargarPreservandoTab();
             });
         });
     });
@@ -612,7 +762,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(r => r.json())
                 .then(data => {
                     if (data.error) { KaiToast.show(data.error, 'danger'); return; }
-                    window.location.reload();
+                    recargarPreservandoTab();
                 });
             });
         });
@@ -640,7 +790,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     return;
                 }
                 if (!slideImagenFile) {
-                    window.location.reload();
+                    recargarPreservandoTab();
                     return;
                 }
                 const fd = new FormData();
@@ -658,7 +808,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         msg.textContent = dataImg.error;
                         return;
                     }
-                    window.location.reload();
+                    recargarPreservandoTab();
                 });
             });
         });

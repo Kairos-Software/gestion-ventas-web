@@ -56,7 +56,8 @@
     <div class="card-body">
         {% if rendimiento_paquetes %}
             {% for pq in rendimiento_paquetes %}
-            <div class="est-ranking-row">
+            <div class="est-ranking-row" data-valor="{{ pq.ganancia|floatformat:0 }}">
+                <span class="est-ranking-bar"></span>
                 <div class="est-ranking-left">
                     <span class="est-ranking-pos">{{ forloop.counter }}</span>
                     <div>
@@ -267,4 +268,13 @@
 </div>
 
 {% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'core/js/estadisticas.js' %}"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        initRankingBars();
+    });
+</script>
 {% endblock %}

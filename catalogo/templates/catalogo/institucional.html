@@ -16,15 +16,34 @@
         </div>
     </section>
 
-    <section class="kc-inst-historia">
+    <!-- Sub-nav ancorado sticky — exclusivo de Almacén, ver initInstSubnav() en catalogo.js -->
+    <nav class="kc-inst-subnav" aria-label="Navegación de la página">
+        <a href="#kc-inst-historia">Nuestra historia</a>
+        <a href="#kc-inst-destacados">Por qué elegirnos</a>
+        {% if galeria %}<a href="#kc-inst-galeria">Galería</a>{% endif %}
+        <a href="#kc-inst-info">Horarios y ubicación</a>
+        <a href="#kc-inst-contacto">Contacto</a>
+    </nav>
+
+    <section class="kc-inst-historia" id="kc-inst-historia">
         <div class="kc-inst-historia-inner">
             <span class="kc-inst-eyebrow">Nuestra historia</span>
             <p id="kcHistoriaTexto">{{ config_catalogo.sobre_nosotros|default:default_sobre_nosotros }}</p>
         </div>
     </section>
 
-    <section class="kc-inst-destacados">
+    <section class="kc-inst-destacados" id="kc-inst-destacados">
         <div class="kc-inst-destacados-inner">
+            {% if total_catalogo or total_categorias %}
+            <div class="kc-inst-stats-strip">
+                <div class="kc-inst-stat"><span class="kc-inst-stat-num">{{ total_catalogo }}</span><span class="kc-inst-stat-label">producto{{ total_catalogo|pluralize }} en catálogo</span></div>
+                <div class="kc-inst-stat"><span class="kc-inst-stat-num">{{ total_categorias }}</span><span class="kc-inst-stat-label">categoría{{ total_categorias|pluralize }}</span></div>
+                {% if total_ofertas_activas %}
+                <div class="kc-inst-stat"><span class="kc-inst-stat-num">{{ total_ofertas_activas }}</span><span class="kc-inst-stat-label">oferta{{ total_ofertas_activas|pluralize }} activa{{ total_ofertas_activas|pluralize }} hoy</span></div>
+                {% endif %}
+            </div>
+            {% endif %}
+            <div class="kc-inst-destacados-grid">
             <div class="kc-destacado-card">
                 <span class="kc-destacado-num">01</span>
                 <h3 id="kcDestacado1Titulo">{{ config_catalogo.destacado1_titulo|default:default_destacado1_titulo }}</h3>
@@ -40,11 +59,12 @@
                 <h3 id="kcDestacado3Titulo">{{ config_catalogo.destacado3_titulo|default:default_destacado3_titulo }}</h3>
                 <p id="kcDestacado3Texto">{{ config_catalogo.destacado3_texto|default:default_destacado3_texto }}</p>
             </div>
+            </div>
         </div>
     </section>
 
     {% if galeria %}
-    <section class="kc-inst-galeria">
+    <section class="kc-inst-galeria" id="kc-inst-galeria">
         <div class="kc-inst-galeria-inner">
             <div class="kc-sec-head"><h2>Un vistazo por adentro</h2><span class="kc-sec-sub">fotos del local y los productos</span></div>
             <div class="kc-galeria-grid">
@@ -59,7 +79,7 @@
     </section>
     {% endif %}
 
-    <section class="kc-inst-info">
+    <section class="kc-inst-info" id="kc-inst-info">
         <div class="kc-inst-info-inner">
             <div class="kc-inst-info-col">
                 <h3>
@@ -79,6 +99,9 @@
                 </h3>
                 {% if empresa.domicilio %}
                     <p>{{ empresa.domicilio }}</p>
+                    <div class="kc-inst-mapa-wrap">
+                        <iframe src="https://www.google.com/maps?q={{ empresa.domicilio|urlencode }}&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Ubicación de {{ empresa.nombre_comercial }}"></iframe>
+                    </div>
                     {% if maps_url %}<a href="{{ maps_url }}" target="_blank" rel="noopener" class="kc-inst-link">Cómo llegar →</a>{% endif %}
                 {% else %}
                     <p class="kc-inst-info-vacio">Todavía no cargamos la dirección.</p>
@@ -87,7 +110,7 @@
         </div>
     </section>
 
-    <section class="kc-inst-contacto">
+    <section class="kc-inst-contacto" id="kc-inst-contacto">
         <div class="kc-inst-contacto-inner">
             <div class="kc-inst-contacto-texto">
                 <h2>Hablemos</h2>

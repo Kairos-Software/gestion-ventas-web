@@ -656,6 +656,29 @@ class Venta(models.Model):
         if Venta.objects.select_for_update().get(pk=self.pk).estado != EstadoVenta.BORRADOR:
             raise ValueError('Solo se pueden confirmar ventas en estado Borrador.')
 
+        # Compatibilidad hacia atrás real (antes solo estaba documentada,
+        # no implementada): si no se manda "pagos", se asumía "pago
+        # completo con medio_pago" pero en los hechos no se creaba ningún
+        # PagoVenta ni movimiento de caja — la venta quedaba CONFIRMADA
+        # con el stock ya descontado pero sin ningún rastro de cobro,
+        # sin ningún error. Para efectivo hay una cuenta por defecto
+        # segura (Efectivo ARS) así que se sintetiza un único pago por el
+        # total. Para el resto de los medios no hay ninguna cuenta que
+        # se pueda adivinar sin riesgo (¿qué banco? ¿qué tarjeta?) — ahí
+        # se rechaza explícito en vez de confirmar en silencio sin cobro.
+        # El frontend real (nueva_venta.js) siempre manda "pagos", así
+        # que esto solo se activa por una llamada directa (shell, un
+        # caller externo, o un bypass del frontend).
+        if pagos is None and medio_pago:
+            if medio_pago == MedioPago.EFECTIVO:
+                self.calcular_total()
+                pagos = [{'medio': MedioPago.EFECTIVO, 'monto': self.total}]
+            else:
+                raise ValueError(
+                    'Para confirmar con un medio de pago que no sea efectivo hace falta indicar '
+                    'la cuenta real de cobro — mandá el array "pagos" con la cuenta correspondiente.'
+                )
+
         # Resolver la cuenta real de cada línea de pago ANTES de tocar
         # stock/estado: si alguna es inválida, falla rápido sin dejar
         # nada a medio hacer (igual está todo en @transaction.atomic,

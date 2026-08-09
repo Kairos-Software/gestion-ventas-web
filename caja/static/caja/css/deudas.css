@@ -1038,8 +1038,12 @@
     .filtro-campo--ancho {
         grid-column: span 1;
     }
+    .deudas-form-section-header {
+        flex-wrap: wrap;
+    }
     .deudas-form-grid,
-    .deudas-form-grid--2-1 {
+    .deudas-form-grid--2-1,
+    .deudas-form-grid.deudas-form-grid--2-1 {
         grid-template-columns: 1fr;
     }
     .deudas-resumen-grid {

@@ -98,13 +98,14 @@ class CategoriaProductoForm(forms.ModelForm):
 class TipoProductoForm(forms.ModelForm):
     class Meta:
         model  = TipoProducto
-        fields = ['nombre', 'descripcion', 'orden', 'activo']
+        fields = ['nombre', 'categoria', 'descripcion', 'orden', 'activo']
         widgets = {
             'nombre':      forms.TextInput(attrs={
                 'class': 'form-control nx-input',
                 'placeholder': 'Ej: Sedán, Remera, Industrial...',
                 'autofocus': True,
             }),
+            'categoria':   forms.Select(attrs={'class': 'form-select nx-input'}),
             'descripcion': forms.TextInput(attrs={
                 'class': 'form-control nx-input',
                 'placeholder': 'Descripción breve (opcional)',

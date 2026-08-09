@@ -347,6 +347,7 @@ async function abrirEditar(pk) {
     document.getElementById('f_descripcion_publica').value     = data.descripcion_publica || '';
     document.getElementById('f_categoria').value               = data.categoria || '';
     document.getElementById('f_tipo').value                    = data.tipo || '';
+    filtrarTipoPorCategoria(document.getElementById('f_categoria'), document.getElementById('f_tipo'), false);
     document.getElementById('f_estado').value                  = data.estado || 'activo';
     document.getElementById('f_tags').value                    = data.tags || '';
     document.getElementById('f_precio_venta').value            = data.precio_venta || '';
@@ -645,10 +646,12 @@ async function crearTipo() {
     const input  = document.getElementById('nuevoTipoNombre');
     const nombre = input.value.trim();
     if (!nombre) return;
+    const categoriaId = document.getElementById('f_categoria').value;
+    if (!categoriaId) { showToast('Elegí una categoría antes de agregar un tipo.', 'error'); return; }
     const res  = await fetch(URLS.tipoAcciones, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
-        body: JSON.stringify({ nombre }),
+        body: JSON.stringify({ nombre, categoria_id: categoriaId }),
     });
     const data = await res.json();
     if (data.ok) {
@@ -657,10 +660,10 @@ async function crearTipo() {
         showToast(`Tipo "${data.nombre}" creado.`);
         const sel = document.getElementById('f_tipo');
         const opt = document.createElement('option');
-        opt.value = data.pk; opt.textContent = data.nombre; opt.selected = true;
+        opt.value = data.pk; opt.textContent = data.nombre; opt.dataset.categoria = String(categoriaId); opt.selected = true;
         sel.appendChild(opt);
     } else {
-        showToast(data.errors?.nombre?.[0] || data.error || 'Error', 'error');
+        showToast(data.errors?.categoria_id?.[0] || data.errors?.nombre?.[0] || data.error || 'Error', 'error');
     }
 }
 
@@ -687,6 +690,39 @@ async function eliminarTipoSeleccionado() {
 
 document.getElementById('nuevaCategNombre').addEventListener('keydown', e => { if (e.key === 'Enter') crearCategoria(); });
 document.getElementById('nuevoTipoNombre').addEventListener('keydown',  e => { if (e.key === 'Enter') crearTipo(); });
+
+// ════════════════════════════════════════════════════════════════════
+//  CASCADE CATEGORÍA → TIPO
+//  Un tipo vive DENTRO de una categoría (ej: categoría "Camperas" → tipos
+//  "Con capucha"/"De cuero" — un zapato no tiene "capucha"), así que el
+//  select de tipo se acota a los tipos de la categoría elegida. Solo
+//  oculta opciones (no recarga por AJAX, ya están todas renderizadas) y,
+//  en un cambio interactivo, limpia la selección de tipo si dejó de
+//  coincidir. En una carga inicial (editar producto / filtro con
+//  parámetros ya en la URL) NO se toca el valor ya elegido, aunque no
+//  coincida con la categoría — puede ser una inconsistencia vieja, no
+//  algo para "corregir" solo con JS.
+// ════════════════════════════════════════════════════════════════════
+function filtrarTipoPorCategoria(selCategoria, selTipo, resetSiNoCoincide) {
+    const categoriaId = selCategoria.value;
+    Array.from(selTipo.options).forEach(opt => {
+        if (!opt.value) { opt.hidden = false; return; }
+        const coincide = !categoriaId || opt.dataset.categoria === categoriaId;
+        opt.hidden = !coincide && !opt.selected;
+    });
+    if (resetSiNoCoincide && selTipo.value) {
+        const actual = selTipo.options[selTipo.selectedIndex];
+        if (actual && categoriaId && actual.dataset.categoria !== categoriaId) selTipo.value = '';
+    }
+}
+
+[['f_categoria', 'f_tipo'], ['filtroCategoria', 'filtroTipo']].forEach(([idCategoria, idTipo]) => {
+    const selCategoria = document.getElementById(idCategoria);
+    const selTipo = document.getElementById(idTipo);
+    if (!selCategoria || !selTipo) return;
+    filtrarTipoPorCategoria(selCategoria, selTipo, false);
+    selCategoria.addEventListener('change', () => filtrarTipoPorCategoria(selCategoria, selTipo, true));
+});
 
 // ════════════════════════════════════════════════════════════════════
 //  IMÁGENES

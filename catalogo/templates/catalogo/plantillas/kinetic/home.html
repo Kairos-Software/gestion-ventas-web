@@ -51,8 +51,8 @@
                 {% if filtros_activos %}<span class="k-filtros-count">{{ filtros_activos|length }}</span>{% endif %}
             </button>
             <form method="get" class="k-orden-form" id="kcFormOrden" action="{% url 'catalogo:home' %}#kcCatalogo">
-                {% if categoria_activa %}<input type="hidden" name="categoria" value="{{ categoria_activa }}">{% endif %}
-                {% if tipo_activo %}<input type="hidden" name="tipo" value="{{ tipo_activo }}">{% endif %}
+                {% for c in categoria_activa %}<input type="hidden" name="categoria" value="{{ c }}">{% endfor %}
+                {% for t in tipo_activo %}<input type="hidden" name="tipo" value="{{ t }}">{% endfor %}
                 {% if marca_activa %}<input type="hidden" name="marca" value="{{ marca_activa }}">{% endif %}
                 {% if seccion_activa != 'todos' %}<input type="hidden" name="seccion" value="{{ seccion_activa }}">{% endif %}
                 {% if request.GET.q %}<input type="hidden" name="q" value="{{ request.GET.q }}">{% endif %}
@@ -157,8 +157,8 @@
 
             <form class="k-filtro-grupo" method="get" id="kcFormPrecio" action="{% url 'catalogo:home' %}#kcCatalogo">
                 <h4>Precio</h4>
-                {% if categoria_activa %}<input type="hidden" name="categoria" value="{{ categoria_activa }}">{% endif %}
-                {% if tipo_activo %}<input type="hidden" name="tipo" value="{{ tipo_activo }}">{% endif %}
+                {% for c in categoria_activa %}<input type="hidden" name="categoria" value="{{ c }}">{% endfor %}
+                {% for t in tipo_activo %}<input type="hidden" name="tipo" value="{{ t }}">{% endfor %}
                 {% if marca_activa %}<input type="hidden" name="marca" value="{{ marca_activa }}">{% endif %}
                 {% if seccion_activa != 'todos' %}<input type="hidden" name="seccion" value="{{ seccion_activa }}">{% endif %}
                 <div class="k-precio-inputs">

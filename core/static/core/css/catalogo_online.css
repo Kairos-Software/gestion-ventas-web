@@ -169,3 +169,38 @@
     .co-col-izq { flex: 1 1 auto; width: 100%; }
     .co-preview-sticky { position: static; }
 }
+
+/* ═══════════════════════════════════════════
+   COMPACTADO — solo dentro de .co-panel, así no
+   toca .config-row/.config-section de configuracion.css
+   (esas clases las usa también la pantalla principal
+   de Configuración, con otro criterio de espaciado).
+   ═══════════════════════════════════════════ */
+.co-panel .config-section-header { padding: 0.7rem 1.1rem; gap: 0.5rem; }
+.co-panel .config-row { padding: 0.65rem 1.1rem; gap: 0.4rem; }
+.co-panel .config-row-desc { line-height: 1.35; }
+
+/* Campos cortos en grilla de 2 columnas — colores de marca y links del
+   menú son valores chicos (un swatch, una palabra) que no necesitan el
+   ancho completo del panel; antes iban uno debajo del otro a ancho
+   completo, duplicando el alto de la sección sin necesidad. */
+.co-row-grid2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.9rem 1.1rem;
+}
+.co-campo-color, .co-campo-corto { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+.co-campo-color .config-row-desc { margin: 0 0 0.15rem; }
+.co-color-control { display: flex; align-items: center; gap: 0.6rem; }
+.co-color-control input[type="color"] {
+    width: 40px; height: 32px; padding: 0; border: 1px solid var(--border-color); border-radius: 0.4rem; flex-shrink: 0;
+}
+
+/* "3 destacados" — separador más liviano entre los 3 bloques (antes un
+   borde + margen del mismo peso que separa secciones enteras). */
+.co-panel .config-row.co-row-destacado { gap: 0.4rem; padding-bottom: 0.6rem; }
+.co-row-destacado:not(:last-child) { border-bottom: 1px dashed var(--border-color); margin-bottom: 0.2rem; }
+
+@media (max-width: 479px) {
+    .co-row-grid2 { grid-template-columns: 1fr; }
+}

@@ -58,7 +58,17 @@ function initDonutClientesCartera(elementId, items, colores) {
             cutout: '74%',
             plugins: {
                 legend: { display: false },
-                tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${ctx.parsed}` } },
+                tooltip: {
+                    backgroundColor: '#fff',
+                    titleColor: '#0b0b0b',
+                    bodyColor: '#52514e',
+                    borderColor: '#e1e0d9',
+                    borderWidth: 1,
+                    padding: 10,
+                    boxPadding: 4,
+                    usePointStyle: true,
+                    callbacks: { label: (ctx) => `${ctx.label}: ${ctx.parsed}` },
+                },
             },
         },
         plugins: [centroTexto],

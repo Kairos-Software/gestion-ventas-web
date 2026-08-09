@@ -442,6 +442,7 @@
 .cmp-proveedor-compra-clear:hover { color: var(--danger, #e11d48); }
 
 @media (max-width: 640px) {
+    .cmp-card-header { flex-wrap: wrap; }
     .cmp-proveedor-compra { margin-left: 0; width: 100%; }
     .cmp-proveedor-compra .cmp-prov-wrap { flex: 1; min-width: 0; }
 }

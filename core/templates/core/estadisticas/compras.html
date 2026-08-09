@@ -41,6 +41,7 @@
         {% else %}
             <div class="est-kpi-sub">Sin datos del período anterior para comparar todavía</div>
         {% endif %}
+        <div class="est-kpi-spark" id="sparkComprado"></div>
     </div>
 
     <div class="est-kpi-card">
@@ -81,7 +82,8 @@
         <div class="card-body">
             {% if ranking_proveedores %}
                 {% for p in ranking_proveedores %}
-                <div class="est-ranking-row">
+                <div class="est-ranking-row" data-valor="{{ p.total|floatformat:0 }}">
+                    <span class="est-ranking-bar"></span>
                     <div class="est-ranking-left">
                         <span class="est-ranking-pos">{{ forloop.counter }}</span>
                         <div>
@@ -116,7 +118,8 @@
             <div class="est-row-2" style="align-items:center;">
                 <div>
                     {% for m in por_medio_pago %}
-                    <div class="est-ranking-row">
+                    <div class="est-ranking-row" data-valor="{{ m.total|floatformat:0 }}">
+                        <span class="est-ranking-bar"></span>
                         <div class="est-ranking-left">
                             <div>
                                 <div class="est-ranking-nombre">{{ m.medio_label }}</div>
@@ -151,11 +154,14 @@
 <script src="{% static 'core/js/estadisticas.js' %}"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        initChartComprasTendencia({{ serie_mensual_json|safe }});
+        const serieMensual = {{ serie_mensual_json|safe }};
+        initChartComprasTendencia(serieMensual);
+        initSparkline('sparkComprado', serieMensual.map(f => f.total), '#1E6FA8');
         initChartDonut('chartMedioPagoCompras', {{ por_medio_pago_ars_json|safe }}, {
             'Efectivo': '#10B981', 'Transferencia': '#1E6FA8',
             'Débito': '#F26A1B', 'QR': '#F59E0B', 'Crédito (tarjeta)': '#8B5CF6',
         }, { valueKey: 'total', formatValue: (v) => '$' + v.toLocaleString('es-AR') });
+        initRankingBars();
     });
 </script>
 {% endblock %}

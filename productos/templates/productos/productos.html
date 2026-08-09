@@ -121,16 +121,16 @@
             <option value="discontinuado" {% if filtro_estado == 'discontinuado' %}selected{% endif %}>Discontinuado</option>
             <option value="agotado"       {% if filtro_estado == 'agotado' %}selected{% endif %}>Agotado</option>
         </select>
-        <select name="categoria" class="prd-filter-select">
+        <select name="categoria" id="filtroCategoria" class="prd-filter-select">
             <option value="">Todas las categorías</option>
             {% for cat in categorias %}
             <option value="{{ cat.pk }}" {% if filtro_categoria == cat.pk|stringformat:"s" %}selected{% endif %}>{{ cat.nombre }}</option>
             {% endfor %}
         </select>
-        <select name="tipo" class="prd-filter-select">
+        <select name="tipo" id="filtroTipo" class="prd-filter-select">
             <option value="">Todos los tipos</option>
             {% for t in tipos %}
-            <option value="{{ t.pk }}" {% if filtro_tipo == t.pk|stringformat:"s" %}selected{% endif %}>{{ t.nombre }}</option>
+            <option value="{{ t.pk }}" data-categoria="{{ t.categoria_id|default:'' }}" {% if filtro_tipo == t.pk|stringformat:"s" %}selected{% endif %}>{{ t.nombre }}</option>
             {% endfor %}
         </select>
         <label class="prd-filter-check">
@@ -470,7 +470,7 @@
                         <select id="f_tipo" class="prd-input prd-select">
                             <option value="">— Sin tipo —</option>
                             {% for t in tipos %}
-                            <option value="{{ t.pk }}">{{ t.nombre }}</option>
+                            <option value="{{ t.pk }}" data-categoria="{{ t.categoria_id|default:'' }}">{{ t.nombre }}</option>
                             {% endfor %}
                         </select>
                         <button type="button" class="prd-btn-inline-manager" onclick="toggleInlineManager('tipoManager')" title="Agregar tipo">
@@ -489,6 +489,7 @@
                             <input type="text" id="nuevoTipoNombre" class="prd-input prd-input--sm" placeholder="Nuevo tipo...">
                             <button type="button" class="prd-btn prd-btn-primary prd-btn--sm" onclick="crearTipo()">Agregar</button>
                         </div>
+                        <small class="prd-field-hint">Se agrega dentro de la categoría elegida arriba.</small>
                     </div>
                 </div>
                 <div class="prd-form-grid prd-form-grid--2" style="margin-top:.5rem">

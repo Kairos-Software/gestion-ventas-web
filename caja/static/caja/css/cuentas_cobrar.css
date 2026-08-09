@@ -1046,9 +1046,14 @@
     .filtro-campo--ancho {
         grid-column: span 1;
     }
+    .cxc-form-section-header {
+        flex-wrap: wrap;
+    }
     .cxc-form-grid,
     .cxc-form-grid--2-1,
-    .cxc-form-grid--3 {
+    .cxc-form-grid--3,
+    .cxc-form-grid.cxc-form-grid--2-1,
+    .cxc-form-grid.cxc-form-grid--3 {
         grid-template-columns: 1fr;
     }
     .cxc-resumen-grid {

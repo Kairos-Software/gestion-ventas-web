@@ -84,16 +84,33 @@
 }
 
 .est-kpi-delta {
-    font-size: 0.8125rem;
+    font-size: 0.75rem;
     font-weight: 700;
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
+    width: fit-content;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
 }
 
-.est-kpi-delta.up   { color: var(--success); }
-.est-kpi-delta.down { color: var(--danger); }
-.est-kpi-delta.flat { color: var(--text-muted); font-weight: 500; }
+/* Texto en verde/rojo puro no llega a 3:1 de contraste sobre blanco —
+   se compensa con un fondo tenue (el "relief" del método de dataviz)
+   en vez de depender solo del color del texto. */
+.est-kpi-delta.up   { color: #006300; background: rgba(16,185,129,0.12); }
+.est-kpi-delta.down { color: var(--danger); background: rgba(239,68,68,0.1); }
+.est-kpi-delta.flat { color: var(--text-muted); font-weight: 600; background: var(--bg-secondary); }
+
+/* ── Sparkline: mini-tendencia dentro de la tarjeta KPI ─────────────
+   Línea en gris de-énfasis, con un punto de acento en el color de la
+   serie solo en el último período — la tarjeta no compite con el
+   número grande, pero "muestra" la tendencia en vez de solo nombrarla. */
+.est-kpi-spark {
+    margin-top: -0.15rem;
+    line-height: 0;
+}
+
+.est-kpi-spark svg { display: block; }
 
 /* ═══════════════════════════════════════════
    SITUACIÓN FINANCIERA ACTUAL (tiempo real)
@@ -195,14 +212,35 @@
 }
 
 .est-resumen-fila {
+    position: relative;
     display: grid;
     grid-template-columns: 24px 1fr auto;
     align-items: center;
     gap: 0.75rem;
-    padding: 0.65rem 0.25rem;
+    padding: 0.65rem 0.6rem;
     border-bottom: 1px dashed var(--border-color);
     font-size: 0.9rem;
 }
+
+.est-resumen-fila > * { position: relative; }
+
+/* Barra proporcional al monto de la fila, corrida detrás del texto —
+   convierte la lista en algo que también se puede "leer con los ojos",
+   no solo con los números. Ancho lo pone JS (initResumenBars). */
+.est-resumen-bar {
+    position: absolute;
+    z-index: 0;
+    left: 0;
+    top: 3px;
+    bottom: 3px;
+    width: 0%;
+    border-radius: var(--radius-sm);
+    background: rgba(138, 155, 176, 0.12);
+    transition: width 0.6s cubic-bezier(.16,1,.3,1);
+}
+
+.est-resumen-fila[data-tipo="positivo"] .est-resumen-bar { background: rgba(16, 185, 129, 0.10); }
+.est-resumen-fila[data-tipo="negativo"] .est-resumen-bar { background: rgba(239, 68, 68, 0.09); }
 
 .est-resumen-fila:last-child { border-bottom: none; }
 
@@ -287,13 +325,34 @@
    RANKINGS (empleados / productos)
    ═══════════════════════════════════════════ */
 .est-ranking-row {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
-    padding: 0.7rem 0;
+    padding: 0.7rem 0.5rem;
     border-bottom: 1px solid var(--border-color);
 }
+
+.est-ranking-row > * { position: relative; }
+
+/* Barra proporcional al valor de la fila (ganancia/monto/vendido según
+   la lista) — mismo criterio que .est-resumen-bar: un ranking se lee
+   más rápido con una barra que solo con números alineados a la derecha.
+   Ancho lo calcula JS (initRankingBars) contra el máximo de su propia lista. */
+.est-ranking-bar {
+    position: absolute;
+    z-index: 0;
+    left: 0;
+    top: 2px;
+    bottom: 2px;
+    width: 0%;
+    border-radius: var(--radius-sm);
+    background: var(--brand-orange-light);
+    transition: width 0.6s cubic-bezier(.16,1,.3,1);
+}
+
+.est-ranking-row[data-tipo="negativo"] .est-ranking-bar { background: rgba(239, 68, 68, 0.09); }
 
 .est-ranking-row:last-child { border-bottom: none; }
 

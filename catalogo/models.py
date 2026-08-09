@@ -73,14 +73,34 @@ class ConfiguracionCatalogo(models.Model):
         'Texto de contacto', blank=True,
         help_text='Se muestra junto a los datos de contacto en el pie de página.',
     )
-    # — Personalización visual/textual de la plantilla "almacen" —
+    # — Personalización visual/textual — colores de marca, uno por plantilla
+    # (cada plantilla tiene su propia identidad, elegir un color en una no
+    # debe "contaminar" a las demás). "almacen" usa color_marca/color_marca_
+    # secundario (nombres históricos, sin migrar datos). "kinetic" no suma
+    # campos propios porque no los lee (paleta fija, ver plantillas/kinetic).
     color_marca = models.CharField(
-        'Color de marca', max_length=7, blank=True,
+        'Color de marca (Almacén)', max_length=7, blank=True,
         help_text='Código hex, ej: #ff9343. Vacío = color por defecto. Botones, precios y detalles.',
     )
     color_marca_secundario = models.CharField(
-        'Color secundario', max_length=7, blank=True,
+        'Color secundario (Almacén)', max_length=7, blank=True,
         help_text='Código hex, ej: #111e2f. Vacío = color por defecto. Encabezado, hero y pie de página.',
+    )
+    color_marca_bento = models.CharField(
+        'Color de marca (Bento)', max_length=7, blank=True,
+        help_text='Código hex. Vacío = color por defecto de Bento.',
+    )
+    color_marca_secundario_bento = models.CharField(
+        'Color secundario (Bento)', max_length=7, blank=True,
+        help_text='Código hex. Vacío = color por defecto de Bento.',
+    )
+    color_marca_lumina = models.CharField(
+        'Color de marca (Lumina)', max_length=7, blank=True,
+        help_text='Código hex. Vacío = color por defecto de Lumina.',
+    )
+    color_marca_secundario_lumina = models.CharField(
+        'Color secundario (Lumina)', max_length=7, blank=True,
+        help_text='Código hex. Vacío = color por defecto de Lumina.',
     )
     nav_catalogo_label = models.CharField('Texto del menú "Catálogo"', max_length=30, blank=True)
     nav_ofertas_label  = models.CharField('Texto del menú "Ofertas"', max_length=30, blank=True)

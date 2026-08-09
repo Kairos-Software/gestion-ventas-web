@@ -44,12 +44,13 @@
         <div class="est-kpi-value">${{ resumen.ingresos|floatformat:0|intcomma }}</div>
         {% if comparacion.variacion_ingresos is not None %}
             <div class="est-kpi-delta {% if comparacion.variacion_ingresos > 0 %}up{% elif comparacion.variacion_ingresos < 0 %}down{% else %}flat{% endif %}">
-                {% if comparacion.variacion_ingresos > 0 %}▲ {{ comparacion.variacion_ingresos }}% más{% elif comparacion.variacion_ingresos < 0 %}▼ {{ comparacion.variacion_ingresos|cut:"-" }}% menos{% else %}Igual{% endif %}
+                {% if comparacion.variacion_ingresos > 0 %}▲ {{ comparacion.variacion_ingresos|floatformat:0 }}% más{% elif comparacion.variacion_ingresos < 0 %}▼ {{ comparacion.variacion_ingresos|cut:"-"|floatformat:0 }}% menos{% else %}Igual{% endif %}
                 {{ comparacion_label }}
             </div>
         {% else %}
             <div class="est-kpi-sub">Sin datos del período anterior para comparar todavía</div>
         {% endif %}
+        <div class="est-kpi-spark" id="sparkVendido"></div>
     </div>
 
     <!-- Ganaste -->
@@ -63,11 +64,12 @@
         <div class="est-kpi-value">${{ resumen.ganancia_bruta|floatformat:0|intcomma }}</div>
         {% if comparacion.variacion_ganancia is not None %}
             <div class="est-kpi-delta {% if comparacion.variacion_ganancia > 0 %}up{% elif comparacion.variacion_ganancia < 0 %}down{% else %}flat{% endif %}">
-                {% if comparacion.variacion_ganancia > 0 %}▲ {{ comparacion.variacion_ganancia }}% más{% elif comparacion.variacion_ganancia < 0 %}▼ {{ comparacion.variacion_ganancia|cut:"-" }}% menos{% else %}Igual{% endif %}
+                {% if comparacion.variacion_ganancia > 0 %}▲ {{ comparacion.variacion_ganancia|floatformat:0 }}% más{% elif comparacion.variacion_ganancia < 0 %}▼ {{ comparacion.variacion_ganancia|cut:"-"|floatformat:0 }}% menos{% else %}Igual{% endif %}
                 {{ comparacion_label }}
             </div>
         {% endif %}
         <div class="est-kpi-sub">De cada $100 vendidos, ganás ${{ resumen.margen_pct|floatformat:0 }}</div>
+        <div class="est-kpi-spark" id="sparkGanado"></div>
     </div>
 
     <!-- Ticket promedio -->
@@ -130,12 +132,14 @@
     </div>
     <div class="card-body" style="padding-top:.5rem; padding-bottom:.5rem;">
         <div class="est-resumen-tabla">
-            <div class="est-resumen-fila">
+            <div class="est-resumen-fila" data-monto="{{ resumen.ingresos|floatformat:0 }}" data-tipo="positivo">
+                <span class="est-resumen-bar"></span>
                 <span class="est-resumen-signo">+</span>
                 <span class="est-resumen-concepto">Total vendido</span>
                 <span class="est-resumen-monto">${{ resumen.ingresos|floatformat:0|intcomma }}</span>
             </div>
-            <div class="est-resumen-fila">
+            <div class="est-resumen-fila" data-monto="{{ resumen.costo_mercaderia|floatformat:0 }}" data-tipo="negativo">
+                <span class="est-resumen-bar"></span>
                 <span class="est-resumen-signo menos">−</span>
                 <span class="est-resumen-concepto">Costo de esa mercadería</span>
                 <span class="est-resumen-monto menos">${{ resumen.costo_mercaderia|floatformat:0|intcomma }}</span>
@@ -145,7 +149,8 @@
                 <span class="est-resumen-concepto">Ganancia por las ventas</span>
                 <span class="est-resumen-monto">${{ resumen.ganancia_bruta|floatformat:0|intcomma }}</span>
             </div>
-            <div class="est-resumen-fila">
+            <div class="est-resumen-fila" data-monto="{{ resumen.gastos|floatformat:0 }}" data-tipo="negativo">
+                <span class="est-resumen-bar"></span>
                 <span class="est-resumen-signo menos">−</span>
                 <span class="est-resumen-concepto">Gastos del período</span>
                 <span class="est-resumen-monto menos">${{ resumen.gastos|floatformat:0|intcomma }}</span>
@@ -155,12 +160,14 @@
                 <span class="est-resumen-concepto">Te queda en el bolsillo</span>
                 <span class="est-resumen-monto">${{ resumen.ganancia_neta|floatformat:0|intcomma }}</span>
             </div>
-            <div class="est-resumen-fila">
+            <div class="est-resumen-fila" data-monto="{{ perdidas_periodo.total_vencido_periodo|floatformat:0 }}" data-tipo="negativo">
+                <span class="est-resumen-bar"></span>
                 <span class="est-resumen-signo menos">−</span>
                 <span class="est-resumen-concepto">Perdido por vencimiento en este período</span>
                 <span class="est-resumen-monto menos">${{ perdidas_periodo.total_vencido_periodo|floatformat:0|intcomma }}</span>
             </div>
-            <div class="est-resumen-fila">
+            <div class="est-resumen-fila" data-monto="{{ perdidas_periodo.total_mermas_periodo|floatformat:0 }}" data-tipo="negativo">
+                <span class="est-resumen-bar"></span>
                 <span class="est-resumen-signo menos">−</span>
                 <span class="est-resumen-concepto">Perdido por rotura / merma en este período</span>
                 <span class="est-resumen-monto menos">${{ perdidas_periodo.total_mermas_periodo|floatformat:0|intcomma }}</span>
@@ -196,7 +203,11 @@
 <script src="{% static 'core/js/estadisticas.js' %}"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        initChartTendencia({{ serie_mensual_json|safe }});
+        const serieMensual = {{ serie_mensual_json|safe }};
+        initChartTendencia(serieMensual);
+        initSparkline('sparkVendido', serieMensual.map(f => f.ingresos), '#F26A1B');
+        initSparkline('sparkGanado', serieMensual.map(f => f.ganancia), '#10B981');
+        initResumenBars();
     });
 </script>
 {% endblock %}

@@ -1079,6 +1079,7 @@ class DatosEmpresa(models.Model):
     Solo debe existir un registro en la base de datos.
     """
     nombre_comercial = models.CharField(max_length=200, default='Mi Empresa')
+    eslogan = models.CharField(max_length=200, blank=True)
     razon_social = models.CharField(max_length=200, blank=True)
     cuit = models.CharField(max_length=13, blank=True, help_text='XX-XXXXXXXX-X')
     condicion_iva = models.CharField(max_length=3, choices=CondicionIVA.choices, blank=True)

@@ -41,6 +41,16 @@ class CatalogoConfigGuardarAjax(LoginRequiredMixin, View):
         if color_marca_secundario and not re.fullmatch(r'#[0-9a-fA-F]{6}', color_marca_secundario):
             return JsonResponse({'error': 'Color secundario inválido.'}, status=400)
 
+        colores_por_plantilla = {}
+        for campo in (
+            'color_marca_bento', 'color_marca_secundario_bento',
+            'color_marca_lumina', 'color_marca_secundario_lumina',
+        ):
+            valor = (body.get(campo) or '').strip()
+            if valor and not re.fullmatch(r'#[0-9a-fA-F]{6}', valor):
+                return JsonResponse({'error': 'Color inválido.'}, status=400)
+            colores_por_plantilla[campo] = valor
+
         hero_producto_id = body.get('hero_producto') or None
         hero_producto = None
         if hero_producto_id:
@@ -57,6 +67,10 @@ class CatalogoConfigGuardarAjax(LoginRequiredMixin, View):
         config.contacto_texto     = (body.get('contacto_texto') or '').strip()
         config.color_marca        = color_marca
         config.color_marca_secundario = color_marca_secundario
+        config.color_marca_bento              = colores_por_plantilla['color_marca_bento']
+        config.color_marca_secundario_bento   = colores_por_plantilla['color_marca_secundario_bento']
+        config.color_marca_lumina             = colores_por_plantilla['color_marca_lumina']
+        config.color_marca_secundario_lumina  = colores_por_plantilla['color_marca_secundario_lumina']
         config.nav_catalogo_label = (body.get('nav_catalogo_label') or '').strip()[:30]
         config.nav_ofertas_label  = (body.get('nav_ofertas_label') or '').strip()[:30]
         config.nav_combos_label   = (body.get('nav_combos_label') or '').strip()[:30]

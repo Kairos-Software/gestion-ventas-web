@@ -76,7 +76,8 @@
     <div class="card-body">
         {% if mejores_clientes %}
             {% for cl in mejores_clientes %}
-            <div class="est-ranking-row">
+            <div class="est-ranking-row" data-valor="{{ cl.total_comprado|floatformat:0 }}">
+                <span class="est-ranking-bar"></span>
                 <div class="est-ranking-left">
                     <span class="est-ranking-pos">{{ forloop.counter }}</span>
                     <div>
@@ -189,7 +190,8 @@
         {% if cuentas_por_cobrar.ranking_deudores %}
             <p class="text-muted" style="font-size:.8125rem;margin-bottom:.5rem;">Clientes con más deuda pendiente</p>
             {% for d in cuentas_por_cobrar.ranking_deudores %}
-            <div class="est-ranking-row">
+            <div class="est-ranking-row" data-valor="{{ d.total|floatformat:0 }}">
+                <span class="est-ranking-bar"></span>
                 <div class="est-ranking-left">
                     <span class="est-ranking-pos">{{ forloop.counter }}</span>
                     <div>
@@ -271,6 +273,8 @@
             '{% url "core:cliente_buscar" %}',
             '{% url "core:estadisticas_cliente_perfil" 0 %}'.slice(0, -2)
         );
+
+        initRankingBars();
     });
 </script>
 {% endblock %}
