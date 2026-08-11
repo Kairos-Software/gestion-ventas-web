@@ -26,6 +26,13 @@
         --lime-soft: color-mix(in srgb, var(--lime) 12%, white);
         --indigo: {{ config_catalogo.color_marca_secundario_bento|default:default_color_marca_secundario_bento }};
         --indigo-2: color-mix(in srgb, var(--indigo) 82%, black);
+        --paper: {{ config_catalogo.color_fondo_bento|default:default_color_fondo_bento }};
+    }
+    /* Fondo de modo oscuro — color independiente del claro de arriba, no
+       uno derivado (ver color_fondo_bento_oscuro en el modelo). Va después
+       de bento.css y del :root de arriba, así gana por cascada/orden. */
+    html[data-theme="dark"] {
+        --paper: {{ config_catalogo.color_fondo_bento_oscuro|default:default_color_fondo_bento_oscuro }};
     }
 </style>
 {% block extra_css %}{% endblock %}
@@ -42,11 +49,15 @@
           <img src="{% static 'core/img/kai-cart-logo-completo.png' %}" alt="Kai-Cart">
         {% endif %}
       </div>
-      <div class="brand-name">{{ empresa.nombre_comercial }}</div>
+      <div class="brand-text">
+        <div class="brand-name">{{ empresa.nombre_comercial }}</div>
+        {% if empresa.eslogan %}<div class="brand-sub">{{ empresa.eslogan }}</div>{% endif %}
+      </div>
     </a>
-    <form class="search-wrap" method="get" action="{% url 'catalogo:home' %}" id="kcSearchForm">
+    <form class="search-wrap" method="get" action="{% url 'catalogo:home' %}#kcCatalogo" id="kcSearchForm" autocomplete="off">
       <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
       <input class="search-input" type="text" name="q" placeholder="Buscar productos..." value="{{ request.GET.q }}">
+      <div class="search-dropdown" id="kcSearchDropdown"></div>
     </form>
     <nav class="main-nav">
       <a href="{% url 'catalogo:home' %}" class="{% if request.resolver_match.url_name == 'home' and seccion_activa != 'ofertas' and seccion_activa != 'paquetes' %}active{% endif %}">{{ config_catalogo.nav_catalogo_label|default:default_nav_catalogo }}</a>
@@ -80,7 +91,16 @@
            acá ya no se repite, para no duplicar el mismo contenido en dos lugares. OJO al retomar Configuración
            para Bento: el sync en vivo del panel "Textos" (catalogo_online.js) apuntaba a #kcFooterSobreNosotros,
            que ya no existe en esta página — revisar a qué preview/nodo debe apuntar ese panel para Bento. -->
-      <b>{{ empresa.nombre_comercial }}</b>
+      <div class="foot-brand-head">
+        <div class="foot-brand-mark">
+          {% if empresa.logo %}
+            <img src="{{ empresa.logo.url }}" alt="{{ empresa.nombre_comercial }}">
+          {% else %}
+            <img src="{% static 'core/img/kai-cart-logo-completo.png' %}" alt="Kai-Cart">
+          {% endif %}
+        </div>
+        <b>{{ empresa.nombre_comercial }}</b>
+      </div>
       {% if whatsapp_url %}
       <a href="{{ whatsapp_url }}" target="_blank" rel="noopener" class="footer-wa">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 11.5a8.5 8.5 0 01-12.4 7.55L3 20l1.02-5.4A8.5 8.5 0 1121 11.5z"/></svg>
@@ -108,9 +128,9 @@
       <h4>Contacto</h4>
       {# id usado por la vista previa en vivo — se oculta con CSS (:empty) cuando está vacío, no agregar espacios/saltos dentro del div #}
       <div id="kcFooterContacto">{{ config_catalogo.contacto_texto }}</div>
-      {% if empresa.domicilio %}<div>{{ empresa.domicilio }}</div>{% endif %}
-      {% if empresa.telefono %}<div>{{ empresa.telefono }}</div>{% endif %}
-      {% if empresa.email %}<div>{{ empresa.email }}</div>{% endif %}
+      {% if empresa.domicilio %}<div><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21S5 14.5 5 9.5A7 7 0 0119 9.5C19 14.5 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5"/></svg>{{ empresa.domicilio }}</div>{% endif %}
+      {% if empresa.telefono %}<div><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.362 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>{{ empresa.telefono }}</div>{% endif %}
+      {% if empresa.email %}<div><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M3.5 7l8.5 6 8.5-6"/></svg>{{ empresa.email }}</div>{% endif %}
     </div>
   </div>
   <div class="foot-bottom">© {% now "Y" %} {{ empresa.nombre_comercial }} · Todos los derechos reservados</div>
@@ -127,18 +147,27 @@
     {% if seccion_activa != 'todos' %}<input type="hidden" name="seccion" value="{{ seccion_activa }}">{% endif %}
     <div class="d-group">
       <div class="d-group-title">Categoría</div>
-      <a href="{{ url_todas_categorias }}" class="d-check {% if not categoria_activa %}active{% endif %}">Todos los productos</a>
-      {% for cat in categorias %}
-        <a href="{{ cat.url }}" class="d-check {% if cat.activa %}active{% endif %}">{{ cat.nombre }} ({{ cat.cantidad }})</a>
-      {% endfor %}
+      <p class="d-group-help">Tildá una o varias y aplicá</p>
+      <div id="kcListaCategorias">
+        {% for cat in categorias %}
+        <label class="d-check">
+          <input type="checkbox" name="categoria" value="{{ cat.slug }}" {% if cat.activa %}checked{% endif %}>
+          <span>{{ cat.nombre }} ({{ cat.cantidad }})</span>
+        </label>
+        {% endfor %}
+      </div>
     </div>
     {% if tipos %}
-    <div class="d-group">
+    <div class="d-group" id="kcGrupoTipo" {% if not categoria_activa %}hidden{% endif %}>
       <div class="d-group-title">Tipo</div>
-      <a href="{{ url_todos_tipos }}" class="d-check {% if not tipo_activo %}active{% endif %}">Todos los tipos</a>
-      {% for t in tipos %}
-        <a href="{{ t.url }}" class="d-check {% if t.activa %}active{% endif %}">{{ t.nombre }} ({{ t.cantidad }})</a>
-      {% endfor %}
+      <div id="kcListaTipos">
+        {% for t in tipos %}
+        <label class="d-check" data-categoria="{{ t.categoria_slug }}" {% if t.categoria_slug not in categoria_activa %}hidden{% endif %}>
+          <input type="checkbox" name="tipo" value="{{ t.slug }}" {% if t.activa %}checked{% endif %}>
+          <span>{{ t.nombre }} ({{ t.cantidad }})</span>
+        </label>
+        {% endfor %}
+      </div>
     </div>
     {% endif %}
     {% if marcas %}
@@ -159,6 +188,9 @@
     </div>
     <div class="drawer-foot" style="padding:16px 0 0; border-top:none;">
       <button type="submit" class="btn-apply">Aplicar filtros</button>
+      {% if categoria_activa or tipo_activo %}
+      <a href="{{ url_limpiar_categoria_tipo }}" class="d-limpiar-link">Limpiar categoría y tipo</a>
+      {% endif %}
     </div>
   </form>
 </aside>
@@ -209,7 +241,10 @@
 {{ ofertas_umbral_json|json_script:"kcOfertasUmbral" }}
 {{ ofertas_nxm_json|json_script:"kcOfertasNxm" }}
 <script>
-    window.KC_URLS = { pedidoCrear: "{% url 'catalogo:pedido_crear' %}" };
+    window.KC_URLS = {
+        pedidoCrear: "{% url 'catalogo:pedido_crear' %}",
+        buscarSugerencias: "{% url 'catalogo:buscar_sugerencias' %}"
+    };
     window.KC_OFERTAS_UMBRAL = JSON.parse(document.getElementById('kcOfertasUmbral').textContent) || [];
     window.KC_OFERTAS_NXM = JSON.parse(document.getElementById('kcOfertasNxm').textContent) || [];
 </script>

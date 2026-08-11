@@ -16,7 +16,7 @@ from productos.models import (
     AplicacionOferta, CategoriaProducto, EstadoProducto, Producto, TipoOferta, TipoProducto, ofertas_vigentes_hoy,
 )
 
-from .models import ConfiguracionCatalogo, PlantillaCatalogo
+from .models import ConfiguracionCatalogo, PlantillaCatalogo, PosicionBanner, TipoTileDestacado
 from .utils import google_maps_link, wa_link_ar
 
 # Estados de producto que se muestran en el catálogo público. INACTIVO y
@@ -87,6 +87,8 @@ def _contexto_base(request):
         'default_color_marca_secundario': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO,
         'default_color_marca_bento': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_BENTO,
         'default_color_marca_secundario_bento': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_BENTO,
+        'default_color_fondo_bento': ConfiguracionCatalogo.DEFAULT_COLOR_FONDO_BENTO,
+        'default_color_fondo_bento_oscuro': ConfiguracionCatalogo.DEFAULT_COLOR_FONDO_BENTO_OSCURO,
         'default_color_marca_kinetic': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_KINETIC,
         'default_color_marca_secundario_kinetic': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_KINETIC,
         'default_color_marca_lumina': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_LUMINA,
@@ -419,18 +421,33 @@ class CatalogoHomeView(TemplateView):
         destacados = []
         ofertas_destacadas = []
         paquetes_destacados = []
+        # Versión "amplia" de las 3 listas de arriba — solo para los
+        # carruseles de la vidriera de Almacén (ver catalogo/home.html),
+        # que ahora pueden mostrar más de 4 ítems con flechas manuales.
+        # Deliberadamente NO se toca destacados/ofertas_destacadas/
+        # paquetes_destacados (siguen en [:4]) porque Bento/Kinetic/Lumina
+        # consumen esos mismos nombres — así el cambio queda 100% acotado
+        # a Almacén sin riesgo de romper las otras 3 plantillas.
+        destacados_amplio = []
+        ofertas_destacadas_amplio = []
+        paquetes_destacados_amplio = []
         if mostrar_vidriera:
-            destacados = _con_oferta_y_nuevo(
-                _productos_publicados_base().filter(es_paquete=False, destacado=True).order_by('-fecha_alta')[:4]
+            destacados_qs = _con_oferta_y_nuevo(
+                _productos_publicados_base().filter(es_paquete=False, destacado=True).order_by('-fecha_alta')[:10]
             )
+            destacados = destacados_qs[:4]
+            destacados_amplio = destacados_qs
             candidatos_oferta = _con_oferta_y_nuevo(
                 _productos_publicados_base().filter(es_paquete=False).exclude(precio_venta=None)
             )
-            ofertas_destacadas = [p for p in candidatos_oferta if p.oferta_info][:4]
+            ofertas_con_info = [p for p in candidatos_oferta if p.oferta_info]
+            ofertas_destacadas = ofertas_con_info[:4]
+            ofertas_destacadas_amplio = ofertas_con_info[:10]
             # Vidriera de combos: solo un adelanto — la lista completa (`paquetes`)
             # se muestra más abajo, en la grilla, así no se repite el mismo
             # contenido dos veces en la misma vista sin filtros.
             paquetes_destacados = paquetes[:4]
+            paquetes_destacados_amplio = paquetes[:10]
 
         productos_qs = _productos_publicados_base().filter(es_paquete=False)
         if categoria_slugs:
@@ -588,6 +605,33 @@ class CatalogoHomeView(TemplateView):
         # imagen (ej. el usuario cerró el modal a mitad de camino, ver
         # catalogo/views_config.py) no debe aparecer roto en el carrusel.
         ctx['slides'] = ctx['config_catalogo'].slides.exclude(imagen='')
+        # Banners promocionales opcionales — exclusivos de "almacen" por
+        # ahora (el resto de las plantillas no los renderiza todavía).
+        banners_activos = ctx['config_catalogo'].banners.filter(activo=True)
+        ctx['banners_debajo_hero'] = banners_activos.filter(posicion=PosicionBanner.DEBAJO_HERO)
+        ctx['banners_antes_grilla'] = banners_activos.filter(posicion=PosicionBanner.ANTES_GRILLA)
+        ctx['banners_antes_destacados'] = banners_activos.filter(posicion=PosicionBanner.ANTES_DESTACADOS)
+        ctx['banners_antes_combos'] = banners_activos.filter(posicion=PosicionBanner.ANTES_COMBOS)
+        # Categorías/marcas destacadas — accesos directos con imagen que
+        # filtran el catálogo al click, exclusivos de "almacen" por ahora.
+        # Se resuelve acá (no en el template) para poder armar la URL de
+        # filtro fresca (_url_con, no _url_toggle: un tile fija el filtro,
+        # no lo acumula con lo que ya esté tildado) y saltear tiles mal
+        # configurados (ej. categoría borrada) sin romper el template.
+        tiles_destacados = []
+        if mostrar_vidriera:
+            tiles_qs = ctx['config_catalogo'].tiles_destacados.filter(activo=True).exclude(imagen='').select_related('categoria')
+            for t in tiles_qs:
+                if t.tipo == TipoTileDestacado.CATEGORIA and t.categoria_id:
+                    url = '?' + _url_con(get, categoria=t.categoria.slug) + '#kcCatalogo'
+                    etiqueta = t.etiqueta or t.categoria.nombre
+                elif t.tipo == TipoTileDestacado.MARCA and t.marca:
+                    url = '?' + _url_con(get, marca=t.marca) + '#kcCatalogo'
+                    etiqueta = t.etiqueta or t.marca
+                else:
+                    continue
+                tiles_destacados.append({'imagen_url': t.imagen.url, 'etiqueta': etiqueta, 'url': url})
+        ctx['tiles_destacados'] = tiles_destacados
         ctx['secciones'] = secciones
         ctx['seccion_activa'] = seccion
         ctx['mostrar_productos'] = mostrar_productos
@@ -612,6 +656,49 @@ class CatalogoHomeView(TemplateView):
         ctx['destacados'] = destacados
         ctx['ofertas_destacadas'] = ofertas_destacadas
         ctx['paquetes_destacados'] = paquetes_destacados
+        ctx['destacados_amplio'] = destacados_amplio
+        ctx['ofertas_destacadas_amplio'] = ofertas_destacadas_amplio
+        ctx['paquetes_destacados_amplio'] = paquetes_destacados_amplio
+        # Las 2 tarjetas "spotlight" del hero de Bento (ver bento/home.html).
+        # Prioridad por tarjeta: imagen propia cargada > producto elegido a
+        # mano > automático. Resuelto acá (no en el template) porque Django
+        # templates no tienen forma limpia de "cortar" un {% for %} en el
+        # primer match, y porque mezclar las 2 tarjetas + imagen/producto
+        # en el template se vuelve ilegible.
+        config_bento = base_ctx['config_catalogo']
+        hero_combo_1 = paquetes_destacados[0] if paquetes_destacados and not config_bento.hero_producto_id else None
+        auto_spot_1 = hero_combo_1 or ctx['hero_producto']
+
+        if config_bento.hero_spot1_imagen:
+            ctx['hero_spot1_tipo'] = 'imagen'
+            ctx['hero_spot1_imagen_url'] = config_bento.hero_spot1_imagen.url
+        else:
+            ctx['hero_spot1_tipo'] = 'producto'
+            ctx['hero_spot_1'] = auto_spot_1
+            ctx['hero_spot_1_es_combo'] = hero_combo_1 is not None
+
+        if config_bento.hero_spot2_imagen:
+            ctx['hero_spot2_tipo'] = 'imagen'
+            ctx['hero_spot2_imagen_url'] = config_bento.hero_spot2_imagen.url
+        else:
+            ctx['hero_spot2_tipo'] = 'producto'
+            if config_bento.hero_spot2_producto_id:
+                hero_spot_2 = config_bento.hero_spot2_producto
+                hero_spot_2_es_combo = hero_spot_2.es_paquete
+            else:
+                hero_spot_2 = None
+                hero_spot_2_es_combo = False
+                evitar_pk = auto_spot_1.pk if auto_spot_1 else None
+                if hero_combo_1 is None and paquetes_destacados:
+                    hero_spot_2 = paquetes_destacados[0]
+                    hero_spot_2_es_combo = True
+                if hero_spot_2 is None:
+                    for d in destacados:
+                        if d.pk != evitar_pk:
+                            hero_spot_2 = d
+                            break
+            ctx['hero_spot_2'] = hero_spot_2
+            ctx['hero_spot_2_es_combo'] = hero_spot_2_es_combo
         ctx['total_catalogo'] = total_catalogo
         ctx['orden_activo'] = orden
         ctx['filtros_activos'] = filtros_activos

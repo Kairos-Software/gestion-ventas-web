@@ -315,6 +315,12 @@ img { max-width: 100%; display: block; }
     cursor: pointer;
 }
 .kc-hero-visual:hover { box-shadow: 0 35px 60px -15px color-mix(in srgb, var(--primary) 30%, transparent); }
+/* Con una foto ya recortada (PNG transparente), sacar la tarjeta rectangular
+   detrás para que el producto "flote" — ver ConfiguracionCatalogo.hero_imagen_sin_fondo. */
+.kc-hero-visual--sin-fondo { background: none; box-shadow: none; padding: 0; }
+.kc-hero-visual--sin-fondo:hover { box-shadow: none; }
+.kc-hero-visual--sin-fondo .kc-hero-product-img { background: none; aspect-ratio: auto; margin-bottom: 0; }
+.kc-hero-visual--sin-fondo .kc-hero-glare { display: none; }
 .kc-hero-glare {
     position: absolute; inset: 0; border-radius: 20px;
     background: linear-gradient(125deg, rgba(255,255,255,.4) 0%, rgba(255,255,255,0) 60%);
@@ -364,6 +370,59 @@ img { max-width: 100%; display: block; }
 .kc-feature-text { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
 .kc-feature-text strong { font-size: 0.88rem; font-weight: 700; color: var(--ink); }
 .kc-feature-text small { font-size: 0.76rem; color: var(--text-faint); }
+
+
+/* ═══════════════════════════ BANNER PROMOCIONAL (opcional) ═══════════════════════════
+   0, 1 o 2 como mucho — ver BannerCatalogo/catalogo_online.html. Sin imagen
+   es un bloque de color sólido; con imagen, la foto va de fondo con un
+   degradé para que el texto siga siendo legible. */
+.kc-banner-promo {
+    position: relative;
+    margin: 1.75rem 5%;
+    border-radius: 20px;
+    overflow: hidden;
+    aspect-ratio: 32 / 5;
+    display: flex;
+    align-items: center;
+    box-shadow: var(--shadow-sm);
+}
+.kc-banner-promo-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.kc-banner-promo:not(.kc-banner-promo--solido)::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(90deg, rgba(0,0,0,.62) 0%, rgba(0,0,0,.18) 55%, transparent 80%);
+}
+.kc-banner-promo-texto { position: relative; z-index: 1; padding: 2rem 2.5rem; max-width: 520px; color: #fff; }
+.kc-banner-promo--solido .kc-banner-promo-texto { text-align: center; max-width: none; padding: 2.5rem 2rem; margin: 0 auto; }
+.kc-banner-promo-texto h2 { font-size: 1.6rem; font-weight: 800; margin-bottom: 0.5rem; }
+.kc-banner-promo-texto p { font-size: 0.95rem; opacity: 0.92; margin-bottom: 1rem; }
+.kc-banner-promo-cta {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    background: #fff; color: var(--ink);
+    font-weight: 700; font-size: 0.85rem;
+    padding: 0.65rem 1.3rem; border-radius: 999px;
+    transition: transform .2s;
+}
+.kc-banner-promo-cta:hover { transform: translateY(-2px); }
+
+/* Ubicación "antes de la grilla" — dentro de .kc-contenido, angosto porque
+   convive con la sidebar de filtros al lado (no ancho completo como el de
+   debajo del hero). */
+.kc-banner-promo--angosto { margin: 0 0 1.5rem; }
+.kc-banner-promo--angosto .kc-banner-promo-texto { padding: 1.4rem 1.75rem; max-width: 100%; }
+.kc-banner-promo--angosto .kc-banner-promo-texto h2 { font-size: 1.25rem; }
+
+@media (max-width: 620px) {
+    /* A lo ancho de un celular, 6.4:1 da una franja demasiado baja para que
+       el texto entre — nunca combinar con min-height acá (min-height +
+       aspect-ratio hace que el navegador recalcule el ANCHO a partir del
+       alto mínimo, rompiendo el layout — ver almacen_carrusel_banners_2026_08
+       en memoria). La única forma segura de ajustar el alto en mobile es
+       cambiar el aspect-ratio en sí, nunca agregar min-height de vuelta. */
+    .kc-banner-promo { aspect-ratio: 2 / 1; margin: 1.25rem 1rem; }
+    .kc-banner-promo-texto { padding: 1.5rem; max-width: 100%; }
+    .kc-banner-promo-texto h2 { font-size: 1.3rem; }
+}
 
 
 /* ═══════════════════════════ VIDRIERA (destacados / ofertas / combos) ═══════════════════════════
@@ -439,6 +498,70 @@ img { max-width: 100%; display: block; }
 .kc-combo-sum { font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-faint); text-decoration: line-through; }
 .kc-combo-final { font-family: var(--font-mono); font-size: 1.15rem; font-weight: 800; color: var(--ink); }
 .kc-combo-save { font-size: 0.68rem; color: var(--success); font-weight: 700; background: var(--success-soft); padding: 0.15rem 0.5rem; border-radius: 6px; display: inline-block; margin-top: 0.2rem; width: fit-content; }
+
+/* ── Carrusel de la vidriera (Ofertas del momento / Destacados / Combos
+   armados) — flechas manuales, más de 4 ítems con scroll horizontal.
+   Selectores descendientes (.kc-sec-vidriera / .kc-flash-band) a propósito:
+   así solo afecta a estas 3 filas y NO al .kc-combo-row que se usa aparte,
+   como grilla normal, en los resultados filtrados de .kc-contenido. */
+.kc-carrusel { position: relative; }
+.kc-sec-vidriera .kc-feat-row,
+.kc-flash-band .kc-flash-row,
+.kc-sec-vidriera .kc-combo-row {
+    display: flex;
+    grid-template-columns: none;
+    gap: 1.1rem;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    scroll-behavior: smooth;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+}
+.kc-sec-vidriera .kc-feat-row::-webkit-scrollbar,
+.kc-flash-band .kc-flash-row::-webkit-scrollbar,
+.kc-sec-vidriera .kc-combo-row::-webkit-scrollbar { display: none; height: 0; }
+.kc-sec-vidriera .kc-feat-card { flex: 0 0 240px; scroll-snap-align: start; }
+.kc-flash-band .kc-flash-card { flex: 0 0 300px; scroll-snap-align: start; }
+.kc-sec-vidriera .kc-combo-card { flex: 0 0 280px; scroll-snap-align: start; }
+
+.kc-carrusel-flecha {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    width: 40px; height: 40px; border-radius: 50%;
+    background: #fff; border: 1px solid var(--line-soft); box-shadow: var(--shadow-md);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem; line-height: 1; color: var(--ink);
+    cursor: pointer; z-index: 3; transition: .15s;
+}
+.kc-carrusel-flecha:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+.kc-carrusel-flecha--prev { left: -18px; }
+.kc-carrusel-flecha--next { right: -18px; }
+
+@media (max-width: 980px) {
+    .kc-carrusel-flecha { display: none; }
+}
+
+/* ── Categorías/marcas destacadas — accesos directos con imagen que
+   filtran el catálogo al click (ver TileDestacadoCatalogo). ── */
+.kc-tiles-sec { padding-top: 1.5rem; }
+.kc-tiles-row {
+    display: flex; gap: 1.4rem;
+    overflow-x: auto; scroll-snap-type: x proximity; scroll-behavior: smooth;
+    padding-bottom: 2px; scrollbar-width: none;
+}
+.kc-tiles-row::-webkit-scrollbar { display: none; height: 0; }
+.kc-tile-destacado {
+    flex: 0 0 120px; scroll-snap-align: start;
+    display: flex; flex-direction: column; align-items: center; gap: 0.6rem;
+    text-align: center; transition: transform .18s;
+}
+.kc-tile-destacado:hover { transform: translateY(-3px); }
+.kc-tile-destacado-img {
+    width: 108px; height: 108px; border-radius: 50%; overflow: hidden;
+    background: var(--surface-2); box-shadow: var(--shadow-sm);
+    border: 1px solid var(--line-soft);
+}
+.kc-tile-destacado-img img { width: 100%; height: 100%; object-fit: cover; }
+.kc-tile-destacado-label { font-size: 0.82rem; font-weight: 700; color: var(--ink); line-height: 1.25; }
 
 /* ═══════════════════════════ LAYOUT ═══════════════════════════ */
 .kc-layout { display: grid; grid-template-columns: 246px 1fr; gap: 1.75rem; align-items: start; }

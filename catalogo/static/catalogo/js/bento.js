@@ -67,11 +67,23 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     /* ---------------- Topbar que se achica al hacer scroll ---------------- */
+    /* Publica la altura REAL del topbar como variable CSS (--topbar-h) en vez
+       de que el CSS adivine un valor fijo — el topbar cambia de alto al
+       "achicarse" (.shrink), así que un valor fijo queda mal en algún punto
+       del scroll. La usa el sub-nav sticky de "La tienda" (ver .inst-subnav
+       en bento.css). Mismo problema (y misma solución) que ya se encontró en
+       la plantilla "almacen" con su sub-nav sticky. */
     var topbar = document.getElementById('kcTopbar');
     if (topbar) {
+        var actualizarAlturaTopbar = function () {
+            document.documentElement.style.setProperty('--topbar-h', topbar.offsetHeight + 'px');
+        };
         window.addEventListener('scroll', function () {
             topbar.classList.toggle('shrink', window.scrollY > 10);
+            actualizarAlturaTopbar();
         });
+        window.addEventListener('resize', actualizarAlturaTopbar);
+        actualizarAlturaTopbar();
     }
 
     /* ---------------- Buscador mobile (icono que expande el form) ---------------- */
@@ -123,4 +135,140 @@ document.addEventListener('DOMContentLoaded', function () {
     if (btnCerrarLightbox) btnCerrarLightbox.addEventListener('click', cerrarLightbox);
     if (lightbox) lightbox.addEventListener('click', function (e) { if (e.target === lightbox) cerrarLightbox(); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') cerrarLightbox(); });
+
+    /* ---------------- Desplegable de sugerencias en vivo del buscador ---------------- */
+    /* Mismo comportamiento que initBuscadorSugerencias en catalogo.js (plantilla
+       "almacen"): a medida que se escribe pide sugerencias al servidor (debounce
+       250ms) y las muestra abajo del input. Clickear cualquier sugerencia (o
+       apretar Enter, que sigue andando solo porque no se toca el submit nativo
+       del form) lleva siempre a la misma pantalla de resultados — las
+       sugerencias son una vista previa, no un atajo a la ficha del producto. */
+    (function () {
+        var form = document.getElementById('kcSearchForm');
+        var input = form ? form.querySelector('.search-input') : null;
+        var dropdown = document.getElementById('kcSearchDropdown');
+        if (!form || !input || !dropdown || !window.KC_URLS || !window.KC_URLS.buscarSugerencias) return;
+
+        var timer = null;
+
+        function urlResultados() {
+            var base = form.action.split('#')[0].split('?')[0];
+            return base + '?q=' + encodeURIComponent(input.value.trim()) + '#kcCatalogo';
+        }
+
+        function ocultar() {
+            dropdown.classList.remove('search-dropdown--abierto');
+            dropdown.innerHTML = '';
+        }
+
+        function escapeHtml(s) {
+            var div = document.createElement('div');
+            div.textContent = s;
+            return div.innerHTML;
+        }
+
+        function render(resultados) {
+            if (!resultados.length) { ocultar(); return; }
+            var destino = urlResultados();
+            var html = resultados.map(function (r) {
+                return '<a class="search-dropdown-item" href="' + destino + '">' +
+                    '<span class="search-dropdown-img">' + (r.imagen ? '<img src="' + r.imagen + '" alt="">' : '') + '</span>' +
+                    '<span class="search-dropdown-info">' +
+                        '<span class="search-dropdown-nombre">' + escapeHtml(r.nombre) + '</span>' +
+                        '<span class="search-dropdown-precio">' + escapeHtml(r.precio) + '</span>' +
+                    '</span>' +
+                '</a>';
+            }).join('');
+            html += '<a class="search-dropdown-vertodos" href="' + destino + '">Ver todos los resultados →</a>';
+            dropdown.innerHTML = html;
+            dropdown.classList.add('search-dropdown--abierto');
+        }
+
+        input.addEventListener('input', function () {
+            clearTimeout(timer);
+            var q = input.value.trim();
+            if (q.length < 2) { ocultar(); return; }
+            timer = setTimeout(function () {
+                fetch(window.KC_URLS.buscarSugerencias + '?q=' + encodeURIComponent(q))
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) { render(data.resultados || []); })
+                    .catch(function () { ocultar(); });
+            }, 250);
+        });
+
+        document.addEventListener('click', function (e) {
+            if (!form.contains(e.target)) ocultar();
+        });
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') ocultar();
+        });
+    })();
+
+    /* ---------------- Filtro Categoría/Tipo del drawer — cascada ---------------- */
+    /* Elegir categorías/tipos no aplica al toque: se tildan checkboxes y recién
+       se filtra al apretar "Aplicar filtros". "Tipo" arranca oculto (u oculto
+       por completo si ningún tipo pertenece a las categorías tildadas) y solo
+       muestra los tipos de las categorías tildadas — mismo patrón que el
+       filtro de "almacen" (ver catalogo.js). */
+    (function () {
+        var form = document.getElementById('formFiltrosBento');
+        if (!form) return;
+        var categoriaBoxes = Array.prototype.slice.call(form.querySelectorAll('input[name="categoria"]'));
+        var grupoTipo = document.getElementById('kcGrupoTipo');
+        var tipoLabels = grupoTipo ? Array.prototype.slice.call(grupoTipo.querySelectorAll('.d-check')) : [];
+
+        function categoriasElegidas() {
+            return categoriaBoxes.filter(function (c) { return c.checked; }).map(function (c) { return c.value; });
+        }
+
+        function actualizarTipos() {
+            if (!grupoTipo) return;
+            var elegidas = categoriasElegidas();
+            grupoTipo.hidden = elegidas.length === 0;
+            tipoLabels.forEach(function (label) {
+                var coincide = elegidas.indexOf(label.dataset.categoria) !== -1;
+                label.hidden = !coincide;
+                if (!coincide) {
+                    var box = label.querySelector('input[type="checkbox"]');
+                    if (box) box.checked = false;
+                }
+            });
+        }
+
+        categoriaBoxes.forEach(function (c) { c.addEventListener('change', actualizarTipos); });
+    })();
+
+    /* ---------------- Sub-nav ancorado de "La tienda" ---------------- */
+    /* Scroll suave al click + resalta la sección visible mientras se scrollea.
+       No hace nada si la página no tiene esta barra (solo institucional.html
+       la tiene). Mismo mecanismo que la plantilla "almacen" (initInstSubnav en
+       catalogo.js), adaptado a .inst-subnav. */
+    (function () {
+        var subnav = document.querySelector('.inst-subnav');
+        if (!subnav) return;
+        var links = Array.prototype.slice.call(subnav.querySelectorAll('a'));
+        var secciones = links
+            .map(function (a) { return document.querySelector(a.getAttribute('href')); })
+            .filter(Boolean);
+
+        links.forEach(function (a) {
+            a.addEventListener('click', function (e) {
+                var destino = document.querySelector(a.getAttribute('href'));
+                if (!destino) return;
+                e.preventDefault();
+                destino.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+        });
+
+        if (!('IntersectionObserver' in window) || !secciones.length) return;
+        var observer = new IntersectionObserver(function (entries) {
+            entries.forEach(function (entry) {
+                if (!entry.isIntersecting) return;
+                links.forEach(function (a) {
+                    a.classList.toggle('inst-subnav-activo', a.getAttribute('href') === '#' + entry.target.id);
+                });
+            });
+        }, { rootMargin: '-45% 0px -50% 0px' });
+        secciones.forEach(function (sec) { observer.observe(sec); });
+    })();
 });

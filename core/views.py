@@ -11,7 +11,7 @@ from .services_estadisticas.ventas import resumen_ganancia
 
 from caja.models import CuentaCaja, TipoCaja, CUENTA_EFECTIVO_DEFAULT_NOMBRE, TurnoCaja
 from compras.models import LoteCompra
-from productos.models import EstadoProducto, Moneda, Producto
+from productos.models import CategoriaProducto, EstadoProducto, Moneda, Producto
 from asistencia.models import CanalNotificacion, PreferenciaAsistencia
 from asistencia.services.alertas import productos_por_vencer
 from catalogo.models import ConfiguracionCatalogo, PlantillaCatalogo
@@ -194,12 +194,20 @@ def catalogo_online(request):
         'plantillas_catalogo':    PlantillaCatalogo.choices,
         'puede_editar_catalogo':  chequear_permiso(request.user, 'editar_catalogo'),
         'productos_para_hero':    productos_para_hero,
+        'categorias_para_tiles':  CategoriaProducto.objects.filter(activo=True).order_by('orden', 'nombre'),
         'default_hero_subtitulo': ConfiguracionCatalogo.DEFAULT_HERO_SUBTITULO,
         'default_sobre_nosotros': ConfiguracionCatalogo.DEFAULT_SOBRE_NOSOTROS,
         'default_color_marca':    ConfiguracionCatalogo.DEFAULT_COLOR_MARCA,
         'default_color_marca_secundario': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO,
         'default_color_marca_bento': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_BENTO,
         'default_color_marca_secundario_bento': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_BENTO,
+        # Fondo — exclusivo de Bento, no cambia de valor según la plantilla
+        # activa (a diferencia de color_marca_actual/etc. arriba), así que
+        # va directo sin pasar por el mecanismo de resolución por plantilla.
+        'default_color_fondo_bento': ConfiguracionCatalogo.DEFAULT_COLOR_FONDO_BENTO,
+        'default_color_fondo_bento_oscuro': ConfiguracionCatalogo.DEFAULT_COLOR_FONDO_BENTO_OSCURO,
+        'color_fondo_bento_actual': config_catalogo.color_fondo_bento,
+        'color_fondo_bento_oscuro_actual': config_catalogo.color_fondo_bento_oscuro,
         'default_color_marca_kinetic': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_KINETIC,
         'default_color_marca_secundario_kinetic': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_KINETIC,
         'default_color_marca_lumina': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_LUMINA,

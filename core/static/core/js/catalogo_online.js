@@ -75,6 +75,13 @@ document.addEventListener('DOMContentLoaded', function () {
     const plantillaInicial = document.getElementById('idCatalogoPlantilla')?.value || 'almacen';
     let colorMarcaTocado = (coloresPorPlantilla[plantillaInicial] || {}).marcaTocada || false;
     let colorMarcaSecundarioTocado = (coloresPorPlantilla[plantillaInicial] || {}).secundarioTocada || false;
+    // Fondo de Bento — a diferencia de marca/secundario, estos 2 inputs
+    // NO se comparten/relabelean entre plantillas (están ocultos para las
+    // otras 3 con data-plantilla-oculta), así que su valor en el DOM
+    // siempre representa a Bento — no hace falta el vaivén de
+    // guardar/cargar al cambiar de tab, solo el tracking de "tocado".
+    let colorFondoTocado = !!(coloresGuardados.bento && coloresGuardados.bento.fondo);
+    let colorFondoOscuroTocado = !!(coloresGuardados.bento && coloresGuardados.bento.fondoOscuro);
 
     // ── Escalado de iframes de vista previa (mismo truco "device preview" para
     //    el preview grande y las mini-cards de plantilla — una sola implementación) ──
@@ -221,6 +228,22 @@ document.addEventListener('DOMContentLoaded', function () {
             // var(--l-secondary)) en lumina.css.
             doc.documentElement.style.setProperty('--l-primary', color);
             doc.documentElement.style.setProperty('--l-secondary', colorSecundario);
+
+            // Fondo de Bento — 2 valores (claro/oscuro) que un solo setProperty
+            // no puede expresar (el oscuro solo vale bajo html[data-theme="dark"]),
+            // así que se inyecta un <style> chiquito en el <head> del iframe —
+            // mismo mecanismo que ya usa bento/base.html en la página real.
+            const colorFondo = document.getElementById('idCatalogoColorFondo')?.value || defaults.colorFondoBento || '#faf9f6';
+            const colorFondoOscuro = document.getElementById('idCatalogoColorFondoOscuro')?.value || defaults.colorFondoOscuroBento || '#121320';
+            let estiloFondoPreview = doc.getElementById('kcPreviewColorFondo');
+            if (!estiloFondoPreview && doc.head) {
+                estiloFondoPreview = doc.createElement('style');
+                estiloFondoPreview.id = 'kcPreviewColorFondo';
+                doc.head.appendChild(estiloFondoPreview);
+            }
+            if (estiloFondoPreview) {
+                estiloFondoPreview.textContent = `:root{--paper:${colorFondo};} html[data-theme="dark"]{--paper:${colorFondoOscuro};}`;
+            }
         }
     }
 
@@ -234,7 +257,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     [
         'idCatalogoHeroTitulo', 'idCatalogoHeroSubtitulo', 'idCatalogoSobreNosotros', 'idCatalogoContactoTexto',
-        'idCatalogoColorMarca', 'idCatalogoColorMarcaSecundario', 'idCatalogoNavCatalogo', 'idCatalogoNavOfertas', 'idCatalogoNavCombos', 'idCatalogoNavTienda',
+        'idCatalogoColorMarca', 'idCatalogoColorMarcaSecundario', 'idCatalogoColorFondo', 'idCatalogoColorFondoOscuro', 'idCatalogoNavCatalogo', 'idCatalogoNavOfertas', 'idCatalogoNavCombos', 'idCatalogoNavTienda',
         'idCatalogoInstTitulo', 'idCatalogoInstBajada',
         'idCatalogoDestacado1Titulo', 'idCatalogoDestacado1Texto',
         'idCatalogoDestacado2Titulo', 'idCatalogoDestacado2Texto',
@@ -246,6 +269,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     document.getElementById('idCatalogoColorMarca')?.addEventListener('input', function () { colorMarcaTocado = true; });
     document.getElementById('idCatalogoColorMarcaSecundario')?.addEventListener('input', function () { colorMarcaSecundarioTocado = true; });
+    document.getElementById('idCatalogoColorFondo')?.addEventListener('input', function () { colorFondoTocado = true; });
+    document.getElementById('idCatalogoColorFondoOscuro')?.addEventListener('input', function () { colorFondoOscuroTocado = true; });
 
     document.getElementById('btnResetColorMarca')?.addEventListener('click', function () {
         document.getElementById('idCatalogoColorMarca').value = colorDefaultActual('marca');
@@ -258,6 +283,18 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('idCatalogoColorMarcaSecundario').value = colorDefaultActual('secundario');
         colorMarcaSecundarioTocado = false;
         guardarColoresVisiblesEn(inputPlantilla.value);
+        aplicarValoresAlPreview();
+    });
+
+    document.getElementById('btnResetColorFondo')?.addEventListener('click', function () {
+        document.getElementById('idCatalogoColorFondo').value = defaults.colorFondoBento || '#faf9f6';
+        colorFondoTocado = false;
+        aplicarValoresAlPreview();
+    });
+
+    document.getElementById('btnResetColorFondoOscuro')?.addEventListener('click', function () {
+        document.getElementById('idCatalogoColorFondoOscuro').value = defaults.colorFondoOscuroBento || '#121320';
+        colorFondoOscuroTocado = false;
         aplicarValoresAlPreview();
     });
 
@@ -406,6 +443,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 hero_titulo:        document.getElementById('idCatalogoHeroTitulo').value,
                 hero_subtitulo:     document.getElementById('idCatalogoHeroSubtitulo').value,
                 hero_producto:      document.getElementById('idCatalogoHeroProducto')?.value || '',
+                hero_imagen_sin_fondo: document.getElementById('idCatalogoHeroSinFondo')?.checked || false,
+                tiles_destacados_titulo: document.getElementById('idCatalogoTilesTitulo')?.value || '',
+                hero_spot2_producto: document.getElementById('idCatalogoHeroSpot2Producto')?.value || '',
                 sobre_nosotros:     document.getElementById('idCatalogoSobreNosotros').value,
                 contacto_texto:     document.getElementById('idCatalogoContactoTexto').value,
                 color_marca:        valorColorGuardado('almacen', 'marca'),
@@ -414,6 +454,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 color_marca_secundario_bento: valorColorGuardado('bento', 'secundario'),
                 color_marca_lumina:     valorColorGuardado('lumina', 'marca'),
                 color_marca_secundario_lumina: valorColorGuardado('lumina', 'secundario'),
+                color_fondo_bento:        colorFondoTocado ? document.getElementById('idCatalogoColorFondo').value : '',
+                color_fondo_bento_oscuro: colorFondoOscuroTocado ? document.getElementById('idCatalogoColorFondoOscuro').value : '',
                 nav_catalogo_label: document.getElementById('idCatalogoNavCatalogo').value,
                 nav_ofertas_label:  document.getElementById('idCatalogoNavOfertas').value,
                 nav_combos_label:   document.getElementById('idCatalogoNavCombos').value,
@@ -492,6 +534,49 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
     });
+
+    // Tarjetas del hero de Bento — mismo patrón que el hero de Almacén de
+    // arriba (subir/eliminar por AJAX, actualiza solo la miniatura del
+    // panel), pero sin intentar inyectar nada en el iframe de preview: el
+    // producto destacado tampoco se refleja ahí en vivo (solo tras
+    // guardar), así que estas 2 imágenes siguen el mismo criterio.
+    function initSubidaImagenSpot(inputId, btnEliminarId, boxId, url) {
+        document.getElementById(inputId)?.addEventListener('change', function () {
+            if (!this.files[0]) return;
+            const fd = new FormData();
+            fd.append('imagen', this.files[0]);
+            fetch(url, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrf() },
+                body: fd,
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.ok) {
+                    document.getElementById(boxId).innerHTML = `<img src="${data.imagen_url}" alt="">`;
+                    const btn = document.getElementById(btnEliminarId);
+                    if (btn) btn.style.display = 'inline-block';
+                }
+            });
+        });
+
+        document.getElementById(btnEliminarId)?.addEventListener('click', function () {
+            fetch(url, {
+                method: 'DELETE',
+                headers: { 'X-CSRFToken': csrf() },
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.ok) {
+                    document.getElementById(boxId).innerHTML =
+                        '<span style="font-size:0.7rem; color:var(--text-muted);">Sin imagen</span>';
+                    this.style.display = 'none';
+                }
+            });
+        });
+    }
+    initSubidaImagenSpot('inputCatalogoHeroSpot1', 'btnEliminarCatalogoHeroSpot1', 'catalogoHeroSpot1PreviewBox', urls.heroSpot1Imagen);
+    initSubidaImagenSpot('inputCatalogoHeroSpot2', 'btnEliminarCatalogoHeroSpot2', 'catalogoHeroSpot2PreviewBox', urls.heroSpot2Imagen);
 
     document.getElementById('btnEliminarCatalogoHero')?.addEventListener('click', function () {
         fetch(urls.heroImagen, {
@@ -799,6 +884,288 @@ document.addEventListener('DOMContentLoaded', function () {
                 fetch(urlsSlide.imagen, {
                     method: 'POST',
                     headers: { 'X-CSRFToken': csrfSlide() },
+                    body: fd,
+                })
+                .then(r => r.json())
+                .then(function (dataImg) {
+                    if (dataImg.error) {
+                        msg.style.color = '#e11d48';
+                        msg.textContent = dataImg.error;
+                        return;
+                    }
+                    recargarPreservandoTab();
+                });
+            });
+        });
+    }
+
+    // ── Banners promocionales (opcional, hasta 2) ──
+    const formBanner = document.getElementById('formBanner');
+    if (formBanner) {
+        const csrfBanner = () => formBanner.querySelector('[name=csrfmiddlewaretoken]').value;
+        const urlsBanner = window.CONFIG_BANNERS_URLS || {};
+        const modalBannerEl = document.getElementById('bannerModal');
+        const modalBanner = window.bootstrap ? new bootstrap.Modal(modalBannerEl) : null;
+        const colorFondoDefault = document.getElementById('bannerColorFondo').value;
+        let bannerImagenFile = null;
+        let bannerTieneImagenGuardada = false;
+
+        function limpiarFormBanner() {
+            document.getElementById('bannerPk').value = '';
+            document.getElementById('bannerPosicion').value = 'debajo_hero';
+            document.getElementById('bannerTitulo').value = '';
+            document.getElementById('bannerTexto').value = '';
+            document.getElementById('bannerColorFondo').value = colorFondoDefault;
+            document.getElementById('bannerCtaTexto').value = '';
+            document.getElementById('bannerCtaUrl').value = '';
+            document.getElementById('bannerImagenPreviewBox').innerHTML =
+                '<span style="font-size:0.6rem; color:var(--text-muted);">Sin imagen</span>';
+            document.getElementById('btnQuitarBannerImagen').style.display = 'none';
+            document.getElementById('bannerMsg').textContent = '';
+            bannerImagenFile = null;
+            bannerTieneImagenGuardada = false;
+        }
+
+        document.getElementById('btnNuevoBanner')?.addEventListener('click', function () {
+            limpiarFormBanner();
+            document.getElementById('bannerModalLabel').textContent = 'Nuevo banner';
+        });
+
+        document.querySelectorAll('.btn-editar-banner').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const row = btn.closest('.banner-row');
+                limpiarFormBanner();
+                document.getElementById('bannerModalLabel').textContent = 'Editar banner';
+                document.getElementById('bannerPk').value = row.dataset.pk;
+                document.getElementById('bannerPosicion').value = row.dataset.posicion;
+                document.getElementById('bannerTitulo').value = row.dataset.titulo;
+                document.getElementById('bannerTexto').value = row.dataset.texto;
+                document.getElementById('bannerColorFondo').value = row.dataset.colorFondo || colorFondoDefault;
+                document.getElementById('bannerCtaTexto').value = row.dataset.ctaTexto;
+                document.getElementById('bannerCtaUrl').value = row.dataset.ctaUrl;
+                const imgActual = row.querySelector('.config-logo-box img');
+                if (imgActual) {
+                    document.getElementById('bannerImagenPreviewBox').innerHTML = `<img src="${imgActual.src}" alt="">`;
+                    document.getElementById('btnQuitarBannerImagen').style.display = 'inline-block';
+                    bannerTieneImagenGuardada = true;
+                }
+                if (modalBanner) modalBanner.show();
+            });
+        });
+
+        document.getElementById('inputBannerImagen').addEventListener('change', function () {
+            if (!this.files[0]) return;
+            bannerImagenFile = this.files[0];
+            document.getElementById('bannerImagenPreviewBox').innerHTML =
+                `<img src="${URL.createObjectURL(bannerImagenFile)}" alt="">`;
+            document.getElementById('btnQuitarBannerImagen').style.display = 'inline-block';
+        });
+
+        document.getElementById('btnQuitarBannerImagen').addEventListener('click', function () {
+            const pk = document.getElementById('bannerPk').value;
+            function quitarLocal() {
+                bannerImagenFile = null;
+                bannerTieneImagenGuardada = false;
+                document.getElementById('bannerImagenPreviewBox').innerHTML =
+                    '<span style="font-size:0.6rem; color:var(--text-muted);">Sin imagen</span>';
+                document.getElementById('btnQuitarBannerImagen').style.display = 'none';
+            }
+            if (!bannerTieneImagenGuardada || !pk) { quitarLocal(); return; }
+            fetch(urlsBanner.imagen, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfBanner() },
+                body: JSON.stringify({ pk: pk }),
+            })
+            .then(r => r.json())
+            .then(function (data) {
+                if (data.error) { KaiToast.show(data.error, 'danger'); return; }
+                quitarLocal();
+            });
+        });
+
+        document.getElementById('btnResetBannerColor')?.addEventListener('click', function () {
+            document.getElementById('bannerColorFondo').value = colorFondoDefault;
+        });
+
+        document.querySelectorAll('.btn-eliminar-banner').forEach(function (btn) {
+            btn.addEventListener('click', async function () {
+                const row = btn.closest('.banner-row');
+                const ok = await KaiConfirm(`¿Seguro que querés eliminar el banner "${row.dataset.titulo}"?`);
+                if (!ok) return;
+                fetch(urlsBanner.eliminar, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfBanner() },
+                    body: JSON.stringify({ pk: row.dataset.pk }),
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) { KaiToast.show(data.error, 'danger'); return; }
+                    recargarPreservandoTab();
+                });
+            });
+        });
+
+        formBanner.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const msg = document.getElementById('bannerMsg');
+            const pk = document.getElementById('bannerPk').value || null;
+            fetch(urlsBanner.guardar, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfBanner() },
+                body: JSON.stringify({
+                    pk: pk,
+                    posicion: document.getElementById('bannerPosicion').value,
+                    titulo: document.getElementById('bannerTitulo').value,
+                    texto: document.getElementById('bannerTexto').value,
+                    color_fondo: document.getElementById('bannerColorFondo').value,
+                    cta_texto: document.getElementById('bannerCtaTexto').value,
+                    cta_url: document.getElementById('bannerCtaUrl').value,
+                }),
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    msg.style.color = '#e11d48';
+                    msg.textContent = data.error;
+                    return;
+                }
+                if (!bannerImagenFile) {
+                    recargarPreservandoTab();
+                    return;
+                }
+                const fd = new FormData();
+                fd.append('pk', data.pk);
+                fd.append('imagen', bannerImagenFile);
+                fetch(urlsBanner.imagen, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrfBanner() },
+                    body: fd,
+                })
+                .then(r => r.json())
+                .then(function (dataImg) {
+                    if (dataImg.error) {
+                        msg.style.color = '#e11d48';
+                        msg.textContent = dataImg.error;
+                        return;
+                    }
+                    recargarPreservandoTab();
+                });
+            });
+        });
+    }
+
+    // ── Categorías/marcas destacadas (opcional, hasta 16) ──
+    const formTile = document.getElementById('formTile');
+    if (formTile) {
+        const csrfTile = () => formTile.querySelector('[name=csrfmiddlewaretoken]').value;
+        const urlsTile = window.CONFIG_TILES_URLS || {};
+        const modalTileEl = document.getElementById('tileModal');
+        const modalTile = window.bootstrap ? new bootstrap.Modal(modalTileEl) : null;
+        let tileImagenFile = null;
+
+        function mostrarFilaTipo() {
+            const esCategoria = document.getElementById('tileTipo').value === 'categoria';
+            document.getElementById('tileFilaCategoria').style.display = esCategoria ? '' : 'none';
+            document.getElementById('tileFilaMarca').style.display = esCategoria ? 'none' : '';
+        }
+
+        function limpiarFormTile() {
+            document.getElementById('tilePk').value = '';
+            document.getElementById('tileTipo').value = 'categoria';
+            document.getElementById('tileCategoria').value = '';
+            document.getElementById('tileMarca').value = '';
+            document.getElementById('tileEtiqueta').value = '';
+            document.getElementById('tileImagenPreviewBox').innerHTML =
+                '<span style="font-size:0.6rem; color:var(--text-muted);">Sin imagen</span>';
+            document.getElementById('tileMsg').textContent = '';
+            tileImagenFile = null;
+            mostrarFilaTipo();
+        }
+
+        document.getElementById('tileTipo').addEventListener('change', mostrarFilaTipo);
+
+        document.getElementById('btnNuevoTile')?.addEventListener('click', function () {
+            limpiarFormTile();
+            document.getElementById('tileModalLabel').textContent = 'Nueva categoría/marca destacada';
+        });
+
+        document.querySelectorAll('.btn-editar-tile').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const row = btn.closest('.tile-row');
+                limpiarFormTile();
+                document.getElementById('tileModalLabel').textContent = 'Editar categoría/marca destacada';
+                document.getElementById('tilePk').value = row.dataset.pk;
+                document.getElementById('tileTipo').value = row.dataset.tipo;
+                document.getElementById('tileCategoria').value = row.dataset.categoria;
+                document.getElementById('tileMarca').value = row.dataset.marca;
+                document.getElementById('tileEtiqueta').value = row.dataset.etiqueta;
+                mostrarFilaTipo();
+                const imgActual = row.querySelector('.config-logo-box img');
+                if (imgActual) {
+                    document.getElementById('tileImagenPreviewBox').innerHTML = `<img src="${imgActual.src}" alt="">`;
+                }
+                if (modalTile) modalTile.show();
+            });
+        });
+
+        document.getElementById('inputTileImagen').addEventListener('change', function () {
+            if (!this.files[0]) return;
+            tileImagenFile = this.files[0];
+            document.getElementById('tileImagenPreviewBox').innerHTML =
+                `<img src="${URL.createObjectURL(tileImagenFile)}" alt="">`;
+        });
+
+        document.querySelectorAll('.btn-eliminar-tile').forEach(function (btn) {
+            btn.addEventListener('click', async function () {
+                const row = btn.closest('.tile-row');
+                const nombre = row.dataset.etiqueta || row.querySelector('.config-row-label').textContent;
+                const ok = await KaiConfirm(`¿Seguro que querés eliminar "${nombre}"?`);
+                if (!ok) return;
+                fetch(urlsTile.eliminar, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfTile() },
+                    body: JSON.stringify({ pk: row.dataset.pk }),
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) { KaiToast.show(data.error, 'danger'); return; }
+                    recargarPreservandoTab();
+                });
+            });
+        });
+
+        formTile.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const msg = document.getElementById('tileMsg');
+            const pk = document.getElementById('tilePk').value || null;
+            fetch(urlsTile.guardar, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfTile() },
+                body: JSON.stringify({
+                    pk: pk,
+                    tipo: document.getElementById('tileTipo').value,
+                    categoria: document.getElementById('tileCategoria').value,
+                    marca: document.getElementById('tileMarca').value,
+                    etiqueta: document.getElementById('tileEtiqueta').value,
+                }),
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    msg.style.color = '#e11d48';
+                    msg.textContent = data.error;
+                    return;
+                }
+                if (!tileImagenFile) {
+                    recargarPreservandoTab();
+                    return;
+                }
+                const fd = new FormData();
+                fd.append('pk', data.pk);
+                fd.append('imagen', tileImagenFile);
+                fetch(urlsTile.imagen, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrfTile() },
                     body: fd,
                 })
                 .then(r => r.json())

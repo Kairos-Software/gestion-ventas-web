@@ -15,41 +15,70 @@
     </div>
 </div>
 
-<div class="shell inst-historia">
-    <span class="rail-eyebrow">Nuestra historia</span>
-    <p id="kcHistoriaTexto">{{ config_catalogo.sobre_nosotros|default:default_sobre_nosotros }}</p>
+<nav class="inst-subnav" aria-label="Navegación de la página">
+    <a href="#kc-inst-historia">Nuestra historia</a>
+    <a href="#kc-inst-destacados">Por qué elegirnos</a>
+    <a href="#kc-inst-info">Horarios y ubicación</a>
+    <a href="#kc-inst-contacto">Contacto</a>
+</nav>
+
+<!-- Banda de "historia" a todo el ancho, color sólido — no es una tarjeta más
+     del mosaico: es el gesto de apertura, hace de contraste con la grilla
+     de abajo y con la banda de contacto al final (mismo recurso, 2 bandas
+     que "abrazan" el mosaico del medio). -->
+<div class="tm-historia" id="kc-inst-historia">
+    <div class="shell tm-historia-inner">
+        <svg class="tm-historia-quote" width="46" height="36" viewBox="0 0 46 36" fill="none"><path d="M0 36V21.6C0 8.4 7.2 1.2 19.2 0L21.6 6C13.2 7.8 9.6 12.6 9.6 19.2H19.2V36H0ZM26.4 36V21.6C26.4 8.4 33.6 1.2 45.6 0L48 6C39.6 7.8 36 12.6 36 19.2H45.6V36H26.4Z" fill="currentColor"/></svg>
+        <span class="rail-eyebrow">Nuestra historia</span>
+        <p id="kcHistoriaTexto">{{ config_catalogo.sobre_nosotros|default:default_sobre_nosotros }}</p>
+    </div>
 </div>
 
-<div class="shell inst-destacados">
-    <div class="inst-destacado-card">
-        <h3 id="kcDestacado1Titulo">{{ config_catalogo.destacado1_titulo|default:default_destacado1_titulo }}</h3>
-        <p id="kcDestacado1Texto">{{ config_catalogo.destacado1_texto|default:default_destacado1_texto }}</p>
-    </div>
-    <div class="inst-destacado-card">
-        <h3 id="kcDestacado2Titulo">{{ config_catalogo.destacado2_titulo|default:default_destacado2_titulo }}</h3>
-        <p id="kcDestacado2Texto">{{ config_catalogo.destacado2_texto|default:default_destacado2_texto }}</p>
-    </div>
-    <div class="inst-destacado-card">
-        <h3 id="kcDestacado3Titulo">{{ config_catalogo.destacado3_titulo|default:default_destacado3_titulo }}</h3>
-        <p id="kcDestacado3Texto">{{ config_catalogo.destacado3_texto|default:default_destacado3_texto }}</p>
-    </div>
-</div>
+<!-- Mosaico central: "por qué elegirnos" + cifras reales + galería, todo
+     tejido en una sola grilla de celdas de tamaño mixto (mismo lenguaje que
+     la grilla .bento/el rail de stories de la home) — reemplaza las 3
+     tarjetas iguales + la grilla de galería separada que tenía antes. -->
+<div class="shell" id="kc-inst-destacados">
+    <div class="tm-mosaico">
+        <div class="tm-tile tm-tile--grande tm-tile--num" data-num="01">
+            <span class="tm-num">01</span>
+            <h3 id="kcDestacado1Titulo">{{ config_catalogo.destacado1_titulo|default:default_destacado1_titulo }}</h3>
+            <p id="kcDestacado1Texto">{{ config_catalogo.destacado1_texto|default:default_destacado1_texto }}</p>
+        </div>
 
-{% if galeria %}
-<div class="shell inst-galeria">
-    <div class="rail-head"><div class="rail-title">Un vistazo por adentro</div></div>
-    <div class="inst-galeria-grid">
+        {% if total_catalogo or total_categorias %}
+        <div class="tm-tile tm-tile--ancha tm-tile--stats">
+            <div class="inst-stat"><span class="inst-stat-num">{{ total_catalogo }}</span><span class="inst-stat-label">producto{{ total_catalogo|pluralize }}</span></div>
+            <div class="inst-stat"><span class="inst-stat-num">{{ total_categorias }}</span><span class="inst-stat-label">categoría{{ total_categorias|pluralize }}</span></div>
+            {% if total_ofertas_activas %}
+            <div class="inst-stat"><span class="inst-stat-num">{{ total_ofertas_activas }}</span><span class="inst-stat-label">oferta{{ total_ofertas_activas|pluralize }} hoy</span></div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <div class="tm-tile tm-tile--num">
+            <span class="tm-num">02</span>
+            <h3 id="kcDestacado2Titulo">{{ config_catalogo.destacado2_titulo|default:default_destacado2_titulo }}</h3>
+            <p id="kcDestacado2Texto">{{ config_catalogo.destacado2_texto|default:default_destacado2_texto }}</p>
+        </div>
+        <div class="tm-tile tm-tile--num">
+            <span class="tm-num">03</span>
+            <h3 id="kcDestacado3Titulo">{{ config_catalogo.destacado3_titulo|default:default_destacado3_titulo }}</h3>
+            <p id="kcDestacado3Texto">{{ config_catalogo.destacado3_texto|default:default_destacado3_texto }}</p>
+        </div>
+
+        {% if galeria %}
         {% for foto in galeria %}
-        <a href="{{ foto.imagen.url }}" target="_blank" rel="noopener" class="inst-galeria-item {% if forloop.first %}inst-galeria-item--grande{% endif %}">
+        <a href="{{ foto.imagen.url }}" target="_blank" rel="noopener" class="tm-tile tm-tile--foto {% if forloop.first %}tm-tile--grande{% endif %}">
             <img src="{{ foto.imagen.url }}" alt="{{ foto.titulo }}" loading="lazy">
-            {% if foto.titulo %}<span class="inst-galeria-caption">{{ foto.titulo }}</span>{% endif %}
+            {% if foto.titulo %}<span class="tm-foto-caption">{{ foto.titulo }}</span>{% endif %}
         </a>
         {% endfor %}
+        {% endif %}
     </div>
 </div>
-{% endif %}
 
-<div class="shell inst-info">
+<div class="shell inst-info" id="kc-inst-info">
     <div class="inst-info-card">
         <h3><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>Horarios</h3>
         {% if config_catalogo.horarios_texto %}
@@ -62,6 +91,9 @@
         <h3><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 21S5 14.5 5 9.5A7 7 0 0119 9.5C19 14.5 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5"/></svg>Ubicación</h3>
         {% if empresa.domicilio %}
             <p>{{ empresa.domicilio }}</p>
+            <div class="inst-mapa-wrap">
+                <iframe src="https://www.google.com/maps?q={{ empresa.domicilio|urlencode }}&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Ubicación de {{ empresa.nombre_comercial }}"></iframe>
+            </div>
             {% if maps_url %}<a href="{{ maps_url }}" target="_blank" rel="noopener" class="rail-link">Cómo llegar →</a>{% endif %}
         {% else %}
             <p class="inst-info-vacio">Todavía no cargamos la dirección.</p>
@@ -69,7 +101,7 @@
     </div>
 </div>
 
-<div class="shell inst-contacto">
+<div class="shell inst-contacto" id="kc-inst-contacto">
     <div class="inst-contacto-card">
         <div class="inst-contacto-texto">
             <h2>Hablemos</h2>

@@ -2,6 +2,13 @@
 
 {% block content %}
 
+{% if q %}
+<div class="shell search-results-head">
+  <span class="src-eyebrow">Resultados de búsqueda</span>
+  <h1>"{{ q }}"</h1>
+  <p>{{ total_productos }} resultado{{ total_productos|pluralize }} · <a href="{% url 'catalogo:home' %}">Volver al catálogo completo →</a></p>
+</div>
+{% else %}
 <div class="shell hero-row">
   <div class="hero-main-col">
     {% if slides %}
@@ -46,32 +53,31 @@
     {% endif %}
   </div>
   <div class="hero-side">
-    <div class="side-card">
-      <div class="side-stat-n">+{{ total_catalogo }}</div>
-      <div class="side-stat-l">productos disponibles</div>
+    {% if hero_spot1_tipo == 'imagen' %}
+    <div class="side-spot side-spot--imagen">
+      <img src="{{ hero_spot1_imagen_url }}" alt="">
     </div>
-    {% comment %}
-    Una elección manual en Configuración → Apariencia → "Producto destacado
-    en el hero" tiene que ganarle SIEMPRE al combo destacado automático —
-    si no, la elección manual queda invisible en cuanto exista cualquier
-    combo marcado destacado, que es el caso común.
-    {% endcomment %}
-    {% if paquetes_destacados.0 and not config_catalogo.hero_producto_id %}
-    <a href="{% url 'catalogo:producto_detalle' paquetes_destacados.0.pk %}" class="side-card side-combo">
-      {% with portada=paquetes_destacados.0.imagenes.first %}{% if portada %}<div class="side-combo-img"><img src="{{ portada.imagen.url }}" alt=""></div>{% endif %}{% endwith %}
-      <div class="side-combo-body">
-      <span class="tag">Combo destacado</span>
-      <h3>{{ paquetes_destacados.0.nombre }}</h3>
-      {% if paquetes_destacados.0.precio_venta %}<div class="price">${{ paquetes_destacados.0.precio_venta }}</div>{% else %}<div class="price">A consultar</div>{% endif %}
+    {% elif hero_spot_1 %}
+    <a href="{% url 'catalogo:producto_detalle' hero_spot_1.pk %}" class="side-spot">
+      {% with portada=hero_spot_1.imagenes.first %}{% if portada %}<img src="{{ portada.imagen.url }}" alt="">{% endif %}{% endwith %}
+      <div class="side-spot-overlay">
+        {% if hero_spot_1_es_combo %}<span class="tag">Combo destacado</span>{% else %}<span class="tag">{% if hero_spot_1.categoria %}{{ hero_spot_1.categoria.nombre }}{% else %}Destacado{% endif %}</span>{% endif %}
+        <h3>{{ hero_spot_1.nombre }}</h3>
+        {% if hero_spot_1.oferta_info.precio_final %}<div class="price">${{ hero_spot_1.oferta_info.precio_final }}</div>{% elif hero_spot_1.precio_venta %}<div class="price">${{ hero_spot_1.precio_venta }}</div>{% else %}<div class="price">A consultar</div>{% endif %}
       </div>
     </a>
-    {% elif hero_producto %}
-    <a href="{% url 'catalogo:producto_detalle' hero_producto.pk %}" class="side-card side-combo">
-      {% with portada=hero_producto.imagenes.first %}{% if portada %}<div class="side-combo-img"><img src="{{ portada.imagen.url }}" alt=""></div>{% endif %}{% endwith %}
-      <div class="side-combo-body">
-      <span class="tag">{% if hero_producto.categoria %}{{ hero_producto.categoria.nombre }}{% else %}Destacado{% endif %}</span>
-      <h3>{{ hero_producto.nombre }}</h3>
-      {% if hero_producto.oferta_info.precio_final %}<div class="price">${{ hero_producto.oferta_info.precio_final }}</div>{% elif hero_producto.precio_venta %}<div class="price">${{ hero_producto.precio_venta }}</div>{% else %}<div class="price">A consultar</div>{% endif %}
+    {% endif %}
+    {% if hero_spot2_tipo == 'imagen' %}
+    <div class="side-spot side-spot--imagen">
+      <img src="{{ hero_spot2_imagen_url }}" alt="">
+    </div>
+    {% elif hero_spot_2 %}
+    <a href="{% url 'catalogo:producto_detalle' hero_spot_2.pk %}" class="side-spot">
+      {% with portada=hero_spot_2.imagenes.first %}{% if portada %}<img src="{{ portada.imagen.url }}" alt="">{% endif %}{% endwith %}
+      <div class="side-spot-overlay">
+        {% if hero_spot_2_es_combo %}<span class="tag">Combo destacado</span>{% else %}<span class="tag">{% if hero_spot_2.categoria %}{{ hero_spot_2.categoria.nombre }}{% else %}Destacado{% endif %}</span>{% endif %}
+        <h3>{{ hero_spot_2.nombre }}</h3>
+        {% if hero_spot_2.oferta_info.precio_final %}<div class="price">${{ hero_spot_2.oferta_info.precio_final }}</div>{% elif hero_spot_2.precio_venta %}<div class="price">${{ hero_spot_2.precio_venta }}</div>{% else %}<div class="price">A consultar</div>{% endif %}
       </div>
     </a>
     {% endif %}
@@ -107,6 +113,7 @@
     {% endfor %}
   </div>
 </div>
+{% endif %}
 
 <div class="subbar">
   <div class="shell subbar-inner">
@@ -151,7 +158,7 @@
   {% if mostrar_vidriera and ofertas_destacadas %}
   <div class="flash" id="kcFlash">
     <div class="rail-head">
-      <div><span class="rail-eyebrow">Por tiempo limitado</span><div class="rail-title">⚡ Ofertas de la semana</div></div>
+      <div><span class="rail-eyebrow">Por tiempo limitado</span><div class="rail-title rail-title--ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L4.5 14h6l-1.5 8L19 10h-6l1.5-8z"/></svg>Ofertas de la semana</div></div>
       <a href="?seccion=ofertas#kcCatalogo" class="rail-link">Ver todas →</a>
     </div>
     <div class="flash-row hide-scrollbar">

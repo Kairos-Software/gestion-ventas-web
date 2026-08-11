@@ -21,6 +21,27 @@ def _catalogo_kinetic_hero_fondo_path(instance, filename):
     return f'catalogo/kinetic-hero-fondo{ext}'
 
 
+def _catalogo_bento_hero_spot1_path(instance, filename):
+    import os
+    ext = os.path.splitext(filename)[1].lower()
+    return f'catalogo/bento-hero-spot1{ext}'
+
+
+def _catalogo_bento_hero_spot2_path(instance, filename):
+    import os
+    ext = os.path.splitext(filename)[1].lower()
+    return f'catalogo/bento-hero-spot2{ext}'
+
+
+def _catalogo_tile_path(instance, filename):
+    import os
+    ext = os.path.splitext(filename)[1].lower()
+    # Puede haber varios tiles a la vez, la ruta va por pk — requiere que
+    # la fila ya exista (se sube en un segundo paso, ver
+    # catalogo/views_config.py:CatalogoTileImagenAjax).
+    return f'catalogo/tiles/{instance.pk}{ext}'
+
+
 class PlantillaCatalogo(models.TextChoices):
     ALMACEN = 'almacen', 'Almacén'
     BENTO   = 'bento',   'Bento'
@@ -63,10 +84,39 @@ class ConfiguracionCatalogo(models.Model):
         verbose_name='Producto destacado en el hero',
         help_text='Vacío = se elige automáticamente (el destacado más reciente).',
     )
+    hero_imagen_sin_fondo = models.BooleanField(
+        'Hero sin tarjeta de fondo (Almacén)', default=False,
+        help_text='Si la foto del hero (subida arriba, o la del producto destacado) ya tiene el '
+                   'fondo transparente recortado, activá esto para que flote sin la tarjeta '
+                   'rectangular detrás.',
+    )
+    tiles_destacados_titulo = models.CharField(
+        'Título de la fila de categorías/marcas (Almacén)', max_length=100, blank=True,
+        help_text='Vacío = usa "Categorías y marcas".',
+    )
     kinetic_hero_fondo = models.ImageField(
         'Imagen de fondo del hero (Kinetic)', upload_to=_catalogo_kinetic_hero_fondo_path, blank=True, null=True,
         help_text='Opcional, exclusiva de "Kinetic" — si no se carga, el hero se ve sin fondo, '
                    'igual que ahora. Se muestra oscurecida y difuminada detrás del texto.',
+    )
+    # Las 2 tarjetas "spotlight" del hero de Bento (ver bento/home.html) —
+    # mismo criterio que BannerCatalogo.imagen: la presencia de la imagen
+    # decide el modo, sin un campo de "modo" aparte. Con imagen cargada,
+    # esa tarjeta muestra la foto tal cual (sin datos de producto); vacío,
+    # sigue mostrando el producto (spot1 reusa hero_producto de arriba,
+    # spot2 tiene su propio campo porque hero_producto ya está tomado).
+    hero_spot1_imagen = models.ImageField(
+        'Imagen — tarjeta 1 del hero (Bento)', upload_to=_catalogo_bento_hero_spot1_path, blank=True, null=True,
+        help_text='Opcional — con imagen cargada, reemplaza al producto destacado de arriba en esta tarjeta.',
+    )
+    hero_spot2_producto = models.ForeignKey(
+        'productos.Producto', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+        verbose_name='Producto — tarjeta 2 del hero (Bento)',
+        help_text='Vacío = se elige automáticamente (combo destacado, o el siguiente producto destacado).',
+    )
+    hero_spot2_imagen = models.ImageField(
+        'Imagen — tarjeta 2 del hero (Bento)', upload_to=_catalogo_bento_hero_spot2_path, blank=True, null=True,
+        help_text='Opcional — con imagen cargada, reemplaza al producto de esta tarjeta.',
     )
     sobre_nosotros = models.TextField('Sobre nosotros', blank=True)
     contacto_texto = models.TextField(
@@ -101,6 +151,19 @@ class ConfiguracionCatalogo(models.Model):
     color_marca_secundario_lumina = models.CharField(
         'Color secundario (Lumina)', max_length=7, blank=True,
         help_text='Código hex. Vacío = color por defecto de Lumina.',
+    )
+    # Fondo predominante de Bento — exclusivo de esta plantilla (a diferencia
+    # de color_marca_bento/color_marca_secundario_bento, que son acentos,
+    # esto es el fondo de página en sí: crema en modo claro, azul oscuro en
+    # modo oscuro). Dos campos porque son 2 colores independientes, uno por
+    # modo — no uno derivado del otro.
+    color_fondo_bento = models.CharField(
+        'Color de fondo — modo claro (Bento)', max_length=7, blank=True,
+        help_text='Código hex. Vacío = color por defecto de Bento.',
+    )
+    color_fondo_bento_oscuro = models.CharField(
+        'Color de fondo — modo oscuro (Bento)', max_length=7, blank=True,
+        help_text='Código hex. Vacío = color por defecto de Bento.',
     )
     nav_catalogo_label = models.CharField('Texto del menú "Catálogo"', max_length=30, blank=True)
     nav_ofertas_label  = models.CharField('Texto del menú "Ofertas"', max_length=30, blank=True)
@@ -155,6 +218,10 @@ class ConfiguracionCatalogo(models.Model):
     # navy para almacén, verde lima/índigo para bento), no en la del otro.
     DEFAULT_COLOR_MARCA_BENTO = '#6fa525'
     DEFAULT_COLOR_MARCA_SECUNDARIO_BENTO = '#262b52'
+    # Mismos valores que ya estaban hardcodeados en bento.css (--paper en
+    # :root y en html[data-theme="dark"]) — quedar vacío cae en estos.
+    DEFAULT_COLOR_FONDO_BENTO = '#faf9f6'
+    DEFAULT_COLOR_FONDO_BENTO_OSCURO = '#121320'
     # "kinetic" no lee estos colores todavía (paleta fija en kinetic.css,
     # ver plantillas/kinetic/base.html) — quedan acá solo para el día que
     # se sume personalización de marca a esa plantilla, mismo criterio que
@@ -229,6 +296,49 @@ class SlideHeroCatalogo(models.Model):
         return self.titulo
 
 
+class TipoTileDestacado(models.TextChoices):
+    CATEGORIA = 'categoria', 'Categoría'
+    MARCA     = 'marca',     'Marca'
+
+
+class TileDestacadoCatalogo(models.Model):
+    """
+    Acceso directo con imagen a una categoría o marca — al hacer click,
+    filtra el catálogo automáticamente (mismo mecanismo de ?categoria=/
+    ?marca= que ya usan los filtros de la sidebar, ver catalogo/views.py).
+    Exclusivo de "almacen" por ahora. "marca" es texto libre porque en
+    Producto también lo es (no hay un modelo de marcas separado).
+    """
+    configuracion = models.ForeignKey(
+        ConfiguracionCatalogo, on_delete=models.CASCADE, related_name='tiles_destacados',
+    )
+    tipo = models.CharField(
+        'Tipo', max_length=10, choices=TipoTileDestacado.choices, default=TipoTileDestacado.CATEGORIA,
+    )
+    categoria = models.ForeignKey(
+        'productos.CategoriaProducto', on_delete=models.SET_NULL, null=True, blank=True,
+        verbose_name='Categoría', help_text='Usada si el tipo es "Categoría".',
+    )
+    marca = models.CharField(
+        'Marca', max_length=100, blank=True, help_text='Usada si el tipo es "Marca".',
+    )
+    etiqueta = models.CharField(
+        'Etiqueta (opcional)', max_length=60, blank=True,
+        help_text='Vacío = usa el nombre de la categoría o el valor de la marca tal cual.',
+    )
+    imagen = models.ImageField('Imagen', upload_to=_catalogo_tile_path, blank=True, null=True)
+    activo = models.BooleanField(default=True)
+    orden = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name        = 'Categoría/marca destacada (catálogo)'
+        verbose_name_plural  = 'Categorías/marcas destacadas (catálogo)'
+        ordering             = ['orden', 'id']
+
+    def __str__(self):
+        return self.etiqueta or (self.categoria.nombre if self.categoria_id else self.marca) or f'Tile #{self.pk}'
+
+
 def _catalogo_galeria_path(instance, filename):
     import os
     ext = os.path.splitext(filename)[1].lower()
@@ -258,6 +368,64 @@ class ImagenInstitucional(models.Model):
 
     def __str__(self):
         return self.titulo or f'Imagen #{self.pk}'
+
+
+def _catalogo_banner_path(instance, filename):
+    import os
+    ext = os.path.splitext(filename)[1].lower()
+    # Mismo motivo que _catalogo_slide_path: puede haber varios banners a la
+    # vez, la ruta va por pk — requiere que la fila ya exista (se sube en un
+    # segundo paso, ver catalogo/views_config.py:CatalogoBannerImagenAjax).
+    return f'catalogo/banners/{instance.pk}{ext}'
+
+
+class PosicionBanner(models.TextChoices):
+    DEBAJO_HERO       = 'debajo_hero',       'Debajo del hero (ancho completo)'
+    ANTES_GRILLA      = 'antes_grilla',      'Arriba de la grilla de productos'
+    ANTES_DESTACADOS  = 'antes_destacados',  'Antes de Destacados'
+    ANTES_COMBOS      = 'antes_combos',      'Antes de Combos armados'
+
+
+class BannerCatalogo(models.Model):
+    """
+    Banner promocional opcional — hasta MAX_BANNERS en total, repartidos
+    entre las posiciones disponibles (ver catalogo/views_config.py).
+    Exclusivo de "almacen" por ahora. Sin imagen se muestra como bloque de
+    color sólido con el texto; con imagen, la
+    imagen va de fondo con un degradé para que el texto se siga leyendo.
+    """
+    configuracion = models.ForeignKey(
+        ConfiguracionCatalogo, on_delete=models.CASCADE, related_name='banners',
+    )
+    posicion = models.CharField(
+        'Ubicación', max_length=20, choices=PosicionBanner.choices, default=PosicionBanner.DEBAJO_HERO,
+    )
+    imagen = models.ImageField('Imagen (opcional)', upload_to=_catalogo_banner_path, blank=True, null=True)
+    titulo = models.CharField('Título', max_length=100)
+    texto = models.CharField('Bajada (opcional)', max_length=200, blank=True)
+    color_fondo = models.CharField(
+        'Color de fondo', max_length=7, blank=True,
+        help_text='Código hex. Vacío = usa el color secundario de la marca. Solo se ve si el banner no tiene imagen.',
+    )
+    cta_texto = models.CharField('Texto del botón (opcional)', max_length=40, blank=True)
+    cta_url = models.CharField(
+        'Link del botón (opcional)', max_length=300, blank=True,
+        help_text='Sin texto Y link del botón cargados los dos, el banner no muestra botón.',
+    )
+    activo = models.BooleanField(default=True)
+    orden = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name        = 'Banner promocional (catálogo)'
+        verbose_name_plural  = 'Banners promocionales (catálogo)'
+        ordering             = ['orden', 'id']
+
+    def __str__(self):
+        return self.titulo
+
+    @property
+    def muestra_cta(self):
+        return bool(self.cta_texto and self.cta_url)
 
 
 class DatoDemo(models.Model):

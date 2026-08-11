@@ -48,6 +48,24 @@ function toggleFiltrosMobile(abrir) {
     document.body.style.overflow = abrir ? 'hidden' : '';
 }
 
+/* Flechas de las filas "vidriera" (Ofertas del momento / Destacados /
+   Combos armados / Categorías y marcas, ver catalogo/home.html) —
+   genérico, cablea todas las filas [data-carrusel] de la página sin
+   necesitar ids únicos por fila. */
+(function () {
+    document.querySelectorAll('[data-carrusel]').forEach(function (carrusel) {
+        var track = carrusel.querySelector('.kc-flash-row, .kc-feat-row, .kc-combo-row, .kc-tiles-row');
+        var btnPrev = carrusel.querySelector('[data-carrusel-prev]');
+        var btnNext = carrusel.querySelector('[data-carrusel-next]');
+        if (!track) return;
+        function mover(signo) {
+            track.scrollBy({ left: signo * track.clientWidth * 0.85, behavior: 'smooth' });
+        }
+        if (btnPrev) btnPrev.addEventListener('click', function () { mover(-1); });
+        if (btnNext) btnNext.addEventListener('click', function () { mover(1); });
+    });
+})();
+
 /* Header que se "achica" al scrollear, y se oculta al bajar / reaparece
    rápido al subir — puramente visual, no depende de ningún dato.
    También publica --kc-header-offset (0 cuando el header está oculto,

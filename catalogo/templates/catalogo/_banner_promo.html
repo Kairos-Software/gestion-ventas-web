@@ -1,0 +1,16 @@
+{% comment %}
+Banner promocional opcional — reusado en las 2 ubicaciones posibles (ver
+catalogo/views.py: banners_debajo_hero/banners_antes_grilla). Sin imagen se
+muestra como bloque de color sólido; con imagen, la foto va de fondo con un
+degradé para que el texto siga siendo legible. `tamano`="angosto" lo usa la
+ubicación "antes de la grilla" (adentro de .kc-contenido, con sidebar al lado).
+{% endcomment %}
+<div class="kc-banner-promo {% if not banner.imagen %}kc-banner-promo--solido{% endif %} {% if tamano == 'angosto' %}kc-banner-promo--angosto{% endif %}"
+     {% if not banner.imagen %}style="background-color:{{ banner.color_fondo|default:default_color_marca_secundario }};"{% endif %}>
+    {% if banner.imagen %}<img src="{{ banner.imagen.url }}" alt="" class="kc-banner-promo-img">{% endif %}
+    <div class="kc-banner-promo-texto">
+        <h2>{{ banner.titulo }}</h2>
+        {% if banner.texto %}<p>{{ banner.texto }}</p>{% endif %}
+        {% if banner.muestra_cta %}<a href="{{ banner.cta_url }}" class="kc-banner-promo-cta">{{ banner.cta_texto }}</a>{% endif %}
+    </div>
+</div>
