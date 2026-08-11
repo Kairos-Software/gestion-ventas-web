@@ -9,6 +9,7 @@ from django.http import JsonResponse
 
 from core.permisos import chequear_permiso
 from productos.models import CategoriaProducto
+from productos.utils_imagenes import comprimir_imagen_subida
 
 from .models import (
     BannerCatalogo, ConfiguracionCatalogo, ImagenInstitucional, PlantillaCatalogo,
@@ -122,12 +123,15 @@ class CatalogoConfigHeroImagenAjax(LoginRequiredMixin, View):
         archivo = request.FILES.get('imagen')
         if not archivo:
             return JsonResponse({'error': 'No se recibió ningún archivo.'}, status=400)
-        if archivo.size > 5 * 1024 * 1024:
-            return JsonResponse({'error': 'El archivo supera el límite de 5 MB.'}, status=400)
-
         ext = os.path.splitext(archivo.name)[1].lower()
         if ext not in EXTENSIONES_PERMITIDAS:
             return JsonResponse({'error': 'Usá JPG, PNG o WEBP.'}, status=400)
+
+        # Mismo criterio que las fotos de producto (ver productos/utils_imagenes.py):
+        # comprimir siempre en vez de rechazar por tamaño — una foto de celular
+        # sin comprimir puede pesar varios MB y el dueño no tiene por qué saber
+        # que hay que "bajarle el peso" antes de subirla.
+        archivo = comprimir_imagen_subida(archivo)
 
         config = ConfiguracionCatalogo.get_solo()
         self._borrar_archivo_actual(config)
@@ -160,12 +164,15 @@ class CatalogoConfigHeroSpot1ImagenAjax(LoginRequiredMixin, View):
         archivo = request.FILES.get('imagen')
         if not archivo:
             return JsonResponse({'error': 'No se recibió ningún archivo.'}, status=400)
-        if archivo.size > 5 * 1024 * 1024:
-            return JsonResponse({'error': 'El archivo supera el límite de 5 MB.'}, status=400)
-
         ext = os.path.splitext(archivo.name)[1].lower()
         if ext not in EXTENSIONES_PERMITIDAS:
             return JsonResponse({'error': 'Usá JPG, PNG o WEBP.'}, status=400)
+
+        # Mismo criterio que las fotos de producto (ver productos/utils_imagenes.py):
+        # comprimir siempre en vez de rechazar por tamaño — una foto de celular
+        # sin comprimir puede pesar varios MB y el dueño no tiene por qué saber
+        # que hay que "bajarle el peso" antes de subirla.
+        archivo = comprimir_imagen_subida(archivo)
 
         config = ConfiguracionCatalogo.get_solo()
         self._borrar_archivo_actual(config)
@@ -198,12 +205,15 @@ class CatalogoConfigHeroSpot2ImagenAjax(LoginRequiredMixin, View):
         archivo = request.FILES.get('imagen')
         if not archivo:
             return JsonResponse({'error': 'No se recibió ningún archivo.'}, status=400)
-        if archivo.size > 5 * 1024 * 1024:
-            return JsonResponse({'error': 'El archivo supera el límite de 5 MB.'}, status=400)
-
         ext = os.path.splitext(archivo.name)[1].lower()
         if ext not in EXTENSIONES_PERMITIDAS:
             return JsonResponse({'error': 'Usá JPG, PNG o WEBP.'}, status=400)
+
+        # Mismo criterio que las fotos de producto (ver productos/utils_imagenes.py):
+        # comprimir siempre en vez de rechazar por tamaño — una foto de celular
+        # sin comprimir puede pesar varios MB y el dueño no tiene por qué saber
+        # que hay que "bajarle el peso" antes de subirla.
+        archivo = comprimir_imagen_subida(archivo)
 
         config = ConfiguracionCatalogo.get_solo()
         self._borrar_archivo_actual(config)
@@ -236,12 +246,15 @@ class CatalogoKineticHeroFondoAjax(LoginRequiredMixin, View):
         archivo = request.FILES.get('imagen')
         if not archivo:
             return JsonResponse({'error': 'No se recibió ningún archivo.'}, status=400)
-        if archivo.size > 5 * 1024 * 1024:
-            return JsonResponse({'error': 'El archivo supera el límite de 5 MB.'}, status=400)
-
         ext = os.path.splitext(archivo.name)[1].lower()
         if ext not in EXTENSIONES_PERMITIDAS:
             return JsonResponse({'error': 'Usá JPG, PNG o WEBP.'}, status=400)
+
+        # Mismo criterio que las fotos de producto (ver productos/utils_imagenes.py):
+        # comprimir siempre en vez de rechazar por tamaño — una foto de celular
+        # sin comprimir puede pesar varios MB y el dueño no tiene por qué saber
+        # que hay que "bajarle el peso" antes de subirla.
+        archivo = comprimir_imagen_subida(archivo)
 
         config = ConfiguracionCatalogo.get_solo()
         self._borrar_archivo_actual(config)
@@ -274,12 +287,15 @@ class CatalogoInstitucionalImagenAjax(LoginRequiredMixin, View):
         archivo = request.FILES.get('imagen')
         if not archivo:
             return JsonResponse({'error': 'No se recibió ningún archivo.'}, status=400)
-        if archivo.size > 5 * 1024 * 1024:
-            return JsonResponse({'error': 'El archivo supera el límite de 5 MB.'}, status=400)
-
         ext = os.path.splitext(archivo.name)[1].lower()
         if ext not in EXTENSIONES_PERMITIDAS:
             return JsonResponse({'error': 'Usá JPG, PNG o WEBP.'}, status=400)
+
+        # Mismo criterio que las fotos de producto (ver productos/utils_imagenes.py):
+        # comprimir siempre en vez de rechazar por tamaño — una foto de celular
+        # sin comprimir puede pesar varios MB y el dueño no tiene por qué saber
+        # que hay que "bajarle el peso" antes de subirla.
+        archivo = comprimir_imagen_subida(archivo)
 
         config = ConfiguracionCatalogo.get_solo()
         self._borrar_archivo_actual(config)
@@ -354,12 +370,15 @@ class CatalogoSlideImagenAjax(LoginRequiredMixin, View):
         archivo = request.FILES.get('imagen')
         if not archivo:
             return JsonResponse({'error': 'No se recibió ningún archivo.'}, status=400)
-        if archivo.size > 5 * 1024 * 1024:
-            return JsonResponse({'error': 'El archivo supera el límite de 5 MB.'}, status=400)
-
         ext = os.path.splitext(archivo.name)[1].lower()
         if ext not in EXTENSIONES_PERMITIDAS:
             return JsonResponse({'error': 'Usá JPG, PNG o WEBP.'}, status=400)
+
+        # Mismo criterio que las fotos de producto (ver productos/utils_imagenes.py):
+        # comprimir siempre en vez de rechazar por tamaño — una foto de celular
+        # sin comprimir puede pesar varios MB y el dueño no tiene por qué saber
+        # que hay que "bajarle el peso" antes de subirla.
+        archivo = comprimir_imagen_subida(archivo)
 
         if slide.imagen and os.path.isfile(slide.imagen.path):
             os.remove(slide.imagen.path)
@@ -453,12 +472,15 @@ class CatalogoBannerImagenAjax(LoginRequiredMixin, View):
         archivo = request.FILES.get('imagen')
         if not archivo:
             return JsonResponse({'error': 'No se recibió ningún archivo.'}, status=400)
-        if archivo.size > 5 * 1024 * 1024:
-            return JsonResponse({'error': 'El archivo supera el límite de 5 MB.'}, status=400)
-
         ext = os.path.splitext(archivo.name)[1].lower()
         if ext not in EXTENSIONES_PERMITIDAS:
             return JsonResponse({'error': 'Usá JPG, PNG o WEBP.'}, status=400)
+
+        # Mismo criterio que las fotos de producto (ver productos/utils_imagenes.py):
+        # comprimir siempre en vez de rechazar por tamaño — una foto de celular
+        # sin comprimir puede pesar varios MB y el dueño no tiene por qué saber
+        # que hay que "bajarle el peso" antes de subirla.
+        archivo = comprimir_imagen_subida(archivo)
 
         if banner.imagen and os.path.isfile(banner.imagen.path):
             os.remove(banner.imagen.path)
@@ -572,12 +594,15 @@ class CatalogoTileImagenAjax(LoginRequiredMixin, View):
         archivo = request.FILES.get('imagen')
         if not archivo:
             return JsonResponse({'error': 'No se recibió ningún archivo.'}, status=400)
-        if archivo.size > 5 * 1024 * 1024:
-            return JsonResponse({'error': 'El archivo supera el límite de 5 MB.'}, status=400)
-
         ext = os.path.splitext(archivo.name)[1].lower()
         if ext not in EXTENSIONES_PERMITIDAS:
             return JsonResponse({'error': 'Usá JPG, PNG o WEBP.'}, status=400)
+
+        # Mismo criterio que las fotos de producto (ver productos/utils_imagenes.py):
+        # comprimir siempre en vez de rechazar por tamaño — una foto de celular
+        # sin comprimir puede pesar varios MB y el dueño no tiene por qué saber
+        # que hay que "bajarle el peso" antes de subirla.
+        archivo = comprimir_imagen_subida(archivo)
 
         if tile.imagen and os.path.isfile(tile.imagen.path):
             os.remove(tile.imagen.path)
@@ -626,12 +651,15 @@ class CatalogoGaleriaImagenAjax(LoginRequiredMixin, View):
         archivo = request.FILES.get('imagen')
         if not archivo:
             return JsonResponse({'error': 'No se recibió ningún archivo.'}, status=400)
-        if archivo.size > 5 * 1024 * 1024:
-            return JsonResponse({'error': 'El archivo supera el límite de 5 MB.'}, status=400)
-
         ext = os.path.splitext(archivo.name)[1].lower()
         if ext not in EXTENSIONES_PERMITIDAS:
             return JsonResponse({'error': 'Usá JPG, PNG o WEBP.'}, status=400)
+
+        # Mismo criterio que las fotos de producto (ver productos/utils_imagenes.py):
+        # comprimir siempre en vez de rechazar por tamaño — una foto de celular
+        # sin comprimir puede pesar varios MB y el dueño no tiene por qué saber
+        # que hay que "bajarle el peso" antes de subirla.
+        archivo = comprimir_imagen_subida(archivo)
 
         imagen = ImagenInstitucional.objects.create(
             configuracion=config, titulo=(request.POST.get('titulo') or '').strip()[:100],

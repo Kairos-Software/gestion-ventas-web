@@ -5,6 +5,8 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views import View
 from django.http import JsonResponse
 
+from productos.utils_imagenes import comprimir_imagen_subida
+
 from .models import DatosEmpresa, CondicionIVA, ConfiguracionArca, AmbienteArca
 from .permisos import chequear_permiso
 from .services_arca import certificados, wsaa, wsfe
@@ -57,12 +59,12 @@ class EmpresaLogoAjax(LoginRequiredMixin, View):
         archivo = request.FILES.get('logo')
         if not archivo:
             return JsonResponse({'error': 'No se recibió ningún archivo.'}, status=400)
-        if archivo.size > 5 * 1024 * 1024:
-            return JsonResponse({'error': 'El archivo supera el límite de 5 MB.'}, status=400)
-
         ext = os.path.splitext(archivo.name)[1].lower()
         if ext not in EXTENSIONES_PERMITIDAS:
             return JsonResponse({'error': 'Usá JPG, PNG o WEBP.'}, status=400)
+
+        # Mismo criterio que las fotos de producto: comprimir en vez de rechazar por tamaño.
+        archivo = comprimir_imagen_subida(archivo)
 
         empresa = DatosEmpresa.get_solo()
         self._borrar_archivo_actual(empresa)
