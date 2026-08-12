@@ -134,12 +134,12 @@ function _cdtEsTarjeta(cuentaPk) {
 }
 
 /** Plata que se termina pagando de más sobre el costo de los productos:
- *  el interés de una línea con tarjeta (compra a crédito), sea modo
- *  fijas o libre. Compras no tiene recargo por medio de pago (eso es
- *  cosa de Ventas — TarjetaPago/RecargoMedioPago no existen acá), así
- *  que el único "extra" posible es este interés. */
+ *  el interés de una línea con tarjeta (compra a crédito) o con cheque
+ *  a cuotas, sea modo fijas o libre. Compras no tiene recargo por medio
+ *  de pago (eso es cosa de Ventas — TarjetaPago/RecargoMedioPago no
+ *  existen acá), así que el único "extra" posible es este interés. */
 function _cdtExtraMontoLinea(l) {
-    if (!_cdtEsTarjeta(l.cuenta)) return 0;
+    if (!_cdtLineaUsaPlanCuotas(l)) return 0;
     return (l.monto || 0) * (l.interesPct || 0) / 100;
 }
 
@@ -154,36 +154,19 @@ function _cdtCuentaEsBanco(cuentaPk) {
     return !!info && info.tipo === 'banco';
 }
 
-/** El monto de una línea "cheque" no se tipea: es la suma de los
- *  cheques cargados en el modal. */
-function _cdtRecalcularMontoCheque(l) {
-    l.monto = (l.cheques || []).reduce((s, c) => s + (parseFloat(c.monto) || 0), 0);
+/** Una línea paga con cheque cuando el usuario tildó "Pagar con
+ *  cheque" Y la cuenta elegida es un banco real — mismo criterio en
+ *  todos lados para no desincronizarse. */
+function _cdtLineaEsCheque(l) {
+    return _cdtCuentaEsBanco(l.cuenta) && !!l.esCheque;
 }
 
-/** Cheques cargados para esta línea (pago dividido: puede haber más de
- *  uno) + botón para agregar otro. Mismos campos que "Nuevo cheque" en
- *  la pantalla de Cheques para A_PAGAR (incluye fondeo opcional). Solo
- *  se crean de verdad al confirmar la compra. */
-function _cdtChequesExtraHTML(l) {
-    const cheques = l.cheques || [];
-    const filas = cheques.map((c, i) => `
-        <div class="vdt-cheque-fila">
-            <div class="vdt-cheque-fila-info">
-                <strong>${_cdtFmtARS(c.monto)}</strong>
-                <span>${c.numero_cheque ? '#' + c.numero_cheque + ' · ' : ''}cobra ${c.fecha_cobro}${c.receptor ? ' · ' + c.receptor : ''}</span>
-            </div>
-            <button type="button" class="vdt-cheque-btn-editar" data-linea="${l.id}" data-index="${i}" title="Editar">
-                <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2.5 13.5L13.5 2.5M13.5 2.5V7.5M13.5 2.5H8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </button>
-            <button type="button" class="vdt-cheque-btn-quitar" data-linea="${l.id}" data-index="${i}" title="Quitar">
-                <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 3L13 13M3 13L13 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-            </button>
-        </div>`).join('');
-    return `
-    <div class="vdt-pago-cheque-extra">
-        ${filas}
-        <button type="button" class="vdt-cheque-btn-agregar" data-linea="${l.id}">+ Cargar cheque</button>
-    </div>`;
+/** Tarjeta (crédito) y cheque comparten el mismo plan de pago: cuotas
+ *  fijas o libres + interés opcional. El cheque real de cada cuota se
+ *  carga después, desde el detalle de la Deuda en Créditos y préstamos
+ *  — acá solo se define el plan. */
+function _cdtLineaUsaPlanCuotas(l) {
+    return _cdtEsTarjeta(l.cuenta) || _cdtLineaEsCheque(l);
 }
 
 /** Cuenta o tarjeta elegida en una línea (ambas listas juntas). */
@@ -257,7 +240,8 @@ function _cdtPagoRenderLineas() {
     contenedor.innerHTML = cdtPagoState.lineas.map(l => {
         const esTarjeta = _cdtEsTarjeta(l.cuenta);
         const puedeCheque = !esTarjeta && _cdtCuentaEsBanco(l.cuenta);
-        const esCheque = puedeCheque && l.esCheque;
+        const esCheque = _cdtLineaEsCheque(l);
+        const usaPlanCuotas = _cdtLineaUsaPlanCuotas(l);
         return `
     <div class="vdt-pago-linea-wrap" data-linea-id="${l.id}">
         <div class="vdt-pago-linea">
@@ -267,7 +251,6 @@ function _cdtPagoRenderLineas() {
             <input type="number" class="vdt-pago-monto" min="0" step="0.01"
                    placeholder="Monto"
                    value="${l.monto > 0 ? l.monto : ''}"
-                   ${esCheque ? 'readonly title="Suma de los cheques cargados"' : ''}
                    data-campo="monto" data-id="${l.id}">
             <button class="vdt-pago-btn-quitar" type="button" data-id="${l.id}" title="Quitar">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -281,13 +264,12 @@ function _cdtPagoRenderLineas() {
             Pagar con cheque (en vez de transferencia)
             ${puedeCheque ? '' : '<span class="vdt-cheque-toggle-hint">— elegí una cuenta bancaria arriba para habilitarlo</span>'}
         </label>` : ''}
-        ${esCheque ? _cdtChequesExtraHTML(l) : `
         ${(_cdtCotizacionInputHTML(l) || _cdtEquivalenteArsHTML(l)) ? `
         <div class="vdt-pago-linea-cuenta">
             ${_cdtCotizacionInputHTML(l)}
             ${_cdtEquivalenteArsHTML(l)}
         </div>` : ''}
-        ${esTarjeta ? `
+        ${usaPlanCuotas ? `
         <label class="vdt-credito-modo-row">
             <span class="vdt-pago-credito-label">Cuotas libres</span>
             <span class="toggle-switch">
@@ -295,6 +277,8 @@ function _cdtPagoRenderLineas() {
                 <span class="toggle-track"></span>
             </span>
         </label>
+        ${esCheque ? `<p class="vdt-cheque-plan-nota">Acá se define el plan de cuotas. Los cheques reales de cada
+            cuota se cargan después, desde el detalle de esta deuda en Créditos y préstamos.</p>` : ''}
         <div class="vdt-pago-credito-extra">
             ${l.modoCuotas === 'libre' ? '' : `
             <div>
@@ -313,11 +297,11 @@ function _cdtPagoRenderLineas() {
                 <strong>${_cdtFmtARS((l.monto || 0) * (1 + (l.interesPct || 0) / 100))}</strong>
             </div>` : `
             <div>
-                <span class="vdt-pago-credito-label">Inicio débito</span>
+                <span class="vdt-pago-credito-label">${esCheque ? 'Fecha de la 1° cuota' : 'Inicio débito'}</span>
                 <input type="date" class="vdt-pago-select"
                        value="${l.fechaInicioDebito || ''}" data-campo="fechaInicioDebito" data-id="${l.id}">
             </div>`}
-        </div>` : ''}` }
+        </div>` : ''}
     </div>`;
     }).join('');
 
@@ -337,8 +321,6 @@ function _cdtPagoRenderLineas() {
                 linea.cotizacion = parseFloat(el.value) || 0;
             } else if (campo === 'esCheque') {
                 linea.esCheque = el.checked;
-                linea.cheques = linea.cheques || [];
-                _cdtRecalcularMontoCheque(linea);
             } else if (campo === 'modoCuotas') {
                 linea.modoCuotas = el.checked ? 'libre' : 'fijas';
             } else {
@@ -379,26 +361,6 @@ function _cdtPagoRenderLineas() {
         btn.addEventListener('click', () => {
             const id = parseInt(btn.dataset.id, 10);
             cdtPagoState.lineas = cdtPagoState.lineas.filter(l => l.id !== id);
-            _cdtPagoRenderLineas();
-        });
-    });
-
-    contenedor.querySelectorAll('.vdt-cheque-btn-agregar').forEach(btn => {
-        btn.addEventListener('click', () => {
-            abrirModalChequeCompra(parseInt(btn.dataset.linea, 10), null);
-        });
-    });
-    contenedor.querySelectorAll('.vdt-cheque-btn-editar').forEach(btn => {
-        btn.addEventListener('click', () => {
-            abrirModalChequeCompra(parseInt(btn.dataset.linea, 10), parseInt(btn.dataset.index, 10));
-        });
-    });
-    contenedor.querySelectorAll('.vdt-cheque-btn-quitar').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const linea = cdtPagoState.lineas.find(l => l.id === parseInt(btn.dataset.linea, 10));
-            if (!linea) return;
-            linea.cheques.splice(parseInt(btn.dataset.index, 10), 1);
-            _cdtRecalcularMontoCheque(linea);
             _cdtPagoRenderLineas();
         });
     });
@@ -482,12 +444,12 @@ function _cdtActualizarInteresResumen() {
 
 /** Habilita "Confirmar compra" solo cuando ya está todo cargado: fecha,
  *  pago cubierto exacto, cuenta/cotización de cada línea, y datos
- *  completos de cuotas para cada línea con tarjeta. Se re-evalúa en
- *  cada cambio del panel de pago y de la fecha. */
+ *  completos de cuotas para cada línea con tarjeta o cheque. Se
+ *  re-evalúa en cada cambio del panel de pago y de la fecha. */
 function _cdtActualizarEstadoConfirmar() {
     const btn = document.getElementById('cdtBtnConfirmar');
     const dot = document.getElementById('cdtTabPagoDot');
-    const pagoOk = _cdtPagoEsCubierto() && !_cdtPagoFaltanCuentas() && !_cdtPagoFaltanDatosCredito() && !_cdtPagoFaltanDatosCheque();
+    const pagoOk = _cdtPagoEsCubierto() && !_cdtPagoFaltanCuentas() && !_cdtPagoFaltanDatosCredito();
 
     if (dot) dot.classList.toggle('cdt-tab-dot--ok', pagoOk);
 
@@ -524,19 +486,15 @@ function _cdtPagoFaltanCuentas() {
     });
 }
 
+/** Tarjeta y cheque comparten el mismo plan de cuotas — ver
+ *  _cdtLineaUsaPlanCuotas. En modo libre no hace falta cuotas ni fecha
+ *  de inicio (ver _cdtLineaUsaPlanCuotas / render de la línea). */
 function _cdtPagoFaltanDatosCredito() {
     return cdtPagoState.lineas.some(l => {
-        if (!_cdtEsTarjeta(l.cuenta)) return false;
+        if (!_cdtLineaUsaPlanCuotas(l)) return false;
         if (l.modoCuotas === 'libre') return false; // no pide cuotas ni fecha de inicio
         return !l.cuotas || l.cuotas < 1 || !l.fechaInicioDebito;
     });
-}
-
-/** Toda línea "pagar con cheque" necesita al menos un cheque cargado. */
-function _cdtPagoFaltanDatosCheque() {
-    return cdtPagoState.lineas.some(l =>
-        _cdtCuentaEsBanco(l.cuenta) && l.esCheque && !(l.cheques && l.cheques.length)
-    );
 }
 
 function _cdtGetPagoPayload() {
@@ -553,23 +511,19 @@ function _cdtGetPagoPayload() {
                 fecha_inicio_debito: l.modoCuotas === 'libre' ? null : (l.fechaInicioDebito || null),
             };
         }
-        if (_cdtCuentaEsBanco(l.cuenta) && l.esCheque) {
+        if (_cdtLineaEsCheque(l)) {
+            // Acá solo se define el plan de cuotas (igual que crédito) —
+            // los cheques reales de cada cuota se cargan después, desde
+            // el detalle de la Deuda en Créditos y préstamos.
             return {
                 medio: 'cheque',
                 monto: l.monto,
                 cuenta_pk: l.cuenta || null,
                 cotizacion: l.cotizacion || null,
-                cheques: (l.cheques || []).map(c => ({
-                    numero_cheque: c.numero_cheque || '',
-                    monto: c.monto,
-                    fecha_emision: c.fecha_emision,
-                    fecha_cobro: c.fecha_cobro,
-                    emisor: c.emisor || '',
-                    receptor: c.receptor || '',
-                    banco: c.banco || '',
-                    notas: c.notas || '',
-                    cuenta_financiadora_pk: c.cuenta_financiadora_pk || null,
-                })),
+                modo_cuotas: l.modoCuotas === 'libre' ? 'libre' : 'fijas',
+                cuotas: l.modoCuotas === 'libre' ? null : l.cuotas,
+                interes_pct: l.interesPct != null ? l.interesPct : 0,
+                fecha_inicio_debito: l.modoCuotas === 'libre' ? null : (l.fechaInicioDebito || null),
             };
         }
         const cuentaInfo = _cdtCuentasDisponibles().find(c => String(c.pk) === String(l.cuenta));
@@ -583,87 +537,6 @@ function _cdtGetPagoPayload() {
     });
     return { pagos };
 }
-
-/* ════════════════════════════════════════════════════════════════
-   MODAL "Cargar cheque" — mismos campos que "Nuevo cheque" (A_PAGAR)
-   en la pantalla de Cheques, incluido el fondeo opcional de la
-   chequera. No crea nada todavía: solo queda en memoria dentro de la
-   línea de pago. El/los Cheque reales se crean recién al confirmar
-   la compra, ya contra la cuenta (chequera) elegida en esa línea.
-════════════════════════════════════════════════════════════════ */
-let _cdtChequeModalLineaId = null;
-let _cdtChequeModalIndex = null;
-
-function abrirModalChequeCompra(lineaId, index) {
-    const linea = cdtPagoState.lineas.find(l => l.id === lineaId);
-    if (!linea) return;
-    _cdtChequeModalLineaId = lineaId;
-    _cdtChequeModalIndex = index;
-
-    const existente = index != null ? (linea.cheques || [])[index] : null;
-    document.getElementById('cchTitulo').textContent = existente ? 'Editar cheque' : 'Cargar cheque';
-    document.getElementById('cchNumeroCheque').value = existente ? existente.numero_cheque : '';
-    document.getElementById('cchMonto').value = existente ? existente.monto : '';
-    document.getElementById('cchFechaEmision').value = existente ? existente.fecha_emision : (CDT.hoy || '');
-    document.getElementById('cchFechaCobro').value = existente ? existente.fecha_cobro : (CDT.hoy || '');
-    document.getElementById('cchReceptor').value = existente ? existente.receptor : '';
-    document.getElementById('cchEmisor').value = existente ? existente.emisor : '';
-    document.getElementById('cchNotas').value = existente ? existente.notas : '';
-
-    // Financiadora: cualquier cuenta no-crédito salvo la propia chequera
-    // de esta línea (no tiene sentido "fondearse a sí misma").
-    const financiadoraSelect = document.getElementById('cchFinanciadora');
-    const opciones = _cdtCuentasDisponibles().filter(c => String(c.pk) !== String(linea.cuenta));
-    financiadoraSelect.innerHTML = '<option value="">— No hace falta, ya tiene fondos —</option>' +
-        opciones.map(c => `<option value="${c.pk}">${c.nombre} (${c.moneda})</option>`).join('');
-    financiadoraSelect.value = existente && existente.cuenta_financiadora_pk ? existente.cuenta_financiadora_pk : '';
-
-    document.getElementById('cchMsg').textContent = '';
-    document.getElementById('cdtModalCheque').style.display = 'flex';
-}
-
-function cerrarModalChequeCompra() {
-    document.getElementById('cdtModalCheque').style.display = 'none';
-    _cdtChequeModalLineaId = null;
-    _cdtChequeModalIndex = null;
-}
-
-function _cdtGuardarModalCheque() {
-    const msg = document.getElementById('cchMsg');
-    const monto = parseFloat(document.getElementById('cchMonto').value) || 0;
-    const fechaEmision = document.getElementById('cchFechaEmision').value;
-    const fechaCobro = document.getElementById('cchFechaCobro').value;
-    if (monto <= 0) { msg.textContent = 'El monto debe ser mayor a 0.'; return; }
-    if (!fechaEmision || !fechaCobro) { msg.textContent = 'Indicá fecha de emisión y de cobro.'; return; }
-
-    const linea = cdtPagoState.lineas.find(l => l.id === _cdtChequeModalLineaId);
-    if (!linea) return;
-    linea.cheques = linea.cheques || [];
-
-    const dato = {
-        numero_cheque: document.getElementById('cchNumeroCheque').value.trim(),
-        monto,
-        fecha_emision: fechaEmision,
-        fecha_cobro: fechaCobro,
-        receptor: document.getElementById('cchReceptor').value.trim(),
-        emisor: document.getElementById('cchEmisor').value.trim(),
-        notas: document.getElementById('cchNotas').value.trim(),
-        cuenta_financiadora_pk: document.getElementById('cchFinanciadora').value || null,
-    };
-
-    if (_cdtChequeModalIndex != null) {
-        linea.cheques[_cdtChequeModalIndex] = dato;
-    } else {
-        linea.cheques.push(dato);
-    }
-    _cdtRecalcularMontoCheque(linea);
-    cerrarModalChequeCompra();
-    _cdtPagoRenderLineas();
-}
-
-document.getElementById('cchBtnCerrar')?.addEventListener('click', cerrarModalChequeCompra);
-document.getElementById('cchBtnCancelar')?.addEventListener('click', cerrarModalChequeCompra);
-document.getElementById('cchBtnGuardar')?.addEventListener('click', _cdtGuardarModalCheque);
 
 /* ════════════════════════════════════════════════════════════════
    BORRADOR — Confirmar y Volver
@@ -719,7 +592,7 @@ if (CDT.esBorrador) {
         }
 
         if (_cdtPagoFaltanDatosCredito()) {
-            cdtToast('Datos de la tarjeta incompletos', 'Completá cuotas y fecha de inicio de débito para cada pago con tarjeta.');
+            cdtToast('Datos del plan de pago incompletos', 'Completá cuotas y fecha de inicio para cada pago con tarjeta o cheque.');
             return;
         }
 
@@ -746,8 +619,12 @@ if (CDT.esBorrador) {
             const data = await res.json();
 
             if (data.ok) {
-                // Redirigir al historial con la compra ya confirmada
-                window.location.href = CDT.urlHistorial;
+                // Si el pago generó una Deuda de cheque, va directo a su
+                // detalle en Créditos y préstamos para cargar los cheques
+                // reales de cada cuota — si no, al historial de compras.
+                window.location.href = data.deuda_cheque_pk
+                    ? `${CDT.urlDeudas}?ver=${data.deuda_cheque_pk}`
+                    : CDT.urlHistorial;
             } else {
                 cdtToast('Error al confirmar', data.error || 'No se pudo confirmar la compra.');
             }

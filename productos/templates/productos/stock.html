@@ -110,7 +110,8 @@
                         data-minimo="{{ p.stock_minimo }}"
                         data-maximo="{{ p.stock_maximo|default:'' }}"
                         data-unidad="{{ p.get_unidad_medida_display }}"
-                        data-colores="{{ p.combinaciones_json_str }}">
+                        data-colores="{{ p.combinaciones_json_str }}"
+                        data-costo="{{ p.costo|default:'' }}">
 
                         <td>
                             <div class="prod-info">
@@ -307,6 +308,26 @@
                 <input type="number" id="ajusteCantidad" class="form-control" placeholder="0" min="0.001" step="any">
                 <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.3rem;">
                     Ingresá la diferencia, no el stock total. Ej: si tenés 8 y el sistema dice 5, ponés 3.
+                </div>
+            </div>
+
+            <!--
+                Costo unitario — solo para "Sumar unidades" (stock que ya
+                se tenía, ej. migración desde otro sistema). Se precarga
+                con el costo de referencia del producto, editable por si
+                esa mercadería puntual costó distinto. NO genera ningún
+                movimiento de caja — solo queda registrado para que una
+                eventual pérdida sobre este stock no se valorice en $0.
+            -->
+            <div class="form-group" id="ajusteCostoWrap" style="margin:0; display:none;">
+                <label class="form-label">
+                    Costo unitario
+                    <span style="color:var(--text-muted);font-weight:400">(no afecta la caja)</span>
+                </label>
+                <input type="number" id="ajusteCosto" class="form-control" placeholder="0.00" min="0" step="0.01">
+                <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.3rem;">
+                    Cuánto vale esta mercadería, para que las pérdidas y las estadísticas la reflejen bien. Ya
+                    precargado con el "Costo de referencia" del producto — cambialo si esta partida costó distinto.
                 </div>
             </div>
 

@@ -266,6 +266,8 @@ class ListarPerdidasAjax(LoginRequiredMixin, View):
             'unidad_medida':    p.producto.get_unidad_medida_display() if p.producto else '',
             'costo_unitario':   str(p.costo_unitario_snapshot),
             'costo_total':      str(p.costo_total),
+            'precio_venta_unitario': str(p.precio_venta_unitario_snapshot),
+            'precio_venta_total':    str(p.precio_venta_total),
             'motivo':           p.motivo,
             'motivo_label':     p.get_motivo_display(),
             'motivo_detalle':   p.motivo_detalle,
@@ -274,8 +276,9 @@ class ListarPerdidasAjax(LoginRequiredMixin, View):
         } for p in qs]
 
         total_costo = sum((p.costo_total for p in qs), Decimal('0'))
+        total_venta = sum((p.precio_venta_total for p in qs), Decimal('0'))
 
-        return JsonResponse({'results': resultados, 'total_costo': str(total_costo)})
+        return JsonResponse({'results': resultados, 'total_costo': str(total_costo), 'total_venta': str(total_venta)})
 
 
 # ══════════════════════════════════════════════════════════════════

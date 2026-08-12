@@ -39,6 +39,13 @@ function ticketAbrirSelector() {
         console.error('ticket_imprimir.js: no se encontró #ticketSelectorOverlay en el DOM.');
         return;
     }
+    // El checkbox "imprimir como ticket simple" solo tiene sentido si la
+    // venta tiene de verdad un comprobante ARCA — si no, ya imprime como
+    // ticket simple por default, no hace falta ofrecer la opción.
+    const wrapSoloTicket = document.getElementById('ticketSoloTicketWrap');
+    if (wrapSoloTicket) {
+        wrapSoloTicket.style.display = (window.TICKET_DATA && window.TICKET_DATA.comprobante_arca) ? 'flex' : 'none';
+    }
     overlay.style.display = 'flex';
 }
 
@@ -57,12 +64,17 @@ function _ticketCerrarSelector() {
  * que dispara automáticamente el diálogo de impresión.
  *
  * @param {string} formato  'a4' | 'termica80' | 'termica58'
+ * @param {boolean} soloTicket  Si es true, imprime como ticket simple
+ *   (sin CAE/QR/desglose de IVA) aunque la venta tenga un comprobante
+ *   ARCA real de verdad — la factura ya se emitió electrónicamente de
+ *   todas formas, esto solo cambia qué se IMPRIME en papel. No toca
+ *   window.TICKET_DATA (se arma una copia), para que la próxima
+ *   impresión pueda volver a mostrar los datos fiscales sin recargar.
  */
-async function ticketImprimir(formato) {
+async function ticketImprimir(formato, soloTicket) {
     _ticketCerrarSelector();
 
-    const data = window.TICKET_DATA;
-    if (!data) {
+    if (!window.TICKET_DATA) {
         console.error('ticket_imprimir.js: window.TICKET_DATA no está definido.');
         return;
     }
@@ -70,10 +82,14 @@ async function ticketImprimir(formato) {
     // Si hay comprobante ARCA, el QR se genera en la página (ver
     // detalle_venta.html) de forma asíncrona — hay que esperar a que
     // esté listo antes de armar el HTML del ticket, si no puede abrirse
-    // sin QR por una carrera de tiempos (CDN todavía cargando).
-    if (data.comprobante_arca && data.comprobante_arca.qrReadyPromise) {
-        await data.comprobante_arca.qrReadyPromise;
+    // sin QR por una carrera de tiempos (CDN todavía cargando). Si se
+    // pidió "solo ticket", el QR no se va a mostrar — no hace falta
+    // esperarlo.
+    if (!soloTicket && window.TICKET_DATA.comprobante_arca && window.TICKET_DATA.comprobante_arca.qrReadyPromise) {
+        await window.TICKET_DATA.comprobante_arca.qrReadyPromise;
     }
+
+    const data = soloTicket ? { ...window.TICKET_DATA, comprobante_arca: null } : window.TICKET_DATA;
 
     // Seleccionar el generador según el formato
     let htmlGenerador;
@@ -142,7 +158,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Botones de formato
     document.querySelectorAll('[data-ticket-formato]').forEach(btn => {
         btn.addEventListener('click', () => {
-            ticketImprimir(btn.dataset.ticketFormato);
+            const chkSoloTicket = document.getElementById('ticketSoloTicket');
+            ticketImprimir(btn.dataset.ticketFormato, !!(chkSoloTicket && chkSoloTicket.checked));
         });
     });
 });

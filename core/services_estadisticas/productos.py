@@ -151,14 +151,25 @@ def perdidas_del_periodo(desde, hasta):
 # ══════════════════════════════════════════════════════════════════
 
 def valorizacion_stock():
-    """Cuánto vale, a costo, todo el stock que tenés hoy."""
+    """
+    Cuánto vale el stock que tenés hoy, de dos formas distintas:
+    - `total_valorizado` (a costo): capital inmovilizado en mercadería —
+      lo que costó/costaría reponerla. Sirve para saber cuánto tenés
+      invertido en inventario.
+    - `total_venta` (a precio de venta): lo que entraría a la caja si se
+      vendiera TODO el stock a precio de lista, sin descuentos. Sirve
+      para comparar contra las deudas — "si liquido todo, ¿cubro lo que
+      debo?" — que es una pregunta distinta a "cuánto tengo invertido".
+    """
     productos = Producto.objects.filter(gestiona_stock=True, stock_actual__gt=0)
-    total = productos.annotate(
-        valor=ExpressionWrapper(F('stock_actual') * F('costo_actual'), output_field=MONEY),
-    ).aggregate(total=Sum('valor'))['total'] or Decimal('0')
+    agregado = productos.annotate(
+        valor_costo=ExpressionWrapper(F('stock_actual') * F('costo_actual'), output_field=MONEY),
+        valor_venta=ExpressionWrapper(F('stock_actual') * F('precio_venta'), output_field=MONEY),
+    ).aggregate(total_costo=Sum('valor_costo'), total_venta=Sum('valor_venta'))
 
     return {
-        'total_valorizado': round(total, 2),
+        'total_valorizado': round(agregado['total_costo'] or Decimal('0'), 2),
+        'total_venta': round(agregado['total_venta'] or Decimal('0'), 2),
         'cantidad_productos': productos.count(),
     }
 

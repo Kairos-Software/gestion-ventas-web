@@ -504,6 +504,12 @@ function _agregarFila(fila) {
         cliente_pk:      clienteVenta.pk,
         cliente_nombre:  clienteVenta.nombre,
         cantidad:        1,
+        // Para avisar en el momento si la cantidad supera el stock
+        // disponible, sin esperar a intentar confirmar la venta (ver
+        // _stockInsuficiente). gestiona_stock=false (servicios, productos
+        // sin control de inventario) nunca se valida.
+        stock_actual:    fila.gestiona_stock === false ? null : parseFloat(fila.stock_actual),
+        gestiona_stock:  fila.gestiona_stock !== false,
         precio:          fila.precio_venta ?? '',
         moneda:          fila.moneda || 'ARS',
         descuento:       0,
@@ -672,6 +678,43 @@ function _selectOferta(item) {
         </select>`;
 }
 
+/** Avisa apenas se carga una cantidad mayor al stock disponible, en vez
+ *  de dejar pasar al detalle y recién enterarse al confirmar la venta
+ *  (que sí valida esto en serio, contra los lotes reales — este chequeo
+ *  del carrito es solo un aviso temprano con el mismo dato que ya
+ *  trajo la búsqueda, no reemplaza esa validación). */
+function _stockInsuficiente(item) {
+    if (!item.gestiona_stock || item.stock_actual == null) return false;
+    return (parseFloat(item.cantidad) || 0) > item.stock_actual;
+}
+
+function _carritoTieneStockInsuficiente() {
+    return carrito.some(_stockInsuficiente);
+}
+
+/** Muestra/oculta el aviso de stock insuficiente de una fila ya
+ *  renderizada, sin reconstruir el <tr> — se llama en cada tecleo de
+ *  cantidad (ver _onCampoCambiado) para no perder el foco del input. */
+function _actualizarAvisoStockFila(fila, item) {
+    if (!fila) return;
+    const inputCantidad = fila.querySelector('[data-campo="cantidad"]');
+    let aviso = fila.querySelector('.vta-cant-error');
+    const insuficiente = _stockInsuficiente(item);
+
+    if (inputCantidad) inputCantidad.classList.toggle('vta-input-error', insuficiente);
+
+    if (insuficiente) {
+        if (!aviso && inputCantidad) {
+            aviso = document.createElement('div');
+            aviso.className = 'vta-cant-error';
+            inputCantidad.insertAdjacentElement('afterend', aviso);
+        }
+        if (aviso) aviso.textContent = `Stock disponible: ${item.stock_actual}`;
+    } else if (aviso) {
+        aviso.remove();
+    }
+}
+
 function _renderCarrito() {
     if (!carrito.length) {
         cartBody.innerHTML = '';
@@ -714,6 +757,11 @@ function _renderCarrito() {
     });
     cartBody.querySelectorAll('.vta-btn-remove').forEach(el => {
         el.addEventListener('click', () => _quitarItem(parseInt(el.dataset.itemId, 10)));
+    });
+
+    carrito.forEach(item => {
+        const fila = cartBody.querySelector(`tr[data-item-id="${item.id}"]`);
+        _actualizarAvisoStockFila(fila, item);
     });
 
     _actualizarTotales();
@@ -794,6 +842,7 @@ function _onCampoCambiado(el) {
         const selOferta = fila?.querySelector('[data-campo="oferta"]');
         const opciones = selOferta ? _opcionesOferta(item) : null;
         if (selOferta && opciones !== null) selOferta.innerHTML = opciones;
+        _actualizarAvisoStockFila(fila, item);
     } else {
         item[campo] = el.value;
     }
@@ -892,7 +941,9 @@ function _actualizarTotales() {
     _renderOfertaGlobal(totalBruto, totalNeto, ofertaGlobal);
 }
 function _actualizarBtnContinuar() {
-    if (btnContinuar) btnContinuar.disabled = carrito.length === 0;
+    if (btnContinuar) {
+        btnContinuar.disabled = carrito.length === 0 || _carritoTieneStockInsuficiente();
+    }
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -901,6 +952,10 @@ function _actualizarBtnContinuar() {
 if (btnContinuar) {
     btnContinuar.addEventListener('click', async () => {
         if (!carrito.length) return;
+        if (_carritoTieneStockInsuficiente()) {
+            _toast('Stock insuficiente', 'Corregí la cantidad de los productos marcados en rojo antes de continuar.');
+            return;
+        }
 
         btnContinuar.disabled  = true;
         btnContinuar.textContent = 'Guardando…';

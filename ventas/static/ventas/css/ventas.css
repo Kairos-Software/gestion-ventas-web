@@ -363,6 +363,17 @@
 .vta-input-inline.w-md  { min-width: 100px; max-width: 130px; }
 .vta-input-inline.w-lg  { min-width: 130px; }
 
+.vta-input-inline.vta-input-error {
+    border-color: var(--danger, #ef4444);
+    background: rgba(239, 68, 68, .06);
+}
+.vta-cant-error {
+    font-size: .68rem;
+    color: var(--danger, #ef4444);
+    margin-top: .25rem;
+    white-space: nowrap;
+}
+
 .vta-select-inline {
     padding: .375rem .55rem;
     border: 1px solid var(--border-color);

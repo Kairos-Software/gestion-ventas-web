@@ -1101,4 +1101,9 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('dFechaInicio').value = today;
     poblarSelectsCuentas();
     cargarDeudas();
+
+    // Llegada desde otra pantalla (ej. Compras, tras confirmar un pago
+    // con cheque) con ?ver=<pk> — abre el detalle de esa deuda directo.
+    const verPk = new URLSearchParams(window.location.search).get('ver');
+    if (verPk) window.verDeuda(parseInt(verPk, 10));
 });

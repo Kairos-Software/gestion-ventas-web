@@ -90,9 +90,10 @@ document.addEventListener('DOMContentLoaded', function () {
             });
     }
 
-    // ── Stat card de Pérdidas (últimas 100, costo total) ──
+    // ── Stat cards de Pérdidas (últimas 100): a costo y a precio de venta ──
     function cargarStatsPerdidas() {
         const statPerdidasCosto = document.getElementById('statPerdidasCosto');
+        const statPerdidasVenta = document.getElementById('statPerdidasVenta');
         if (!statPerdidasCosto) return;
 
         fetch(window.INVENTARIO_URLS.listarPerdidas)
@@ -100,8 +101,14 @@ document.addEventListener('DOMContentLoaded', function () {
             .then(data => {
                 if (data.error) return;
                 statPerdidasCosto.textContent = '$' + parseFloat(data.total_costo || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 });
+                if (statPerdidasVenta) {
+                    statPerdidasVenta.textContent = '$' + parseFloat(data.total_venta || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 });
+                }
             })
-            .catch(() => { statPerdidasCosto.textContent = '—'; });
+            .catch(() => {
+                statPerdidasCosto.textContent = '—';
+                if (statPerdidasVenta) statPerdidasVenta.textContent = '—';
+            });
     }
 
     function renderTabla(lotes) {
@@ -448,6 +455,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const modalPerdidas = new bootstrap.Modal(modalPerdidasEl);
     const perdidasTbody = document.getElementById('perdidasTbody');
     const statPerdidasCard = document.getElementById('statPerdidasCard');
+    const statPerdidasVentaCard = document.getElementById('statPerdidasVentaCard');
 
     if (statPerdidasCard) {
         statPerdidasCard.addEventListener('click', () => {
@@ -455,18 +463,24 @@ document.addEventListener('DOMContentLoaded', function () {
             cargarListadoPerdidas();
         });
     }
+    if (statPerdidasVentaCard) {
+        statPerdidasVentaCard.addEventListener('click', () => {
+            modalPerdidas.show();
+            cargarListadoPerdidas();
+        });
+    }
 
     function cargarListadoPerdidas() {
-        perdidasTbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">Cargando...</td></tr>`;
+        perdidasTbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">Cargando...</td></tr>`;
         fetch(window.INVENTARIO_URLS.listarPerdidas)
             .then(r => r.json())
             .then(data => {
                 if (data.error) {
-                    perdidasTbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">${data.error}</td></tr>`;
+                    perdidasTbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-4">${data.error}</td></tr>`;
                     return;
                 }
                 if (!data.results.length) {
-                    perdidasTbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">No hay pérdidas registradas.</td></tr>`;
+                    perdidasTbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">No hay pérdidas registradas.</td></tr>`;
                     return;
                 }
                 perdidasTbody.innerHTML = data.results.map(p => `
@@ -483,6 +497,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             ${p.motivo_detalle ? `<div class="inv-variante-desc">${escapeHtml(p.motivo_detalle)}</div>` : ''}
                         </td>
                         <td>$${KaiFormat.moneda(p.costo_total)}</td>
+                        <td>$${KaiFormat.moneda(p.precio_venta_total)}</td>
                         <td>${escapeHtml(p.registrado_por)}</td>
                     </tr>
                 `).join('');

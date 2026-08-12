@@ -27,6 +27,13 @@ def comprimir_imagen_subida(archivo, lado_maximo=LADO_MAXIMO, calidad=CALIDAD_JP
     """
     archivo.seek(0)
     imagen = Image.open(archivo)
+    # Para JPEG, decodificar directo a una escala reducida (no-op en otros
+    # formatos) — sin esto, una foto de 20+ MP tarda varios segundos en
+    # decodificarse a resolución completa solo para tirar la mayoría de esos
+    # píxeles en el resize de abajo. En un servidor con poca CPU (VPS
+    # compartida) eso alcanza a colgar el request — ver
+    # productos_compresion_imagenes_2026_07 en memoria.
+    imagen.draft('RGB', (lado_maximo, lado_maximo))
     imagen = ImageOps.exif_transpose(imagen)  # respeta la orientación real de fotos de celular
 
     tiene_alfa = imagen.mode in ('RGBA', 'LA') or (imagen.mode == 'P' and 'transparency' in imagen.info)

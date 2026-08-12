@@ -229,6 +229,11 @@ class BuscarProductoAjax(LoginRequiredMixin, View):
             'proveedor':          p.proveedor.nombre if p.proveedor else '',
             'es_perecedero':      p.es_perecedero,
             'gestiona_variantes': p.gestiona_variantes,
+            # Último costo vigente del producto — sea de su última Compra
+            # real, de una activación manual de costo de referencia, o de
+            # un ajuste manual de stock (ver Producto._costo_efectivo()).
+            # Sirve para prellenar el costo al agregarlo a una compra nueva.
+            'costo_actual':       str(p.costo_actual) if p.costo_actual is not None else '',
         }
 
     def _fila_simple(self, p, match_exacto=False):
@@ -680,15 +685,15 @@ class ConfirmarCompraAjax(LoginRequiredMixin, View):
                 'cuenta_pk': p.get('cuenta_pk'),
                 'cotizacion': cotizacion_p,
             }
-            if es_credito:
+            # Crédito y cheque comparten el mismo plan de cuotas — el/los
+            # cheque reales de cada cuota de una deuda tipo cheque se
+            # cargan después, desde su detalle en Créditos y préstamos
+            # (no acá).
+            if es_credito or medio_p == MedioPagoCompra.CHEQUE:
                 linea['modo_cuotas'] = p.get('modo_cuotas')
                 linea['cuotas'] = p.get('cuotas')
                 linea['interes_pct'] = p.get('interes_pct')
                 linea['fecha_inicio_debito'] = p.get('fecha_inicio_debito')
-            if medio_p == MedioPagoCompra.CHEQUE:
-                # Lista de cheques cargados en el modal — se valida y
-                # crea de verdad en Compra.confirmar()/_resolver_pagos_compra.
-                linea['cheques'] = p.get('cheques')
             pagos_normalizados.append(linea)
 
         if not pagos_normalizados:
@@ -737,11 +742,18 @@ class ConfirmarCompraAjax(LoginRequiredMixin, View):
         except ValueError as e:
             return JsonResponse({'error': str(e)}, status=400)
 
+        # Si algún pago fue con cheque, se creó una Deuda tipo CHEQUE sin
+        # ningún cheque real todavía — el frontend redirige a su detalle
+        # en Créditos y préstamos para cargarlos.
+        from caja.models import Deuda, TipoDeuda
+        deuda_cheque = Deuda.objects.filter(pago_compra__compra=compra, tipo=TipoDeuda.CHEQUE).first()
+
         return JsonResponse({
             'ok':     True,
             'pk':     compra.pk,
             'numero': compra.numero,
             'total':  str(compra.total),
+            'deuda_cheque_pk': deuda_cheque.pk if deuda_cheque else None,
         })
 
 
@@ -959,6 +971,7 @@ class DetalleCompraView(LoginRequiredMixin, View):
             'url_nueva_compra':     reverse('compras:nueva_compra'),
             'url_editar_carrito':   f"{reverse('compras:nueva_compra')}?editar={compra.pk}",
             'url_historial':        reverse('compras:historial_compras'),
+            'url_deudas':           reverse('caja:deudas'),
             'url_doc_subir':        reverse('compras:documento_subir'),
             'url_doc_eliminar':     reverse('compras:documento_eliminar'),
             'url_buscar_proveedor': reverse('compras:buscar_proveedor'),

@@ -261,7 +261,10 @@ function _agregarItem(fila) {
         proveedor_pk:     compraProveedor.pk || '',
         proveedor_nombre: compraProveedor.nombre || '',
         cantidad:         1,
-        costo:            0,
+        // Prellenado con el último costo vigente del producto (última
+        // compra real, costo de referencia activado, o ajuste manual de
+        // stock) — el usuario lo puede editar igual antes de confirmar.
+        costo:            parseFloat(fila.costo_actual) || 0,
         moneda:           'ARS',
         descuento:        0,
         lista_descuento_nombre: '',

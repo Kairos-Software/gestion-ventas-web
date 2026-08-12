@@ -1391,9 +1391,16 @@ class Deuda(models.Model):
     @property
     def saldo_pendiente(self):
         if self.modo_cuotas == ModoCuotas.LIBRE:
-            abonado = self.cuotas.filter(estado=EstadoCuota.CONFIRMADA).aggregate(
-                total=models.Sum('monto'))['total'] or Decimal('0')
-            return self.monto_total - abonado
+            # No solo lo ya cobrado (CONFIRMADA): una cuota PENDIENTE con
+            # un cheque todavía en trámite (pendiente o ya cobrado, ver
+            # CuotaDeuda.confirmar_con_cheque) ya tiene un cheque real
+            # emitido por ese monto — si no se descontara acá, "Registrar
+            # abono" dejaría cargar OTRO cheque encima por la misma plata.
+            comprometido = self.cuotas.filter(
+                models.Q(estado=EstadoCuota.CONFIRMADA)
+                | models.Q(cheques__estado__in=(EstadoCheque.PENDIENTE, EstadoCheque.CONFIRMADO))
+            ).distinct().aggregate(total=models.Sum('monto'))['total'] or Decimal('0')
+            return self.monto_total - comprometido
         return self.cuotas.filter(estado=EstadoCuota.PENDIENTE).aggregate(
             total=models.Sum('monto'))['total'] or Decimal('0')
 
@@ -1946,6 +1953,13 @@ class CuotaDeuda(models.Model):
         # el código interno (origen_desc) queda solo como referencia en
         # las notas, no reemplaza a la factura real.
         numero_factura = deuda.numero_comprobante or origen_desc
+        # En modo LIBRE no hay plan fijo de cuotas (deuda.cantidad_cuotas
+        # queda en None) — no tiene sentido mostrar "cuota N/None".
+        plan_txt = f'{self.numero}/{deuda.cantidad_cuotas}' if deuda.cantidad_cuotas else str(self.numero)
+        notas = f'Cuota {plan_txt} de {origen_desc}'
+        notas_usuario = str(cheque_data.get('notas', '') or '').strip()
+        if notas_usuario:
+            notas += f' — {notas_usuario}'
 
         cheque = Cheque.objects.create(
             tipo=TipoCheque.A_PAGAR,
@@ -1959,7 +1973,7 @@ class CuotaDeuda(models.Model):
             emisor=str(cheque_data.get('emisor', '') or '').strip(),
             receptor=str(cheque_data.get('receptor', '') or '').strip(),
             banco=str(cheque_data.get('banco', '') or '').strip(),
-            notas=f'Cuota {self.numero}/{deuda.cantidad_cuotas} de {origen_desc}',
+            notas=notas,
             cuota_deuda=self,
             creado_por=usuario,
         )
@@ -3094,9 +3108,10 @@ class Cheque(models.Model):
         # quede ningún rastro de eso (mismo problema ya evitado en
         # Deuda.delete()/CuentaPorCobrar.delete()). La única forma de
         # sacarse de encima este cheque es anular/eliminar la venta/compra
-        # entera (_anular_cheques_de_venta/_anular_cheques_de_compra, que
-        # sí lo limpian bien). `_permitir_con_origen=True` es solo para
-        # ese cascade.
+        # entera (_anular_cheques_de_venta para ventas; en compras un
+        # cheque siempre cuelga de una Deuda tipo CHEQUE, se limpia vía
+        # Deuda.delete()/_anular_deudas_de_compra). `_permitir_con_origen=True`
+        # es solo para ese cascade.
         if (self.pago_venta_id or self.pago_compra_id) and not _permitir_con_origen:
             raise ValueError(
                 'Este cheque es el medio de pago de una venta/compra real — no se puede eliminar '

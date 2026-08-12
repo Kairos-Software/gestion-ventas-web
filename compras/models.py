@@ -106,9 +106,17 @@ def _resolver_pagos_compra(compra, pagos):
     """
     Valida y resuelve la cuenta real de cada línea de pago de una
     compra. Devuelve una lista de dicts [{'medio', 'monto', 'cuenta',
-    'cuotas', 'interes_pct', 'fecha_inicio_debito'}] lista para crear
-    PagoCompra (los últimos 3 campos son None salvo medio=CREDITO), o
-    None si `pagos` es None (no se tocan los pagos existentes).
+    'cuotas', 'interes_pct', 'fecha_inicio_debito', 'modo_cuotas'}]
+    lista para crear PagoCompra (los últimos 4 campos son None salvo
+    medio=CREDITO o medio=CHEQUE, que comparten el mismo plan de
+    cuotas), o None si `pagos` es None (no se tocan los pagos
+    existentes).
+
+    Para medio=CHEQUE esto solo define el PLAN de pago (cuotas fijas o
+    libres) — no pide ningún cheque concreto todavía. El/los cheques
+    reales de cada cuota se cargan después, desde el detalle de la
+    Deuda en Créditos y préstamos (ver `_crear_deudas_desde_pagos` y
+    `caja.models.CuotaDeuda.confirmar_con_cheque`).
 
     Usado por Compra.confirmar() y Compra.editar_completa() — misma
     validación en los dos lugares donde se puede confirmar una compra.
@@ -116,7 +124,7 @@ def _resolver_pagos_compra(compra, pagos):
     if pagos is None:
         return None
 
-    from caja.models import CuentaCaja, TipoCaja, cuenta_chequera_valida, validar_cuenta_financiadora
+    from caja.models import CuentaCaja, TipoCaja, cuenta_chequera_valida, ModoCuotas
     labels_medio = dict(MedioPagoCompra.choices)
 
     pagos_resueltos = []
@@ -125,18 +133,19 @@ def _resolver_pagos_compra(compra, pagos):
         medio = p.get('medio', MedioPagoCompra.EFECTIVO)
         if medio not in MedioPagoCompra.values:
             raise ValueError(f'Medio de pago inválido: {medio}')
-        if medio != MedioPagoCompra.CHEQUE and (not monto or float(monto) <= 0):
+        if not monto or float(monto) <= 0:
             continue
 
         es_credito = medio == MedioPagoCompra.CREDITO
+        usa_plan_cuotas = medio in (MedioPagoCompra.CREDITO, MedioPagoCompra.CHEQUE)
 
         if medio == MedioPagoCompra.CHEQUE:
-            # La chequera define la moneda del/los cheque(s) — al revés
-            # que en el alta manual desde Cheques, acá se elige la
-            # cuenta primero (como cualquier otra línea de pago).
+            # La chequera de la que van a salir los cheques de esta deuda
+            # — al revés que en el alta manual desde Cheques, acá se
+            # elige la cuenta primero (como cualquier otra línea de pago).
             cuenta = cuenta_chequera_valida(p.get('cuenta_pk'))
             if not cuenta:
-                raise ValueError('Elegí la cuenta bancaria (chequera) de la que sale el cheque.')
+                raise ValueError('Elegí la cuenta bancaria (chequera) desde la que se van a emitir los cheques.')
         else:
             # La compra en sí siempre está en pesos, pero se puede pagar
             # con una cuenta en cualquier moneda (transferencia/efectivo/
@@ -162,56 +171,9 @@ def _resolver_pagos_compra(compra, pagos):
                     f'Ingresá la cotización usada para el pago en {cuenta.get_moneda_display()}.'
                 )
 
-        cheques_info = None
-        if medio == MedioPagoCompra.CHEQUE:
-            cheques_raw = p.get('cheques') or []
-            if not cheques_raw:
-                raise ValueError('Cargá al menos un cheque para esta línea de pago.')
-            cheques_info = []
-            for ch in cheques_raw:
-                try:
-                    monto_cheque = Decimal(str(ch.get('monto')))
-                    if monto_cheque <= 0:
-                        raise ValueError
-                except Exception:
-                    raise ValueError('Uno de los cheques cargados tiene un monto inválido.')
-                fecha_emision_raw = ch.get('fecha_emision')
-                fecha_cobro_raw = ch.get('fecha_cobro')
-                if not fecha_emision_raw or not fecha_cobro_raw:
-                    raise ValueError('Cada cheque necesita fecha de emisión y de cobro.')
-                try:
-                    fecha_emision_ch = date.fromisoformat(str(fecha_emision_raw))
-                    fecha_cobro_ch = date.fromisoformat(str(fecha_cobro_raw))
-                except ValueError:
-                    raise ValueError('Fecha de cheque inválida.')
-
-                financiadora = None
-                if ch.get('cuenta_financiadora_pk'):
-                    financiadora, error = validar_cuenta_financiadora(
-                        ch.get('cuenta_financiadora_pk'), cuenta, cuenta.moneda, monto_cheque,
-                    )
-                    if error:
-                        raise ValueError(error)
-
-                cheques_info.append({
-                    'numero_cheque': str(ch.get('numero_cheque', '') or '').strip(),
-                    'monto': monto_cheque,
-                    'fecha_emision': fecha_emision_ch,
-                    'fecha_cobro': fecha_cobro_ch,
-                    'emisor': str(ch.get('emisor', '') or '').strip(),
-                    'receptor': str(ch.get('receptor', '') or '').strip(),
-                    'banco': str(ch.get('banco', '') or '').strip(),
-                    'notas': str(ch.get('notas', '') or '').strip(),
-                    'financiadora': financiadora,
-                })
-            # El monto de la línea es la suma de los cheques cargados,
-            # no un valor tipeado aparte — nunca pueden desincronizarse.
-            monto = sum(c['monto'] for c in cheques_info)
-
         cuotas = interes_pct = fecha_inicio_debito = None
         modo_cuotas = None
-        if es_credito:
-            from caja.models import ModoCuotas
+        if usa_plan_cuotas:
             modo_cuotas = p.get('modo_cuotas') or ModoCuotas.FIJAS
             if modo_cuotas not in ModoCuotas.values:
                 raise ValueError(f'Modo de cuotas inválido: {modo_cuotas}')
@@ -222,7 +184,7 @@ def _resolver_pagos_compra(compra, pagos):
             if interes_pct < 0:
                 raise ValueError('El porcentaje de interés no puede ser negativo.')
             if modo_cuotas == ModoCuotas.LIBRE:
-                # Cuotas libres: no hay plan ni fecha de débito que pedir
+                # Cuotas libres: no hay plan ni fecha de inicio que pedir
                 # — la deuda nace sin CuotaDeuda, se va pagando después
                 # con "Registrar abono" desde Deudas.
                 cuotas = None
@@ -233,20 +195,19 @@ def _resolver_pagos_compra(compra, pagos):
                 except (TypeError, ValueError):
                     cuotas = 0
                 if cuotas < 1:
-                    raise ValueError('Indicá la cantidad de cuotas para el pago con crédito.')
+                    raise ValueError('Indicá la cantidad de cuotas.')
                 fecha_inicio_raw = p.get('fecha_inicio_debito')
                 if not fecha_inicio_raw:
-                    raise ValueError('Indicá la fecha de inicio de débito de la tarjeta.')
+                    raise ValueError('Indicá la fecha de inicio del plan de cuotas.')
                 try:
                     fecha_inicio_debito = date.fromisoformat(str(fecha_inicio_raw))
                 except ValueError:
-                    raise ValueError('Fecha de inicio de débito inválida.')
+                    raise ValueError('Fecha de inicio inválida.')
 
         pagos_resueltos.append({
             'medio': medio, 'monto': monto, 'cuenta': cuenta, 'cotizacion': cotizacion,
             'cuotas': cuotas, 'interes_pct': interes_pct,
             'fecha_inicio_debito': fecha_inicio_debito, 'modo_cuotas': modo_cuotas,
-            'cheques_info': cheques_info,
         })
 
     return pagos_resueltos
@@ -275,9 +236,18 @@ def _guardar_pagos_compra(compra, pagos_resueltos):
 
 def _crear_deudas_desde_pagos(compra, pagos_resueltos, pagos_creados):
     """
-    Para cada línea de pago con medio=CREDITO, crea la Deuda (con su
-    plan de cuotas) vinculada a esa línea. Se llama después de
-    _guardar_pagos_compra(), que ya devolvió los PagoCompra reales.
+    Para cada línea de pago con medio=CREDITO o medio=CHEQUE, crea la
+    Deuda con su plan de cuotas (fijas o libres) vinculada a esa línea.
+    Se llama después de _guardar_pagos_compra(), que ya devolvió los
+    PagoCompra reales.
+
+    CHEQUE se comporta exactamente igual que CREDITO: acá solo se
+    arma el PLAN (cuotas + interés opcional) — no se emite ningún
+    cheque todavía. Cada cuota nace PENDIENTE, lista para cargarle el
+    cheque real después desde el detalle de esta Deuda en Créditos y
+    préstamos (mismo botón "Pagar con cheque" que ya usan las cuotas
+    de una deuda de crédito/préstamo pagadas con cheque — ver
+    caja.models.CuotaDeuda.confirmar_con_cheque).
     """
     if not pagos_resueltos:
         return
@@ -285,101 +255,53 @@ def _crear_deudas_desde_pagos(compra, pagos_resueltos, pagos_creados):
     from caja.models import Deuda, TipoDeuda
 
     for p, pago_obj in zip(pagos_resueltos, pagos_creados):
-        if p['medio'] != MedioPagoCompra.CREDITO:
-            continue
-        Deuda.crear_con_cuotas(
-            tipo=TipoDeuda.COMPRA_CREDITO,
-            pago_compra=pago_obj,
-            cuenta_tarjeta=p['cuenta'],
-            monto_original=p['monto'],
-            porcentaje_interes=p['interes_pct'],
-            cantidad_cuotas=p['cuotas'],
-            fecha_inicio=p['fecha_inicio_debito'] or compra.fecha,
-            modo_cuotas=p['modo_cuotas'],
-            moneda=p['cuenta'].moneda,
-            descripcion=f'Compra {compra.numero}',
-            numero_comprobante=compra.numero_comprobante,
-            creado_por=compra.creado_por,
-        )
+        if p['medio'] == MedioPagoCompra.CREDITO:
+            Deuda.crear_con_cuotas(
+                tipo=TipoDeuda.COMPRA_CREDITO,
+                pago_compra=pago_obj,
+                cuenta_tarjeta=p['cuenta'],
+                monto_original=p['monto'],
+                porcentaje_interes=p['interes_pct'],
+                cantidad_cuotas=p['cuotas'],
+                fecha_inicio=p['fecha_inicio_debito'] or compra.fecha,
+                modo_cuotas=p['modo_cuotas'],
+                moneda=p['cuenta'].moneda,
+                descripcion=f'Compra {compra.numero}',
+                numero_comprobante=compra.numero_comprobante,
+                creado_por=compra.creado_por,
+            )
+        elif p['medio'] == MedioPagoCompra.CHEQUE:
+            Deuda.crear_con_cuotas(
+                tipo=TipoDeuda.CHEQUE,
+                pago_compra=pago_obj,
+                monto_original=p['monto'],
+                porcentaje_interes=p['interes_pct'],
+                cantidad_cuotas=p['cuotas'],
+                fecha_inicio=p['fecha_inicio_debito'] or compra.fecha,
+                modo_cuotas=p['modo_cuotas'],
+                moneda=p['cuenta'].moneda,
+                descripcion=f'Compra {compra.numero}',
+                numero_comprobante=compra.numero_comprobante,
+                creado_por=compra.creado_por,
+            )
 
 
 def _anular_deudas_de_compra(compra):
     """
-    Elimina las Deudas activas vinculadas a las líneas de crédito de esta
-    compra. Deuda.anular() ya bloquea si hay cuotas confirmadas — el
-    ValueError se propaga tal cual, mismo criterio que el resto de las
-    validaciones de este archivo (fail fast, antes de tocar stock). Una
-    vez que anular() confirma que no hay nada real pagado, se borra la
-    Deuda del todo (Deuda.delete() ya limpia sus propios movimientos) en
-    vez de dejarla ANULADA para siempre sin ninguna compra real detrás.
+    Elimina las Deudas activas vinculadas a las líneas de crédito o de
+    cheque de esta compra. Deuda.anular() ya bloquea si hay cuotas
+    confirmadas, o (para tipo=CHEQUE) si hay un cheque pendiente o cobrado
+    sin resolver — el ValueError se propaga tal cual, mismo criterio que
+    el resto de las validaciones de este archivo (fail fast, antes de
+    tocar stock). Una vez que anular() confirma que no hay nada real
+    pagado ni en trámite, se borra la Deuda del todo (Deuda.delete() ya
+    limpia sus propios movimientos y cheques) en vez de dejarla ANULADA
+    para siempre sin ninguna compra real detrás.
     """
     from caja.models import Deuda, EstadoDeuda
     for deuda in Deuda.objects.filter(pago_compra__compra=compra, estado=EstadoDeuda.ACTIVA):
         deuda.anular()
         deuda.delete(_permitir_con_origen=True)
-
-
-def _crear_cheques_desde_pagos(compra, pagos_resueltos, pagos_creados):
-    """
-    Para cada línea de pago con medio=CHEQUE, crea el/los Cheque (A_PAGAR)
-    vinculados a esa línea — puede haber más de uno (pago dividido con
-    varios cheques). Cada cheque nace PENDIENTE: no impacta caja hasta
-    que se confirma por separado desde la pantalla de Cheques (ver
-    caja.sincronizar_movimiento_compra, que excluye estas líneas).
-    Si el cheque trae una cuenta financiadora, fondea la chequera con
-    una transferencia — mismo mecanismo que el alta manual de un cheque.
-    """
-    if not pagos_resueltos:
-        return
-
-    from caja.models import Cheque, TipoCheque, fondear_chequera
-
-    for p, pago_obj in zip(pagos_resueltos, pagos_creados):
-        if p['medio'] != MedioPagoCompra.CHEQUE:
-            continue
-        for ch in p['cheques_info']:
-            cheque = Cheque.objects.create(
-                tipo=TipoCheque.A_PAGAR,
-                numero_cheque=ch['numero_cheque'],
-                numero_factura=compra.numero_comprobante or compra.numero,
-                monto=ch['monto'],
-                moneda=p['cuenta'].moneda,
-                fecha_emision=ch['fecha_emision'],
-                fecha_cobro=ch['fecha_cobro'],
-                cuenta_origen=p['cuenta'],
-                emisor=ch['emisor'],
-                receptor=ch['receptor'],
-                banco=ch['banco'],
-                notas=ch['notas'],
-                pago_compra=pago_obj,
-                creado_por=compra.creado_por,
-            )
-            if ch['financiadora']:
-                fondear_chequera(
-                    ch['financiadora'], p['cuenta'], ch['monto'],
-                    compra.fecha, cheque, compra.creado_por,
-                )
-
-
-def _anular_cheques_de_compra(compra):
-    """
-    Elimina los cheques PENDIENTES vinculados a las líneas de pago con
-    cheque de esta compra. Si alguno ya está CONFIRMADO (efectivamente
-    pagado), no se puede anular la compra sin resolver eso antes — mismo
-    criterio fail-fast que _anular_deudas_de_compra. Una vez anulado, se
-    borra del todo (Cheque.delete() ya lo permite para un ANULADO) en vez
-    de dejarlo como fantasma sin ninguna compra real detrás.
-    """
-    from caja.models import Cheque, EstadoCheque
-    for cheque in Cheque.objects.filter(pago_compra__compra=compra).exclude(estado=EstadoCheque.ANULADO):
-        if cheque.estado == EstadoCheque.PENDIENTE:
-            cheque.anular()
-            cheque.delete(_permitir_con_origen=True)
-        elif cheque.estado == EstadoCheque.CONFIRMADO:
-            raise ValueError(
-                f'El cheque {cheque.numero_cheque or "s/n"} de esta compra ya está confirmado '
-                f'(pagado) — rechazalo desde Cheques antes de anular la compra.'
-            )
 
 
 def _crear_lote_desde_item(item, fecha_compra):
@@ -508,7 +430,6 @@ class Compra(models.Model):
                 return
             # Falla rápido: bloquea el borrado si hay cuotas ya confirmadas.
             _anular_deudas_de_compra(self)
-            _anular_cheques_de_compra(self)
             productos_afectados = {item.producto for item in self.items.all() if item.producto_id}
             if estado_actual == EstadoCompra.CONFIRMADA:
                 for item in self.items.select_related('producto', 'combinacion'):
@@ -574,7 +495,6 @@ class Compra(models.Model):
 
         pagos_creados = _guardar_pagos_compra(self, pagos_resueltos)
         _crear_deudas_desde_pagos(self, pagos_resueltos, pagos_creados)
-        _crear_cheques_desde_pagos(self, pagos_resueltos, pagos_creados)
 
         # Sincronizar movimiento de caja grande
         from caja.models import sincronizar_movimiento_compra
@@ -606,10 +526,10 @@ class Compra(models.Model):
         if estado_actual == EstadoCompra.BORRADOR:
             raise ValueError('Las compras en borrador no se anulan — simplemente no se confirman.')
 
-        # Falla rápido: si alguna cuota de una deuda por crédito ya fue
-        # confirmada, no se puede anular la compra sin antes resolver esa deuda.
+        # Falla rápido: si alguna cuota de una deuda por crédito o de cheque
+        # ya fue confirmada, no se puede anular la compra sin antes resolver
+        # esa deuda.
         _anular_deudas_de_compra(self)
-        _anular_cheques_de_compra(self)
 
         for item in self.items.select_related('producto', 'combinacion'):
             _restar_stock_item(item)
@@ -759,7 +679,6 @@ class Compra(models.Model):
 
         pagos_creados = _guardar_pagos_compra(self, pagos_resueltos)
         _crear_deudas_desde_pagos(self, pagos_resueltos, pagos_creados)
-        _crear_cheques_desde_pagos(self, pagos_resueltos, pagos_creados)
 
         # Sincronizar movimiento de caja grande
         from caja.models import sincronizar_movimiento_compra
@@ -1319,6 +1238,11 @@ class Perdida(models.Model):
 
     cantidad = models.DecimalField(max_digits=12, decimal_places=3)
     costo_unitario_snapshot = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    precio_venta_unitario_snapshot = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0,
+        help_text='Precio de venta del producto al momento de la pérdida — para saber no '
+                   'solo lo que costó, sino lo que se dejó de facturar por venderlo.',
+    )
 
     motivo = models.CharField(max_length=20, choices=MotivoPerdida.choices)
     motivo_detalle = models.CharField(max_length=300, blank=True)
@@ -1345,6 +1269,10 @@ class Perdida(models.Model):
     @property
     def costo_total(self):
         return self.cantidad * self.costo_unitario_snapshot
+
+    @property
+    def precio_venta_total(self):
+        return self.cantidad * self.precio_venta_unitario_snapshot
 
 
 @transaction.atomic
@@ -1398,6 +1326,7 @@ def registrar_perdida(lote, cantidad, motivo, motivo_detalle='', usuario=None,
         combinacion_desc_snapshot  = combinacion.descripcion_legible() if combinacion else '',
         cantidad                   = cantidad,
         costo_unitario_snapshot    = lote.costo_unitario,
+        precio_venta_unitario_snapshot = producto.precio_venta if producto and producto.precio_venta else Decimal('0'),
         motivo                     = motivo,
         motivo_detalle             = motivo_detalle,
         automatica                 = automatica,

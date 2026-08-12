@@ -18,6 +18,7 @@ function abrirAjuste(btn) {
     const nombre = row.dataset.nombre;
     const stock  = row.dataset.stock;
     const unidad = row.dataset.unidad;
+    const costoReferencia = row.dataset.costo || '';
 
     // Combinaciones del producto: JSON inyectado en data-colores del <tr>.
     // Si el producto no tiene variantes, el array estará vacío.
@@ -35,6 +36,8 @@ function abrirAjuste(btn) {
     document.getElementById('ajusteTipo').value              = '';
     document.getElementById('ajusteCantidad').value          = '';
     document.getElementById('ajusteMotivo').value            = '';
+    document.getElementById('ajusteCosto').value              = costoReferencia;
+    document.getElementById('ajusteCostoWrap').style.display  = 'none';
     document.getElementById('ajusteFeedback').style.display  = 'none';
     document.querySelectorAll('.tipo-btn').forEach(b => b.classList.remove('selected'));
 
@@ -73,6 +76,11 @@ function seleccionarTipoAjuste(btn) {
     document.querySelectorAll('.tipo-btn').forEach(b => b.classList.remove('selected'));
     btn.classList.add('selected');
     document.getElementById('ajusteTipo').value = btn.dataset.tipo;
+    // El costo solo tiene sentido al SUMAR unidades (stock que ya se
+    // tenía) — al restar no se genera ningún lote nuevo, no hay nada
+    // que costear.
+    document.getElementById('ajusteCostoWrap').style.display =
+        btn.dataset.tipo === 'ajuste_pos' ? 'block' : 'none';
 }
 
 async function registrarAjuste() {
@@ -112,6 +120,10 @@ async function registrarAjuste() {
             motivo,
         };
         if (combinacionPk) payload.combinacion_pk = combinacionPk;
+        if (tipo === 'ajuste_pos') {
+            const costo = document.getElementById('ajusteCosto').value;
+            payload.costo_unitario = costo === '' ? null : parseFloat(costo);
+        }
 
         const res  = await fetch(URLS.ajuste, {
             method:  'POST',

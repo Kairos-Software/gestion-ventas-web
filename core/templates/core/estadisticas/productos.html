@@ -27,15 +27,19 @@
 <div class="card mb-4">
     <div class="card-header">
         <div>
-            <p class="card-title">¿Cuánta plata tenés inmovilizada en stock?</p>
-            <p class="text-muted" style="font-size:.8125rem;">A costo, tiempo real — no depende del filtro de fechas de arriba</p>
+            <p class="card-title">¿Cuánta plata tenés en stock?</p>
+            <p class="text-muted" style="font-size:.8125rem;">Tiempo real — no depende del filtro de fechas de arriba</p>
         </div>
     </div>
     <div class="card-body">
         <div class="est-mini-stat-grid">
             <div class="est-mini-stat">
                 <div class="est-mini-stat-valor">${{ valorizacion_stock.total_valorizado|floatformat:0|intcomma }}</div>
-                <div class="est-mini-stat-label">Valorización total</div>
+                <div class="est-mini-stat-label">Valorización a costo</div>
+            </div>
+            <div class="est-mini-stat">
+                <div class="est-mini-stat-valor">${{ valorizacion_stock.total_venta|floatformat:0|intcomma }}</div>
+                <div class="est-mini-stat-label">Si vendiera todo el stock (a precio de lista)</div>
             </div>
             <div class="est-mini-stat">
                 <div class="est-mini-stat-valor">{{ valorizacion_stock.cantidad_productos }}</div>

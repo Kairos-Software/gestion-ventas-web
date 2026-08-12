@@ -160,8 +160,23 @@ class StockAjusteAjax(LoginRequiredMixin, View):
         "tipo":            "ajuste_pos" | "ajuste_neg",
         "cantidad":        3,
         "motivo":          "Conteo físico mayo",   // opcional
-        "combinacion_pk":  5                        // requerido si gestiona_variantes
+        "combinacion_pk":  5,                       // requerido si gestiona_variantes
+        "costo_unitario":  850.00                   // opcional, solo para ajuste_pos
     }
+
+    `costo_unitario` (solo tiene sentido en un ajuste positivo): costo real
+    de esa mercadería, para que el lote que se genera no quede en $0 — sin
+    esto, una pérdida (rotura) registrada sobre stock cargado a mano sale
+    valorizada en $0, y el costo promedio del producto se distorsiona hacia
+    abajo. Si no se manda, se usa el "costo de referencia" del producto
+    (`Producto.costo`) como default razonable. Además, este costo pasa a
+    ser el costo ACTUAL del producto (pisa el "costo de referencia" viejo
+    y recalcula el precio automático — mismo mecanismo que
+    Producto.activar_costo_referencia()), así el precio de venta y la
+    valorización de stock en Estadísticas reflejan lo que se acaba de
+    cargar, no un costo desactualizado. NUNCA genera ningún movimiento de
+    caja — esa plata ya se contabilizó aparte (deuda, préstamo, o ingreso
+    inicial cargado a mano), cargar este costo acá de nuevo la duplicaría.
     """
 
     def post(self, request):
@@ -202,6 +217,17 @@ class StockAjusteAjax(LoginRequiredMixin, View):
                 'error': f'"{producto.nombre}" se maneja por {producto.get_unidad_medida_display()} '
                          f'— la cantidad tiene que ser un número entero.',
             }, status=400)
+
+        costo_unitario_raw = body.get('costo_unitario')
+        if costo_unitario_raw in (None, ''):
+            costo_unitario = producto.costo or Decimal('0')
+        else:
+            try:
+                costo_unitario = Decimal(str(costo_unitario_raw))
+                if costo_unitario < 0:
+                    raise ValueError
+            except (TypeError, ValueError, InvalidOperation):
+                return JsonResponse({'ok': False, 'error': 'Costo unitario inválido.'}, status=400)
 
         # ── Validar / resolver combinación ──────────────────────────────
         combinacion = None
@@ -247,10 +273,14 @@ class StockAjusteAjax(LoginRequiredMixin, View):
                 # Sin esto, un ajuste positivo suma a Producto.stock_actual
                 # pero no a ningún LoteCompra, y al vender el sistema busca
                 # stock en lotes reales (no en stock_actual) — la venta se
-                # cae aunque stock_actual "diga" que hay. Se crea sin costo,
-                # sin fecha de vencimiento y sin item_compra (no pasó por
-                # Compra) — no importa si el producto es perecedero o no,
-                # no hay esa información para un ajuste manual.
+                # cae aunque stock_actual "diga" que hay. Sin fecha de
+                # vencimiento y sin item_compra (no pasó por Compra) — no
+                # importa si el producto es perecedero o no, no hay esa
+                # información para un ajuste manual. `costo_unitario` SÍ se
+                # guarda real (ver arriba) para que una pérdida sobre este
+                # lote no salga valorizada en $0. Este lote nunca genera
+                # movimiento de caja: esa plata ya se contabilizó aparte
+                # (deuda/préstamo/ingreso inicial).
                 if es_entrada:
                     from compras.models import LoteCompra
                     LoteCompra.objects.create(
@@ -259,10 +289,21 @@ class StockAjusteAjax(LoginRequiredMixin, View):
                         combinacion       = combinacion,
                         cantidad_inicial  = cantidad,
                         cantidad_actual   = cantidad,
-                        costo_unitario    = Decimal('0'),
+                        costo_unitario    = costo_unitario,
                         fecha_vencimiento = None,
                         fecha_compra      = timezone.now().date(),
                     )
+                    # El costo cargado en este ajuste pasa a ser el costo
+                    # "actual" del producto DE VERDAD (mismo mecanismo que
+                    # activar_costo_referencia(): pisa incluso a una Compra
+                    # real anterior, y recalcula el precio automático) — si
+                    # no, el precio de venta y las estadísticas de stock
+                    # seguían mirando el costo de referencia viejo, aunque
+                    # acá se haya cargado uno distinto para esta partida.
+                    producto.costo = costo_unitario
+                    producto.costo_activado_en = timezone.now()
+                    producto.save(update_fields=['costo', 'costo_activado_en'])
+                    producto.actualizar_costo_y_precio()
 
         except ValueError as e:
             return JsonResponse({'ok': False, 'error': str(e)}, status=400)
