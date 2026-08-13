@@ -1472,7 +1472,9 @@ def fraccionar(producto_origen, producto_destino, cantidad_origen, cantidad_paqu
     if not cantidad_valida_para_unidad(producto_origen.unidad_medida, cantidad_origen):
         raise ValueError(
             f'"{producto_origen.nombre}" se maneja por {producto_origen.get_unidad_medida_display()} '
-            f'— la cantidad a usar tiene que ser un número entero.'
+            f'— la cantidad a usar tiene que ser un número entero. Si necesitás repartirlo en fracciones '
+            f'(ej. armar paquetes de más de un tamaño desde el mismo producto), cambiá su unidad de '
+            f'medida a una que admita fracciones (litro, kg, metro...) y cargá el stock en esa unidad.'
         )
     if not cantidad_valida_para_unidad(producto_destino.unidad_medida, cantidad_paquetes):
         raise ValueError(
@@ -1543,6 +1545,16 @@ def fraccionar(producto_origen, producto_destino, cantidad_origen, cantidad_paqu
         usuario  = usuario,
     ).save()
 
+    # El costo calculado pasa a ser el costo "actual" del producto DE
+    # VERDAD (mismo mecanismo que el ajuste manual de stock — ver
+    # StockAjusteAjax — y que activar_costo_referencia()): el lote que
+    # se acaba de crear tiene item_compra=None, así que _ultimo_lote_real()
+    # nunca lo cuenta como una Compra real. Sin esto, costo_actual y el
+    # precio automático seguían mirando el costo de referencia viejo (o
+    # 0 en un producto recién creado) en vez del costo real recién armado.
+    producto_destino.costo = costo_unitario_calculado
+    producto_destino.costo_activado_en = timezone.now()
+    producto_destino.save(update_fields=['costo', 'costo_activado_en'])
     producto_destino.actualizar_costo_y_precio()
 
     return Fraccionamiento.objects.create(

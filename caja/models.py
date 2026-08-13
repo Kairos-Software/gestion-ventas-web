@@ -2589,9 +2589,19 @@ class CuentaPorCobrar(models.Model):
         if self.estado == EstadoDeuda.ANULADA:
             raise ValueError('La cuenta por cobrar ya está anulada.')
         # Las cuotas es_historica=True no movieron plata real — no bloquean,
-        # a diferencia de una cuota confirmada de verdad.
+        # a diferencia de una cuota confirmada de verdad. Este mensaje se ve
+        # tal cual en pantalla tanto al anular como al eliminar la venta
+        # (Venta.delete() anula la CxC como primer paso) — por eso no dice
+        # "anular" a secas, tiene que tener sentido para las dos acciones,
+        # nombrar al cliente (para saber cuál es de varias CxC activas) y
+        # decir qué hacer, en vez del genérico "esta cuenta" (que se
+        # confunde con una CuentaCaja real).
         if self.cuotas.filter(estado=EstadoCuota.CONFIRMADA, es_historica=False).exists():
-            raise ValueError('No se puede anular: ya hay cuotas cobradas de esta cuenta.')
+            raise ValueError(
+                f'No se puede anular ni eliminar esta venta: ya se cobró al menos una cuota '
+                f'de la cuenta por cobrar de {self.cliente.get_nombre_display()}. '
+                f'Resolvé esa cuenta primero desde Cuentas por cobrar.'
+            )
         # Una cuota PENDIENTE puede tener igual un cheque en trámite o ya
         # cobrado (ver CuotaCobro.confirmar_con_cheque) — si se anulara la
         # cuenta ahora, ese cheque quedaría cobrándose para una cuenta que
@@ -2600,8 +2610,9 @@ class CuentaPorCobrar(models.Model):
             cuota_cobro__cuenta_por_cobrar=self, estado__in=(EstadoCheque.PENDIENTE, EstadoCheque.CONFIRMADO),
         ).exists():
             raise ValueError(
-                'No se puede anular: hay un cheque pendiente o cobrado ligado a una cuota de esta '
-                'cuenta — resolvelo primero (cobralo o rechazalo) desde Cheques.'
+                f'No se puede anular ni eliminar esta venta: hay un cheque pendiente o cobrado '
+                f'ligado a una cuota de la cuenta por cobrar de {self.cliente.get_nombre_display()} '
+                f'— resolvelo primero (cobralo o rechazalo) desde Cheques.'
             )
 
         self.estado = EstadoDeuda.ANULADA

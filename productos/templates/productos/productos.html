@@ -406,7 +406,21 @@
                             <option value="bolsa">Bolsa</option>
                             <option value="otro">Otro</option>
                         </select>
-                        <div class="kai-help-popover" id="ayuda_unidad_medida">Así se cuenta el stock de este producto en todo el sistema.</div>
+                        <div class="kai-help-popover" id="ayuda_unidad_medida">
+                            Así se cuenta el stock de este producto en todo el sistema.
+                            <br><br>
+                            <strong>Kilogramo, Gramo, Litro, Mililitro, Metro, Centímetro, Metro cuadrado
+                            y Metro cúbico admiten fracciones</strong> (2,5 kg, 0,750 lt) — el resto
+                            (Unidad, Caja, Pack, Par, Docena, Rollo, Bolsa) solo admite cantidades enteras,
+                            no existe "media unidad".
+                            <br><br>
+                            Importa especialmente si después vas a <strong>fraccionar</strong> este producto
+                            (armar paquetes chicos desde uno grande, ej. botellas desde un bidón a granel):
+                            si lo cargás como "Unidad" (1 bidón = 1 unidad) no vas a poder repartirlo entre
+                            varios tamaños de paquete distintos, porque no se puede pedir "0,5 unidades". Para
+                            poder repartirlo en fracciones, cargalo en la unidad real de su contenido (ej.
+                            Litro, con el stock inicial en litros) en vez de "Unidad".
+                        </div>
                     </div>
                     <div class="prd-field" id="wrap_unidades_por_presentacion" style="display:none;">
                         <label class="kai-label-help">
