@@ -50,7 +50,18 @@ html[data-theme="dark"]{
 .kc-bento :focus-visible{ outline:2px solid var(--lime); outline-offset:2px; }
 .kc-bento .shell{ max-width:1320px; margin:0 auto; padding:0 26px; }
 .kc-bento .hide-scrollbar::-webkit-scrollbar{ display:none; }
-.kc-bento .hide-scrollbar{ scrollbar-width:none; }
+.kc-bento .hide-scrollbar{ scrollbar-width:none; cursor:grab; }
+.kc-bento .hide-scrollbar.dragging{ cursor:grabbing; scroll-behavior:auto; user-select:none; }
+.kc-bento .hide-scrollbar.dragging *{ pointer-events:none; }
+
+/* ================= Ticker — franja de anuncios arriba del header ================= */
+.kc-bento .ticker{ background:var(--indigo); color:#fff; display:flex; align-items:center; justify-content:center; gap:16px; padding:10px 20px; position:relative; }
+.kc-bento .ticker-btn{ background:none; border:none; color:rgba(255,255,255,.55); cursor:pointer; font-size:15px; padding:4px 8px; line-height:1; transition:color .15s; flex:none; }
+.kc-bento .ticker-btn:hover{ color:#fff; }
+.kc-bento .ticker-msgs{ position:relative; height:16px; flex:1; max-width:560px; text-align:center; }
+.kc-bento .ticker-msg{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family:var(--f-mono); font-size:12px; letter-spacing:.01em; opacity:0; transition:opacity .45s; padding:0 8px; }
+.kc-bento .ticker-msg.active{ opacity:1; }
+@media (max-width:600px){ .kc-bento .ticker{ padding:9px 14px; } .kc-bento .ticker-msg{ font-size:11px; } }
 
 /* ================= Topbar ================= */
 .kc-bento .topbar{ position:sticky; top:0; z-index:80; background:var(--surface); border-bottom:1px solid var(--line); transition:padding .2s, box-shadow .2s; }
@@ -165,6 +176,70 @@ html[data-theme="dark"] .kc-bento .theme-switch i{ left:20px; background:var(--l
 }
 @media (max-width:560px){ .kc-bento .hero-side{ flex-direction:column; } }
 
+/* ---- Grilla de promos (4, estática) — reusa BannerCatalogo posición
+   "antes de la grilla" (banners_antes_grilla, ver catalogo/views.py),
+   la misma que Almacén usa para su franja "cinturón" — acá en Bento
+   se renderiza distinto: fija, sin scroll, tarjetas altas y gráficas
+   con degradé propio de la marca cuando no hay foto (a propósito NADA
+   parecida a .ads-rail, que ya cubre "carrusel" — esta es la otra forma:
+   grilla fija de tarjetas altas). ---- */
+.kc-bento .promo-grid-wrap{ padding:34px 0 4px; }
+.kc-bento .promo-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+.kc-bento .promo-card{ position:relative; aspect-ratio:3/4; border-radius:var(--r-lg); padding:16px; display:flex; flex-direction:column; justify-content:flex-end; color:#fff; overflow:hidden; box-shadow:var(--shadow-sm); transition:transform .2s, box-shadow .2s; }
+.kc-bento .promo-card:hover{ transform:translateY(-3px); box-shadow:var(--shadow-md); }
+.kc-bento .promo-card::before{ content:''; position:absolute; inset:-20% -20% auto auto; width:70%; height:70%; border-radius:50%; background:rgba(255,255,255,.08); }
+.kc-bento .promo-card img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.kc-bento .promo-card.has-img::after{ content:''; position:absolute; inset:0; background:linear-gradient(0deg, rgba(15,16,26,.85) 0%, rgba(15,16,26,.15) 55%, transparent 100%); }
+.kc-bento .promo-card-copy{ position:relative; z-index:1; }
+.kc-bento .promo-card-copy b{ font-family:var(--f-display); font-weight:800; font-size:15.5px; line-height:1.2; display:block; }
+.kc-bento .promo-card-copy small{ font-size:11px; opacity:.85; margin-top:4px; display:block; }
+.kc-bento .promo-card-cta{ display:inline-flex; align-items:center; gap:4px; background:rgba(255,255,255,.95); color:#0f101a; font-family:var(--f-display); font-weight:700; font-size:10.5px; padding:6px 10px; border-radius:var(--r-pill); margin-top:9px; width:fit-content; }
+.kc-bento .promo-card.pg1{ background:linear-gradient(160deg, var(--lime), #3f5c16); }
+.kc-bento .promo-card.pg2{ background:linear-gradient(160deg, var(--indigo), #12142a); }
+.kc-bento .promo-card.pg3{ background:linear-gradient(160deg, var(--amber), #7a5219); }
+.kc-bento .promo-card.pg4{ background:linear-gradient(160deg, #c0392b, #7a251c); }
+@media (max-width:760px){ .kc-bento .promo-grid{ grid-template-columns:repeat(2,1fr); } }
+
+/* ---- Anuncios/banners manuales — mismo concepto que la
+   franja "cinturón" de Almacén, pero acá el dueño reportó que con forma
+   cuadrada+overlay se veían "exactamente igual" a otra sección de la home
+   (categorías/marcas destacadas, después sacada de Bento por redundante).
+   El criterio de fondo sigue vigente: forma/tamaño distintos evitan la
+   sensación de redundancia entre secciones. Ahora son
+   tarjetas APAISADAS (banner, no chip), con texto siempre visible (no solo
+   al hover) y un botón real (no solo una etiqueta) — forma, tamaño y
+   affordance distintos, no solo posición. ---- */
+.kc-bento .ads-wrap{ padding:34px 0 10px; margin-top:6px; }
+.kc-bento .ads-rail{ display:flex; gap:16px; overflow-x:auto; padding-bottom:4px; scroll-snap-type:x proximity; }
+.kc-bento .ad-card{ position:relative; flex:0 0 320px; aspect-ratio:16/9; border-radius:var(--r-lg); overflow:hidden; box-shadow:var(--shadow-sm); transition:transform .2s, box-shadow .2s; display:block; scroll-snap-align:start; }
+.kc-bento .ad-card:hover{ transform:translateY(-3px); box-shadow:var(--shadow-md); }
+.kc-bento .ad-card img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transition:transform .3s; }
+.kc-bento .ad-card:hover img{ transform:scale(1.05); }
+.kc-bento .ad-card-overlay{ position:absolute; inset:0; display:flex; flex-direction:column; justify-content:flex-end; gap:12px; padding:20px; }
+.kc-bento .ad-card-overlay--scrim{ background:linear-gradient(100deg, rgba(15,16,26,.9) 0%, rgba(15,16,26,.55) 48%, rgba(15,16,26,.05) 100%); }
+.kc-bento .ad-card-copy{ max-width:75%; display:flex; flex-direction:column; gap:5px; }
+.kc-bento .ad-card-title{ font-family:var(--f-display); font-weight:800; font-size:17px; color:#fff; line-height:1.22; }
+.kc-bento .ad-card-text{ font-size:12.5px; color:rgba(255,255,255,.85); line-height:1.35; }
+.kc-bento .ad-card-cta{ display:inline-flex; align-self:flex-start; align-items:center; gap:6px; background:var(--lime); color:#0f101a; font-family:var(--f-display); font-weight:700; font-size:12px; padding:8px 14px; border-radius:var(--r-pill); width:fit-content; transition:transform .15s; }
+.kc-bento .ad-card:hover .ad-card-cta{ transform:translateX(3px); }
+@media (max-width:600px){ .kc-bento .ad-card{ flex-basis:80vw; } }
+
+/* ---- Franja ancha de banner(es) — versión Bento de la franja "completa"
+   que ya usa Almacén, para las posiciones "antes de Destacados"/"antes de
+   Combos" (ver catalogo/plantillas/bento/_banner_strip.html). A propósito
+   ancha y baja (no apaisada-chica como .ad-card) — un mensaje editorial
+   de paso, no una tarjeta de catálogo. ---- */
+.kc-bento .banner-strip{ display:flex; flex-direction:column; gap:14px; padding:22px 0; }
+.kc-bento .banner-strip-item{ position:relative; min-height:180px; border-radius:var(--r-lg); overflow:hidden; display:flex; align-items:center; box-shadow:var(--shadow-sm); transition:transform .2s, box-shadow .2s; }
+.kc-bento .banner-strip-item:hover{ transform:translateY(-2px); box-shadow:var(--shadow-md); }
+.kc-bento .banner-strip-item img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.kc-bento .banner-strip-item.has-img::after{ content:''; position:absolute; inset:0; background:linear-gradient(100deg, rgba(15,16,26,.85) 0%, rgba(15,16,26,.4) 55%, rgba(15,16,26,.05) 100%); }
+.kc-bento .banner-strip-copy{ position:relative; z-index:1; padding:26px 30px; max-width:520px; color:#fff; }
+.kc-bento .banner-strip-copy b{ font-family:var(--f-display); font-weight:800; font-size:19px; line-height:1.25; display:block; }
+.kc-bento .banner-strip-copy p{ font-size:13px; color:rgba(255,255,255,.85); margin:6px 0 0; }
+.kc-bento .banner-strip-cta{ display:inline-flex; align-items:center; gap:6px; background:var(--lime); color:#0f101a; font-family:var(--f-display); font-weight:700; font-size:12px; padding:9px 16px; border-radius:var(--r-pill); margin-top:14px; width:fit-content; }
+@media (max-width:600px){ .kc-bento .banner-strip-item{ min-height:150px; } .kc-bento .banner-strip-copy{ padding:20px; } }
+
 /* ---- Cabecera de "modo búsqueda" (reemplaza el hero cuando hay `q`) ---- */
 .kc-bento .search-results-head{ padding:32px 0 6px; }
 .kc-bento .search-results-head .src-eyebrow{ display:block; font-family:var(--f-mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:8px; }
@@ -253,8 +328,10 @@ html[data-theme="dark"] .kc-bento .theme-switch i{ left:20px; background:var(--l
 .kc-bento .trust{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; padding:22px 0 8px; }
 .kc-bento .trust-item{ display:flex; align-items:center; gap:13px; padding:12px; border-radius:var(--r-md); transition:background .15s; }
 .kc-bento .trust-item:hover{ background:var(--surface-2); }
-.kc-bento .trust-ic{ width:42px; height:42px; border-radius:12px; background:var(--indigo-soft); color:var(--indigo); flex-shrink:0; display:flex; align-items:center; justify-content:center; }
-html[data-theme="dark"] .kc-bento .trust-ic{ color:#9aa3ff; }
+.kc-bento .trust-ic{ width:40px; height:40px; border-radius:50%; color:#fff; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+.kc-bento .trust-item:nth-child(1) .trust-ic{ background:var(--lime); }
+.kc-bento .trust-item:nth-child(2) .trust-ic{ background:var(--amber); }
+.kc-bento .trust-item:nth-child(3) .trust-ic{ background:var(--indigo); }
 .kc-bento .trust-item strong{ display:block; font-size:13.5px; margin-bottom:2px; }
 .kc-bento .trust-item small{ font-size:12px; color:var(--ink-soft); }
 @media (max-width:760px){ .kc-bento .trust{ grid-template-columns:1fr; } }
@@ -277,6 +354,16 @@ html[data-theme="dark"] .kc-bento .trust-ic{ color:#9aa3ff; }
 .kc-bento .flash-new{ font-family:var(--f-mono); font-weight:700; font-size:13.5px; color:var(--red); }
 .kc-bento .flash-old{ font-family:var(--f-mono); font-size:10.5px; color:var(--ink-faint); text-decoration:line-through; }
 
+/* ---- Destacados — rail de productos marcados "destacado", distinto de
+   .flash (que es solo ofertas con descuento): reusa .tile-media/.tile-tag/
+   .tile-body/.tile-cat/.tile-name/.tile-price-row/.tile-agregar tal cual
+   (ya son clases genéricas, no dependen de estar dentro de ".tile"), solo
+   hace falta el contenedor de rail + la tarjeta angosta. ---- */
+.kc-bento .destacados-wrap{ margin-top:24px; }
+.kc-bento .destacados-row{ display:flex; gap:14px; overflow-x:auto; padding-bottom:2px; }
+.kc-bento .destacado-card{ flex:0 0 190px; background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg); overflow:hidden; display:flex; flex-direction:column; transition:transform .18s, box-shadow .18s; }
+.kc-bento .destacado-card:hover{ transform:translateY(-2px); box-shadow:var(--shadow-md); }
+
 /* ================= Combos armados (spotlight) ================= */
 .kc-bento .combos-section{ padding:38px 0 10px; margin-top:14px; border-top:1px solid var(--line); }
 /* auto-fill con un ancho de tarjeta chico (antes 3 columnas fijas hacían tarjetas
@@ -298,6 +385,7 @@ html[data-theme="dark"] .kc-bento .trust-ic{ color:#9aa3ff; }
 /* ================= Secondary rail (destacados) ================= */
 .kc-bento .rail-section{ padding:38px 0 56px; margin-top:14px; border-top:1px solid var(--line); }
 .kc-bento .rail-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:16px; }
+.kc-bento .rail-head--center{ flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:2px; }
 .kc-bento .rail-eyebrow{ display:block; font-family:var(--f-mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:5px; }
 .kc-bento .rail-title{ font-family:var(--f-display); font-weight:700; font-size:19px; letter-spacing:-.005em; }
 .kc-bento .rail-title--ic{ display:inline-flex; align-items:center; gap:7px; }
@@ -539,6 +627,33 @@ html[data-theme="dark"] .kc-bento .kc-detalle-trust-ic{ color:#9aa3ff; }
 .kc-bento .tm-historia .rail-eyebrow{ display:block; color:#d7ff8f; margin-bottom:10px; }
 .kc-bento .tm-historia p{ font-family:var(--f-display); font-size:clamp(17px,2.2vw,22px); font-weight:600; line-height:1.5; color:#fff; letter-spacing:-.005em; }
 
+/* Versión "pausa" de la banda de historia, para la home (ver bento/home.html)
+   — mismo bloque que La Tienda pero más bajo, con un link corto en vez de
+   ser la sección principal de la página. */
+.kc-bento .tm-historia--home .tm-historia-inner{ padding:38px 26px; }
+.kc-bento .tm-historia--home p{ font-size:clamp(15.5px,1.8vw,18px); }
+.kc-bento .tm-historia-link{ display:inline-block; margin-top:16px; font-family:var(--f-display); font-weight:700; font-size:13px; color:var(--lime); }
+.kc-bento .tm-historia-link:hover{ text-decoration:underline; }
+
+/* ---- Marcas — logos circulares, solo prestigio (no filtran el catálogo). ---- */
+.kc-bento .brands-wrap{ padding:36px 0; text-align:center; }
+.kc-bento .brands{ display:flex; gap:22px; flex-wrap:wrap; justify-content:center; margin-top:16px; }
+.kc-bento .brand-badge{ width:72px; height:72px; border-radius:50%; border:1px solid var(--line); overflow:hidden; filter:grayscale(1); opacity:.75; transition:.2s; }
+.kc-bento .brand-badge img{ width:100%; height:100%; object-fit:contain; padding:10px; }
+.kc-bento .brand-badge:hover{ filter:none; opacity:1; border-color:var(--lime); }
+
+/* ---- Banda CTA final — misma familia que .tm-historia pero en lima, para
+   no repetir el color índigo dos veces cerca (esta va al final, lejos de
+   "Nuestra historia") y para que se lea como un mensaje distinto (servicio,
+   no la historia de la marca). Título vacío = no se muestra (ver home.html). ---- */
+.kc-bento .cta-band{ position:relative; background:var(--lime); background-size:cover; background-position:center; padding:44px 26px; margin-top:14px; text-align:center; overflow:hidden; }
+.kc-bento .cta-band.has-img::before{ content:''; position:absolute; inset:0; background:linear-gradient(rgba(20,24,10,.6), rgba(20,24,10,.6)); }
+.kc-bento .cta-band .shell{ position:relative; z-index:1; }
+.kc-bento .cta-band .rail-eyebrow{ color:rgba(255,255,255,.8); }
+.kc-bento .cta-band h3{ font-family:var(--f-display); font-size:clamp(19px,2.4vw,26px); color:#fff; margin:0 auto 8px; max-width:520px; }
+.kc-bento .cta-band p{ color:rgba(255,255,255,.85); font-size:13px; margin:0 auto 16px; max-width:440px; }
+.kc-bento .cta-band .btn{ display:inline-block; background:#fff; color:var(--lime-dark); font-family:var(--f-display); font-weight:700; font-size:13px; padding:11px 22px; border-radius:var(--r-pill); }
+
 /* Mosaico central — celdas de tamaño mixto en una sola grilla (mismo
    lenguaje que .bento/.stories-rail de la home), reemplaza las 3 tarjetas
    iguales + la grilla de galería separada que tenía antes. */
@@ -603,8 +718,11 @@ footer.kc-bento-footer .foot-col{ font-size:12.5px; line-height:1.6; }
 footer.kc-bento-footer .foot-col--brand{ max-width:360px; }
 /* logo + nombre — antes solo había texto, sin ninguna marca visual en el pie */
 .kc-bento .foot-brand-head{ display:flex; align-items:center; gap:11px; margin-bottom:14px; }
-.kc-bento .foot-brand-mark{ flex-shrink:0; width:38px; height:38px; border-radius:var(--r-sm); background:rgba(255,255,255,.08); display:flex; align-items:center; justify-content:center; overflow:hidden; }
-.kc-bento .foot-brand-mark img{ width:100%; height:100%; object-fit:contain; padding:5px; }
+/* Sin celda de fondo ni tamaño fijo (mismo criterio que .brand-mark del
+   header): siempre hay una imagen real, un cuadro detrás la recortaba y la
+   achicaba de más si el logo no era cuadrado. */
+.kc-bento .foot-brand-mark{ flex-shrink:0; display:flex; align-items:center; }
+.kc-bento .foot-brand-mark img{ height:32px; width:auto; max-width:120px; object-fit:contain; }
 footer.kc-bento-footer .foot-links{ display:flex; flex-direction:column; gap:9px; }
 footer.kc-bento-footer .foot-links a:hover{ color:var(--lime); }
 /* fila de íconos de redes — reusada también en la página institucional */

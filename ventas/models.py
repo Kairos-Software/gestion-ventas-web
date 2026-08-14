@@ -365,6 +365,38 @@ def _bloquear_si_tiene_devoluciones(venta):
         )
 
 
+def _bloquear_si_tiene_comprobante_arca(venta):
+    """
+    Falla rápido si esta venta ya tiene un comprobante ARCA (CAE real,
+    emitido de verdad ante AFIP) asociado. Ni anular() ni delete() saben
+    nada de facturación electrónica — revertirían stock/caja acá adentro
+    mientras ARCA sigue teniendo ese comprobante registrado como válido y
+    vigente. El camino típico que esto evita: anular una venta facturada
+    de 5 ítems, editarla a 3 y volver a confirmar — la Venta queda con el
+    total nuevo pero el ComprobanteArca sigue siendo el de los 5 ítems
+    originales (facturar_venta() ni siquiera pide un CAE nuevo, ver
+    core/services_arca/facturacion.py), así que el sistema termina
+    mostrando datos que ya no coinciden con lo declarado ante ARCA — y no
+    hay forma de corregir un comprobante ya emitido desde acá, porque no
+    existe todavía un mecanismo de Nota de Crédito.
+
+    Si el cliente devolvió parte de la compra, el camino correcto es
+    "Registrar devolución": no toca la Venta ni el ComprobanteArca
+    original, así que la factura sigue coincidiendo exactamente con lo
+    que ARCA tiene en su base.
+    """
+    comprobante = getattr(venta, 'comprobante_arca', None)
+    if comprobante is not None:
+        raise ValueError(
+            f'Esta venta ya tiene un comprobante ARCA emitido ({comprobante}) — no se puede '
+            f'anular ni eliminar. ARCA ya tiene ese comprobante registrado como válido y no hay '
+            f'forma de corregirlo desde acá (no está implementada la Nota de Crédito); anular y '
+            f'editar la venta la dejaría con datos que no coinciden con lo facturado. Si el '
+            f'cliente devolvió parte de la compra, registrá una devolución en su lugar — no '
+            f'toca la venta ni el comprobante.'
+        )
+
+
 # ══════════════════════════════════════════════════════════════════
 #  VENTA  (cabecera)
 # ══════════════════════════════════════════════════════════════════
@@ -507,9 +539,10 @@ class Venta(models.Model):
                 estado_actual = Venta.objects.select_for_update().get(pk=self.pk).estado
             except Venta.DoesNotExist:
                 return
-            # Falla rápido: bloquea el borrado si hay cuotas ya cobradas
-            # o devoluciones registradas.
+            # Falla rápido: bloquea el borrado si hay cuotas ya cobradas,
+            # devoluciones registradas, o un comprobante ARCA emitido.
             _bloquear_si_tiene_devoluciones(self)
+            _bloquear_si_tiene_comprobante_arca(self)
             _anular_cuentas_por_cobrar_de_venta(self)
             _anular_cheques_de_venta(self)
 
@@ -973,8 +1006,10 @@ class Venta(models.Model):
             raise ValueError('Las ventas en borrador no se anulan — simplemente no se confirman.')
 
         # Falla rápido: si alguna cuota de una venta en cuotas ya fue
-        # cobrada, o hay devoluciones registradas, no se puede anular.
+        # cobrada, hay devoluciones registradas, o ya se emitió un
+        # comprobante ARCA, no se puede anular.
         _bloquear_si_tiene_devoluciones(self)
+        _bloquear_si_tiene_comprobante_arca(self)
         _anular_cuentas_por_cobrar_de_venta(self)
         _anular_cheques_de_venta(self)
 
@@ -1041,6 +1076,13 @@ class Venta(models.Model):
         """
         if self.estado != EstadoVenta.ANULADA:
             raise ValueError('Solo se pueden editar ventas anuladas.')
+        # Defensa en profundidad: anular() ya bloquea esto antes de que una
+        # venta facturada llegue a ANULADA, pero por si existe un caso
+        # viejo (de antes de este chequeo) que haya quedado ANULADA con un
+        # comprobante ARCA todavía asociado, no dejar que editar_completa()
+        # reemplace los ítems y re-confirme con un total que ya no
+        # coincide con lo facturado.
+        _bloquear_si_tiene_comprobante_arca(self)
 
         self.items.all().delete()
 

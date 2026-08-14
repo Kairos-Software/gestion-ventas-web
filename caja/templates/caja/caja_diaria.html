@@ -236,6 +236,50 @@ Caja Diaria
                 </div>
             </div>
             {% endif %}
+            {% if efectivo_cuotas_cobradas or efectivo_cuotas_pagadas %}
+            <div class="cd-totales-section cd-totales-section--pendiente">
+                <h4>Cuotas viejas cobradas/pagadas en efectivo</h4>
+                <p class="cd-empty-inline" style="margin-bottom:0.6rem">
+                    Plata real que entró o salió de este mismo cajón, pero de deudas de ANTES de hoy — no es
+                    venta de este turno. Se suma/resta del efectivo esperado al cerrar, para que quede claro
+                    de dónde salió y el conteo físico cierre bien.
+                </p>
+                <div class="cd-totales-list">
+                    {% if efectivo_cuotas_cobradas %}
+                    <div class="cd-total-row cd-total-row--activo" data-medio="cuota-cobrada">
+                        <span class="cd-total-label">
+                            <span class="cd-total-icon">
+                                <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                                    <path d="M8 13V3M8 3L4 7M8 3L12 7" stroke="currentColor" stroke-width="1.3"
+                                        stroke-linecap="round" stroke-linejoin="round" />
+                                </svg>
+                            </span>
+                            Cobrado (cuentas por cobrar)
+                        </span>
+                        <span class="cd-total-value">${{ efectivo_cuotas_cobradas|floatformat:"2" }}</span>
+                    </div>
+                    {% endif %}
+                    {% if efectivo_cuotas_pagadas %}
+                    <div class="cd-total-row cd-total-row--activo" data-medio="cuota-pagada">
+                        <span class="cd-total-label">
+                            <span class="cd-total-icon">
+                                <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                                    <path d="M8 3V13M8 13L4 9M8 13L12 9" stroke="currentColor" stroke-width="1.3"
+                                        stroke-linecap="round" stroke-linejoin="round" />
+                                </svg>
+                            </span>
+                            Pagado (créditos y préstamos)
+                        </span>
+                        <span class="cd-total-value">-${{ efectivo_cuotas_pagadas|floatformat:"2" }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="cd-totales-links">
+                    <a href="{% url 'caja:cuentas_cobrar' %}?estado=activa" class="cd-totales-link">Ver cuentas por cobrar →</a>
+                    <a href="{% url 'caja:deudas' %}?estado=activa" class="cd-totales-link">Ver créditos y préstamos →</a>
+                </div>
+            </div>
+            {% endif %}
             {% if puede_abrir_cerrar_turno %}
             <button class="vta-btn vta-btn-primary cd-btn-cerrar" onclick="cdCerrarTurno()">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">

@@ -95,97 +95,6 @@
                         <span class="config-row-desc" style="padding:0 1.375rem 0.5rem;">La bajada y el color principal ahora se editan desde la pestaña "Apariencia" y valen para las cuatro plantillas; el producto destacado vale para Almacén, Bento y Lumina.</span>
                     </div>
 
-                    <div class="config-section">
-                        <div class="config-section-header">
-                            <div>
-                                <h2>Banners promocionales (opcional)</h2>
-                                <p>Hasta 6 — con imagen o de color sólido, donde vos elijas</p>
-                            </div>
-                            <button type="button" class="btn btn-sm" style="background:var(--brand-orange); color:white; margin-left:auto;" data-bs-toggle="modal" data-bs-target="#bannerModal" id="btnNuevoBanner">+ Nuevo banner</button>
-                        </div>
-                        <div class="config-row" style="flex-direction:column; align-items:stretch;">
-                            <span class="config-row-desc" style="margin-bottom:0.6rem;">Sin ninguno cargado, la home se ve igual que ahora — no es obligatorio.</span>
-                            <div id="listaBanners">
-                                {% for banner in configuracion_catalogo.banners.all %}
-                                <div class="config-row banner-row"
-                                     data-pk="{{ banner.pk }}"
-                                     data-titulo="{{ banner.titulo }}"
-                                     data-texto="{{ banner.texto }}"
-                                     data-posicion="{{ banner.posicion }}"
-                                     data-color-fondo="{{ banner.color_fondo }}"
-                                     data-cta-texto="{{ banner.cta_texto }}"
-                                     data-cta-url="{{ banner.cta_url }}">
-                                    <div style="display:flex; align-items:center; gap:0.75rem; flex:1; min-width:0;">
-                                        <div class="config-logo-box" style="width:44px; height:44px;">
-                                            {% if banner.imagen %}<img src="{{ banner.imagen.url }}" alt="">{% else %}<span style="font-size:0.55rem; color:var(--text-muted);">Sin foto</span>{% endif %}
-                                        </div>
-                                        <div class="config-row-info">
-                                            <div class="config-row-label">{{ banner.titulo }}</div>
-                                            <div class="config-row-desc">{{ banner.get_posicion_display }}</div>
-                                        </div>
-                                    </div>
-                                    <div style="display:flex; gap:0.4rem;">
-                                        <button type="button" class="btn btn-sm btn-outline-secondary btn-editar-banner">Editar</button>
-                                        <button type="button" class="btn btn-sm btn-outline-danger btn-eliminar-banner">Eliminar</button>
-                                    </div>
-                                </div>
-                                {% empty %}
-                                <div class="config-row">
-                                    <div class="config-row-info">
-                                        <div class="config-row-label">Sin banners cargados</div>
-                                    </div>
-                                </div>
-                                {% endfor %}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="config-section">
-                        <div class="config-section-header">
-                            <div>
-                                <h2>Categorías y marcas destacadas (opcional)</h2>
-                                <p>Accesos directos con imagen — al hacer click, filtran el catálogo</p>
-                            </div>
-                            <button type="button" class="btn btn-sm" style="background:var(--brand-orange); color:white; margin-left:auto;" data-bs-toggle="modal" data-bs-target="#tileModal" id="btnNuevoTile">+ Nuevo</button>
-                        </div>
-                        <div class="config-row" style="flex-direction:column; align-items:flex-start;">
-                            <label class="config-row-label" for="idCatalogoTilesTitulo">Título de la fila</label>
-                            <input class="form-control" id="idCatalogoTilesTitulo" value="{{ configuracion_catalogo.tiles_destacados_titulo }}" placeholder="Vacío = usa 'Categorías y marcas'">
-                        </div>
-                        <div class="config-row" style="flex-direction:column; align-items:stretch;">
-                            <span class="config-row-desc" style="margin-bottom:0.6rem;">Sin ninguno cargado, la fila no aparece — no es obligatorio.</span>
-                            <div id="listaTiles">
-                                {% for tile in configuracion_catalogo.tiles_destacados.all %}
-                                <div class="config-row tile-row"
-                                     data-pk="{{ tile.pk }}"
-                                     data-tipo="{{ tile.tipo }}"
-                                     data-categoria="{{ tile.categoria_id|default:'' }}"
-                                     data-marca="{{ tile.marca }}"
-                                     data-etiqueta="{{ tile.etiqueta }}">
-                                    <div style="display:flex; align-items:center; gap:0.75rem; flex:1; min-width:0;">
-                                        <div class="config-logo-box" style="width:44px; height:44px;">
-                                            {% if tile.imagen %}<img src="{{ tile.imagen.url }}" alt="">{% else %}<span style="font-size:0.55rem; color:var(--text-muted);">Sin foto</span>{% endif %}
-                                        </div>
-                                        <div class="config-row-info">
-                                            <div class="config-row-label">{% if tile.etiqueta %}{{ tile.etiqueta }}{% elif tile.categoria %}{{ tile.categoria.nombre }}{% else %}{{ tile.marca }}{% endif %}</div>
-                                            <div class="config-row-desc">{{ tile.get_tipo_display }}</div>
-                                        </div>
-                                    </div>
-                                    <div style="display:flex; gap:0.4rem;">
-                                        <button type="button" class="btn btn-sm btn-outline-secondary btn-editar-tile">Editar</button>
-                                        <button type="button" class="btn btn-sm btn-outline-danger btn-eliminar-tile">Eliminar</button>
-                                    </div>
-                                </div>
-                                {% empty %}
-                                <div class="config-row">
-                                    <div class="config-row-info">
-                                        <div class="config-row-label">Sin categorías/marcas cargadas</div>
-                                    </div>
-                                </div>
-                                {% endfor %}
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
                 <!-- ── Panel: Fondo del hero — propio de la plantilla "Kinetic" ── -->
@@ -263,6 +172,184 @@
                     </div>
                 </div>
 
+                <!-- ── Panel: Contenido de home — todo lo de Bento vive acá, con modelos
+                     propios (BannerBentoCatalogo/TickerMensajeCatalogo/MarcaLogoCatalogo/
+                     etc.), sin compartir datos con Almacén aunque el concepto se parezca
+                     (banners). Agrupado en el mismo orden en que aparece en la página
+                     real: ticker arriba de todo, banners después del hero, marcas (logos)
+                     cerca del final, historia/banda al cierre. No hay "categorías/marcas
+                     destacadas" acá — Bento ya navega categorías por el rail de stories y
+                     marcas por la fila de logos, esa sección se sacó por redundante. ── -->
+                <div class="co-panel" data-panel="contenidohome" style="display:none;">
+                    <p class="config-row-desc" style="padding:0 0 0.5rem;">
+                        Esta sección es específica de la plantilla <strong>Bento</strong> — lo que cargues
+                        acá solo se ve en tu catálogo si Bento es la plantilla guardada (pestaña
+                        "Plantilla"), y es independiente de lo que tengas cargado para Almacén en la
+                        pestaña <strong>Apariencia</strong>. Están ordenadas igual que aparecen en la
+                        home, de arriba hacia abajo.
+                    </p>
+
+                    <div class="config-section">
+                        <div class="config-section-header">
+                            <div>
+                                <h2>① Barra de anuncios (opcional)</h2>
+                                <p>Hasta 5 mensajes cortos, arriba de todo el sitio — rotan solos</p>
+                            </div>
+                            <button type="button" class="btn btn-sm" style="background:var(--brand-orange); color:white; margin-left:auto;" data-bs-toggle="modal" data-bs-target="#tickerModal" id="btnNuevoTicker">+ Nuevo</button>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:stretch;">
+                            <span class="config-row-desc" style="margin-bottom:0.6rem;">Sin ninguno cargado, no aparece franja — no es obligatorio.</span>
+                            <div id="listaTicker">
+                                {% for m in configuracion_catalogo.ticker_mensajes.all %}
+                                <div class="config-row ticker-row" data-pk="{{ m.pk }}" data-texto="{{ m.texto }}">
+                                    <div class="config-row-info"><div class="config-row-label">{{ m.texto }}</div></div>
+                                    <div style="display:flex; gap:0.4rem;">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary btn-editar-ticker">Editar</button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger btn-eliminar-ticker">Eliminar</button>
+                                    </div>
+                                </div>
+                                {% empty %}
+                                <div class="config-row"><div class="config-row-info"><div class="config-row-label">Sin mensajes cargados</div></div></div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="config-section">
+                        <div class="config-section-header">
+                            <div>
+                                <h2>② Banners / anuncios (opcional)</h2>
+                                <p>Hasta 6 — con imagen o de color sólido. La ubicación define la forma: rail de tarjetas, grilla o franja ancha</p>
+                            </div>
+                            <button type="button" class="btn btn-sm" style="background:var(--brand-orange); color:white; margin-left:auto;" data-bs-toggle="modal" data-bs-target="#bannerBentoModal" id="btnNuevoBannerBento">+ Nuevo banner</button>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:stretch;">
+                            <span class="config-row-desc" style="margin-bottom:0.6rem;">Sin ninguno cargado, esa sección no aparece — no es obligatorio.</span>
+                            <div id="listaBannersBento">
+                                {% for banner in configuracion_catalogo.banners_bento.all %}
+                                <div class="config-row banner-bento-row"
+                                     data-pk="{{ banner.pk }}"
+                                     data-titulo="{{ banner.titulo }}"
+                                     data-texto="{{ banner.texto }}"
+                                     data-posicion="{{ banner.posicion }}"
+                                     data-color-fondo="{{ banner.color_fondo }}"
+                                     data-cta-texto="{{ banner.cta_texto }}"
+                                     data-cta-url="{{ banner.cta_url }}">
+                                    <div style="display:flex; align-items:center; gap:0.75rem; flex:1; min-width:0;">
+                                        <div class="config-logo-box" style="width:44px; height:44px;">
+                                            {% if banner.imagen %}<img src="{{ banner.imagen.url }}" alt="">{% else %}<span style="font-size:0.55rem; color:var(--text-muted);">Sin foto</span>{% endif %}
+                                        </div>
+                                        <div class="config-row-info">
+                                            <div class="config-row-label">{{ banner.titulo }}</div>
+                                            <div class="config-row-desc">{{ banner.get_posicion_display }}</div>
+                                        </div>
+                                    </div>
+                                    <div style="display:flex; gap:0.4rem;">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary btn-editar-banner-bento">Editar</button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger btn-eliminar-banner-bento">Eliminar</button>
+                                    </div>
+                                </div>
+                                {% empty %}
+                                <div class="config-row">
+                                    <div class="config-row-info">
+                                        <div class="config-row-label">Sin banners cargados</div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="config-section">
+                        <div class="config-section-header">
+                            <div>
+                                <h2>③ Nuestras marcas (opcional)</h2>
+                                <p>Fila de logos, cerca del final de la home — es prestigio, no filtra el catálogo</p>
+                            </div>
+                            <button type="button" class="btn btn-sm" style="background:var(--brand-orange); color:white; margin-left:auto;" data-bs-toggle="modal" data-bs-target="#marcaModal" id="btnNuevaMarca">+ Nueva</button>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:stretch;">
+                            <span class="config-row-desc" style="margin-bottom:0.6rem;">Sin ninguna cargada, la fila no aparece — no es obligatorio.</span>
+                            <div id="listaMarcas">
+                                {% for m in configuracion_catalogo.marcas_logo.all %}
+                                <div class="config-row marca-row" data-pk="{{ m.pk }}" data-nombre="{{ m.nombre }}">
+                                    <div style="display:flex; align-items:center; gap:0.75rem; flex:1; min-width:0;">
+                                        <div class="config-logo-box" style="width:44px; height:44px; border-radius:50%;">
+                                            {% if m.logo %}<img src="{{ m.logo.url }}" alt="">{% else %}<span style="font-size:0.55rem; color:var(--text-muted);">Sin logo</span>{% endif %}
+                                        </div>
+                                        <div class="config-row-info"><div class="config-row-label">{{ m.nombre }}</div></div>
+                                    </div>
+                                    <div style="display:flex; gap:0.4rem;">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary btn-editar-marca">Editar</button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger btn-eliminar-marca">Eliminar</button>
+                                    </div>
+                                </div>
+                                {% empty %}
+                                <div class="config-row"><div class="config-row-info"><div class="config-row-label">Sin marcas cargadas</div></div></div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="config-section">
+                        <div class="config-section-header">
+                            <div>
+                                <h2>Nuestra historia en la portada</h2>
+                                <p>El texto se edita en la pestaña "La tienda" — acá solo elegís si también se muestra en la home</p>
+                            </div>
+                        </div>
+                        <div class="config-row" style="gap:0.6rem;">
+                            <input type="checkbox" id="idCatalogoMostrarHistoriaHome" {% if configuracion_catalogo.mostrar_historia_en_home %}checked{% endif %} style="width:auto; margin:0;">
+                            <label class="config-row-label" for="idCatalogoMostrarHistoriaHome" style="margin:0;">Mostrar también en la home, antes de "Combos armados"</label>
+                        </div>
+                        <span class="config-row-desc" style="padding:0 1.375rem 0.5rem;">En "La tienda" siempre se muestra. Desactivá esto si preferís no repetirlo en la portada del catálogo.</span>
+                    </div>
+
+                    <div class="config-section">
+                        <div class="config-section-header">
+                            <div>
+                                <h2>Banda final (opcional)</h2>
+                                <p>Cierre de la home, para un mensaje distinto a "Nuestra historia" (envíos, empresas, lo que haga falta)</p>
+                            </div>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                            <label class="config-row-label" for="idCatalogoCtaFinalTitulo">Título</label>
+                            <input class="form-control" id="idCatalogoCtaFinalTitulo" value="{{ configuracion_catalogo.cta_final_titulo }}" placeholder="Vacío = la banda no se muestra">
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                            <label class="config-row-label" for="idCatalogoCtaFinalTexto">Bajada (opcional)</label>
+                            <input class="form-control" id="idCatalogoCtaFinalTexto" value="{{ configuracion_catalogo.cta_final_texto }}">
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start; gap:0.6rem;">
+                            <span class="config-row-label">Imagen de fondo (opcional)</span>
+                            <div style="display:flex; align-items:center; gap:1rem;">
+                                <div class="config-logo-box" id="catalogoCtaFinalImagenPreviewBox" style="width:72px; height:52px; border-radius:8px;">
+                                    {% if configuracion_catalogo.cta_final_imagen %}
+                                        <img src="{{ configuracion_catalogo.cta_final_imagen.url }}" alt="">
+                                    {% else %}
+                                        <span style="font-size:0.65rem; color:var(--text-muted);">Sin imagen</span>
+                                    {% endif %}
+                                </div>
+                                <input type="file" id="inputCatalogoCtaFinalImagen" accept=".jpg,.jpeg,.png,.webp" style="display:none;">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('inputCatalogoCtaFinalImagen').click()">Subir / cambiar</button>
+                                <button type="button" id="btnEliminarCatalogoCtaFinalImagen" class="btn btn-sm btn-outline-danger" {% if not configuracion_catalogo.cta_final_imagen %}style="display:none;"{% endif %}>Eliminar</button>
+                            </div>
+                            <span class="config-row-desc">Sin imagen, la banda se ve con el color de fondo liso de siempre.</span>
+                        </div>
+                        <div class="config-row" style="gap:0.75rem;">
+                            <div style="flex:1;">
+                                <label class="config-row-label" for="idCatalogoCtaFinalBotonTexto">Texto del botón (opcional)</label>
+                                <input class="form-control" id="idCatalogoCtaFinalBotonTexto" value="{{ configuracion_catalogo.cta_final_boton_texto }}" placeholder="Ej: Ver cómo funciona">
+                            </div>
+                            <div style="flex:1;">
+                                <label class="config-row-label" for="idCatalogoCtaFinalBotonUrl">Link del botón (opcional)</label>
+                                <input class="form-control" id="idCatalogoCtaFinalBotonUrl" value="{{ configuracion_catalogo.cta_final_boton_url }}" placeholder="https://...">
+                            </div>
+                        </div>
+                        <span class="config-row-desc" style="padding:0 1.375rem 0.5rem;">Sin texto Y link del botón cargados los dos, la banda no muestra botón.</span>
+                    </div>
+                </div>
+
                 <!-- ── Panel: Apariencia — hero + color de marca + menú superior (todas las plantillas) ── -->
                 <div class="co-panel" data-panel="apariencia" style="display:none;">
                     <div class="config-section">
@@ -336,6 +423,98 @@
                                 <button type="button" id="btnEliminarCatalogoHeroSpot2" class="btn btn-sm btn-outline-danger" {% if not configuracion_catalogo.hero_spot2_imagen %}style="display:none;"{% endif %}>Eliminar</button>
                             </div>
                             <span class="config-row-desc">Opcional — con una foto cargada acá, la tarjeta 2 muestra esa imagen en vez del producto de arriba.</span>
+                        </div>
+                    </div>
+
+                    <div class="config-section" data-plantilla-oculta="bento,kinetic,lumina">
+                        <div class="config-section-header">
+                            <div>
+                                <h2>Categorías y marcas destacadas (opcional)</h2>
+                                <p>Accesos directos con imagen — al hacer click, filtran el catálogo. Exclusivo de Almacén.</p>
+                            </div>
+                            <button type="button" class="btn btn-sm" style="background:var(--brand-orange); color:white; margin-left:auto;" data-bs-toggle="modal" data-bs-target="#tileModal" id="btnNuevoTile">+ Nuevo</button>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                            <label class="config-row-label" for="idCatalogoTilesTitulo">Título de la fila</label>
+                            <input class="form-control" id="idCatalogoTilesTitulo" value="{{ configuracion_catalogo.tiles_destacados_titulo }}" placeholder="Vacío = usa 'Categorías y marcas'">
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:stretch;">
+                            <span class="config-row-desc" style="margin-bottom:0.6rem;">Sin ninguno cargado, la fila no aparece — no es obligatorio. Se ve como fila de círculos, arriba de "Ofertas de la semana".</span>
+                            <div id="listaTiles">
+                                {% for tile in configuracion_catalogo.tiles_destacados.all %}
+                                <div class="config-row tile-row"
+                                     data-pk="{{ tile.pk }}"
+                                     data-tipo="{{ tile.tipo }}"
+                                     data-categoria="{{ tile.categoria_id|default:'' }}"
+                                     data-marca="{{ tile.marca }}"
+                                     data-etiqueta="{{ tile.etiqueta }}">
+                                    <div style="display:flex; align-items:center; gap:0.75rem; flex:1; min-width:0;">
+                                        <div class="config-logo-box" style="width:44px; height:44px;">
+                                            {% if tile.imagen %}<img src="{{ tile.imagen.url }}" alt="">{% else %}<span style="font-size:0.55rem; color:var(--text-muted);">Sin foto</span>{% endif %}
+                                        </div>
+                                        <div class="config-row-info">
+                                            <div class="config-row-label">{% if tile.etiqueta %}{{ tile.etiqueta }}{% elif tile.categoria %}{{ tile.categoria.nombre }}{% else %}{{ tile.marca }}{% endif %}</div>
+                                            <div class="config-row-desc">{{ tile.get_tipo_display }}</div>
+                                        </div>
+                                    </div>
+                                    <div style="display:flex; gap:0.4rem;">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary btn-editar-tile">Editar</button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger btn-eliminar-tile">Eliminar</button>
+                                    </div>
+                                </div>
+                                {% empty %}
+                                <div class="config-row">
+                                    <div class="config-row-info">
+                                        <div class="config-row-label">Sin categorías/marcas cargadas</div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="config-section" data-plantilla-oculta="bento,kinetic,lumina">
+                        <div class="config-section-header">
+                            <div>
+                                <h2>Banners / anuncios (opcional)</h2>
+                                <p>Hasta 6 — con imagen o de color sólido, donde vos elijas. Exclusivo de Almacén.</p>
+                            </div>
+                            <button type="button" class="btn btn-sm" style="background:var(--brand-orange); color:white; margin-left:auto;" data-bs-toggle="modal" data-bs-target="#bannerModal" id="btnNuevoBanner">+ Nuevo banner</button>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:stretch;">
+                            <span class="config-row-desc" style="margin-bottom:0.6rem;">Sin ninguno cargado, la home se ve igual que ahora — no es obligatorio. Se ve como franja ancha, en la posición que elijas.</span>
+                            <div id="listaBanners">
+                                {% for banner in configuracion_catalogo.banners.all %}
+                                <div class="config-row banner-row"
+                                     data-pk="{{ banner.pk }}"
+                                     data-titulo="{{ banner.titulo }}"
+                                     data-texto="{{ banner.texto }}"
+                                     data-posicion="{{ banner.posicion }}"
+                                     data-color-fondo="{{ banner.color_fondo }}"
+                                     data-cta-texto="{{ banner.cta_texto }}"
+                                     data-cta-url="{{ banner.cta_url }}">
+                                    <div style="display:flex; align-items:center; gap:0.75rem; flex:1; min-width:0;">
+                                        <div class="config-logo-box" style="width:44px; height:44px;">
+                                            {% if banner.imagen %}<img src="{{ banner.imagen.url }}" alt="">{% else %}<span style="font-size:0.55rem; color:var(--text-muted);">Sin foto</span>{% endif %}
+                                        </div>
+                                        <div class="config-row-info">
+                                            <div class="config-row-label">{{ banner.titulo }}</div>
+                                            <div class="config-row-desc">{{ banner.get_posicion_display }}</div>
+                                        </div>
+                                    </div>
+                                    <div style="display:flex; gap:0.4rem;">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary btn-editar-banner">Editar</button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger btn-eliminar-banner">Eliminar</button>
+                                    </div>
+                                </div>
+                                {% empty %}
+                                <div class="config-row">
+                                    <div class="config-row-info">
+                                        <div class="config-row-label">Sin banners cargados</div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
                         </div>
                     </div>
 
@@ -612,6 +791,7 @@
                         <button type="button" class="co-tab" data-tab="hero" data-plantilla-tab="almacen" data-preview="home">Hero</button>
                         <button type="button" class="co-tab" data-tab="fondo" data-plantilla-tab="kinetic" data-preview="home">Fondo</button>
                         <button type="button" class="co-tab" data-tab="carrusel" data-plantilla-tab="bento" data-preview="home">Carrusel</button>
+                        <button type="button" class="co-tab" data-tab="contenidohome" data-preview="home">Contenido de home</button>
                         <button type="button" class="co-tab" data-tab="apariencia" data-preview="home">Apariencia</button>
                         <button type="button" class="co-tab" data-tab="tienda" data-preview="institucional">La tienda</button>
                         <button type="button" class="co-tab" data-tab="contacto" data-preview="institucional">Contacto</button>
@@ -819,6 +999,147 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="bannerBentoModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title" id="bannerBentoModalLabel">Nuevo banner</h5>
+                        <p class="modal-subtitle">Bloque promocional opcional de Bento — imagen o color sólido</p>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="formBannerBento">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <input type="hidden" id="bannerBentoPk">
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start; padding:0 0 0.85rem;">
+                            <span class="config-row-label">Imagen (opcional)</span>
+                            <div style="display:flex; align-items:center; gap:1rem;">
+                                <div class="config-logo-box" id="bannerBentoImagenPreviewBox">
+                                    <span style="font-size:0.6rem; color:var(--text-muted);">Sin imagen</span>
+                                </div>
+                                <input type="file" id="inputBannerBentoImagen" accept=".jpg,.jpeg,.png,.webp" style="display:none;">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('inputBannerBentoImagen').click()">Elegir imagen</button>
+                                <button type="button" id="btnQuitarBannerBentoImagen" class="btn btn-sm btn-outline-danger" style="display:none;">Quitar</button>
+                            </div>
+                            <span class="config-row-desc">Sin imagen, el banner se muestra como un bloque de color sólido. La forma final depende de dónde lo ubiques (abajo).</span>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start; padding:0 0 0.85rem;">
+                            <label class="config-row-label" for="bannerBentoPosicion">Dónde va</label>
+                            <select class="form-control" id="bannerBentoPosicion">
+                                <option value="novedades">Novedades (rail de tarjetas, arriba)</option>
+                                <option value="promos_mes">Promos del mes (grilla fija de 4)</option>
+                                <option value="antes_destacados">Antes de Destacados (franja ancha)</option>
+                                <option value="antes_combos">Antes de Combos armados (franja ancha)</option>
+                            </select>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start; padding:0 0 0.85rem;">
+                            <label class="config-row-label" for="bannerBentoTitulo">Título *</label>
+                            <input class="form-control" id="bannerBentoTitulo" placeholder="Ej: Envío gratis esta semana" required>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start; padding:0 0 0.85rem;">
+                            <label class="config-row-label" for="bannerBentoTexto">Bajada (opcional)</label>
+                            <input class="form-control" id="bannerBentoTexto" placeholder="Un texto corto abajo del título">
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start; padding:0 0 0.85rem;">
+                            <label class="config-row-label">Color de fondo (solo si no tiene imagen)</label>
+                            <div class="co-color-control">
+                                <input type="color" id="bannerBentoColorFondo" value="{{ default_color_marca_secundario_bento }}">
+                                <button type="button" id="btnResetBannerBentoColor" class="btn btn-sm btn-outline-secondary">Usar color de marca</button>
+                            </div>
+                        </div>
+                        <div class="config-row co-row-grid2">
+                            <div class="co-campo-corto">
+                                <label class="config-row-label" for="bannerBentoCtaTexto">Texto del botón (opcional)</label>
+                                <input class="form-control" id="bannerBentoCtaTexto" placeholder="Ej: Ver más">
+                            </div>
+                            <div class="co-campo-corto">
+                                <label class="config-row-label" for="bannerBentoCtaUrl">Link del botón (opcional)</label>
+                                <input class="form-control" id="bannerBentoCtaUrl" placeholder="https://...">
+                            </div>
+                        </div>
+                        <span class="config-row-desc" style="padding:0 1.375rem;">Con texto y link cargados los dos aparece el botón — si falta alguno, no se muestra. En "Promos del mes" el botón no se ve si además no cargaste bajada.</span>
+                        <div id="bannerBentoMsg" class="config-empresa-msg" style="padding:0;"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-sm" style="background:var(--brand-orange); color:white;">Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="tickerModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title" id="tickerModalLabel">Nuevo mensaje</h5>
+                        <p class="modal-subtitle">Texto corto para la franja de anuncios</p>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="formTicker">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <input type="hidden" id="tickerPk">
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start; padding:0 0 0.85rem;">
+                            <label class="config-row-label" for="tickerTexto">Mensaje</label>
+                            <input class="form-control" id="tickerTexto" maxlength="120" placeholder="Ej: 10% OFF pagando en efectivo — todos los días" required>
+                        </div>
+                        <div id="tickerMsg" class="config-empresa-msg" style="padding:0;"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-sm" style="background:var(--brand-orange); color:white;">Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="marcaModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title" id="marcaModalLabel">Nueva marca</h5>
+                        <p class="modal-subtitle">Logo circular para la fila "Nuestras marcas"</p>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="formMarca">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <input type="hidden" id="marcaPk">
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start; padding:0 0 0.85rem;">
+                            <span class="config-row-label">Logo</span>
+                            <div style="display:flex; align-items:center; gap:1rem;">
+                                <div class="config-logo-box" id="marcaLogoPreviewBox" style="border-radius:50%;">
+                                    <span style="font-size:0.6rem; color:var(--text-muted);">Sin logo</span>
+                                </div>
+                                <input type="file" id="inputMarcaLogo" accept=".jpg,.jpeg,.png,.webp" style="display:none;">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('inputMarcaLogo').click()">Elegir imagen</button>
+                            </div>
+                            <span class="config-row-desc">Se muestra recortada en círculo. Sin logo, no se muestra en el catálogo todavía.</span>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start; padding:0 0 0.85rem;">
+                            <label class="config-row-label" for="marcaNombre">Nombre de la marca</label>
+                            <input class="form-control" id="marcaNombre" placeholder="Ej: Samsung" required>
+                        </div>
+                        <div id="marcaMsg" class="config-empresa-msg" style="padding:0;"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-sm" style="background:var(--brand-orange); color:white;">Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
     {% endif %}
 
 </div>
@@ -831,6 +1152,7 @@
         heroImagen:        "{% url 'catalogo:config_hero_imagen' %}",
         heroSpot1Imagen:   "{% url 'catalogo:config_hero_spot1_imagen' %}",
         heroSpot2Imagen:   "{% url 'catalogo:config_hero_spot2_imagen' %}",
+        ctaFinalImagen:    "{% url 'catalogo:config_cta_final_imagen' %}",
         kineticHeroFondo:  "{% url 'catalogo:config_kinetic_hero_fondo' %}",
         institucionalImagen: "{% url 'catalogo:config_institucional_imagen' %}",
     };
@@ -903,9 +1225,23 @@
         imagen:   "{% url 'catalogo:config_tile_imagen' %}",
         eliminar: "{% url 'catalogo:config_tile_eliminar' %}",
     };
+    window.CONFIG_BANNERS_BENTO_URLS = {
+        guardar:  "{% url 'catalogo:config_banner_bento_guardar' %}",
+        imagen:   "{% url 'catalogo:config_banner_bento_imagen' %}",
+        eliminar: "{% url 'catalogo:config_banner_bento_eliminar' %}",
+    };
     window.CONFIG_GALERIA_URLS = {
         imagen:   "{% url 'catalogo:config_galeria_imagen' %}",
         eliminar: "{% url 'catalogo:config_galeria_eliminar' %}",
+    };
+    window.CONFIG_TICKER_URLS = {
+        guardar:  "{% url 'catalogo:config_ticker_guardar' %}",
+        eliminar: "{% url 'catalogo:config_ticker_eliminar' %}",
+    };
+    window.CONFIG_MARCAS_URLS = {
+        guardar:  "{% url 'catalogo:config_marca_guardar' %}",
+        imagen:   "{% url 'catalogo:config_marca_imagen' %}",
+        eliminar: "{% url 'catalogo:config_marca_eliminar' %}",
     };
     window.CATALOGO_HOME_URL = "{% url 'catalogo:home' %}";
     window.CATALOGO_INSTITUCIONAL_URL = "{% url 'catalogo:institucional' %}";

@@ -445,6 +445,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 hero_producto:      document.getElementById('idCatalogoHeroProducto')?.value || '',
                 hero_imagen_sin_fondo: document.getElementById('idCatalogoHeroSinFondo')?.checked || false,
                 tiles_destacados_titulo: document.getElementById('idCatalogoTilesTitulo')?.value || '',
+                mostrar_historia_en_home: document.getElementById('idCatalogoMostrarHistoriaHome') ? document.getElementById('idCatalogoMostrarHistoriaHome').checked : true,
+                cta_final_titulo:     document.getElementById('idCatalogoCtaFinalTitulo')?.value || '',
+                cta_final_texto:      document.getElementById('idCatalogoCtaFinalTexto')?.value || '',
+                cta_final_boton_texto: document.getElementById('idCatalogoCtaFinalBotonTexto')?.value || '',
+                cta_final_boton_url:  document.getElementById('idCatalogoCtaFinalBotonUrl')?.value || '',
                 hero_spot2_producto: document.getElementById('idCatalogoHeroSpot2Producto')?.value || '',
                 sobre_nosotros:     document.getElementById('idCatalogoSobreNosotros').value,
                 contacto_texto:     document.getElementById('idCatalogoContactoTexto').value,
@@ -577,6 +582,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     initSubidaImagenSpot('inputCatalogoHeroSpot1', 'btnEliminarCatalogoHeroSpot1', 'catalogoHeroSpot1PreviewBox', urls.heroSpot1Imagen);
     initSubidaImagenSpot('inputCatalogoHeroSpot2', 'btnEliminarCatalogoHeroSpot2', 'catalogoHeroSpot2PreviewBox', urls.heroSpot2Imagen);
+    initSubidaImagenSpot('inputCatalogoCtaFinalImagen', 'btnEliminarCatalogoCtaFinalImagen', 'catalogoCtaFinalImagenPreviewBox', urls.ctaFinalImagen);
 
     document.getElementById('btnEliminarCatalogoHero')?.addEventListener('click', function () {
         fetch(urls.heroImagen, {
@@ -1166,6 +1172,335 @@ document.addEventListener('DOMContentLoaded', function () {
                 fetch(urlsTile.imagen, {
                     method: 'POST',
                     headers: { 'X-CSRFToken': csrfTile() },
+                    body: fd,
+                })
+                .then(r => r.json())
+                .then(function (dataImg) {
+                    if (dataImg.error) {
+                        msg.style.color = '#e11d48';
+                        msg.textContent = dataImg.error;
+                        return;
+                    }
+                    recargarPreservandoTab();
+                });
+            });
+        });
+    }
+
+    // ── Banners/anuncios de Bento (opcional, hasta 6) — tabla propia, sin
+    //    cruzarse con los banners de Almacén (mismo patrón que formBanner). ──
+    const formBannerBento = document.getElementById('formBannerBento');
+    if (formBannerBento) {
+        const csrfBannerBento = () => formBannerBento.querySelector('[name=csrfmiddlewaretoken]').value;
+        const urlsBannerBento = window.CONFIG_BANNERS_BENTO_URLS || {};
+        const modalBannerBentoEl = document.getElementById('bannerBentoModal');
+        const modalBannerBento = window.bootstrap ? new bootstrap.Modal(modalBannerBentoEl) : null;
+        const colorFondoBentoDefault = document.getElementById('bannerBentoColorFondo').value;
+        let bannerBentoImagenFile = null;
+        let bannerBentoTieneImagenGuardada = false;
+
+        function limpiarFormBannerBento() {
+            document.getElementById('bannerBentoPk').value = '';
+            document.getElementById('bannerBentoPosicion').value = 'novedades';
+            document.getElementById('bannerBentoTitulo').value = '';
+            document.getElementById('bannerBentoTexto').value = '';
+            document.getElementById('bannerBentoColorFondo').value = colorFondoBentoDefault;
+            document.getElementById('bannerBentoCtaTexto').value = '';
+            document.getElementById('bannerBentoCtaUrl').value = '';
+            document.getElementById('bannerBentoImagenPreviewBox').innerHTML =
+                '<span style="font-size:0.6rem; color:var(--text-muted);">Sin imagen</span>';
+            document.getElementById('btnQuitarBannerBentoImagen').style.display = 'none';
+            document.getElementById('bannerBentoMsg').textContent = '';
+            bannerBentoImagenFile = null;
+            bannerBentoTieneImagenGuardada = false;
+        }
+
+        document.getElementById('btnNuevoBannerBento')?.addEventListener('click', function () {
+            limpiarFormBannerBento();
+            document.getElementById('bannerBentoModalLabel').textContent = 'Nuevo banner';
+        });
+
+        document.querySelectorAll('.btn-editar-banner-bento').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const row = btn.closest('.banner-bento-row');
+                limpiarFormBannerBento();
+                document.getElementById('bannerBentoModalLabel').textContent = 'Editar banner';
+                document.getElementById('bannerBentoPk').value = row.dataset.pk;
+                document.getElementById('bannerBentoPosicion').value = row.dataset.posicion;
+                document.getElementById('bannerBentoTitulo').value = row.dataset.titulo;
+                document.getElementById('bannerBentoTexto').value = row.dataset.texto;
+                document.getElementById('bannerBentoColorFondo').value = row.dataset.colorFondo || colorFondoBentoDefault;
+                document.getElementById('bannerBentoCtaTexto').value = row.dataset.ctaTexto;
+                document.getElementById('bannerBentoCtaUrl').value = row.dataset.ctaUrl;
+                const imgActual = row.querySelector('.config-logo-box img');
+                if (imgActual) {
+                    document.getElementById('bannerBentoImagenPreviewBox').innerHTML = `<img src="${imgActual.src}" alt="">`;
+                    document.getElementById('btnQuitarBannerBentoImagen').style.display = 'inline-block';
+                    bannerBentoTieneImagenGuardada = true;
+                }
+                if (modalBannerBento) modalBannerBento.show();
+            });
+        });
+
+        document.getElementById('inputBannerBentoImagen').addEventListener('change', function () {
+            if (!this.files[0]) return;
+            bannerBentoImagenFile = this.files[0];
+            document.getElementById('bannerBentoImagenPreviewBox').innerHTML =
+                `<img src="${URL.createObjectURL(bannerBentoImagenFile)}" alt="">`;
+            document.getElementById('btnQuitarBannerBentoImagen').style.display = 'inline-block';
+        });
+
+        document.getElementById('btnQuitarBannerBentoImagen').addEventListener('click', function () {
+            const pk = document.getElementById('bannerBentoPk').value;
+            function quitarLocal() {
+                bannerBentoImagenFile = null;
+                bannerBentoTieneImagenGuardada = false;
+                document.getElementById('bannerBentoImagenPreviewBox').innerHTML =
+                    '<span style="font-size:0.6rem; color:var(--text-muted);">Sin imagen</span>';
+                document.getElementById('btnQuitarBannerBentoImagen').style.display = 'none';
+            }
+            if (!bannerBentoTieneImagenGuardada || !pk) { quitarLocal(); return; }
+            fetch(urlsBannerBento.imagen, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfBannerBento() },
+                body: JSON.stringify({ pk: pk }),
+            })
+            .then(r => r.json())
+            .then(function (data) {
+                if (data.error) { KaiToast.show(data.error, 'danger'); return; }
+                quitarLocal();
+            });
+        });
+
+        document.getElementById('btnResetBannerBentoColor')?.addEventListener('click', function () {
+            document.getElementById('bannerBentoColorFondo').value = colorFondoBentoDefault;
+        });
+
+        document.querySelectorAll('.btn-eliminar-banner-bento').forEach(function (btn) {
+            btn.addEventListener('click', async function () {
+                const row = btn.closest('.banner-bento-row');
+                const ok = await KaiConfirm(`¿Seguro que querés eliminar el banner "${row.dataset.titulo}"?`);
+                if (!ok) return;
+                fetch(urlsBannerBento.eliminar, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfBannerBento() },
+                    body: JSON.stringify({ pk: row.dataset.pk }),
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) { KaiToast.show(data.error, 'danger'); return; }
+                    recargarPreservandoTab();
+                });
+            });
+        });
+
+        formBannerBento.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const msg = document.getElementById('bannerBentoMsg');
+            const pk = document.getElementById('bannerBentoPk').value || null;
+            fetch(urlsBannerBento.guardar, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfBannerBento() },
+                body: JSON.stringify({
+                    pk: pk,
+                    posicion: document.getElementById('bannerBentoPosicion').value,
+                    titulo: document.getElementById('bannerBentoTitulo').value,
+                    texto: document.getElementById('bannerBentoTexto').value,
+                    color_fondo: document.getElementById('bannerBentoColorFondo').value,
+                    cta_texto: document.getElementById('bannerBentoCtaTexto').value,
+                    cta_url: document.getElementById('bannerBentoCtaUrl').value,
+                }),
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    msg.style.color = '#e11d48';
+                    msg.textContent = data.error;
+                    return;
+                }
+                if (!bannerBentoImagenFile) {
+                    recargarPreservandoTab();
+                    return;
+                }
+                const fd = new FormData();
+                fd.append('pk', data.pk);
+                fd.append('imagen', bannerBentoImagenFile);
+                fetch(urlsBannerBento.imagen, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrfBannerBento() },
+                    body: fd,
+                })
+                .then(r => r.json())
+                .then(function (dataImg) {
+                    if (dataImg.error) {
+                        msg.style.color = '#e11d48';
+                        msg.textContent = dataImg.error;
+                        return;
+                    }
+                    recargarPreservandoTab();
+                });
+            });
+        });
+    }
+
+    // ── Mensajes de la barra de anuncios (opcional, hasta 5, plantilla "Bento") ──
+    const formTicker = document.getElementById('formTicker');
+    if (formTicker) {
+        const csrfTicker = () => formTicker.querySelector('[name=csrfmiddlewaretoken]').value;
+        const urlsTicker = window.CONFIG_TICKER_URLS || {};
+        const modalTickerEl = document.getElementById('tickerModal');
+        const modalTicker = window.bootstrap ? new bootstrap.Modal(modalTickerEl) : null;
+
+        function limpiarFormTicker() {
+            document.getElementById('tickerPk').value = '';
+            document.getElementById('tickerTexto').value = '';
+            document.getElementById('tickerMsg').textContent = '';
+        }
+
+        document.getElementById('btnNuevoTicker')?.addEventListener('click', function () {
+            limpiarFormTicker();
+            document.getElementById('tickerModalLabel').textContent = 'Nuevo mensaje';
+        });
+
+        document.querySelectorAll('.btn-editar-ticker').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const row = btn.closest('.ticker-row');
+                limpiarFormTicker();
+                document.getElementById('tickerModalLabel').textContent = 'Editar mensaje';
+                document.getElementById('tickerPk').value = row.dataset.pk;
+                document.getElementById('tickerTexto').value = row.dataset.texto;
+                if (modalTicker) modalTicker.show();
+            });
+        });
+
+        document.querySelectorAll('.btn-eliminar-ticker').forEach(function (btn) {
+            btn.addEventListener('click', async function () {
+                const row = btn.closest('.ticker-row');
+                const ok = await KaiConfirm(`¿Seguro que querés eliminar el mensaje "${row.dataset.texto}"?`);
+                if (!ok) return;
+                fetch(urlsTicker.eliminar, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfTicker() },
+                    body: JSON.stringify({ pk: row.dataset.pk }),
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) { KaiToast.show(data.error, 'danger'); return; }
+                    recargarPreservandoTab();
+                });
+            });
+        });
+
+        formTicker.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const msg = document.getElementById('tickerMsg');
+            const pk = document.getElementById('tickerPk').value || null;
+            fetch(urlsTicker.guardar, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfTicker() },
+                body: JSON.stringify({ pk: pk, texto: document.getElementById('tickerTexto').value }),
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    msg.style.color = '#e11d48';
+                    msg.textContent = data.error;
+                    return;
+                }
+                recargarPreservandoTab();
+            });
+        });
+    }
+
+    // ── Marcas — logos (opcional, hasta 20, plantilla "Bento") ──
+    const formMarca = document.getElementById('formMarca');
+    if (formMarca) {
+        const csrfMarca = () => formMarca.querySelector('[name=csrfmiddlewaretoken]').value;
+        const urlsMarca = window.CONFIG_MARCAS_URLS || {};
+        const modalMarcaEl = document.getElementById('marcaModal');
+        const modalMarca = window.bootstrap ? new bootstrap.Modal(modalMarcaEl) : null;
+        let marcaLogoFile = null;
+
+        function limpiarFormMarca() {
+            document.getElementById('marcaPk').value = '';
+            document.getElementById('marcaNombre').value = '';
+            document.getElementById('marcaLogoPreviewBox').innerHTML =
+                '<span style="font-size:0.6rem; color:var(--text-muted);">Sin logo</span>';
+            document.getElementById('marcaMsg').textContent = '';
+            marcaLogoFile = null;
+        }
+
+        document.getElementById('btnNuevaMarca')?.addEventListener('click', function () {
+            limpiarFormMarca();
+            document.getElementById('marcaModalLabel').textContent = 'Nueva marca';
+        });
+
+        document.querySelectorAll('.btn-editar-marca').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const row = btn.closest('.marca-row');
+                limpiarFormMarca();
+                document.getElementById('marcaModalLabel').textContent = 'Editar marca';
+                document.getElementById('marcaPk').value = row.dataset.pk;
+                document.getElementById('marcaNombre').value = row.dataset.nombre;
+                const imgActual = row.querySelector('.config-logo-box img');
+                if (imgActual) {
+                    document.getElementById('marcaLogoPreviewBox').innerHTML = `<img src="${imgActual.src}" alt="">`;
+                }
+                if (modalMarca) modalMarca.show();
+            });
+        });
+
+        document.getElementById('inputMarcaLogo').addEventListener('change', function () {
+            if (!this.files[0]) return;
+            marcaLogoFile = this.files[0];
+            document.getElementById('marcaLogoPreviewBox').innerHTML =
+                `<img src="${URL.createObjectURL(marcaLogoFile)}" alt="">`;
+        });
+
+        document.querySelectorAll('.btn-eliminar-marca').forEach(function (btn) {
+            btn.addEventListener('click', async function () {
+                const row = btn.closest('.marca-row');
+                const ok = await KaiConfirm(`¿Seguro que querés eliminar "${row.dataset.nombre}"?`);
+                if (!ok) return;
+                fetch(urlsMarca.eliminar, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfMarca() },
+                    body: JSON.stringify({ pk: row.dataset.pk }),
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) { KaiToast.show(data.error, 'danger'); return; }
+                    recargarPreservandoTab();
+                });
+            });
+        });
+
+        formMarca.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const msg = document.getElementById('marcaMsg');
+            const pk = document.getElementById('marcaPk').value || null;
+            fetch(urlsMarca.guardar, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfMarca() },
+                body: JSON.stringify({ pk: pk, nombre: document.getElementById('marcaNombre').value }),
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    msg.style.color = '#e11d48';
+                    msg.textContent = data.error;
+                    return;
+                }
+                if (!marcaLogoFile) {
+                    recargarPreservandoTab();
+                    return;
+                }
+                const fd = new FormData();
+                fd.append('pk', data.pk);
+                fd.append('imagen', marcaLogoFile);
+                fetch(urlsMarca.imagen, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrfMarca() },
                     body: fd,
                 })
                 .then(r => r.json())

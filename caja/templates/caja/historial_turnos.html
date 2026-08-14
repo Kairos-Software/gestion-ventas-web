@@ -194,6 +194,18 @@ Historial de Turnos
                         <span class="hd-medio-label">Efectivo ventas</span>
                         <span class="hd-medio-value">${{ turno.efectivo_ventas|floatformat:"2" }}</span>
                     </div>
+                    {% if turno.efectivo_cuotas_cobradas %}
+                    <div class="hd-medio-row">
+                        <span class="hd-medio-label">Cobrado (cuentas por cobrar viejas)</span>
+                        <span class="hd-medio-value">${{ turno.efectivo_cuotas_cobradas|floatformat:"2" }}</span>
+                    </div>
+                    {% endif %}
+                    {% if turno.efectivo_cuotas_pagadas %}
+                    <div class="hd-medio-row">
+                        <span class="hd-medio-label">Pagado (créditos y préstamos viejos)</span>
+                        <span class="hd-medio-value">-${{ turno.efectivo_cuotas_pagadas|floatformat:"2" }}</span>
+                    </div>
+                    {% endif %}
                     <div class="hd-medio-row">
                         <span class="hd-medio-label">Efectivo esperado</span>
                         <span class="hd-medio-value">${{ turno.efectivo_total|floatformat:"2" }}</span>

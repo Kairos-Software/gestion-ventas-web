@@ -730,8 +730,40 @@ class TurnoCaja(models.Model):
         return self.totales_medio_pago.get('efectivo', 0)
 
     @property
+    def efectivo_cuotas_cobradas(self):
+        """
+        Cobrado en efectivo durante este turno por cuotas VIEJAS de CxC
+        (deudas de clientes de ventas anteriores) — plata real que entra
+        al mismo cajón físico que las ventas de hoy, pero que NO es venta
+        de hoy. Se muestra aparte a propósito (ver efectivo_total): que
+        quede claro de dónde salió, no que "aparezca" mezclada con lo
+        vendido. Si el turno ya cerró, devuelve el valor congelado.
+        """
+        if self.estado == EstadoTurno.CERRADO and self.totales_cierre:
+            return Decimal(self.totales_cierre.get('efectivo_cuotas_cobradas', '0'))
+        return self.calcular_efectivo_cuotas_cobradas_en_turno()
+
+    @property
+    def efectivo_cuotas_pagadas(self):
+        """Pagado en efectivo durante este turno por cuotas VIEJAS de
+        Deuda (lo que le debíamos a un proveedor) — mismo criterio que
+        efectivo_cuotas_cobradas, pero en la dirección contraria (sale
+        del cajón, no entra)."""
+        if self.estado == EstadoTurno.CERRADO and self.totales_cierre:
+            return Decimal(self.totales_cierre.get('efectivo_cuotas_pagadas', '0'))
+        return self.calcular_efectivo_cuotas_pagadas_en_turno()
+
+    @property
     def efectivo_total(self):
-        return (self.monto_inicial_efectivo or 0) + self.efectivo_ventas
+        """
+        Efectivo que se espera encontrar AHORA MISMO en el cajón físico
+        de este turno (o el que había al cerrarlo, si ya cerró — usa el
+        valor congelado). Mismos 4 componentes que usa cerrar() para
+        calcular la diferencia: ver _componentes_efectivo_esperado().
+        """
+        if self.estado == EstadoTurno.CERRADO and self.totales_cierre:
+            return Decimal(self.totales_cierre.get('esperado_efectivo', '0'))
+        return self._componentes_efectivo_esperado()['esperado']
 
     @property
     def ganancia_turno(self):
@@ -892,6 +924,72 @@ class TurnoCaja(models.Model):
         """
         return self._devoluciones_en_turno().aggregate(total=Sum('monto'))['total'] or Decimal('0')
 
+    def _cuotas_cobradas_en_turno(self):
+        """CuotaCobro (cuotas viejas de clientes) confirmadas en EFECTIVO
+        dentro de la ventana horaria de este turno — filtra por la fecha
+        en que se confirmó el cobro, no por cuándo nació la cuenta por
+        cobrar. Ver calcular_efectivo_cuotas_cobradas_en_turno."""
+        return CuotaCobro.objects.filter(
+            estado=EstadoCuota.CONFIRMADA,
+            cuenta_cobro__tipo=TipoCuenta.EFECTIVO,
+            fecha_confirmacion__gte=self.fecha_apertura,
+            fecha_confirmacion__lte=self.fecha_cierre if self.fecha_cierre else timezone.now(),
+        )
+
+    def _cuotas_pagadas_en_turno(self):
+        """CuotaDeuda (cuotas viejas que le debíamos a un proveedor)
+        confirmadas en EFECTIVO dentro de la ventana horaria de este
+        turno — mismo criterio que _cuotas_cobradas_en_turno, en la
+        dirección contraria."""
+        return CuotaDeuda.objects.filter(
+            estado=EstadoCuota.CONFIRMADA,
+            cuenta_pago__tipo=TipoCuenta.EFECTIVO,
+            fecha_confirmacion__gte=self.fecha_apertura,
+            fecha_confirmacion__lte=self.fecha_cierre if self.fecha_cierre else timezone.now(),
+        )
+
+    def calcular_efectivo_cuotas_cobradas_en_turno(self):
+        """
+        Total cobrado en efectivo durante este turno por cuotas VIEJAS de
+        CxC (ver sincronizar_movimiento_cuota_cobro: mientras el turno
+        está ABIERTO ese ingreso se difiere, igual que una venta en
+        efectivo — el cajero recibe esa plata físicamente en el mismo
+        cajón, así que el cierre tiene que esperarla para no mostrar una
+        sobra sin explicación).
+        """
+        return self._cuotas_cobradas_en_turno().aggregate(total=Sum('monto'))['total'] or Decimal('0')
+
+    def calcular_efectivo_cuotas_pagadas_en_turno(self):
+        """Total pagado en efectivo durante este turno por cuotas VIEJAS
+        de Deuda — mismo criterio que calcular_efectivo_cuotas_cobradas_en_turno,
+        pero resta en vez de sumar (sale plata del cajón, no entra)."""
+        return self._cuotas_pagadas_en_turno().aggregate(total=Sum('monto'))['total'] or Decimal('0')
+
+    def _componentes_efectivo_esperado(self):
+        """
+        Desglose completo de lo que se espera encontrar en el cajón
+        físico de este turno: inicial + ventas en efectivo - devoluciones
+        en efectivo + cuotas viejas cobradas en efectivo - cuotas viejas
+        pagadas en efectivo. Usado tanto por efectivo_total (mientras el
+        turno sigue abierto) como por cerrar() — un solo lugar con la
+        fórmula, para que nunca queden desincronizados.
+        """
+        efectivo_ventas = self.efectivo_ventas
+        efectivo_devuelto = self.calcular_efectivo_devuelto_en_turno()
+        efectivo_cuotas_cobradas = self.calcular_efectivo_cuotas_cobradas_en_turno()
+        efectivo_cuotas_pagadas = self.calcular_efectivo_cuotas_pagadas_en_turno()
+        esperado = (
+            (self.monto_inicial_efectivo or 0) + efectivo_ventas - efectivo_devuelto
+            + efectivo_cuotas_cobradas - efectivo_cuotas_pagadas
+        )
+        return {
+            'efectivo_ventas': efectivo_ventas,
+            'efectivo_devuelto': efectivo_devuelto,
+            'efectivo_cuotas_cobradas': efectivo_cuotas_cobradas,
+            'efectivo_cuotas_pagadas': efectivo_cuotas_pagadas,
+            'esperado': esperado,
+        }
+
     def calcular_totales_por_medio_pago(self):
         """
         Calcula los totales de ventas agrupados por medio de pago
@@ -977,9 +1075,16 @@ class TurnoCaja(models.Model):
             total_recaudado = sum(v for k, v in totales.items() if k not in self.MEDIOS_PENDIENTES)
             total_financiado_pendiente = sum(v for k, v in totales.items() if k in self.MEDIOS_PENDIENTES)
 
-            efectivo_ventas = totales.get('efectivo', 0)
-            efectivo_devuelto = self.calcular_efectivo_devuelto_en_turno()
-            esperado = self.monto_inicial_efectivo + efectivo_ventas - efectivo_devuelto
+            # Mismos 4 componentes que efectivo_total calcula mientras el
+            # turno sigue abierto — un solo lugar con la fórmula (ver
+            # _componentes_efectivo_esperado), así nunca quedan
+            # desincronizados entre lo que se mostró en pantalla y lo que
+            # efectivamente se congela acá.
+            componentes = self._componentes_efectivo_esperado()
+            efectivo_devuelto = componentes['efectivo_devuelto']
+            efectivo_cuotas_cobradas = componentes['efectivo_cuotas_cobradas']
+            efectivo_cuotas_pagadas = componentes['efectivo_cuotas_pagadas']
+            esperado = componentes['esperado']
 
             # ── Congelar estado del turno ───────────────────────────
             self.monto_final_efectivo = monto_final_efectivo
@@ -996,6 +1101,8 @@ class TurnoCaja(models.Model):
                 'esperado_efectivo': str(esperado),
                 'declarado_efectivo': str(monto_final_efectivo),
                 'efectivo_devuelto': str(efectivo_devuelto),
+                'efectivo_cuotas_cobradas': str(efectivo_cuotas_cobradas),
+                'efectivo_cuotas_pagadas': str(efectivo_cuotas_pagadas),
             }
             self.save()
 
@@ -2082,6 +2189,21 @@ def sincronizar_movimiento_cuota(cuota):
             movimiento.delete()
         return
 
+    # Efectivo: igual criterio que una venta o una devolución. Si hay un
+    # turno de caja ABIERTO que la vaya a conciliar, el egreso se difiere
+    # hasta su cierre — esa plata sale físicamente del mismo cajón que el
+    # cajero está manejando ese turno, así que el cierre tiene que
+    # esperarla (ver TurnoCaja._componentes_efectivo_esperado) en vez de
+    # mostrar un faltante sin explicación. Si no hay turno abierto que la
+    # cubra, se banca de inmediato como cualquier otro egreso — igual que
+    # sincronizar_movimiento_venta cuando no hay turno.
+    if cuota.cuenta_pago.tipo == TipoCuenta.EFECTIVO:
+        turno = TurnoCaja.turno_que_contiene(cuota.fecha_confirmacion)
+        if turno is not None and turno.estado == EstadoTurno.ABIERTO:
+            if movimiento:
+                movimiento.delete()
+            return
+
     deuda = cuota.deuda
     entidad = deuda.descripcion or (deuda.cuenta_tarjeta.nombre if deuda.cuenta_tarjeta else '')
     concepto = _concepto_default('Pago de cuota (deuda)', TipoMovimientoCaja.EGRESO)
@@ -2856,6 +2978,16 @@ def sincronizar_movimiento_cuota_cobro(cuota):
         if movimiento:
             movimiento.delete()
         return
+
+    # Efectivo: igual criterio que una venta o una devolución — ver el
+    # comentario equivalente en sincronizar_movimiento_cuota (misma
+    # lógica, acá en la dirección de ingreso).
+    if cuota.cuenta_cobro.tipo == TipoCuenta.EFECTIVO:
+        turno = TurnoCaja.turno_que_contiene(cuota.fecha_confirmacion)
+        if turno is not None and turno.estado == EstadoTurno.ABIERTO:
+            if movimiento:
+                movimiento.delete()
+            return
 
     cxc = cuota.cuenta_por_cobrar
     concepto = _concepto_default('Cobro de cuota (venta)', TipoMovimientoCaja.INGRESO)

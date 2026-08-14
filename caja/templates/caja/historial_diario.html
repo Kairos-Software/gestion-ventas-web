@@ -191,6 +191,18 @@ Historial Diario
                             <span class="hd-medio-label">Efectivo en caja</span>
                             <span class="hd-medio-value">${{ turno.efectivo_total|floatformat:"2" }}</span>
                         </div>
+                        {% if turno.efectivo_cuotas_cobradas %}
+                        <div class="hd-medio-row">
+                            <span class="hd-medio-label">Cobrado (cuentas por cobrar viejas)</span>
+                            <span class="hd-medio-value">${{ turno.efectivo_cuotas_cobradas|floatformat:"2" }}</span>
+                        </div>
+                        {% endif %}
+                        {% if turno.efectivo_cuotas_pagadas %}
+                        <div class="hd-medio-row">
+                            <span class="hd-medio-label">Pagado (créditos y préstamos viejos)</span>
+                            <span class="hd-medio-value">-${{ turno.efectivo_cuotas_pagadas|floatformat:"2" }}</span>
+                        </div>
+                        {% endif %}
                         {% if turno.total_financiado_pendiente %}
                         <div class="hd-medio-row" style="background:rgba(180,83,9,0.06); border-color:rgba(180,83,9,0.22)">
                             <span class="hd-medio-label">Pendiente de cobro</span>

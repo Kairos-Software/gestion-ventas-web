@@ -12,8 +12,9 @@ from productos.models import CategoriaProducto
 from productos.utils_imagenes import comprimir_imagen_subida
 
 from .models import (
-    BannerCatalogo, ConfiguracionCatalogo, ImagenInstitucional, PlantillaCatalogo,
-    PosicionBanner, SlideHeroCatalogo, TileDestacadoCatalogo, TipoTileDestacado,
+    BannerBentoCatalogo, BannerCatalogo, ConfiguracionCatalogo, ImagenInstitucional,
+    MarcaLogoCatalogo, PlantillaCatalogo, PosicionBanner, PosicionBannerBento,
+    SlideHeroCatalogo, TickerMensajeCatalogo, TileDestacadoCatalogo, TipoTileDestacado,
 )
 from .views import _productos_publicados_base
 
@@ -22,6 +23,9 @@ MAX_SLIDES = 6
 MAX_GALERIA = 8
 MAX_BANNERS = 6
 MAX_TILES = 16
+MAX_TICKER = 5
+MAX_MARCAS = 20
+MAX_BANNERS_BENTO = 6
 
 
 class CatalogoConfigGuardarAjax(LoginRequiredMixin, View):
@@ -82,6 +86,11 @@ class CatalogoConfigGuardarAjax(LoginRequiredMixin, View):
         config.tiles_destacados_titulo = (body.get('tiles_destacados_titulo') or '').strip()
         config.hero_spot2_producto = hero_spot2_producto
         config.sobre_nosotros     = (body.get('sobre_nosotros') or '').strip()
+        config.mostrar_historia_en_home = bool(body.get('mostrar_historia_en_home', True))
+        config.cta_final_titulo       = (body.get('cta_final_titulo') or '').strip()[:150]
+        config.cta_final_texto        = (body.get('cta_final_texto') or '').strip()[:250]
+        config.cta_final_boton_texto  = (body.get('cta_final_boton_texto') or '').strip()[:40]
+        config.cta_final_boton_url    = (body.get('cta_final_boton_url') or '').strip()[:300]
         config.contacto_texto     = (body.get('contacto_texto') or '').strip()
         config.color_marca        = color_marca
         config.color_marca_secundario = color_marca_secundario
@@ -234,6 +243,43 @@ class CatalogoConfigHeroSpot2ImagenAjax(LoginRequiredMixin, View):
     def _borrar_archivo_actual(self, config):
         if config.hero_spot2_imagen and os.path.isfile(config.hero_spot2_imagen.path):
             os.remove(config.hero_spot2_imagen.path)
+
+
+class CatalogoConfigCtaFinalImagenAjax(LoginRequiredMixin, View):
+    """POST (FormData, campo 'imagen') = subir/reemplazar la imagen de fondo de la banda final (Bento). DELETE = quitarla."""
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        archivo = request.FILES.get('imagen')
+        if not archivo:
+            return JsonResponse({'error': 'No se recibió ningún archivo.'}, status=400)
+        ext = os.path.splitext(archivo.name)[1].lower()
+        if ext not in EXTENSIONES_PERMITIDAS:
+            return JsonResponse({'error': 'Usá JPG, PNG o WEBP.'}, status=400)
+
+        archivo = comprimir_imagen_subida(archivo)
+
+        config = ConfiguracionCatalogo.get_solo()
+        self._borrar_archivo_actual(config)
+        config.cta_final_imagen = archivo
+        config.save(update_fields=['cta_final_imagen'])
+        return JsonResponse({'ok': True, 'imagen_url': config.cta_final_imagen.url})
+
+    def delete(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        config = ConfiguracionCatalogo.get_solo()
+        self._borrar_archivo_actual(config)
+        config.cta_final_imagen = None
+        config.save(update_fields=['cta_final_imagen'])
+        return JsonResponse({'ok': True})
+
+    def _borrar_archivo_actual(self, config):
+        if config.cta_final_imagen and os.path.isfile(config.cta_final_imagen.path):
+            os.remove(config.cta_final_imagen.path)
 
 
 class CatalogoKineticHeroFondoAjax(LoginRequiredMixin, View):
@@ -629,6 +675,258 @@ class CatalogoTileEliminarAjax(LoginRequiredMixin, View):
         if tile.imagen and os.path.isfile(tile.imagen.path):
             os.remove(tile.imagen.path)
         tile.delete()
+        return JsonResponse({'ok': True})
+
+
+class CatalogoTickerGuardarAjax(LoginRequiredMixin, View):
+    """
+    POST JSON con el texto de un mensaje de la barra de anuncios (plantilla
+    "bento"). Sin 'pk' = crea uno nuevo (hasta MAX_TICKER). Con 'pk' =
+    actualiza. Sin imagen — es solo texto, no hace falta un segundo paso.
+    """
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        texto = (body.get('texto') or '').strip()
+        if not texto:
+            return JsonResponse({'error': 'Escribí el mensaje.'}, status=400)
+
+        config = ConfiguracionCatalogo.get_solo()
+        pk = body.get('pk')
+        if pk:
+            mensaje = get_object_or_404(TickerMensajeCatalogo, pk=pk, configuracion=config)
+        else:
+            if config.ticker_mensajes.count() >= MAX_TICKER:
+                return JsonResponse({'error': f'Máximo {MAX_TICKER} mensajes.'}, status=400)
+            mensaje = TickerMensajeCatalogo(configuracion=config)
+
+        mensaje.texto  = texto
+        mensaje.activo = bool(body.get('activo', True))
+        mensaje.save()
+
+        return JsonResponse({'ok': True, 'pk': mensaje.pk})
+
+
+class CatalogoTickerEliminarAjax(LoginRequiredMixin, View):
+    """POST JSON {'pk': ...} — borra un mensaje de la barra de anuncios."""
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        mensaje = get_object_or_404(
+            TickerMensajeCatalogo, pk=body.get('pk'), configuracion=ConfiguracionCatalogo.get_solo(),
+        )
+        mensaje.delete()
+        return JsonResponse({'ok': True})
+
+
+class CatalogoMarcaGuardarAjax(LoginRequiredMixin, View):
+    """
+    POST JSON con el nombre de una marca (fila "Nuestras marcas", plantilla
+    "bento"). Sin 'pk' = crea una nueva (hasta MAX_MARCAS). Con 'pk' =
+    actualiza. El logo se sube después, en un segundo paso, contra
+    CatalogoMarcaImagenAjax — mismo patrón que los tiles.
+    """
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        nombre = (body.get('nombre') or '').strip()
+        if not nombre:
+            return JsonResponse({'error': 'Escribí el nombre de la marca.'}, status=400)
+
+        config = ConfiguracionCatalogo.get_solo()
+        pk = body.get('pk')
+        if pk:
+            marca = get_object_or_404(MarcaLogoCatalogo, pk=pk, configuracion=config)
+        else:
+            if config.marcas_logo.count() >= MAX_MARCAS:
+                return JsonResponse({'error': f'Máximo {MAX_MARCAS} marcas.'}, status=400)
+            marca = MarcaLogoCatalogo(configuracion=config)
+
+        marca.nombre = nombre
+        marca.activo = bool(body.get('activo', True))
+        marca.save()
+
+        return JsonResponse({'ok': True, 'pk': marca.pk})
+
+
+class CatalogoMarcaImagenAjax(LoginRequiredMixin, View):
+    """POST (FormData, campos 'pk' + 'imagen') = subir/reemplazar el logo de una marca ya creada."""
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        pk = request.POST.get('pk')
+        marca = get_object_or_404(MarcaLogoCatalogo, pk=pk, configuracion=ConfiguracionCatalogo.get_solo())
+
+        archivo = request.FILES.get('imagen')
+        if not archivo:
+            return JsonResponse({'error': 'No se recibió ningún archivo.'}, status=400)
+        ext = os.path.splitext(archivo.name)[1].lower()
+        if ext not in EXTENSIONES_PERMITIDAS:
+            return JsonResponse({'error': 'Usá JPG, PNG o WEBP.'}, status=400)
+
+        archivo = comprimir_imagen_subida(archivo)
+
+        if marca.logo and os.path.isfile(marca.logo.path):
+            os.remove(marca.logo.path)
+        marca.logo = archivo
+        marca.save(update_fields=['logo'])
+        return JsonResponse({'ok': True, 'imagen_url': marca.logo.url})
+
+
+class CatalogoMarcaEliminarAjax(LoginRequiredMixin, View):
+    """POST JSON {'pk': ...} — borra una marca y su logo."""
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        marca = get_object_or_404(
+            MarcaLogoCatalogo, pk=body.get('pk'), configuracion=ConfiguracionCatalogo.get_solo(),
+        )
+        if marca.logo and os.path.isfile(marca.logo.path):
+            os.remove(marca.logo.path)
+        marca.delete()
+        return JsonResponse({'ok': True})
+
+
+class CatalogoBannerBentoGuardarAjax(LoginRequiredMixin, View):
+    """
+    Versión Bento de CatalogoBannerGuardarAjax — mismo flujo (imagen en un
+    segundo paso contra CatalogoBannerBentoImagenAjax), tabla propia
+    (BannerBentoCatalogo), sin cruzarse con los banners de Almacén.
+    """
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        titulo = (body.get('titulo') or '').strip()
+        if not titulo:
+            return JsonResponse({'error': 'El título es obligatorio.'}, status=400)
+
+        posicion = body.get('posicion') or PosicionBannerBento.NOVEDADES
+        if posicion not in PosicionBannerBento.values:
+            return JsonResponse({'error': 'Ubicación inválida.'}, status=400)
+
+        color_fondo = (body.get('color_fondo') or '').strip()
+        if color_fondo and not re.fullmatch(r'#[0-9a-fA-F]{6}', color_fondo):
+            return JsonResponse({'error': 'Color de fondo inválido.'}, status=400)
+
+        config = ConfiguracionCatalogo.get_solo()
+        pk = body.get('pk')
+        if pk:
+            banner = get_object_or_404(BannerBentoCatalogo, pk=pk, configuracion=config)
+        else:
+            if config.banners_bento.count() >= MAX_BANNERS_BENTO:
+                return JsonResponse({'error': f'Máximo {MAX_BANNERS_BENTO} banners.'}, status=400)
+            banner = BannerBentoCatalogo(configuracion=config)
+
+        banner.titulo      = titulo
+        banner.texto       = (body.get('texto') or '').strip()
+        banner.posicion    = posicion
+        banner.color_fondo = color_fondo
+        banner.cta_texto   = (body.get('cta_texto') or '').strip()
+        banner.cta_url     = (body.get('cta_url') or '').strip()
+        banner.activo      = bool(body.get('activo', True))
+        banner.save()
+
+        return JsonResponse({'ok': True, 'pk': banner.pk})
+
+
+class CatalogoBannerBentoImagenAjax(LoginRequiredMixin, View):
+    """POST (FormData, campos 'pk' + 'imagen') = subir/reemplazar la imagen de un banner de Bento ya creado."""
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        pk = request.POST.get('pk')
+        banner = get_object_or_404(BannerBentoCatalogo, pk=pk, configuracion=ConfiguracionCatalogo.get_solo())
+
+        archivo = request.FILES.get('imagen')
+        if not archivo:
+            return JsonResponse({'error': 'No se recibió ningún archivo.'}, status=400)
+        ext = os.path.splitext(archivo.name)[1].lower()
+        if ext not in EXTENSIONES_PERMITIDAS:
+            return JsonResponse({'error': 'Usá JPG, PNG o WEBP.'}, status=400)
+
+        archivo = comprimir_imagen_subida(archivo)
+
+        if banner.imagen and os.path.isfile(banner.imagen.path):
+            os.remove(banner.imagen.path)
+        banner.imagen = archivo
+        banner.save(update_fields=['imagen'])
+        return JsonResponse({'ok': True, 'imagen_url': banner.imagen.url})
+
+    def delete(self, request):
+        """Quitar la imagen sin borrar el banner — vuelve a mostrarse como bloque de color sólido."""
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        banner = get_object_or_404(BannerBentoCatalogo, pk=body.get('pk'), configuracion=ConfiguracionCatalogo.get_solo())
+        if banner.imagen and os.path.isfile(banner.imagen.path):
+            os.remove(banner.imagen.path)
+        banner.imagen = None
+        banner.save(update_fields=['imagen'])
+        return JsonResponse({'ok': True})
+
+
+class CatalogoBannerBentoEliminarAjax(LoginRequiredMixin, View):
+    """POST JSON {'pk': ...} — borra un banner de Bento y su imagen."""
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        banner = get_object_or_404(
+            BannerBentoCatalogo, pk=body.get('pk'), configuracion=ConfiguracionCatalogo.get_solo(),
+        )
+        if banner.imagen and os.path.isfile(banner.imagen.path):
+            os.remove(banner.imagen.path)
+        banner.delete()
         return JsonResponse({'ok': True})
 
 

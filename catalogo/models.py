@@ -33,6 +33,12 @@ def _catalogo_bento_hero_spot2_path(instance, filename):
     return f'catalogo/bento-hero-spot2{ext}'
 
 
+def _catalogo_cta_final_path(instance, filename):
+    import os
+    ext = os.path.splitext(filename)[1].lower()
+    return f'catalogo/cta-final{ext}'
+
+
 def _catalogo_tile_path(instance, filename):
     import os
     ext = os.path.splitext(filename)[1].lower()
@@ -119,6 +125,24 @@ class ConfiguracionCatalogo(models.Model):
         help_text='Opcional — con imagen cargada, reemplaza al producto de esta tarjeta.',
     )
     sobre_nosotros = models.TextField('Sobre nosotros', blank=True)
+    mostrar_historia_en_home = models.BooleanField(
+        '"Nuestra historia" también en la home (Bento)', default=True,
+        help_text='El texto de arriba siempre se muestra en La Tienda. Desactivá esto si no '
+                   'querés repetirlo también en la portada del catálogo.',
+    )
+    cta_final_titulo = models.CharField(
+        'Título — banda final (Bento)', max_length=150, blank=True,
+        help_text='Opcional — con título cargado aparece una banda de cierre al final de la '
+                   'home, para un mensaje distinto al de "Nuestra historia" (ej. envíos, '
+                   'empresas). Vacío = no se muestra.',
+    )
+    cta_final_texto = models.CharField('Bajada — banda final (Bento)', max_length=250, blank=True)
+    cta_final_boton_texto = models.CharField('Texto del botón — banda final (Bento)', max_length=40, blank=True)
+    cta_final_boton_url = models.CharField('Link del botón — banda final (Bento)', max_length=300, blank=True)
+    cta_final_imagen = models.ImageField(
+        'Imagen de fondo — banda final (Bento)', upload_to=_catalogo_cta_final_path, blank=True, null=True,
+        help_text='Opcional — sin imagen, la banda se ve con el color de fondo liso de siempre.',
+    )
     contacto_texto = models.TextField(
         'Texto de contacto', blank=True,
         help_text='Se muestra junto a los datos de contacto en el pie de página.',
@@ -418,6 +442,126 @@ class BannerCatalogo(models.Model):
     class Meta:
         verbose_name        = 'Banner promocional (catálogo)'
         verbose_name_plural  = 'Banners promocionales (catálogo)'
+        ordering             = ['orden', 'id']
+
+    def __str__(self):
+        return self.titulo
+
+    @property
+    def muestra_cta(self):
+        return bool(self.cta_texto and self.cta_url)
+
+
+def _catalogo_ticker_path(instance, filename):
+    import os
+    ext = os.path.splitext(filename)[1].lower()
+    return f'catalogo/ticker/{instance.pk}{ext}'
+
+
+class TickerMensajeCatalogo(models.Model):
+    """
+    Mensaje corto de la franja de anuncios arriba del header (ver
+    catalogo/plantillas/bento/base.html) — solo texto, rota en el
+    front con JS (ver catalogo.js). Exclusivo de "bento" por ahora.
+    """
+    configuracion = models.ForeignKey(
+        ConfiguracionCatalogo, on_delete=models.CASCADE, related_name='ticker_mensajes',
+    )
+    texto = models.CharField('Mensaje', max_length=120)
+    activo = models.BooleanField(default=True)
+    orden = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name        = 'Mensaje de la barra de anuncios (catálogo)'
+        verbose_name_plural  = 'Mensajes de la barra de anuncios (catálogo)'
+        ordering             = ['orden', 'id']
+
+    def __str__(self):
+        return self.texto
+
+
+def _catalogo_marca_logo_path(instance, filename):
+    import os
+    ext = os.path.splitext(filename)[1].lower()
+    # Igual que _catalogo_tile_path: la ruta va por pk, se sube en un
+    # segundo paso (ver catalogo/views_config.py:CatalogoMarcaLogoImagenAjax).
+    return f'catalogo/marcas/{instance.pk}{ext}'
+
+
+class MarcaLogoCatalogo(models.Model):
+    """
+    Fila de "nuestras marcas" (logos en badge circular) — a diferencia de
+    TileDestacadoCatalogo (tipo=MARCA), esto no filtra el catálogo al
+    click, es solo prestigio/confianza. Exclusivo de "bento" por ahora.
+    """
+    configuracion = models.ForeignKey(
+        ConfiguracionCatalogo, on_delete=models.CASCADE, related_name='marcas_logo',
+    )
+    nombre = models.CharField('Nombre de la marca', max_length=60)
+    logo = models.ImageField('Logo', upload_to=_catalogo_marca_logo_path, blank=True, null=True)
+    activo = models.BooleanField(default=True)
+    orden = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name        = 'Marca (catálogo)'
+        verbose_name_plural  = 'Marcas (catálogo)'
+        ordering             = ['orden', 'id']
+
+    def __str__(self):
+        return self.nombre
+
+
+class PosicionBannerBento(models.TextChoices):
+    """
+    A diferencia de PosicionBanner (Almacén, "franja ancha" en las 4),
+    cada posición de Bento se dibuja distinto — ver catalogo/plantillas/
+    bento/home.html — por eso los nombres describen la forma real, no un
+    lugar genérico de la página.
+    """
+    NOVEDADES         = 'novedades',         'Novedades (rail de tarjetas, arriba)'
+    PROMOS_MES        = 'promos_mes',        'Promos del mes (grilla fija de 4)'
+    ANTES_DESTACADOS  = 'antes_destacados',  'Antes de Destacados (franja ancha)'
+    ANTES_COMBOS      = 'antes_combos',      'Antes de Combos armados (franja ancha)'
+
+
+def _catalogo_banner_bento_path(instance, filename):
+    import os
+    ext = os.path.splitext(filename)[1].lower()
+    return f'catalogo/banners-bento/{instance.pk}{ext}'
+
+
+class BannerBentoCatalogo(models.Model):
+    """
+    Banner promocional opcional de Bento — hasta MAX_BANNERS_BENTO (ver
+    catalogo/views_config.py). Mismos campos que BannerCatalogo (Almacén)
+    pero modelo y tabla propios: son conceptos distintos aunque compartan
+    forma de datos, cada plantilla maneja los suyos sin cruzarse. Exclusivo
+    de "bento".
+    """
+    configuracion = models.ForeignKey(
+        ConfiguracionCatalogo, on_delete=models.CASCADE, related_name='banners_bento',
+    )
+    posicion = models.CharField(
+        'Dónde va', max_length=20, choices=PosicionBannerBento.choices, default=PosicionBannerBento.NOVEDADES,
+    )
+    imagen = models.ImageField('Imagen (opcional)', upload_to=_catalogo_banner_bento_path, blank=True, null=True)
+    titulo = models.CharField('Título', max_length=100)
+    texto = models.CharField('Bajada (opcional)', max_length=200, blank=True)
+    color_fondo = models.CharField(
+        'Color de fondo', max_length=7, blank=True,
+        help_text='Código hex. Vacío = usa el color secundario de la marca. Solo se ve si el banner no tiene imagen.',
+    )
+    cta_texto = models.CharField('Texto del botón (opcional)', max_length=40, blank=True)
+    cta_url = models.CharField(
+        'Link del botón (opcional)', max_length=300, blank=True,
+        help_text='Sin texto Y link del botón cargados los dos, el banner no muestra botón.',
+    )
+    activo = models.BooleanField(default=True)
+    orden = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name        = 'Banner promocional (Bento)'
+        verbose_name_plural  = 'Banners promocionales (Bento)'
         ordering             = ['orden', 'id']
 
     def __str__(self):

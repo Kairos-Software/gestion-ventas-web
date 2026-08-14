@@ -32,6 +32,50 @@ document.addEventListener('DOMContentLoaded', function () {
         reiniciarAutoplay();
     }
 
+    /* ---------------- Barra de anuncios (ticker) ---------------- */
+    var tickerMsgs = document.querySelectorAll('#kcTickerMsgs .ticker-msg');
+    if (tickerMsgs.length > 1) {
+        var tIdx = 0;
+        var tTimer;
+        function mostrarMsg(n) {
+            tIdx = (n + tickerMsgs.length) % tickerMsgs.length;
+            tickerMsgs.forEach(function (m, i) { m.classList.toggle('active', i === tIdx); });
+        }
+        function reiniciarTicker() {
+            clearInterval(tTimer);
+            tTimer = setInterval(function () { mostrarMsg(tIdx + 1); }, 3800);
+        }
+        var tPrev = document.getElementById('kcTickerPrev');
+        var tNext = document.getElementById('kcTickerNext');
+        if (tPrev) tPrev.addEventListener('click', function () { mostrarMsg(tIdx - 1); reiniciarTicker(); });
+        if (tNext) tNext.addEventListener('click', function () { mostrarMsg(tIdx + 1); reiniciarTicker(); });
+        reiniciarTicker();
+    }
+
+    /* ---------------- Arrastrar con mouse los carruseles horizontales ----------------
+       Los rails (categorías, novedades, ofertas, destacados) ya se pueden recorrer con
+       touch/trackpad porque son overflow-x:auto — esto suma que también se puedan
+       arrastrar con el mouse en desktop, como en un sitio real. */
+    document.querySelectorAll('.hide-scrollbar').forEach(function (rail) {
+        var down = false, startX = 0, startScroll = 0, moved = false;
+        rail.addEventListener('mousedown', function (e) {
+            down = true; moved = false;
+            rail.classList.add('dragging');
+            startX = e.pageX; startScroll = rail.scrollLeft;
+        });
+        window.addEventListener('mouseup', function () { down = false; rail.classList.remove('dragging'); });
+        rail.addEventListener('mouseleave', function () { down = false; rail.classList.remove('dragging'); });
+        rail.addEventListener('mousemove', function (e) {
+            if (!down) return;
+            e.preventDefault();
+            if (Math.abs(e.pageX - startX) > 4) moved = true;
+            rail.scrollLeft = startScroll - (e.pageX - startX);
+        });
+        // Evita que soltar el mouse después de arrastrar dispare el click del
+        // link/producto que quedó debajo del cursor.
+        rail.addEventListener('click', function (e) { if (moved) { e.preventDefault(); e.stopPropagation(); } }, true);
+    });
+
     /* ---------------- Drawer de filtros ---------------- */
     var filtroDrawer = document.getElementById('kcFiltroDrawer');
     var filtroOverlay = document.getElementById('kcFiltroOverlay');

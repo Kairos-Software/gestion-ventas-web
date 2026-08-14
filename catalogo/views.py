@@ -16,7 +16,7 @@ from productos.models import (
     AplicacionOferta, CategoriaProducto, EstadoProducto, Producto, TipoOferta, TipoProducto, ofertas_vigentes_hoy,
 )
 
-from .models import ConfiguracionCatalogo, PlantillaCatalogo, PosicionBanner, TipoTileDestacado
+from .models import ConfiguracionCatalogo, PlantillaCatalogo, PosicionBanner, PosicionBannerBento, TipoTileDestacado
 from .utils import google_maps_link, wa_link_ar
 
 # Estados de producto que se muestran en el catálogo público. INACTIVO y
@@ -99,6 +99,10 @@ def _contexto_base(request):
         'default_nav_tienda': ConfiguracionCatalogo.DEFAULT_NAV_TIENDA,
         'ofertas_umbral_json': _ofertas_umbral_automaticas_json(ofertas),
         'ofertas_nxm_json': _ofertas_nxm_automaticas_json(ofertas),
+        # Franja de anuncios arriba del header — vale para las 3 vistas
+        # públicas (no solo la home), mismo criterio que el header/footer
+        # compartidos. Exclusiva de "bento" por ahora.
+        'ticker_mensajes': config.ticker_mensajes.filter(activo=True),
     }
     return ctx, ofertas
 
@@ -605,19 +609,32 @@ class CatalogoHomeView(TemplateView):
         # imagen (ej. el usuario cerró el modal a mitad de camino, ver
         # catalogo/views_config.py) no debe aparecer roto en el carrusel.
         ctx['slides'] = ctx['config_catalogo'].slides.exclude(imagen='')
-        # Banners promocionales opcionales — exclusivos de "almacen" por
-        # ahora (el resto de las plantillas no los renderiza todavía).
+        # Banners promocionales opcionales de Almacén, repartidos por
+        # posición (franja ancha en las 4) — modelo exclusivo de "almacen",
+        # ver BannerBentoCatalogo/PosicionBannerBento más abajo para el
+        # equivalente de Bento (tabla propia, sin cruzarse con esta).
         banners_activos = ctx['config_catalogo'].banners.filter(activo=True)
         ctx['banners_debajo_hero'] = banners_activos.filter(posicion=PosicionBanner.DEBAJO_HERO)
         ctx['banners_antes_grilla'] = banners_activos.filter(posicion=PosicionBanner.ANTES_GRILLA)
         ctx['banners_antes_destacados'] = banners_activos.filter(posicion=PosicionBanner.ANTES_DESTACADOS)
         ctx['banners_antes_combos'] = banners_activos.filter(posicion=PosicionBanner.ANTES_COMBOS)
+        # Banners de Bento — tabla y posiciones propias (ver
+        # BannerBentoCatalogo/PosicionBannerBento en models.py), cada una
+        # con su propio look en catalogo/plantillas/bento/home.html.
+        banners_bento_activos = ctx['config_catalogo'].banners_bento.filter(activo=True)
+        ctx['banners_bento_novedades'] = banners_bento_activos.filter(posicion=PosicionBannerBento.NOVEDADES)
+        ctx['banners_bento_promos'] = banners_bento_activos.filter(posicion=PosicionBannerBento.PROMOS_MES)
+        ctx['banners_bento_antes_destacados'] = banners_bento_activos.filter(posicion=PosicionBannerBento.ANTES_DESTACADOS)
+        ctx['banners_bento_antes_combos'] = banners_bento_activos.filter(posicion=PosicionBannerBento.ANTES_COMBOS)
         # Categorías/marcas destacadas — accesos directos con imagen que
-        # filtran el catálogo al click, exclusivos de "almacen" por ahora.
-        # Se resuelve acá (no en el template) para poder armar la URL de
-        # filtro fresca (_url_con, no _url_toggle: un tile fija el filtro,
-        # no lo acumula con lo que ya esté tildado) y saltear tiles mal
-        # configurados (ej. categoría borrada) sin romper el template.
+        # filtran el catálogo al click, exclusivos de "almacen" (en Bento
+        # son redundantes: las categorías ya se navegan por el rail de
+        # stories y las marcas ya tienen su propia fila de logos, ver
+        # marcas_logo más abajo). Se resuelve acá (no en el template) para
+        # poder armar la URL de filtro fresca (_url_con, no _url_toggle: un
+        # tile fija el filtro, no lo acumula con lo que ya esté tildado) y
+        # saltear tiles mal configurados (ej. categoría borrada) sin romper
+        # el template.
         tiles_destacados = []
         if mostrar_vidriera:
             tiles_qs = ctx['config_catalogo'].tiles_destacados.filter(activo=True).exclude(imagen='').select_related('categoria')
@@ -632,6 +649,12 @@ class CatalogoHomeView(TemplateView):
                     continue
                 tiles_destacados.append({'imagen_url': t.imagen.url, 'etiqueta': etiqueta, 'url': url})
         ctx['tiles_destacados'] = tiles_destacados
+        # Fila de "nuestras marcas" (logos) — mismo criterio que tiles_destacados:
+        # solo tiene sentido en la vidriera sin filtros activos.
+        ctx['marcas_logo'] = (
+            ctx['config_catalogo'].marcas_logo.filter(activo=True).exclude(logo='')
+            if mostrar_vidriera else []
+        )
         ctx['secciones'] = secciones
         ctx['seccion_activa'] = seccion
         ctx['mostrar_productos'] = mostrar_productos

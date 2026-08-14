@@ -113,6 +113,48 @@
     {% endfor %}
   </div>
 </div>
+
+{% if mostrar_vidriera and banners_bento_novedades %}
+<div class="shell ads-wrap">
+  <div class="rail-head">
+    <div><span class="rail-eyebrow">No te lo pierdas</span><div class="rail-title">Novedades</div></div>
+  </div>
+  <div class="ads-rail hide-scrollbar">
+    {% for b in banners_bento_novedades %}
+    <a {% if b.cta_url %}href="{{ b.cta_url }}"{% else %}href="#kcCatalogo"{% endif %} class="ad-card" {% if not b.imagen %}style="background:{{ b.color_fondo|default:default_color_marca_secundario_bento }};"{% endif %}>
+      {% if b.imagen %}<img src="{{ b.imagen.url }}" alt="">{% endif %}
+      <div class="ad-card-overlay {% if b.imagen %}ad-card-overlay--scrim{% endif %}">
+        <div class="ad-card-copy">
+          <span class="ad-card-title">{{ b.titulo }}</span>
+          {% if b.texto %}<span class="ad-card-text">{{ b.texto }}</span>{% endif %}
+        </div>
+        <span class="ad-card-cta">{{ b.cta_texto|default:'Ver más' }} →</span>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if mostrar_vidriera and banners_bento_promos %}
+<div class="shell promo-grid-wrap">
+  <div class="rail-head"><div><span class="rail-eyebrow">Elegí y listo</span><div class="rail-title">Promos del mes</div></div></div>
+  <div class="promo-grid">
+    {% for b in banners_bento_promos %}
+    <a {% if b.cta_url %}href="{{ b.cta_url }}"{% else %}href="#kcCatalogo"{% endif %}
+       class="promo-card {% if b.imagen %}has-img{% elif not b.color_fondo %}{% cycle 'pg1' 'pg2' 'pg3' 'pg4' 'pg1' 'pg2' %}{% endif %}"
+       {% if not b.imagen and b.color_fondo %}style="background:{{ b.color_fondo }};"{% endif %}>
+      {% if b.imagen %}<img src="{{ b.imagen.url }}" alt="">{% endif %}
+      <div class="promo-card-copy">
+        <b>{{ b.titulo }}</b>
+        {% if b.texto %}<small>{{ b.texto }}</small>{% endif %}
+        {% if b.muestra_cta %}<span class="promo-card-cta">{{ b.cta_texto }} →</span>{% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
 {% endif %}
 
 <div class="subbar">
@@ -183,6 +225,57 @@
   </div>
   {% endif %}
 
+  {% if mostrar_vidriera and banners_bento_antes_destacados %}
+  <div class="banner-strip">
+    {% include 'catalogo/plantillas/bento/_banner_strip.html' with banners=banners_bento_antes_destacados %}
+  </div>
+  {% endif %}
+
+  {% if mostrar_vidriera and destacados %}
+  <div class="destacados-wrap">
+    <div class="rail-head">
+      <div><span class="rail-eyebrow">Lo más elegido</span><div class="rail-title">Destacados</div></div>
+    </div>
+    <div class="destacados-row hide-scrollbar">
+      {% for p in destacados %}
+      <div class="destacado-card">
+        <a href="{% url 'catalogo:producto_detalle' p.pk %}" class="tile-media">
+          <span class="tile-tag tag-featured">Destacado</span>
+          {% with portada=p.imagenes.first %}
+            {% if portada %}<img src="{{ portada.imagen.url }}" alt="{{ p.nombre }}" loading="lazy">{% endif %}
+          {% endwith %}
+        </a>
+        <div class="tile-body">
+          {% if p.categoria %}<span class="tile-cat">{{ p.categoria.nombre }}</span>{% endif %}
+          <a href="{% url 'catalogo:producto_detalle' p.pk %}"><span class="tile-name">{{ p.nombre }}</span></a>
+          <div class="tile-price-row">
+            {% if p.oferta_info and p.oferta_info.precio_final != p.precio_venta %}
+              <span class="tile-price-off">${{ p.oferta_info.precio_final }}</span>
+              <span class="tile-price-old">${{ p.precio_venta }}</span>
+            {% elif p.precio_venta %}
+              <span class="tile-price">${{ p.precio_venta }}</span>
+            {% else %}
+              <span class="tile-consultar">A consultar</span>
+            {% endif %}
+          </div>
+          {% if p.disponible_compra %}
+          <div class="tile-agregar" data-carrito-slot>
+            <button type="button" data-carrito-agregar="prod-{{ p.pk }}"
+              data-nombre="{{ p.nombre }}" data-precio="{{ p.oferta_info.precio_final|default:p.precio_venta }}"
+              data-precio-lista="{{ p.precio_venta }}"
+              data-categoria-id="{{ p.categoria.pk|default:'' }}"
+              data-imagen="{% if p.imagenes.first %}{{ p.imagenes.first.imagen.url }}{% endif %}">
+              Agregar al pedido
+            </button>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
   <div class="bento" id="kcCatalogo">
     {% if mostrar_productos %}
     {% for p in productos %}
@@ -239,6 +332,36 @@
   {% endif %}
 </div>
 
+{% if mostrar_vidriera and marcas_logo %}
+<div class="shell brands-wrap" id="kcMarcas">
+  <div class="rail-head rail-head--center"><span class="rail-eyebrow">Confían en nosotros</span><div class="rail-title">Nuestras marcas</div></div>
+  <div class="brands">
+    {% for m in marcas_logo %}
+    <div class="brand-badge"><img src="{{ m.logo.url }}" alt="{{ m.nombre }}"></div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if mostrar_vidriera and config_catalogo.mostrar_historia_en_home %}
+<div class="tm-historia tm-historia--home">
+  <div class="shell tm-historia-inner">
+    <svg class="tm-historia-quote" width="46" height="36" viewBox="0 0 46 36" fill="none"><path d="M0 36V21.6C0 8.4 7.2 1.2 19.2 0L21.6 6C13.2 7.8 9.6 12.6 9.6 19.2H19.2V36H0ZM26.4 36V21.6C26.4 8.4 33.6 1.2 45.6 0L48 6C39.6 7.8 36 12.6 36 19.2H45.6V36H26.4Z" fill="currentColor"/></svg>
+    <span class="rail-eyebrow">Nuestra historia</span>
+    <p>{{ config_catalogo.sobre_nosotros|default:default_sobre_nosotros }}</p>
+    <a href="{% url 'catalogo:institucional' %}" class="tm-historia-link">Conocé más en La Tienda →</a>
+  </div>
+</div>
+{% endif %}
+
+{% if mostrar_vidriera and banners_bento_antes_combos %}
+<div class="shell">
+  <div class="banner-strip">
+    {% include 'catalogo/plantillas/bento/_banner_strip.html' with banners=banners_bento_antes_combos %}
+  </div>
+</div>
+{% endif %}
+
 {% if mostrar_paquetes and paquetes %}
 <div class="shell combos-section" id="kcCombos">
   <div class="rail-head">
@@ -250,6 +373,19 @@
       {% for pq in paquetes_destacados %}{% include 'catalogo/plantillas/bento/_combo_spot.html' %}{% endfor %}
     {% else %}
       {% for pq in paquetes %}{% include 'catalogo/plantillas/bento/_combo_spot.html' %}{% endfor %}
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% if mostrar_vidriera and config_catalogo.cta_final_titulo %}
+<div class="cta-band {% if config_catalogo.cta_final_imagen %}has-img{% endif %}" {% if config_catalogo.cta_final_imagen %}style="background-image:url('{{ config_catalogo.cta_final_imagen.url }}');"{% endif %}>
+  <div class="shell">
+    <span class="rail-eyebrow">Servicio</span>
+    <h3>{{ config_catalogo.cta_final_titulo }}</h3>
+    {% if config_catalogo.cta_final_texto %}<p>{{ config_catalogo.cta_final_texto }}</p>{% endif %}
+    {% if config_catalogo.cta_final_boton_texto and config_catalogo.cta_final_boton_url %}
+    <a href="{{ config_catalogo.cta_final_boton_url }}" class="btn">{{ config_catalogo.cta_final_boton_texto }} →</a>
     {% endif %}
   </div>
 </div>

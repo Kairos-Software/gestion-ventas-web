@@ -1,0 +1,20 @@
+{% comment %}
+Franja ancha de banner(es), un ítem por fila — versión Bento del banner
+"completo" que ya usa Almacén (ver catalogo/_banner_promo.html) para las
+posiciones "antes_destacados"/"antes_combos" (ver catalogo/views.py:
+banners_antes_destacados/banners_antes_combos). Recibe `banners` por
+contexto del include. No se envuelve en `.shell` acá porque el punto de
+uso decide si ya está dentro de uno (ver bento/home.html).
+{% endcomment %}
+{% for b in banners %}
+<a {% if b.cta_url %}href="{{ b.cta_url }}"{% else %}href="#kcCatalogo"{% endif %}
+   class="banner-strip-item {% if b.imagen %}has-img{% endif %}"
+   {% if not b.imagen %}style="background:{{ b.color_fondo|default:default_color_marca_secundario_bento }};"{% endif %}>
+  {% if b.imagen %}<img src="{{ b.imagen.url }}" alt="">{% endif %}
+  <div class="banner-strip-copy">
+    <b>{{ b.titulo }}</b>
+    {% if b.texto %}<p>{{ b.texto }}</p>{% endif %}
+    {% if b.muestra_cta %}<span class="banner-strip-cta">{{ b.cta_texto }} →</span>{% endif %}
+  </div>
+</a>
+{% endfor %}

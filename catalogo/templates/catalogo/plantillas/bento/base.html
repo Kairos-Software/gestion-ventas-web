@@ -39,6 +39,18 @@
 </head>
 <body class="kc-bento">
 
+{% if ticker_mensajes %}
+<div class="ticker" id="kcTicker">
+  {% if ticker_mensajes|length > 1 %}<button type="button" class="ticker-btn" id="kcTickerPrev" aria-label="Anterior">‹</button>{% endif %}
+  <div class="ticker-msgs" id="kcTickerMsgs">
+    {% for m in ticker_mensajes %}
+    <div class="ticker-msg {% if forloop.first %}active{% endif %}">{{ m.texto }}</div>
+    {% endfor %}
+  </div>
+  {% if ticker_mensajes|length > 1 %}<button type="button" class="ticker-btn" id="kcTickerNext" aria-label="Siguiente">›</button>{% endif %}
+</div>
+{% endif %}
+
 <header class="topbar" id="kcTopbar">
   <div class="shell topbar-inner">
     <a href="{% url 'catalogo:home' %}" class="brand">
@@ -60,9 +72,11 @@
       <div class="search-dropdown" id="kcSearchDropdown"></div>
     </form>
     <nav class="main-nav">
-      <a href="{% url 'catalogo:home' %}" class="{% if request.resolver_match.url_name == 'home' and seccion_activa != 'ofertas' and seccion_activa != 'paquetes' %}active{% endif %}">{{ config_catalogo.nav_catalogo_label|default:default_nav_catalogo }}</a>
+      <a href="{% url 'catalogo:home' %}" class="{% if request.resolver_match.url_name == 'home' and seccion_activa != 'ofertas' and seccion_activa != 'paquetes' %}active{% endif %}">Inicio</a>
+      <a href="{% url 'catalogo:home' %}#kcCatalogo">{{ config_catalogo.nav_catalogo_label|default:default_nav_catalogo }}</a>
       <a href="{% url 'catalogo:home' %}#kcFlash" class="{% if seccion_activa == 'ofertas' %}active{% endif %}">{{ config_catalogo.nav_ofertas_label|default:default_nav_ofertas }}</a>
       <a href="{% url 'catalogo:home' %}#kcCombos" class="{% if seccion_activa == 'paquetes' %}active{% endif %}">{{ config_catalogo.nav_combos_label|default:default_nav_combos }}</a>
+      <a href="{% url 'catalogo:home' %}#kcMarcas">Marcas</a>
       <a href="{% url 'catalogo:institucional' %}" class="{% if request.resolver_match.url_name == 'institucional' %}active{% endif %}">{{ config_catalogo.nav_tienda_label|default:default_nav_tienda }}</a>
     </nav>
     <div class="top-actions">
@@ -118,9 +132,11 @@
     <div class="foot-col">
       <h4>Navegación</h4>
       <div class="foot-links">
-        <a href="{% url 'catalogo:home' %}">{{ config_catalogo.nav_catalogo_label|default:default_nav_catalogo }}</a>
+        <a href="{% url 'catalogo:home' %}">Inicio</a>
+        <a href="{% url 'catalogo:home' %}#kcCatalogo">{{ config_catalogo.nav_catalogo_label|default:default_nav_catalogo }}</a>
         <a href="{% url 'catalogo:home' %}#kcFlash">{{ config_catalogo.nav_ofertas_label|default:default_nav_ofertas }}</a>
         <a href="{% url 'catalogo:home' %}#kcCombos">{{ config_catalogo.nav_combos_label|default:default_nav_combos }}</a>
+        <a href="{% url 'catalogo:home' %}#kcMarcas">Marcas</a>
         <a href="{% url 'catalogo:institucional' %}">{{ config_catalogo.nav_tienda_label|default:default_nav_tienda }}</a>
       </div>
     </div>

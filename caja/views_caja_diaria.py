@@ -38,6 +38,8 @@ class CajaDiariaView(LoginRequiredMixin, TemplateView):
             ctx['total_financiado_pendiente'] = turno_actual.total_financiado_pendiente
             ctx['monto_inicial'] = turno_actual.monto_inicial_efectivo
             ctx['efectivo_ventas'] = turno_actual.efectivo_ventas
+            ctx['efectivo_cuotas_cobradas'] = turno_actual.efectivo_cuotas_cobradas
+            ctx['efectivo_cuotas_pagadas'] = turno_actual.efectivo_cuotas_pagadas
             ctx['efectivo_total'] = turno_actual.efectivo_total
             ctx['ganancia_turno'] = turno_actual.ganancia_turno
         else:
@@ -266,6 +268,8 @@ class EstadoCajaDiariaAjax(LoginRequiredMixin, View):
                 'total_financiado_pendiente': str(turno.total_financiado_pendiente),
                 'ganancia_turno': str(turno.ganancia_turno),
                 'efectivo_ventas': str(turno.efectivo_ventas),
+                'efectivo_cuotas_cobradas': str(turno.efectivo_cuotas_cobradas),
+                'efectivo_cuotas_pagadas': str(turno.efectivo_cuotas_pagadas),
                 # Desglose declarado en la apertura — el frontend lo usa
                 # para pre-cargar los nombres de caja en el modal de cierre.
                 'cajas': [
@@ -308,6 +312,8 @@ class HistorialTurnosAjax(LoginRequiredMixin, View):
                 'total_recaudado': str(turno.total_recaudado),
                 'total_financiado_pendiente': str(turno.total_financiado_pendiente),
                 'efectivo_ventas': str(turno.efectivo_ventas),
+                'efectivo_cuotas_cobradas': str(turno.efectivo_cuotas_cobradas),
+                'efectivo_cuotas_pagadas': str(turno.efectivo_cuotas_pagadas),
                 'efectivo_total': str(turno.efectivo_total),
                 'ganancia_turno': str(turno.ganancia_turno),
                 'alerta_diferencia': turno.alerta_diferencia,
