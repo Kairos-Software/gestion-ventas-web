@@ -14,7 +14,10 @@ from compras.models import LoteCompra
 from productos.models import CategoriaProducto, EstadoProducto, Moneda, Producto
 from asistencia.models import CanalNotificacion, PreferenciaAsistencia
 from asistencia.services.alertas import productos_por_vencer
-from catalogo.models import ConfiguracionCatalogo, PlantillaCatalogo, PosicionBannerBento
+from catalogo.models import (
+    ConfiguracionCatalogo, PlantillaCatalogo, PosicionBanner,
+    PosicionBannerBento, TipoTileDestacado,
+)
 
 
 class CustomLoginView(LoginView):
@@ -189,6 +192,48 @@ def catalogo_online(request):
         config_catalogo.plantilla,
         (config_catalogo.color_marca, config_catalogo.color_marca_secundario),
     )
+    banners_almacen = config_catalogo.banners.all()
+    grupos_banners_almacen = [
+        {
+            'codigo': PosicionBanner.DEBAJO_HERO,
+            'titulo': 'Debajo del hero',
+            'descripcion': 'Cartel ancho de apertura, antes de los accesos de categorías y marcas.',
+            'banners': banners_almacen.filter(posicion=PosicionBanner.DEBAJO_HERO),
+        },
+        {
+            'codigo': PosicionBanner.ANTES_GRILLA,
+            'titulo': 'Arriba de los productos',
+            'descripcion': 'Cartel integrado al sector de productos, junto a los filtros.',
+            'banners': banners_almacen.filter(posicion=PosicionBanner.ANTES_GRILLA),
+        },
+        {
+            'codigo': PosicionBanner.ANTES_DESTACADOS,
+            'titulo': 'Antes de Destacados',
+            'descripcion': 'Separador ancho previo a la vidriera de productos destacados.',
+            'banners': banners_almacen.filter(posicion=PosicionBanner.ANTES_DESTACADOS),
+        },
+        {
+            'codigo': PosicionBanner.ANTES_COMBOS,
+            'titulo': 'Antes de Combos',
+            'descripcion': 'Separador ancho previo a los combos armados.',
+            'banners': banners_almacen.filter(posicion=PosicionBanner.ANTES_COMBOS),
+        },
+    ]
+    tiles_almacen = config_catalogo.tiles_destacados.all()
+    grupos_tiles_almacen = [
+        {
+            'codigo': TipoTileDestacado.CATEGORIA,
+            'titulo': 'Categorías',
+            'descripcion': 'Accesos visuales que aplican directamente el filtro de categoría.',
+            'tiles': tiles_almacen.filter(tipo=TipoTileDestacado.CATEGORIA),
+        },
+        {
+            'codigo': TipoTileDestacado.MARCA,
+            'titulo': 'Marcas',
+            'descripcion': 'Accesos visuales que filtran por el nombre de la marca.',
+            'tiles': tiles_almacen.filter(tipo=TipoTileDestacado.MARCA),
+        },
+    ]
     banners_bento = config_catalogo.banners_bento.all()
     grupos_banners_bento = [
         {
@@ -223,6 +268,8 @@ def catalogo_online(request):
         'puede_editar_catalogo':  chequear_permiso(request.user, 'editar_catalogo'),
         'productos_para_hero':    productos_para_hero,
         'categorias_para_tiles':  CategoriaProducto.objects.filter(activo=True).order_by('orden', 'nombre'),
+        'grupos_banners_almacen': grupos_banners_almacen,
+        'grupos_tiles_almacen':   grupos_tiles_almacen,
         'grupos_banners_bento':   grupos_banners_bento,
         'default_hero_subtitulo': ConfiguracionCatalogo.DEFAULT_HERO_SUBTITULO,
         'default_sobre_nosotros': ConfiguracionCatalogo.DEFAULT_SOBRE_NOSOTROS,

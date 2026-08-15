@@ -13,7 +13,7 @@ from productos.utils_imagenes import comprimir_imagen_subida
 
 from .models import (
     BannerBentoCatalogo, BannerCatalogo, BannerKineticCatalogo, ConfiguracionCatalogo,
-    ImagenInstitucional, MarcaLogoCatalogo, PlantillaCatalogo, PosicionBanner,
+    GondolaAlmacenCatalogo, ImagenInstitucional, MarcaLogoCatalogo, PlantillaCatalogo, PosicionBanner,
     PosicionBannerBento, SlideHeroCatalogo, TickerMensajeCatalogo,
     TickerMensajeKineticCatalogo, TileDestacadoCatalogo, TipoTileDestacado,
 )
@@ -24,6 +24,7 @@ MAX_SLIDES = 6
 MAX_GALERIA = 8
 MAX_BANNERS = 6
 MAX_TILES = 16
+MAX_GONDOLAS_ALMACEN = 3
 MAX_TICKER = 5
 MAX_MARCAS = 20
 # Bento tiene tres piezas visuales distintas aunque compartan tabla:
@@ -493,10 +494,6 @@ class CatalogoBannerGuardarAjax(LoginRequiredMixin, View):
         if not titulo:
             return JsonResponse({'error': 'El título es obligatorio.'}, status=400)
 
-        posicion = body.get('posicion') or PosicionBanner.DEBAJO_HERO
-        if posicion not in PosicionBanner.values:
-            return JsonResponse({'error': 'Ubicación inválida.'}, status=400)
-
         color_fondo = (body.get('color_fondo') or '').strip()
         if color_fondo and not re.fullmatch(r'#[0-9a-fA-F]{6}', color_fondo):
             return JsonResponse({'error': 'Color de fondo inválido.'}, status=400)
@@ -505,7 +502,13 @@ class CatalogoBannerGuardarAjax(LoginRequiredMixin, View):
         pk = body.get('pk')
         if pk:
             banner = get_object_or_404(BannerCatalogo, pk=pk, configuracion=config)
+            # Las ubicaciones se administran en bloques separados. Al editar,
+            # el banner queda fijado al bloque donde fue creado.
+            posicion = banner.posicion
         else:
+            posicion = body.get('posicion') or PosicionBanner.DEBAJO_HERO
+            if posicion not in PosicionBanner.values:
+                return JsonResponse({'error': 'Ubicación inválida.'}, status=400)
             if config.banners.count() >= MAX_BANNERS:
                 return JsonResponse({'error': f'Máximo {MAX_BANNERS} banners.'}, status=400)
             banner = BannerCatalogo(configuracion=config)
@@ -607,9 +610,20 @@ class CatalogoTileGuardarAjax(LoginRequiredMixin, View):
         except json.JSONDecodeError:
             return JsonResponse({'error': 'JSON inválido.'}, status=400)
 
-        tipo = body.get('tipo') or TipoTileDestacado.CATEGORIA
-        if tipo not in TipoTileDestacado.values:
-            return JsonResponse({'error': 'Tipo inválido.'}, status=400)
+        config = ConfiguracionCatalogo.get_solo()
+        pk = body.get('pk')
+        if pk:
+            tile = get_object_or_404(TileDestacadoCatalogo, pk=pk, configuracion=config)
+            # Categorías y marcas se administran en grupos separados. Al editar,
+            # el tipo original queda bloqueado para no convertir una en la otra.
+            tipo = tile.tipo
+        else:
+            tipo = body.get('tipo') or TipoTileDestacado.CATEGORIA
+            if tipo not in TipoTileDestacado.values:
+                return JsonResponse({'error': 'Tipo inválido.'}, status=400)
+            if config.tiles_destacados.count() >= MAX_TILES:
+                return JsonResponse({'error': f'Máximo {MAX_TILES} categorías/marcas destacadas.'}, status=400)
+            tile = TileDestacadoCatalogo(configuracion=config)
 
         categoria = None
         marca = ''
@@ -624,15 +638,6 @@ class CatalogoTileGuardarAjax(LoginRequiredMixin, View):
             marca = (body.get('marca') or '').strip()
             if not marca:
                 return JsonResponse({'error': 'Escribí una marca.'}, status=400)
-
-        config = ConfiguracionCatalogo.get_solo()
-        pk = body.get('pk')
-        if pk:
-            tile = get_object_or_404(TileDestacadoCatalogo, pk=pk, configuracion=config)
-        else:
-            if config.tiles_destacados.count() >= MAX_TILES:
-                return JsonResponse({'error': f'Máximo {MAX_TILES} categorías/marcas destacadas.'}, status=400)
-            tile = TileDestacadoCatalogo(configuracion=config)
 
         tile.tipo      = tipo
         tile.categoria = categoria
@@ -692,6 +697,72 @@ class CatalogoTileEliminarAjax(LoginRequiredMixin, View):
         if tile.imagen and os.path.isfile(tile.imagen.path):
             os.remove(tile.imagen.path)
         tile.delete()
+        return JsonResponse({'ok': True})
+
+
+class CatalogoGondolaAlmacenGuardarAjax(LoginRequiredMixin, View):
+    """Crea o edita una fila automática de productos de Almacén."""
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        categoria = CategoriaProducto.objects.filter(
+            pk=body.get('categoria'), activo=True,
+        ).first()
+        if not categoria:
+            return JsonResponse({'error': 'Elegí una categoría válida.'}, status=400)
+
+        config = ConfiguracionCatalogo.get_solo()
+        pk = body.get('pk')
+        if pk:
+            gondola = get_object_or_404(
+                GondolaAlmacenCatalogo, pk=pk, configuracion=config,
+            )
+        else:
+            if config.gondolas_almacen.count() >= MAX_GONDOLAS_ALMACEN:
+                return JsonResponse({
+                    'error': f'Máximo {MAX_GONDOLAS_ALMACEN} filas de productos.',
+                }, status=400)
+            gondola = GondolaAlmacenCatalogo(configuracion=config)
+
+        repetida = config.gondolas_almacen.filter(categoria=categoria)
+        if pk:
+            repetida = repetida.exclude(pk=gondola.pk)
+        if repetida.exists():
+            return JsonResponse({'error': 'Esa categoría ya tiene una fila de productos.'}, status=400)
+
+        gondola.categoria = categoria
+        gondola.titulo = (body.get('titulo') or '').strip()
+        gondola.subtitulo = (body.get('subtitulo') or '').strip()
+        gondola.activo = bool(body.get('activo', True))
+        gondola.save()
+        return JsonResponse({'ok': True, 'pk': gondola.pk})
+
+
+class CatalogoGondolaAlmacenEliminarAjax(LoginRequiredMixin, View):
+    """Elimina una fila de productos de Almacén; nunca elimina su categoría."""
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        gondola = get_object_or_404(
+            GondolaAlmacenCatalogo,
+            pk=body.get('pk'),
+            configuracion=ConfiguracionCatalogo.get_solo(),
+        )
+        gondola.delete()
         return JsonResponse({'ok': True})
 
 

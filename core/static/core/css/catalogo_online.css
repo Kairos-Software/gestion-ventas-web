@@ -6,6 +6,15 @@
    ese archivo, solo se agrega el layout propio acá. */
 .co-page { max-width: 1440px; margin: 0 auto; }
 
+/* Las imágenes de los accesos visuales deben verse completas también en la
+   lista y en la vista previa del editor, igual que en la tarjeta pública. */
+.tile-row .config-logo-box img,
+#tileImagenPreviewBox img {
+    object-fit: contain;
+    padding: 0.2rem;
+    box-sizing: border-box;
+}
+
 .co-page-header {
     display: flex;
     align-items: center;
@@ -222,6 +231,30 @@
     color: var(--text-muted);
     font-size: 0.78rem;
 }
+
+/* Almacén usa grupos por función, no por formato: los banners conservan
+   una única forma y los accesos se separan entre categorías y marcas. */
+.co-almacen-grupo + .co-almacen-grupo { border-top: 1px dashed var(--border-color); }
+.co-almacen-grupo-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.65rem;
+}
+.co-almacen-lista {
+    border: 1px solid var(--border-color);
+    border-radius: 0.65rem;
+    overflow: hidden;
+}
+.co-almacen-lista > .config-row { margin: 0; border-radius: 0; }
+.co-almacen-lista > .config-row + .config-row { border-top: 1px solid var(--border-color); }
+.co-almacen-vacio {
+    padding: 0.85rem 1rem;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+}
+.co-almacen-limite { display: block; padding: 0.7rem 1.1rem 0.85rem; }
 .co-campo-color, .co-campo-corto { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
 .co-campo-color .config-row-desc { margin: 0 0 0.15rem; }
 .co-color-control { display: flex; align-items: center; gap: 0.6rem; }
@@ -236,5 +269,44 @@
 
 @media (max-width: 479px) {
     .co-row-grid2 { grid-template-columns: 1fr; }
-    .co-banner-bento-grupo-head { align-items: flex-start; }
+    .co-banner-bento-grupo-head,
+    .co-almacen-grupo-head { align-items: flex-start; }
+}
+
+/* Todos los editores del catálogo deben poder usarse en pantallas bajas.
+   El encabezado y las acciones quedan visibles; sólo se desplaza el cuerpo. */
+.modal-dialog .modal-content {
+    max-height: calc(100dvh - 2rem);
+    overflow: hidden;
+}
+
+.modal-dialog .modal-body {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: var(--brand-orange) rgba(15, 23, 42, 0.12);
+    -webkit-overflow-scrolling: touch;
+}
+
+.modal-dialog .modal-body::-webkit-scrollbar { width: 10px; }
+.modal-dialog .modal-body::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.08);
+    border-radius: 999px;
+}
+.modal-dialog .modal-body::-webkit-scrollbar-thumb {
+    background: var(--brand-orange);
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background-clip: padding-box;
+}
+.modal-dialog .modal-body::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--brand-orange) 82%, #000);
+    background-clip: padding-box;
+}
+
+@media (max-width: 575px), (max-height: 680px) {
+    .modal-dialog { margin: 0.5rem; }
+    .modal-dialog .modal-content { max-height: calc(100dvh - 1rem); }
 }

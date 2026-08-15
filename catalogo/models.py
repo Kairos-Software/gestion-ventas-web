@@ -409,6 +409,42 @@ class TileDestacadoCatalogo(models.Model):
         return self.etiqueta or (self.categoria.nombre if self.categoria_id else self.marca) or f'Tile #{self.pk}'
 
 
+class GondolaAlmacenCatalogo(models.Model):
+    """
+    Fila automática de productos de una categoría, exclusiva de Almacén.
+    El dueño elige el pasillo y opcionalmente personaliza los textos; los
+    productos se toman del catálogo publicado para no mantener otra lista.
+    """
+    configuracion = models.ForeignKey(
+        ConfiguracionCatalogo, on_delete=models.CASCADE, related_name='gondolas_almacen',
+    )
+    categoria = models.ForeignKey(
+        'productos.CategoriaProducto', on_delete=models.CASCADE,
+        verbose_name='Categoría', related_name='gondolas_catalogo_almacen',
+    )
+    titulo = models.CharField(
+        'Título (opcional)', max_length=80, blank=True,
+        help_text='Vacío = usa el nombre de la categoría.',
+    )
+    subtitulo = models.CharField('Bajada (opcional)', max_length=140, blank=True)
+    activo = models.BooleanField(default=True)
+    orden = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name = 'Góndola destacada (Almacén)'
+        verbose_name_plural = 'Góndolas destacadas (Almacén)'
+        ordering = ['orden', 'id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['configuracion', 'categoria'],
+                name='catalogo_gondola_almacen_categoria_unica',
+            ),
+        ]
+
+    def __str__(self):
+        return self.titulo or self.categoria.nombre
+
+
 def _catalogo_galeria_path(instance, filename):
     import os
     ext = os.path.splitext(filename)[1].lower()

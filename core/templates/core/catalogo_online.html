@@ -92,7 +92,7 @@
                             <label class="config-row-label" for="idCatalogoHeroTitulo">Título principal</label>
                             <input class="form-control" id="idCatalogoHeroTitulo" value="{{ configuracion_catalogo.hero_titulo }}" placeholder="Vacío = usa el nombre comercial de la empresa">
                         </div>
-                        <span class="config-row-desc" style="padding:0 1.375rem 0.5rem;">La bajada y el color principal ahora se editan desde la pestaña "Apariencia" y valen para las cuatro plantillas; el producto destacado vale para Almacén, Bento y Lumina.</span>
+                        <span class="config-row-desc" style="padding:0 1.375rem 0.5rem;">La bajada, los colores y el producto destacado se editan desde la pestaña "Apariencia".</span>
                     </div>
 
                 </div>
@@ -431,13 +431,13 @@
                         <div class="config-section-header">
                             <div>
                                 <h2>Hero</h2>
-                                <p>La bajada (las cuatro plantillas) y el producto destacado (Almacén, Bento y Lumina)</p>
+                                <p>Textos y producto destacado de la portada</p>
                             </div>
                         </div>
                         <div class="config-row" style="flex-direction:column; align-items:flex-start;">
                             <label class="config-row-label" for="idCatalogoHeroSubtitulo">Bajada / subtítulo</label>
                             <textarea class="form-control" id="idCatalogoHeroSubtitulo" rows="2" placeholder="Vacío = usa un texto genérico">{{ configuracion_catalogo.hero_subtitulo }}</textarea>
-                            <span class="config-row-desc">En Bento se usa hasta que cargues el primer slide del carrusel.</span>
+                            <span class="config-row-desc">Texto breve que acompaña al título principal de la portada.</span>
                         </div>
                         <div class="config-row" data-plantilla-oculta="kinetic" style="flex-direction:column; align-items:flex-start;">
                             <label class="config-row-label" for="idCatalogoHeroProducto">Producto destacado en el hero</label>
@@ -447,7 +447,7 @@
                                 <option value="{{ p.pk }}" {% if configuracion_catalogo.hero_producto_id == p.pk %}selected{% endif %}>{{ p.nombre }}{% if p.es_paquete %} (combo){% endif %}</option>
                                 {% endfor %}
                             </select>
-                            <span class="config-row-desc">La tarjeta con precio y botón de compra que aparece junto al hero — Kinetic no la usa, tiene su propio panel de stats.</span>
+                            <span class="config-row-desc">La tarjeta con precio y botón de compra que acompaña al hero.</span>
                         </div>
                         <div class="config-row" data-plantilla-oculta="almacen,kinetic,lumina" style="flex-direction:column; align-items:flex-start; gap:0.6rem;">
                             <span class="config-row-label">Tarjeta 1 del hero — imagen propia (Bento)</span>
@@ -505,18 +505,29 @@
                         <div class="config-section-header">
                             <div>
                                 <h2>Categorías y marcas destacadas (opcional)</h2>
-                                <p>Accesos directos con imagen — al hacer click, filtran el catálogo. Exclusivo de Almacén.</p>
+                                <p>Los accesos visuales de Almacén. Hasta 16 piezas en total, organizadas por tipo.</p>
                             </div>
-                            <button type="button" class="btn btn-sm" style="background:var(--brand-orange); color:white; margin-left:auto;" data-bs-toggle="modal" data-bs-target="#tileModal" id="btnNuevoTile">+ Nuevo</button>
                         </div>
                         <div class="config-row" style="flex-direction:column; align-items:flex-start;">
                             <label class="config-row-label" for="idCatalogoTilesTitulo">Título de la fila</label>
                             <input class="form-control" id="idCatalogoTilesTitulo" value="{{ configuracion_catalogo.tiles_destacados_titulo }}" placeholder="Vacío = usa 'Categorías y marcas'">
                         </div>
-                        <div class="config-row" style="flex-direction:column; align-items:stretch;">
-                            <span class="config-row-desc" style="margin-bottom:0.6rem;">Sin ninguno cargado, la fila no aparece — no es obligatorio. Se ve como fila de círculos, arriba de "Ofertas de la semana".</span>
-                            <div id="listaTiles">
-                                {% for tile in configuracion_catalogo.tiles_destacados.all %}
+                        {% for grupo in grupos_tiles_almacen %}
+                        <div class="config-row co-almacen-grupo" style="flex-direction:column; align-items:stretch;">
+                            <div class="co-almacen-grupo-head">
+                                <div>
+                                    <div class="config-row-label">{{ grupo.titulo }}</div>
+                                    <div class="config-row-desc">{{ grupo.descripcion }} · {{ grupo.tiles|length }} cargadas</div>
+                                </div>
+                                <button type="button"
+                                        class="btn btn-sm btn-nuevo-tile-almacen"
+                                        style="background:var(--brand-orange); color:white;"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#tileModal"
+                                        data-tile-tipo="{{ grupo.codigo }}">+ Agregar</button>
+                            </div>
+                            <div class="co-almacen-lista">
+                                {% for tile in grupo.tiles %}
                                 <div class="config-row tile-row"
                                      data-pk="{{ tile.pk }}"
                                      data-tipo="{{ tile.tipo }}"
@@ -529,7 +540,6 @@
                                         </div>
                                         <div class="config-row-info">
                                             <div class="config-row-label">{% if tile.etiqueta %}{{ tile.etiqueta }}{% elif tile.categoria %}{{ tile.categoria.nombre }}{% else %}{{ tile.marca }}{% endif %}</div>
-                                            <div class="config-row-desc">{{ tile.get_tipo_display }}</div>
                                         </div>
                                     </div>
                                     <div style="display:flex; gap:0.4rem;">
@@ -538,28 +548,72 @@
                                     </div>
                                 </div>
                                 {% empty %}
-                                <div class="config-row">
-                                    <div class="config-row-info">
-                                        <div class="config-row-label">Sin categorías/marcas cargadas</div>
-                                    </div>
-                                </div>
+                                <div class="co-almacen-vacio">Todavía no cargaste {{ grupo.titulo|lower }}.</div>
                                 {% endfor %}
                             </div>
                         </div>
+                        {% endfor %}
+                        <div class="config-row-desc co-almacen-limite">{{ configuracion_catalogo.tiles_destacados.all|length }}/16 accesos cargados en total. Sin ninguno, la fila no aparece.</div>
+                    </div>
+
+                    <div class="config-section" data-plantilla-oculta="bento,kinetic,lumina">
+                        <div class="config-section-header">
+                            <div>
+                                <h2>Filas de productos por categoría</h2>
+                                <p>Elegí hasta 3 categorías. Almacén arma y actualiza automáticamente una fila con sus productos publicados.</p>
+                            </div>
+                            <button type="button" class="btn btn-sm" style="background:var(--brand-orange); color:white; margin-left:auto;" data-bs-toggle="modal" data-bs-target="#gondolaAlmacenModal" id="btnNuevaGondolaAlmacen">+ Nueva fila</button>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:stretch;">
+                            <span class="config-row-desc" style="margin-bottom:0.6rem;">No seleccionás productos uno por uno: cuando cambia el catálogo, la fila se actualiza automáticamente.</span>
+                            <div class="co-almacen-lista" id="listaGondolasAlmacen">
+                                {% for gondola in configuracion_catalogo.gondolas_almacen.all %}
+                                <div class="config-row gondola-almacen-row"
+                                     data-pk="{{ gondola.pk }}"
+                                     data-categoria="{{ gondola.categoria_id }}"
+                                     data-titulo="{{ gondola.titulo }}"
+                                     data-subtitulo="{{ gondola.subtitulo }}">
+                                    <div class="config-row-info">
+                                        <div class="config-row-label">{{ gondola.titulo|default:gondola.categoria.nombre }}</div>
+                                        <div class="config-row-desc">Categoría: {{ gondola.categoria.nombre }}</div>
+                                    </div>
+                                    <div style="display:flex; gap:0.4rem;">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary btn-editar-gondola-almacen">Editar</button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger btn-eliminar-gondola-almacen">Eliminar</button>
+                                    </div>
+                                </div>
+                                {% empty %}
+                                <div class="co-almacen-vacio">Todavía no configuraste filas de productos.</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="config-row-desc co-almacen-limite">{{ configuracion_catalogo.gondolas_almacen.all|length }}/3 filas configuradas.</div>
                     </div>
 
                     <div class="config-section" data-plantilla-oculta="bento,kinetic,lumina">
                         <div class="config-section-header">
                             <div>
                                 <h2>Banners / anuncios (opcional)</h2>
-                                <p>Hasta 6 — con imagen o de color sólido, donde vos elijas. Exclusivo de Almacén.</p>
+                                <p>Un único formato de cartel ancho, disponible en cuatro lugares de la home. Hasta 6 en total.</p>
                             </div>
-                            <button type="button" class="btn btn-sm" style="background:var(--brand-orange); color:white; margin-left:auto;" data-bs-toggle="modal" data-bs-target="#bannerModal" id="btnNuevoBanner">+ Nuevo banner</button>
                         </div>
-                        <div class="config-row" style="flex-direction:column; align-items:stretch;">
-                            <span class="config-row-desc" style="margin-bottom:0.6rem;">Sin ninguno cargado, la home se ve igual que ahora — no es obligatorio. Se ve como franja ancha, en la posición que elijas.</span>
-                            <div id="listaBanners">
-                                {% for banner in configuracion_catalogo.banners.all %}
+                        {% for grupo in grupos_banners_almacen %}
+                        <div class="config-row co-almacen-grupo" style="flex-direction:column; align-items:stretch;">
+                            <div class="co-almacen-grupo-head">
+                                <div>
+                                    <div class="config-row-label">{{ grupo.titulo }}</div>
+                                    <div class="config-row-desc">{{ grupo.descripcion }} · {{ grupo.banners|length }} cargados</div>
+                                </div>
+                                <button type="button"
+                                        class="btn btn-sm btn-nuevo-banner-almacen"
+                                        style="background:var(--brand-orange); color:white;"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#bannerModal"
+                                        data-banner-posicion="{{ grupo.codigo }}"
+                                        data-banner-etiqueta="{{ grupo.titulo }}">+ Agregar</button>
+                            </div>
+                            <div class="co-almacen-lista">
+                                {% for banner in grupo.banners %}
                                 <div class="config-row banner-row"
                                      data-pk="{{ banner.pk }}"
                                      data-titulo="{{ banner.titulo }}"
@@ -574,7 +628,6 @@
                                         </div>
                                         <div class="config-row-info">
                                             <div class="config-row-label">{{ banner.titulo }}</div>
-                                            <div class="config-row-desc">{{ banner.get_posicion_display }}</div>
                                         </div>
                                     </div>
                                     <div style="display:flex; gap:0.4rem;">
@@ -583,14 +636,12 @@
                                     </div>
                                 </div>
                                 {% empty %}
-                                <div class="config-row">
-                                    <div class="config-row-info">
-                                        <div class="config-row-label">Sin banners cargados</div>
-                                    </div>
-                                </div>
+                                <div class="co-almacen-vacio">Todavía no cargaste carteles en esta ubicación.</div>
                                 {% endfor %}
                             </div>
                         </div>
+                        {% endfor %}
+                        <div class="config-row-desc co-almacen-limite">{{ configuracion_catalogo.banners.all|length }}/6 carteles cargados en total. Cada cartel permanece en la ubicación donde lo agregaste.</div>
                     </div>
 
                     <div class="config-section">
@@ -611,7 +662,7 @@
                             </div>
                             <div class="co-campo-color" data-plantilla-oculta="kinetic">
                                 <label class="config-row-label">Color secundario</label>
-                                <span class="config-row-desc">Hero, pie y detalles oscuros — Kinetic no lo usa</span>
+                                <span class="config-row-desc">Hero, pie y superficies oscuras</span>
                                 <div class="co-color-control">
                                     <input type="color" id="idCatalogoColorMarcaSecundario" value="{{ color_marca_secundario_actual|default:default_color_marca_secundario_actual }}">
                                     <button type="button" id="btnResetColorMarcaSecundario" class="btn btn-sm btn-outline-secondary">Restablecer</button>
@@ -671,7 +722,7 @@
                         </div>
                     </div>
 
-                    <div class="config-section">
+                    <div class="config-section" data-plantilla-oculta="almacen,lumina">
                         <div class="config-section-header">
                             <div>
                                 <h2>Banda final (opcional)</h2>
@@ -1001,7 +1052,7 @@
                 <div class="modal-header">
                     <div>
                         <h5 class="modal-title" id="bannerModalLabel">Nuevo banner</h5>
-                        <p class="modal-subtitle">Bloque promocional opcional — imagen o color sólido</p>
+                        <p class="modal-subtitle" id="bannerModalSubtitle">Bloque promocional opcional — imagen o color sólido</p>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
@@ -1019,17 +1070,9 @@
                                 <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('inputBannerImagen').click()">Elegir imagen</button>
                                 <button type="button" id="btnQuitarBannerImagen" class="btn btn-sm btn-outline-danger" style="display:none;">Quitar</button>
                             </div>
-                            <span class="config-row-desc">Sin imagen, el banner se muestra como un bloque de color sólido. Si subís una, usá una imagen tipo "cinturón" — muy baja y ancha, ~1600×250px — el banner siempre recorta a esa proporción, sea cual sea la ubicación que elijas abajo, así una sola imagen te sirve para cualquiera.</span>
+                            <span class="config-row-desc">Sin imagen, el banner se muestra como un bloque de color sólido. Si subís una, usá una imagen tipo "cinturón" — muy baja y ancha, aproximadamente 1600×250 px.</span>
                         </div>
-                        <div class="config-row" style="flex-direction:column; align-items:flex-start; padding:0 0 0.85rem;">
-                            <label class="config-row-label" for="bannerPosicion">Dónde va</label>
-                            <select class="form-control" id="bannerPosicion">
-                                <option value="debajo_hero">Debajo del hero (ancho completo)</option>
-                                <option value="antes_grilla">Arriba de la grilla de productos</option>
-                                <option value="antes_destacados">Antes de Destacados</option>
-                                <option value="antes_combos">Antes de Combos armados</option>
-                            </select>
-                        </div>
+                        <input type="hidden" id="bannerPosicion" value="debajo_hero">
                         <div class="config-row" style="flex-direction:column; align-items:flex-start; padding:0 0 0.85rem;">
                             <label class="config-row-label" for="bannerTitulo">Título *</label>
                             <input class="form-control" id="bannerTitulo" placeholder="Ej: Envío gratis esta semana" required>
@@ -1072,8 +1115,8 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <div>
-                        <h5 class="modal-title" id="tileModalLabel">Nueva categoría/marca destacada</h5>
-                        <p class="modal-subtitle">Acceso directo con imagen — filtra el catálogo al click</p>
+                        <h5 class="modal-title" id="tileModalLabel">Nuevo acceso visual</h5>
+                        <p class="modal-subtitle">Tarjeta visual exclusiva de Almacén — filtra el catálogo al click</p>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
@@ -1090,15 +1133,9 @@
                                 <input type="file" id="inputTileImagen" accept=".jpg,.jpeg,.png,.webp" style="display:none;">
                                 <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('inputTileImagen').click()">Elegir imagen</button>
                             </div>
-                            <span class="config-row-desc">Se muestra recortada en círculo — una foto cuadrada y centrada en el sujeto funciona mejor. Sin imagen, no se muestra en el catálogo todavía.</span>
+                            <span class="config-row-desc">La imagen se muestra completa dentro de la tarjeta. Funciona mejor si está clara y centrada. Sin imagen, el acceso no aparece en el catálogo.</span>
                         </div>
-                        <div class="config-row" style="flex-direction:column; align-items:flex-start; padding:0 0 0.85rem;">
-                            <label class="config-row-label" for="tileTipo">Tipo</label>
-                            <select class="form-control" id="tileTipo">
-                                <option value="categoria">Categoría</option>
-                                <option value="marca">Marca</option>
-                            </select>
-                        </div>
+                        <input type="hidden" id="tileTipo" value="categoria">
                         <div class="config-row" id="tileFilaCategoria" style="flex-direction:column; align-items:flex-start; padding:0 0 0.85rem;">
                             <label class="config-row-label" for="tileCategoria">Categoría</label>
                             <select class="form-control" id="tileCategoria">
@@ -1117,6 +1154,49 @@
                             <input class="form-control" id="tileEtiqueta" placeholder="Vacío = usa el nombre de la categoría o marca">
                         </div>
                         <div id="tileMsg" class="config-empresa-msg" style="padding:0;"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-sm" style="background:var(--brand-orange); color:white;">Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="gondolaAlmacenModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title" id="gondolaAlmacenModalLabel">Nueva fila de productos</h5>
+                        <p class="modal-subtitle">Se completa automáticamente desde una categoría</p>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="formGondolaAlmacen">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <input type="hidden" id="gondolaAlmacenPk">
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start; padding:0 0 0.85rem;">
+                            <label class="config-row-label" for="gondolaAlmacenCategoria">Categoría</label>
+                            <select class="form-control" id="gondolaAlmacenCategoria" required>
+                                <option value="">Elegí una categoría</option>
+                                {% for cat in categorias_para_tiles %}
+                                <option value="{{ cat.pk }}">{{ cat.nombre }}</option>
+                                {% endfor %}
+                            </select>
+                            <span class="config-row-desc">La fila mostrará automáticamente hasta 8 productos publicados de esta categoría.</span>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start; padding:0 0 0.85rem;">
+                            <label class="config-row-label" for="gondolaAlmacenTitulo">Título (opcional)</label>
+                            <input class="form-control" id="gondolaAlmacenTitulo" maxlength="80" placeholder="Vacío = usa el nombre de la categoría">
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start; padding:0 0 0.85rem;">
+                            <label class="config-row-label" for="gondolaAlmacenSubtitulo">Bajada (opcional)</label>
+                            <input class="form-control" id="gondolaAlmacenSubtitulo" maxlength="140" placeholder="Ej: Lo esencial para todos los días">
+                        </div>
+                        <div id="gondolaAlmacenMsg" class="config-empresa-msg" style="padding:0;"></div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
@@ -1448,6 +1528,10 @@
         guardar:  "{% url 'catalogo:config_tile_guardar' %}",
         imagen:   "{% url 'catalogo:config_tile_imagen' %}",
         eliminar: "{% url 'catalogo:config_tile_eliminar' %}",
+    };
+    window.CONFIG_GONDOLAS_ALMACEN_URLS = {
+        guardar:  "{% url 'catalogo:config_gondola_almacen_guardar' %}",
+        eliminar: "{% url 'catalogo:config_gondola_almacen_eliminar' %}",
     };
     window.CONFIG_BANNERS_BENTO_URLS = {
         guardar:  "{% url 'catalogo:config_banner_bento_guardar' %}",

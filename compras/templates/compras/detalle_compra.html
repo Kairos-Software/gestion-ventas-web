@@ -242,6 +242,28 @@
     color: var(--text-muted);
 }
 
+.cdt-iva-incluido-row {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    font-size: .8125rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    margin: .6rem 0 .3rem;
+}
+
+.cmp-hint-sm {
+    font-size: .72rem;
+    color: var(--text-muted);
+    margin: 0 0 .5rem;
+}
+
+.cdt-iva-preview {
+    border-top: 1px dashed var(--border-color);
+    padding-top: .4rem;
+    margin-top: .3rem;
+}
+
 .vdt-cheque-plan-nota {
     font-size: .74rem;
     font-style: italic;
@@ -271,8 +293,8 @@
 .cdt-tab {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
-    padding: 13px 16px;
+    gap: 5px;
+    padding: 13px 10px;
     font-size: .8125rem;
     font-weight: 500;
     color: var(--text-muted);
@@ -605,8 +627,11 @@
                 <button type="button" class="cdt-tab cdt-tab--active" data-tab="general" onclick="cdtSwitchTab('general', this)">
                     General
                 </button>
+                <button type="button" class="cdt-tab" data-tab="comprobante" onclick="cdtSwitchTab('comprobante', this)">
+                    Comprobante
+                </button>
                 <button type="button" class="cdt-tab" data-tab="pago" onclick="cdtSwitchTab('pago', this)">
-                    Medios de pago
+                    Pagos
                     <span class="cdt-tab-dot" id="cdtTabPagoDot"></span>
                 </button>
             </div>
@@ -632,6 +657,14 @@
                     </div>
 
                     <div class="cmp-field">
+                        <label class="cmp-label" for="cdtNotas">Notas generales</label>
+                        <textarea id="cdtNotas" class="cmp-control"
+                                  placeholder="Observaciones, número de OC, condiciones especiales…">{{ compra.notas }}</textarea>
+                    </div>
+                </div>
+
+                <div id="cdtPanelComprobante" class="cdt-tab-panel" style="display:none">
+                    <div class="cmp-field">
                         <label class="cmp-label" for="cdtNumeroComprobante">N° de comprobante / factura del proveedor</label>
                         <input type="text" id="cdtNumeroComprobante" class="cmp-control"
                                placeholder="Opcional — sin importar el medio de pago"
@@ -639,9 +672,37 @@
                     </div>
 
                     <div class="cmp-field">
-                        <label class="cmp-label" for="cdtNotas">Notas generales</label>
-                        <textarea id="cdtNotas" class="cmp-control"
-                                  placeholder="Observaciones, número de OC, condiciones especiales…">{{ compra.notas }}</textarea>
+                        <label class="cmp-label" for="cdtTipoDocumento">Tipo de documento</label>
+                        <select id="cdtTipoDocumento" class="cmp-control">
+                            <option value="factura" {% if compra.tipo_documento == 'factura' %}selected{% endif %}>Factura</option>
+                            <option value="presupuesto" {% if compra.tipo_documento == 'presupuesto' %}selected{% endif %}>Presupuesto</option>
+                            <option value="remito" {% if compra.tipo_documento == 'remito' %}selected{% endif %}>Remito</option>
+                        </select>
+                    </div>
+
+                    <div class="cmp-field" id="cdtIvaSection">
+                        <label class="cmp-label" for="cdtAlicuotaIva">Alícuota de IVA</label>
+                        <select id="cdtAlicuotaIva" class="cmp-control">
+                            <option value="21" {% if compra.alicuota_iva == '21' or not compra.alicuota_iva %}selected{% endif %}>General (21%)</option>
+                            <option value="10.5" {% if compra.alicuota_iva == '10.5' %}selected{% endif %}>Reducido (10,5%)</option>
+                            <option value="0" {% if compra.alicuota_iva == '0' %}selected{% endif %}>Exento (0%)</option>
+                            <option value="27" {% if compra.alicuota_iva == '27' %}selected{% endif %}>Especial (27%)</option>
+                        </select>
+
+                        <label class="cdt-iva-incluido-row">
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="cdtIvaIncluido" {% if compra.iva_incluido %}checked{% endif %}>
+                                <span class="toggle-track"></span>
+                            </span>
+                            <span>El total ya incluye IVA</span>
+                        </label>
+                        <p class="cmp-hint-sm" id="cdtIvaHint"></p>
+
+                        <div class="cdt-iva-preview" id="cdtIvaPreview">
+                            <div class="cmp-totals-row"><span>Neto</span><strong id="cdtIvaPreviewNeto">$0,00</strong></div>
+                            <div class="cmp-totals-row"><span>IVA</span><strong id="cdtIvaPreviewMonto">$0,00</strong></div>
+                            <div class="cmp-totals-row"><span>Total</span><strong id="cdtIvaPreviewTotal">$0,00</strong></div>
+                        </div>
                     </div>
                 </div>
 
@@ -731,6 +792,10 @@
                 </div>
                 {% endif %}
                 <div class="cdt-resumen-row">
+                    <span>Tipo de documento</span>
+                    <strong>{{ compra.get_tipo_documento_display }}</strong>
+                </div>
+                <div class="cdt-resumen-row">
                     <span>Fecha</span>
                     <strong>{{ compra.fecha }}</strong>
                 </div>
@@ -754,6 +819,16 @@
                     <span>Líneas</span>
                     <strong>{{ items|length }}</strong>
                 </div>
+                {% if compra.neto is not None %}
+                <div class="cdt-resumen-row">
+                    <span>Neto</span>
+                    <strong>${{ compra.neto|floatformat:"2" }}</strong>
+                </div>
+                <div class="cdt-resumen-row">
+                    <span>IVA ({{ compra.alicuota_iva }}%)</span>
+                    <strong>${{ compra.monto_iva|floatformat:"2" }}</strong>
+                </div>
+                {% endif %}
                 <div class="cdt-resumen-row cdt-resumen-row--total">
                     <span>Total</span>
                     <strong class="cdt-total-val">${{ compra.total|floatformat:"2" }}</strong>
@@ -794,6 +869,7 @@ function cdtSwitchTab(id, btn) {
 window.CDT_CONFIG = {
     compraPk:             {{ compra.pk }},
     compraTotal:          {{ compra.total|stringformat:".2f" }},
+    subtotalItems:        {{ subtotal_items|stringformat:".2f" }},
     compraMoneda:         "{{ compra_moneda }}",
     esBorrador:           {{ es_borrador|yesno:"true,false" }},
     esEdicionReactivada:  {{ es_edicion_reactivada|yesno:"true,false" }},

@@ -548,6 +548,75 @@ if (CDT.esBorrador) {
     const inputFecha   = document.getElementById('cdtFecha');
     const inputNotas   = document.getElementById('cdtNotas');
     const inputNumeroComprobante = document.getElementById('cdtNumeroComprobante');
+    const inputTipoDocumento = document.getElementById('cdtTipoDocumento');
+    const inputAlicuotaIva   = document.getElementById('cdtAlicuotaIva');
+    const inputIvaIncluido   = document.getElementById('cdtIvaIncluido');
+
+    /* ── Tipo de documento + IVA ──────────────────────────────────
+       Solo una Factura puede traer IVA discriminado — Presupuesto/
+       Remito no muestran alícuota. El total real a pagar (y por lo
+       tanto lo que pide cubrir el widget de pagos) cambia si el
+       costo cargado en el carrito NO incluye IVA: ahí se le suma
+       encima, igual que el cálculo del backend en
+       Compra._total_desde_items(). */
+    function _cdtCalcularTotalConIva() {
+        const subtotal = parseFloat(CDT.subtotalItems) || 0;
+        const esFactura = inputTipoDocumento && inputTipoDocumento.value === 'factura';
+        const alicuota  = esFactura && inputAlicuotaIva ? parseFloat(inputAlicuotaIva.value) : 0;
+        const incluido  = !inputIvaIncluido || inputIvaIncluido.checked;
+
+        if (!esFactura || incluido || !alicuota) {
+            const neto = esFactura ? subtotal / (1 + alicuota / 100) : null;
+            return { total: subtotal, neto: esFactura ? neto : null, montoIva: esFactura ? subtotal - neto : null, esFactura };
+        }
+        const total = subtotal * (1 + alicuota / 100);
+        return { total, neto: subtotal, montoIva: total - subtotal, esFactura };
+    }
+
+    function _cdtActualizarIvaUI(reiniciarPago) {
+        const seccion = document.getElementById('cdtIvaSection');
+        const hint    = document.getElementById('cdtIvaHint');
+        const preview = document.getElementById('cdtIvaPreview');
+        const esFactura = inputTipoDocumento && inputTipoDocumento.value === 'factura';
+
+        if (seccion) seccion.style.display = esFactura ? '' : 'none';
+
+        // El total (y por lo tanto lo que pide cubrir el widget de pagos)
+        // se recalcula SIEMPRE, sea o no Factura — solo la vista previa de
+        // Neto/IVA es exclusiva de Factura.
+        const { total, neto, montoIva } = _cdtCalcularTotalConIva();
+
+        if (esFactura) {
+            if (hint) hint.textContent = (!inputIvaIncluido || inputIvaIncluido.checked)
+                ? 'Lo que cargaste en el carrito es el precio final (con IVA).'
+                : 'Lo que cargaste en el carrito es el costo SIN IVA — se le suma arriba.';
+
+            if (preview) {
+                const elNeto  = document.getElementById('cdtIvaPreviewNeto');
+                const elIva   = document.getElementById('cdtIvaPreviewMonto');
+                const elTotal = document.getElementById('cdtIvaPreviewTotal');
+                if (elNeto)  elNeto.textContent  = _cdtFmtARS(neto);
+                if (elIva)   elIva.textContent   = _cdtFmtARS(montoIva);
+                if (elTotal) elTotal.textContent = _cdtFmtARS(total);
+            }
+        }
+
+        if (reiniciarPago) {
+            cdtPagoState.total = total;
+            const efectivo = _cdtCuentaEfectivo();
+            cdtPagoState.lineas = [{
+                id:     cdtPagoState.nextId++,
+                monto:  parseFloat(total.toFixed(2)),
+                cuenta: efectivo ? efectivo.pk : '',
+            }];
+            _cdtPagoRenderLineas();
+        }
+    }
+
+    [inputTipoDocumento, inputAlicuotaIva].forEach(el => {
+        if (el) el.addEventListener('change', () => _cdtActualizarIvaUI(true));
+    });
+    if (inputIvaIncluido) inputIvaIncluido.addEventListener('change', () => _cdtActualizarIvaUI(true));
 
     /* ── Widget de pagos: línea inicial con el total completo,
            precargada en Efectivo si existe ──────────────────────── */
@@ -558,6 +627,7 @@ if (CDT.esBorrador) {
         cuenta: cdtEfectivoInicial ? cdtEfectivoInicial.pk : '',
     });
     _cdtPagoRenderLineas();
+    _cdtActualizarIvaUI(false);
 
     const btnAgregarPago = document.getElementById('cdtBtnAgregarPago');
     if (btnAgregarPago) btnAgregarPago.addEventListener('click', _cdtPagoAgregarLinea);
@@ -612,6 +682,9 @@ if (CDT.esBorrador) {
                     fecha:     fecha,
                     notas:     inputNotas ? inputNotas.value.trim() : '',
                     numero_comprobante: inputNumeroComprobante ? inputNumeroComprobante.value.trim() : '',
+                    tipo_documento: inputTipoDocumento ? inputTipoDocumento.value : 'factura',
+                    alicuota_iva: (inputTipoDocumento && inputTipoDocumento.value === 'factura' && inputAlicuotaIva) ? inputAlicuotaIva.value : '',
+                    iva_incluido: !inputIvaIncluido || inputIvaIncluido.checked,
                     proveedor_pk: proveedorCompraDetalle.pk,
                     pagos:     pagoPayload.pagos,
                 }),

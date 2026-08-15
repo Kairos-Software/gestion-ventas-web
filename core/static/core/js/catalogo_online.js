@@ -931,7 +931,8 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // ── Banners promocionales (opcional, hasta 2) ──
+    // ── Carteles promocionales de Almacén (hasta 6 en total). En el panel
+    //    aparecen agrupados por ubicación, aunque conservan un solo formato. ──
     const formBanner = document.getElementById('formBanner');
     if (formBanner) {
         const csrfBanner = () => formBanner.querySelector('[name=csrfmiddlewaretoken]').value;
@@ -958,16 +959,23 @@ document.addEventListener('DOMContentLoaded', function () {
             bannerTieneImagenGuardada = false;
         }
 
-        document.getElementById('btnNuevoBanner')?.addEventListener('click', function () {
-            limpiarFormBanner();
-            document.getElementById('bannerModalLabel').textContent = 'Nuevo banner';
+        document.querySelectorAll('.btn-nuevo-banner-almacen').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                limpiarFormBanner();
+                document.getElementById('bannerPosicion').value = btn.dataset.bannerPosicion;
+                document.getElementById('bannerModalLabel').textContent = `Nuevo cartel · ${btn.dataset.bannerEtiqueta}`;
+                document.getElementById('bannerModalSubtitle').textContent = `Ubicación fija: ${btn.dataset.bannerEtiqueta}`;
+            });
         });
 
         document.querySelectorAll('.btn-editar-banner').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 const row = btn.closest('.banner-row');
+                const ubicacion = row.closest('.co-almacen-grupo')
+                    .querySelector('.co-almacen-grupo-head .config-row-label').textContent.trim();
                 limpiarFormBanner();
-                document.getElementById('bannerModalLabel').textContent = 'Editar banner';
+                document.getElementById('bannerModalLabel').textContent = `Editar cartel · ${ubicacion}`;
+                document.getElementById('bannerModalSubtitle').textContent = `Ubicación fija: ${ubicacion}`;
                 document.getElementById('bannerPk').value = row.dataset.pk;
                 document.getElementById('bannerPosicion').value = row.dataset.posicion;
                 document.getElementById('bannerTitulo').value = row.dataset.titulo;
@@ -1114,18 +1122,22 @@ document.addEventListener('DOMContentLoaded', function () {
             mostrarFilaTipo();
         }
 
-        document.getElementById('tileTipo').addEventListener('change', mostrarFilaTipo);
-
-        document.getElementById('btnNuevoTile')?.addEventListener('click', function () {
-            limpiarFormTile();
-            document.getElementById('tileModalLabel').textContent = 'Nueva categoría/marca destacada';
+        document.querySelectorAll('.btn-nuevo-tile-almacen').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                limpiarFormTile();
+                document.getElementById('tileTipo').value = btn.dataset.tileTipo;
+                mostrarFilaTipo();
+                document.getElementById('tileModalLabel').textContent =
+                    btn.dataset.tileTipo === 'categoria' ? 'Nueva categoría' : 'Nueva marca';
+            });
         });
 
         document.querySelectorAll('.btn-editar-tile').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 const row = btn.closest('.tile-row');
                 limpiarFormTile();
-                document.getElementById('tileModalLabel').textContent = 'Editar categoría/marca destacada';
+                document.getElementById('tileModalLabel').textContent =
+                    row.dataset.tipo === 'categoria' ? 'Editar categoría' : 'Editar marca';
                 document.getElementById('tilePk').value = row.dataset.pk;
                 document.getElementById('tileTipo').value = row.dataset.tipo;
                 document.getElementById('tileCategoria').value = row.dataset.categoria;
@@ -1209,6 +1221,85 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                     recargarPreservandoTab();
                 });
+            });
+        });
+    }
+
+    // ── Filas de productos de Almacén — hasta tres categorías cuyo contenido
+    //    se alimenta automáticamente en la home. ──
+    const formGondolaAlmacen = document.getElementById('formGondolaAlmacen');
+    if (formGondolaAlmacen) {
+        const csrfGondola = () => formGondolaAlmacen.querySelector('[name=csrfmiddlewaretoken]').value;
+        const urlsGondola = window.CONFIG_GONDOLAS_ALMACEN_URLS || {};
+        const modalGondolaEl = document.getElementById('gondolaAlmacenModal');
+        const modalGondola = window.bootstrap ? new bootstrap.Modal(modalGondolaEl) : null;
+
+        function limpiarFormGondolaAlmacen() {
+            document.getElementById('gondolaAlmacenPk').value = '';
+            document.getElementById('gondolaAlmacenCategoria').value = '';
+            document.getElementById('gondolaAlmacenTitulo').value = '';
+            document.getElementById('gondolaAlmacenSubtitulo').value = '';
+            document.getElementById('gondolaAlmacenMsg').textContent = '';
+        }
+
+        document.getElementById('btnNuevaGondolaAlmacen')?.addEventListener('click', function () {
+            limpiarFormGondolaAlmacen();
+            document.getElementById('gondolaAlmacenModalLabel').textContent = 'Nueva fila de productos';
+        });
+
+        document.querySelectorAll('.btn-editar-gondola-almacen').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const row = btn.closest('.gondola-almacen-row');
+                limpiarFormGondolaAlmacen();
+                document.getElementById('gondolaAlmacenModalLabel').textContent = 'Editar fila de productos';
+                document.getElementById('gondolaAlmacenPk').value = row.dataset.pk;
+                document.getElementById('gondolaAlmacenCategoria').value = row.dataset.categoria;
+                document.getElementById('gondolaAlmacenTitulo').value = row.dataset.titulo;
+                document.getElementById('gondolaAlmacenSubtitulo').value = row.dataset.subtitulo;
+                if (modalGondola) modalGondola.show();
+            });
+        });
+
+        document.querySelectorAll('.btn-eliminar-gondola-almacen').forEach(function (btn) {
+            btn.addEventListener('click', async function () {
+                const row = btn.closest('.gondola-almacen-row');
+                const nombre = row.querySelector('.config-row-label').textContent.trim();
+                const ok = await KaiConfirm(`¿Seguro que querés eliminar la fila "${nombre}"?`);
+                if (!ok) return;
+                fetch(urlsGondola.eliminar, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfGondola() },
+                    body: JSON.stringify({ pk: row.dataset.pk }),
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) { KaiToast.show(data.error, 'danger'); return; }
+                    recargarPreservandoTab();
+                });
+            });
+        });
+
+        formGondolaAlmacen.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const msg = document.getElementById('gondolaAlmacenMsg');
+            fetch(urlsGondola.guardar, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfGondola() },
+                body: JSON.stringify({
+                    pk: document.getElementById('gondolaAlmacenPk').value || null,
+                    categoria: document.getElementById('gondolaAlmacenCategoria').value,
+                    titulo: document.getElementById('gondolaAlmacenTitulo').value,
+                    subtitulo: document.getElementById('gondolaAlmacenSubtitulo').value,
+                }),
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    msg.style.color = '#e11d48';
+                    msg.textContent = data.error;
+                    return;
+                }
+                recargarPreservandoTab();
             });
         });
     }

@@ -710,8 +710,40 @@ class CatalogoHomeView(TemplateView):
                     etiqueta = t.etiqueta or t.marca
                 else:
                     continue
-                tiles_destacados.append({'imagen_url': t.imagen.url, 'etiqueta': etiqueta, 'url': url})
+                tiles_destacados.append({
+                    'imagen_url': t.imagen.url,
+                    'etiqueta': etiqueta,
+                    'url': url,
+                    'tipo': t.get_tipo_display(),
+                })
         ctx['tiles_destacados'] = tiles_destacados
+        # Filas de productos de Almacén: el dueño elige hasta tres
+        # categorías y la fila se alimenta sola con productos publicados.
+        # Así el contenido se mantiene actualizado sin seleccionar artículos
+        # uno por uno cada vez que cambia el stock o entra mercadería.
+        gondolas_almacen = []
+        if mostrar_vidriera:
+            gondolas_qs = (
+                ctx['config_catalogo'].gondolas_almacen
+                .filter(activo=True, categoria__activo=True)
+                .select_related('categoria')
+            )
+            for gondola in gondolas_qs:
+                productos_gondola = _con_oferta_y_nuevo(
+                    _productos_publicados_base()
+                    .filter(es_paquete=False, categoria=gondola.categoria)
+                    .order_by('-destacado', '-fecha_alta', 'nombre')[:8]
+                )
+                if not productos_gondola:
+                    continue
+                gondolas_almacen.append({
+                    'titulo': gondola.titulo or gondola.categoria.nombre,
+                    'subtitulo': gondola.subtitulo,
+                    'categoria': gondola.categoria.nombre,
+                    'url': '?' + _url_con(get, categoria=gondola.categoria.slug) + '#kcCatalogo',
+                    'productos': productos_gondola,
+                })
+        ctx['gondolas_almacen'] = gondolas_almacen
         # Fila de "nuestras marcas" (logos) — mismo criterio que tiles_destacados:
         # solo tiene sentido en la vidriera sin filtros activos.
         ctx['marcas_logo'] = (
@@ -831,7 +863,11 @@ class ProductoDetalleView(DetailView):
     context_object_name = 'producto'
 
     def get_template_names(self):
-        plantilla = ConfiguracionCatalogo.get_solo().plantilla
+        # Permite revisar el detalle de cada diseño sin cambiar la plantilla
+        # publicada, igual que la home y la página institucional.
+        plantilla = self.request.GET.get('preview_plantilla')
+        if plantilla not in PlantillaCatalogo.values:
+            plantilla = ConfiguracionCatalogo.get_solo().plantilla
         if plantilla == PlantillaCatalogo.BENTO:
             return ['catalogo/plantillas/bento/detalle.html']
         if plantilla == PlantillaCatalogo.KINETIC:

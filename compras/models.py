@@ -6,7 +6,7 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from productos.models import Producto, Proveedor, Moneda, CondicionPago, CombinacionVariante
+from productos.models import Producto, Proveedor, Moneda, CondicionPago, CombinacionVariante, AlicuotaIVA
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -34,9 +34,78 @@ class MedioPagoCompra(models.TextChoices):
     CHEQUE        = 'cheque',        'Cheque'
 
 
+class TipoDocumentoCompra(models.TextChoices):
+    """
+    Qué tipo de comprobante entregó el proveedor por esta compra. Es
+    un dato comercial/informativo — compras nunca emite comprobantes
+    propios (a diferencia de Ventas/ARCA), pero solo una Factura real
+    puede traer IVA discriminado: por eso `Compra.alicuota_iva` e
+    `iva_incluido` solo tienen efecto cuando tipo_documento=FACTURA
+    (ver Compra.calcular_total() y _costo_para_lote()).
+    """
+    FACTURA     = 'factura',     'Factura'
+    PRESUPUESTO = 'presupuesto', 'Presupuesto'
+    REMITO      = 'remito',      'Remito'
+
+
 # ══════════════════════════════════════════════════════════════════
 #  HELPERS INTERNOS
 # ══════════════════════════════════════════════════════════════════
+
+def _grossear_con_iva(monto, alicuota_iva):
+    """monto NETO (sin IVA) → monto con el IVA de `alicuota_iva` sumado."""
+    if not alicuota_iva or monto is None:
+        return monto
+    alicuota = Decimal(alicuota_iva)
+    if alicuota == 0:
+        return monto
+    return (monto * (Decimal('1') + alicuota / Decimal('100'))).quantize(Decimal('0.01'))
+
+
+def _netear_iva(monto, alicuota_iva):
+    """monto CON IVA → monto sin IVA (neto), según `alicuota_iva`."""
+    if not alicuota_iva or monto is None:
+        return monto
+    alicuota = Decimal(alicuota_iva)
+    if alicuota == 0:
+        return monto
+    return (monto / (Decimal('1') + alicuota / Decimal('100'))).quantize(Decimal('0.01'))
+
+
+def _costo_para_lote(item):
+    """
+    Costo real del ítem para trazabilidad de margen/valorización
+    (lo que termina en LoteCompra.costo_unitario, y de ahí en
+    Producto.costo_actual — ver _costo_efectivo()).
+
+    Si la compra no es una Factura con alícuota cargada, se usa el
+    costo tal cual se tipeó (comportamiento de siempre, sin cambios).
+
+    Si es Factura con alícuota: se derivan el costo BRUTO (con IVA,
+    lo que realmente se paga) y el NETO (sin IVA) del ítem, y manda
+    uno u otro según si la empresa recupera el IVA de sus compras
+    como crédito fiscal:
+      - Responsable Inscripto → NETO (el IVA no es un costo real,
+        se recupera; el margen/precio automático no debe cargarlo).
+      - Monotributista/Exento/Consumidor Final → BRUTO (no lo
+        recupera, el IVA es un costo real más).
+    """
+    compra = item.compra
+    if compra.tipo_documento != TipoDocumentoCompra.FACTURA or not compra.alicuota_iva:
+        return item.costo_unitario
+
+    from core.models import DatosEmpresa, CondicionIVA
+    recupera_iva = DatosEmpresa.get_solo().condicion_iva == CondicionIVA.RESPONSABLE_INSCRIPTO
+
+    if compra.iva_incluido:
+        bruto = item.costo_unitario
+        neto  = _netear_iva(item.costo_unitario, compra.alicuota_iva)
+    else:
+        neto  = item.costo_unitario
+        bruto = _grossear_con_iva(item.costo_unitario, compra.alicuota_iva)
+
+    return neto if recupera_iva else bruto
+
 
 def _sumar_stock_item(item):
     """
@@ -325,7 +394,7 @@ def _crear_lote_desde_item(item, fecha_compra):
         combinacion=item.combinacion,
         cantidad_inicial=item.cantidad,
         cantidad_actual=item.cantidad,
-        costo_unitario=item.costo_unitario,
+        costo_unitario=_costo_para_lote(item),
         fecha_vencimiento=item.fecha_vencimiento,
         fecha_compra=fecha_compra,
     )
@@ -387,6 +456,23 @@ class Compra(models.Model):
     #   medio de pago: si la compra termina generando una Deuda (crédito)
     #   o un Cheque, este valor se propaga para poder buscarlos por acá. —
     numero_comprobante = models.CharField('N° de comprobante', max_length=100, blank=True)
+
+    # — Tipo de documento del proveedor + IVA —
+    # alicuota_iva e iva_incluido solo tienen efecto real si
+    # tipo_documento=FACTURA (un Presupuesto o Remito no discrimina IVA).
+    # Ver calcular_total() (arma el total con IVA sumado si iva_incluido=
+    # False) y _costo_para_lote() (decide si el costo real del producto
+    # descuenta o no ese IVA, según la condición de IVA de la empresa).
+    tipo_documento = models.CharField('Tipo de documento', max_length=20,
+                       choices=TipoDocumentoCompra.choices,
+                       default=TipoDocumentoCompra.FACTURA, blank=True)
+    alicuota_iva = models.CharField('Alícuota IVA', max_length=5,
+                       choices=AlicuotaIVA.choices, blank=True,
+                       help_text='Alícuota discriminada en la Factura del proveedor.')
+    iva_incluido = models.BooleanField('El total ya incluye IVA', default=True,
+                       help_text='Si lo destildás, lo cargado en cada ítem es el costo SIN IVA '
+                                  '(como el neto de una Factura A) y el sistema le suma el IVA '
+                                  'de la alícuota elegida para calcular el total real a pagar.')
 
     # — Notas —
     notas      = models.TextField(blank=True)
@@ -450,10 +536,38 @@ class Compra(models.Model):
 
     # ── Métodos de negocio ───────────────────────────────────────
 
+    def _total_desde_items(self):
+        """
+        Total real a pagar a partir de los ítems actuales (no guarda).
+        Si es una Factura con alícuota cargada y los costos se
+        tipearon SIN IVA (iva_incluido=False), le suma el IVA por
+        encima de la suma de los ítems — igual que una Factura A:
+        neto de productos + línea de IVA aparte = total facturado.
+        """
+        subtotal = sum(item.subtotal for item in self.items.all())
+        if self.tipo_documento == TipoDocumentoCompra.FACTURA and self.alicuota_iva and not self.iva_incluido:
+            return _grossear_con_iva(subtotal, self.alicuota_iva)
+        return subtotal
+
     def calcular_total(self):
-        """Recalcula el total sumando todos los ítems."""
-        self.total = sum(item.subtotal for item in self.items.all())
+        """Recalcula y guarda el total sumando todos los ítems (ver _total_desde_items)."""
+        self.total = self._total_desde_items()
         self.save(update_fields=['total'])
+
+    @property
+    def neto(self):
+        """Total sin IVA. None si no es Factura o no tiene alícuota cargada."""
+        if self.tipo_documento != TipoDocumentoCompra.FACTURA or not self.alicuota_iva:
+            return None
+        return _netear_iva(self.total, self.alicuota_iva)
+
+    @property
+    def monto_iva(self):
+        """Monto de IVA discriminado del total. None si no aplica."""
+        neto = self.neto
+        if neto is None:
+            return None
+        return (self.total - neto).quantize(Decimal('0.01'))
 
     @transaction.atomic
     def confirmar(self, medio_pago=None, pagos=None):
@@ -673,7 +787,7 @@ class Compra(models.Model):
             _crear_lote_desde_item(item, self.fecha)
 
         # — Recalcular total y confirmar —
-        self.total  = sum(item.subtotal for item in self.items.all())
+        self.total  = self._total_desde_items()
         self.estado = EstadoCompra.CONFIRMADA
         self.save(update_fields=['total', 'estado'])
 
@@ -691,9 +805,13 @@ class Compra(models.Model):
             producto.actualizar_costo_y_precio()
 
     @transaction.atomic
-    def editar_cabecera(self, fecha, notas, numero_comprobante=None):
+    def editar_cabecera(self, fecha, notas, numero_comprobante=None,
+                         tipo_documento=None, alicuota_iva=None, iva_incluido=None):
         """
-        Edita fecha, notas y N° de comprobante. Solo disponible en BORRADOR.
+        Edita fecha, notas, N° de comprobante y tipo de documento/IVA.
+        Solo disponible en BORRADOR. Los parámetros opcionales usan
+        `None` como "no tocar" (mismo criterio que numero_comprobante) —
+        '' es un valor real (limpiar la alícuota, por ejemplo).
         """
         if self.estado != EstadoCompra.BORRADOR:
             raise ValueError('Solo se pueden editar compras en estado Borrador.')
@@ -704,6 +822,15 @@ class Compra(models.Model):
         if numero_comprobante is not None:
             self.numero_comprobante = numero_comprobante
             update_fields.append('numero_comprobante')
+        if tipo_documento is not None:
+            self.tipo_documento = tipo_documento
+            update_fields.append('tipo_documento')
+        if alicuota_iva is not None:
+            self.alicuota_iva = alicuota_iva
+            update_fields.append('alicuota_iva')
+        if iva_incluido is not None:
+            self.iva_incluido = iva_incluido
+            update_fields.append('iva_incluido')
         self.save(update_fields=update_fields)
 
 

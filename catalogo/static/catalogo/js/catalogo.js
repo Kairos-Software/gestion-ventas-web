@@ -54,7 +54,7 @@ function toggleFiltrosMobile(abrir) {
    necesitar ids únicos por fila. */
 (function () {
     document.querySelectorAll('[data-carrusel]').forEach(function (carrusel) {
-        var track = carrusel.querySelector('.kc-flash-row, .kc-feat-row, .kc-combo-row, .kc-tiles-row');
+        var track = carrusel.querySelector('.kc-flash-row, .kc-feat-row, .kc-combo-row, .kc-tiles-row, .kc-gondola-rail');
         var btnPrev = carrusel.querySelector('[data-carrusel-prev]');
         var btnNext = carrusel.querySelector('[data-carrusel-next]');
         if (!track) return;

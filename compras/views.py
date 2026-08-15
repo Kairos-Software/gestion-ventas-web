@@ -11,8 +11,8 @@ from django.db import transaction
 
 from django.db.models import Q
 
-from productos.models import Producto, Proveedor, CombinacionVariante, ListaDescuento, cantidad_valida_para_unidad
-from .models import Compra, ItemCompra, EstadoCompra, MedioPagoCompra, descartar_borradores_vencidos
+from productos.models import Producto, Proveedor, CombinacionVariante, ListaDescuento, cantidad_valida_para_unidad, AlicuotaIVA
+from .models import Compra, ItemCompra, EstadoCompra, MedioPagoCompra, TipoDocumentoCompra, descartar_borradores_vencidos
 from core.permisos import chequear_permiso
 from caja.models import CuentaCaja, TipoCaja
 
@@ -430,8 +430,7 @@ class GuardarBorradorAjax(LoginRequiredMixin, View):
             return JsonResponse({'error': ' | '.join(errores)}, status=400)
 
         # Calcular total sin confirmar (para mostrarlo en el detalle)
-        compra.total = sum(item.subtotal for item in compra.items.all())
-        compra.save(update_fields=['total'])
+        compra.calcular_total()
 
         return JsonResponse({
             'ok':     True,
@@ -569,8 +568,8 @@ class ActualizarBorradorAjax(LoginRequiredMixin, View):
         compra.fecha = body.get('fecha') or compra.fecha
         compra.notas = body.get('notas', compra.notas)
         compra.numero_comprobante = body.get('numero_comprobante', compra.numero_comprobante)
-        compra.total = sum(item.subtotal for item in compra.items.all())
-        compra.save(update_fields=['fecha', 'notas', 'numero_comprobante', 'total'])
+        compra.save(update_fields=['fecha', 'notas', 'numero_comprobante'])
+        compra.calcular_total()
 
         return JsonResponse({
             'ok':     True,
@@ -719,11 +718,25 @@ class ConfirmarCompraAjax(LoginRequiredMixin, View):
                 proveedor_nombre=proveedor.nombre if proveedor else '',
             )
 
+        # tipo_documento/alicuota_iva/iva_incluido: solo se tocan si vienen
+        # en el body (None = no tocar, ver editar_cabecera). alicuota_iva
+        # llega '' cuando el tipo de documento no es Factura (se limpia).
+        tipo_documento = body.get('tipo_documento') if 'tipo_documento' in body else None
+        if tipo_documento is not None and tipo_documento not in TipoDocumentoCompra.values:
+            return JsonResponse({'error': f'Tipo de documento inválido: {tipo_documento}'}, status=400)
+        alicuota_iva = body.get('alicuota_iva') if 'alicuota_iva' in body else None
+        if alicuota_iva and alicuota_iva not in AlicuotaIVA.values:
+            return JsonResponse({'error': f'Alícuota de IVA inválida: {alicuota_iva}'}, status=400)
+        iva_incluido = body.get('iva_incluido') if 'iva_incluido' in body else None
+
         # Actualizar cabecera antes de confirmar
         try:
             compra.editar_cabecera(
                 fecha=fecha, notas=body.get('notas', ''),
                 numero_comprobante=body.get('numero_comprobante', ''),
+                tipo_documento=tipo_documento,
+                alicuota_iva=alicuota_iva,
+                iva_incluido=iva_incluido,
             )
         except ValueError as e:
             return JsonResponse({'error': str(e)}, status=400)
@@ -952,6 +965,12 @@ class DetalleCompraView(LoginRequiredMixin, View):
         proveedores_ids = {i.proveedor_id for i in compra.items.all() if i.proveedor_id}
         proveedor_unico = compra.items.all()[0].proveedor if len(proveedores_ids) == 1 else None
 
+        # Subtotal SIN el IVA sumado (a diferencia de compra.total, que ya
+        # puede venir grosseado) — es la base fija sobre la que el JS del
+        # panel General recalcula la vista previa de Neto/IVA/Total en vivo
+        # cuando se cambia tipo de documento/alícuota/incluye IVA.
+        subtotal_items = sum((item.subtotal for item in compra.items.all()), Decimal('0'))
+
         from django.urls import reverse
         return _render(request, self.template_name, {
             'compra':     compra,
@@ -962,6 +981,7 @@ class DetalleCompraView(LoginRequiredMixin, View):
             'es_borrador': compra.estado == EstadoCompra.BORRADOR,
             'es_edicion_reactivada': compra.estado == EstadoCompra.BORRADOR and compra._es_reactivada(),
             'compra_moneda': moneda_compra,
+            'subtotal_items': subtotal_items,
             'cuentas_json': cuentas_json,
             'tarjetas_json': tarjetas_json,
             'proveedor_unico_compra': proveedor_unico,

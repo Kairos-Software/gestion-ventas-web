@@ -258,15 +258,18 @@ html[data-theme="dark"] .kc-bento .theme-switch i{ left:20px; background:var(--l
 
 /* ================= Stories category rail ================= */
 .kc-bento .stories-wrap{ padding:26px 0 4px; }
-/* En escritorio las categorías ocupan y reparten todo el ancho disponible.
-   Antes eran ítems fijos de 68px pegados a la izquierda: al alejar el zoom
-   el resto de la página se acomodaba, pero este rail quedaba igual. */
+/* Rail compacto, alineado con el margen general. Las categorías conservan
+   un ancho legible y, cuando son muchas, continúan en una única fila que se
+   puede arrastrar horizontalmente con mouse, trackpad o pantalla táctil. */
 .kc-bento .stories-rail{
   max-width:1320px; margin:0 auto; padding:2px 26px 6px;
-  display:grid; grid-template-columns:repeat(auto-fit,minmax(92px,1fr));
-  gap:16px; overflow:visible;
+  display:flex; gap:16px; overflow-x:auto;
+  scroll-snap-type:x proximity; scroll-padding-left:26px;
 }
-.kc-bento .story{ min-width:0; display:flex; flex-direction:column; align-items:center; gap:8px; }
+.kc-bento .story{
+  flex:0 0 92px; min-width:0; display:flex; flex-direction:column;
+  align-items:center; gap:8px; scroll-snap-align:start;
+}
 .kc-bento .story-ring{ width:60px; height:60px; border-radius:50%; padding:3px; background:linear-gradient(135deg, var(--lime), var(--amber)); display:flex; align-items:center; justify-content:center; transition:.15s; }
 .kc-bento .story:not(.active) .story-ring{ background:var(--line); opacity:.8; }
 .kc-bento .story-ring-inner{ width:100%; height:100%; border-radius:50%; background:var(--surface); display:flex; align-items:center; justify-content:center; color:var(--ink); }

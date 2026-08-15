@@ -29,7 +29,7 @@
             </div>
             <div class="kc-hero-tilt-wrap" id="kcHeroTiltWrap">
                 <!-- id usado por configuracion.js (vista previa en vivo) — no renombrar sin actualizar ese archivo -->
-                <div class="kc-hero-visual {% if config_catalogo.hero_imagen_sin_fondo %}kc-hero-visual--sin-fondo{% endif %}" id="kcHeroVisual">
+                <div class="kc-hero-visual {% if config_catalogo.hero_imagen_sin_fondo %}kc-hero-visual--sin-fondo{% elif hero_producto %}kc-hero-visual--producto{% endif %}" id="kcHeroVisual">
                     <div class="kc-hero-glare"></div>
                     <div class="kc-hero-product-img">
                         {% if config_catalogo.hero_imagen %}
@@ -97,13 +97,19 @@
 
     {% if tiles_destacados %}
     <section class="kc-sec-vidriera kc-tiles-sec">
-        <div class="kc-sec-head"><h2>{{ config_catalogo.tiles_destacados_titulo|default:'Categorías y marcas' }}</h2></div>
+        <div class="kc-sec-head">
+            <h2>{{ config_catalogo.tiles_destacados_titulo|default:'Categorías y marcas' }}</h2>
+            <span class="kc-sec-sub">Accesos rápidos de la tienda</span>
+        </div>
         <div class="kc-carrusel" data-carrusel>
             <div class="kc-tiles-row">
                 {% for tile in tiles_destacados %}
                 <a href="{{ tile.url }}" class="kc-tile-destacado">
                     <span class="kc-tile-destacado-img"><img src="{{ tile.imagen_url }}" alt="{{ tile.etiqueta }}"></span>
-                    <span class="kc-tile-destacado-label">{{ tile.etiqueta }}</span>
+                    <span class="kc-tile-destacado-copy">
+                        <small>{{ tile.tipo }}</small>
+                        <span class="kc-tile-destacado-label">{{ tile.etiqueta }}</span>
+                    </span>
                 </a>
                 {% endfor %}
             </div>
@@ -112,6 +118,78 @@
             <button type="button" class="kc-carrusel-flecha kc-carrusel-flecha--next" data-carrusel-next aria-label="Ver más">›</button>
             {% endif %}
         </div>
+    </section>
+    {% endif %}
+
+    {% if gondolas_almacen %}
+    <section class="kc-gondolas-sec" aria-labelledby="kcGondolasTitulo">
+        <div class="kc-gondolas-portada">
+            <span>Selecciones automáticas</span>
+            <h2 id="kcGondolasTitulo">Productos por categoría</h2>
+            <p>Filas que se actualizan automáticamente con tu catálogo.</p>
+        </div>
+        {% for gondola in gondolas_almacen %}
+        <article class="kc-gondola">
+            <div class="kc-gondola-head">
+                <div>
+                    <span class="kc-gondola-eyebrow">{{ gondola.categoria }}</span>
+                    <h3>{{ gondola.titulo }}</h3>
+                    {% if gondola.subtitulo %}<p>{{ gondola.subtitulo }}</p>{% endif %}
+                </div>
+                <a href="{{ gondola.url }}" class="kc-gondola-ver-todo">Ver todo <span>→</span></a>
+            </div>
+            <div class="kc-carrusel" data-carrusel>
+                <div class="kc-gondola-rail">
+                    {% for p in gondola.productos %}
+                    <div class="kc-gondola-card">
+                        <a href="{% url 'catalogo:producto_detalle' p.pk %}" class="kc-gondola-media">
+                            {% with portada=p.imagenes.first %}
+                                {% if portada %}<img src="{{ portada.imagen.url }}" alt="{{ p.nombre }}" loading="lazy">{% endif %}
+                            {% endwith %}
+                            {% if p.oferta_info %}<span class="kc-gondola-oferta">{{ p.oferta_info.badge }}</span>{% endif %}
+                        </a>
+                        <div class="kc-gondola-body">
+                            {% if p.marca %}<span class="kc-gondola-marca">{{ p.marca }}</span>{% endif %}
+                            <a href="{% url 'catalogo:producto_detalle' p.pk %}"><h4>{{ p.nombre }}</h4></a>
+                            <div class="kc-gondola-foot">
+                                <div class="kc-card-precio">
+                                    {% if p.oferta_info and p.oferta_info.precio_final != p.precio_venta %}
+                                        <span class="kc-precio-final">${{ p.oferta_info.precio_final }}</span>
+                                        <span class="kc-precio-tachado">${{ p.precio_venta }}</span>
+                                    {% elif p.precio_venta %}
+                                        <span class="kc-precio-final">${{ p.precio_venta }}</span>
+                                    {% else %}
+                                        <span class="kc-precio-consultar">A consultar</span>
+                                    {% endif %}
+                                </div>
+                                {% if p.disponible_compra %}
+                                    {% if p.gestiona_variantes %}
+                                    <a href="{% url 'catalogo:producto_detalle' p.pk %}" class="kc-gondola-sumar" aria-label="Ver opciones de {{ p.nombre }}">→</a>
+                                    {% else %}
+                                    <div data-carrito-slot>
+                                        <button type="button" class="kc-gondola-sumar"
+                                            data-carrito-agregar="prod-{{ p.pk }}"
+                                            data-nombre="{{ p.nombre }}"
+                                            data-precio="{{ p.oferta_info.precio_final|default:p.precio_venta }}"
+                                            data-precio-lista="{{ p.precio_venta }}"
+                                            data-categoria-id="{{ p.categoria.pk|default:'' }}"
+                                            data-imagen="{% if p.imagenes.first %}{{ p.imagenes.first.imagen.url }}{% endif %}"
+                                            aria-label="Sumar {{ p.nombre }} al pedido">+</button>
+                                    </div>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% if gondola.productos|length > 5 %}
+                <button type="button" class="kc-carrusel-flecha kc-carrusel-flecha--prev" data-carrusel-prev aria-label="Ver productos anteriores">‹</button>
+                <button type="button" class="kc-carrusel-flecha kc-carrusel-flecha--next" data-carrusel-next aria-label="Ver más productos">›</button>
+                {% endif %}
+            </div>
+        </article>
+        {% endfor %}
     </section>
     {% endif %}
     {% endif %}
