@@ -71,14 +71,32 @@
             </div>
 
             {% if disponible_compra %}
+            {% if producto.gestiona_variantes %}
+            <div class="k-variantes">
+                {% for tipo in variantes_json.tipos %}
+                <div class="k-variante-grupo" data-variante-tipo="{{ tipo.id }}">
+                    <span class="k-variante-tipo-nombre">{{ tipo.nombre }}</span>
+                    <div class="k-variante-opciones">
+                        {% for opcion in tipo.opciones %}
+                        <button type="button" class="k-variante-opcion" data-variante-opcion="{{ opcion.id }}">{{ opcion.nombre }}</button>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+                <p class="k-variante-estado" id="kcVarianteEstado">Elegí una opción</p>
+            </div>
+            {{ variantes_json.combinaciones|json_script:"kcVariantesCombinaciones" }}
+            {% endif %}
             <div data-carrito-slot>
-                <button type="button" class="k-btn-add-cart k-btn-add-cart--grande"
-                    data-carrito-agregar="{% if producto.es_paquete %}paq{% else %}prod{% endif %}-{{ producto.pk }}"
+                <button type="button" class="k-btn-add-cart k-btn-add-cart--grande" id="btnAgregarDetalle"
+                    {% if not producto.gestiona_variantes %}data-carrito-agregar="{% if producto.es_paquete %}paq{% else %}prod{% endif %}-{{ producto.pk }}"{% endif %}
+                    data-id-base="{% if producto.es_paquete %}paq{% else %}prod{% endif %}-{{ producto.pk }}"
                     data-nombre="{{ producto.nombre }}"
                     data-precio="{{ oferta_info.precio_final|default:producto.precio_venta }}"
                     data-precio-lista="{{ producto.precio_venta }}"
                     data-categoria-id="{{ producto.categoria.pk|default:'' }}"
-                    data-imagen="{% if imagenes %}{{ imagenes.0.imagen.url }}{% endif %}">
+                    data-imagen="{% if imagenes %}{{ imagenes.0.imagen.url }}{% endif %}"
+                    {% if producto.gestiona_variantes %}disabled{% endif %}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
                     AGREGAR AL PEDIDO
                 </button>

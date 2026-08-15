@@ -32,11 +32,12 @@ document.addEventListener('DOMContentLoaded', function () {
         return colorDefaultPara(document.getElementById('idCatalogoPlantilla')?.value || 'almacen', campo);
     }
 
-    // ── Colores por plantilla — Almacén/Bento/Lumina tienen cada una su
-    //    propio campo en el modelo (Kinetic no, paleta fija) pero el panel
-    //    solo muestra un par de inputs a la vez; acá se guarda en memoria
-    //    el color de cada plantilla para no perderlo ni mezclarlo con el de
-    //    otra al cambiar de plantilla sin haber guardado todavía. ──
+    // ── Colores por plantilla — las 4 tienen cada una su propio campo en
+    //    el modelo (Kinetic solo el principal, el secundario sigue fijo)
+    //    pero el panel solo muestra un par de inputs a la vez; acá se
+    //    guarda en memoria el color de cada plantilla para no perderlo ni
+    //    mezclarlo con el de otra al cambiar de plantilla sin haber
+    //    guardado todavía. ──
     const coloresGuardados = window.CONFIG_CATALOGO_COLORES || {};
     function coloresIniciales(plantilla) {
         const guardado = coloresGuardados[plantilla] || {};
@@ -51,6 +52,7 @@ document.addEventListener('DOMContentLoaded', function () {
         almacen: coloresIniciales('almacen'),
         bento: coloresIniciales('bento'),
         lumina: coloresIniciales('lumina'),
+        kinetic: coloresIniciales('kinetic'),
     };
 
     function guardarColoresVisiblesEn(plantilla) {
@@ -82,6 +84,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // guardar/cargar al cambiar de tab, solo el tracking de "tocado".
     let colorFondoTocado = !!(coloresGuardados.bento && coloresGuardados.bento.fondo);
     let colorFondoOscuroTocado = !!(coloresGuardados.bento && coloresGuardados.bento.fondoOscuro);
+    // Fondo de Kinetic — mismo criterio que el de Bento arriba, pero un
+    // solo valor (Kinetic no tiene modo claro/oscuro).
+    let colorFondoKineticTocado = !!(coloresGuardados.kinetic && coloresGuardados.kinetic.fondo);
 
     // ── Escalado de iframes de vista previa (mismo truco "device preview" para
     //    el preview grande y las mini-cards de plantilla — una sola implementación) ──
@@ -203,6 +208,10 @@ document.addEventListener('DOMContentLoaded', function () {
             const inputTexto = document.getElementById('idCatalogoDestacado' + n + 'Texto');
             if (textoEl && inputTexto) textoEl.textContent = inputTexto.value || defaults['destacado' + n + 'Texto'] || '';
         });
+        const kineticBannerTitulo = doc.getElementById('kcKineticBannerTitulo');
+        if (kineticBannerTitulo) kineticBannerTitulo.textContent = document.getElementById('idCatalogoKineticBannerTitulo')?.value || '';
+        const kineticBannerTexto = doc.getElementById('kcKineticBannerTexto');
+        if (kineticBannerTexto) kineticBannerTexto.textContent = document.getElementById('idCatalogoKineticBannerTexto')?.value || '';
         const color = document.getElementById('idCatalogoColorMarca').value || colorDefaultActual('marca');
         const colorSecundario = document.getElementById('idCatalogoColorMarcaSecundario')?.value || colorDefaultActual('secundario');
         if (doc.documentElement) {
@@ -223,6 +232,12 @@ document.addEventListener('DOMContentLoaded', function () {
             // en kinetic.css; no hace falta pisarlas acá también. Kinetic no
             // tiene un color secundario propio editable (ver base.html).
             doc.documentElement.style.setProperty('--k-primary', color);
+            // Fondo de Kinetic — un solo setProperty alcanza (a diferencia del
+            // de Bento más abajo): --k-surface/--k-surface-card/--k-border
+            // quedan fijos, solo cambia el color de fondo de la página en sí
+            // (mismo criterio que --paper en Bento, ver kinetic.css).
+            const colorFondoKinetic = document.getElementById('idCatalogoColorFondoKinetic')?.value || defaults.colorFondoKinetic || '#0d0d0f';
+            doc.documentElement.style.setProperty('--k-bg', colorFondoKinetic);
             // Variables de Lumina — --l-primary-dark/--l-primary-soft/
             // --l-secondary-soft se recalculan solas vía color-mix(var(--l-primary)/
             // var(--l-secondary)) en lumina.css.
@@ -257,11 +272,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
     [
         'idCatalogoHeroTitulo', 'idCatalogoHeroSubtitulo', 'idCatalogoSobreNosotros', 'idCatalogoContactoTexto',
-        'idCatalogoColorMarca', 'idCatalogoColorMarcaSecundario', 'idCatalogoColorFondo', 'idCatalogoColorFondoOscuro', 'idCatalogoNavCatalogo', 'idCatalogoNavOfertas', 'idCatalogoNavCombos', 'idCatalogoNavTienda',
+        'idCatalogoColorMarca', 'idCatalogoColorMarcaSecundario', 'idCatalogoColorFondo', 'idCatalogoColorFondoOscuro', 'idCatalogoColorFondoKinetic', 'idCatalogoNavCatalogo', 'idCatalogoNavOfertas', 'idCatalogoNavCombos', 'idCatalogoNavTienda',
         'idCatalogoInstTitulo', 'idCatalogoInstBajada',
         'idCatalogoDestacado1Titulo', 'idCatalogoDestacado1Texto',
         'idCatalogoDestacado2Titulo', 'idCatalogoDestacado2Texto',
         'idCatalogoDestacado3Titulo', 'idCatalogoDestacado3Texto',
+        'idCatalogoKineticBannerTitulo', 'idCatalogoKineticBannerTexto',
+        'idCatalogoKineticBannerCtaTexto', 'idCatalogoKineticBannerCtaUrl',
     ].forEach(function (id) {
         const el = document.getElementById(id);
         if (el) el.addEventListener('input', aplicarValoresAlPreview);
@@ -271,6 +288,7 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('idCatalogoColorMarcaSecundario')?.addEventListener('input', function () { colorMarcaSecundarioTocado = true; });
     document.getElementById('idCatalogoColorFondo')?.addEventListener('input', function () { colorFondoTocado = true; });
     document.getElementById('idCatalogoColorFondoOscuro')?.addEventListener('input', function () { colorFondoOscuroTocado = true; });
+    document.getElementById('idCatalogoColorFondoKinetic')?.addEventListener('input', function () { colorFondoKineticTocado = true; });
 
     document.getElementById('btnResetColorMarca')?.addEventListener('click', function () {
         document.getElementById('idCatalogoColorMarca').value = colorDefaultActual('marca');
@@ -295,6 +313,12 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('btnResetColorFondoOscuro')?.addEventListener('click', function () {
         document.getElementById('idCatalogoColorFondoOscuro').value = defaults.colorFondoOscuroBento || '#121320';
         colorFondoOscuroTocado = false;
+        aplicarValoresAlPreview();
+    });
+
+    document.getElementById('btnResetColorFondoKinetic')?.addEventListener('click', function () {
+        document.getElementById('idCatalogoColorFondoKinetic').value = defaults.colorFondoKinetic || '#0d0d0f';
+        colorFondoKineticTocado = false;
         aplicarValoresAlPreview();
     });
 
@@ -459,8 +483,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 color_marca_secundario_bento: valorColorGuardado('bento', 'secundario'),
                 color_marca_lumina:     valorColorGuardado('lumina', 'marca'),
                 color_marca_secundario_lumina: valorColorGuardado('lumina', 'secundario'),
+                color_marca_kinetic:    valorColorGuardado('kinetic', 'marca'),
                 color_fondo_bento:        colorFondoTocado ? document.getElementById('idCatalogoColorFondo').value : '',
                 color_fondo_bento_oscuro: colorFondoOscuroTocado ? document.getElementById('idCatalogoColorFondoOscuro').value : '',
+                color_fondo_kinetic:      colorFondoKineticTocado ? document.getElementById('idCatalogoColorFondoKinetic').value : '',
+                kinetic_banner_titulo:    document.getElementById('idCatalogoKineticBannerTitulo')?.value || '',
+                kinetic_banner_texto:     document.getElementById('idCatalogoKineticBannerTexto')?.value || '',
+                kinetic_banner_cta_texto: document.getElementById('idCatalogoKineticBannerCtaTexto')?.value || '',
+                kinetic_banner_cta_url:   document.getElementById('idCatalogoKineticBannerCtaUrl')?.value || '',
                 nav_catalogo_label: document.getElementById('idCatalogoNavCatalogo').value,
                 nav_ofertas_label:  document.getElementById('idCatalogoNavOfertas').value,
                 nav_combos_label:   document.getElementById('idCatalogoNavCombos').value,
@@ -583,6 +613,7 @@ document.addEventListener('DOMContentLoaded', function () {
     initSubidaImagenSpot('inputCatalogoHeroSpot1', 'btnEliminarCatalogoHeroSpot1', 'catalogoHeroSpot1PreviewBox', urls.heroSpot1Imagen);
     initSubidaImagenSpot('inputCatalogoHeroSpot2', 'btnEliminarCatalogoHeroSpot2', 'catalogoHeroSpot2PreviewBox', urls.heroSpot2Imagen);
     initSubidaImagenSpot('inputCatalogoCtaFinalImagen', 'btnEliminarCatalogoCtaFinalImagen', 'catalogoCtaFinalImagenPreviewBox', urls.ctaFinalImagen);
+    initSubidaImagenSpot('inputCatalogoKineticBanner', 'btnEliminarCatalogoKineticBanner', 'catalogoKineticBannerPreviewBox', urls.kineticBannerImagen);
 
     document.getElementById('btnEliminarCatalogoHero')?.addEventListener('click', function () {
         fetch(urls.heroImagen, {

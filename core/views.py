@@ -183,6 +183,7 @@ def catalogo_online(request):
     valores_color_por_plantilla = {
         PlantillaCatalogo.BENTO: (config_catalogo.color_marca_bento, config_catalogo.color_marca_secundario_bento),
         PlantillaCatalogo.LUMINA: (config_catalogo.color_marca_lumina, config_catalogo.color_marca_secundario_lumina),
+        PlantillaCatalogo.KINETIC: (config_catalogo.color_marca_kinetic, ''),
     }
     color_marca_actual, color_marca_secundario_actual = valores_color_por_plantilla.get(
         config_catalogo.plantilla,
@@ -210,6 +211,9 @@ def catalogo_online(request):
         'color_fondo_bento_oscuro_actual': config_catalogo.color_fondo_bento_oscuro,
         'default_color_marca_kinetic': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_KINETIC,
         'default_color_marca_secundario_kinetic': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_KINETIC,
+        # Fondo — exclusivo de Kinetic, mismo criterio que el de Bento arriba.
+        'default_color_fondo_kinetic': ConfiguracionCatalogo.DEFAULT_COLOR_FONDO_KINETIC,
+        'color_fondo_kinetic_actual': config_catalogo.color_fondo_kinetic,
         'default_color_marca_lumina': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_LUMINA,
         'default_color_marca_secundario_lumina': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_LUMINA,
         'default_color_marca_actual': default_color_marca_actual,

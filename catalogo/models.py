@@ -39,6 +39,12 @@ def _catalogo_cta_final_path(instance, filename):
     return f'catalogo/cta-final{ext}'
 
 
+def _catalogo_kinetic_banner_path(instance, filename):
+    import os
+    ext = os.path.splitext(filename)[1].lower()
+    return f'catalogo/kinetic-banner{ext}'
+
+
 def _catalogo_tile_path(instance, filename):
     import os
     ext = os.path.splitext(filename)[1].lower()
@@ -150,8 +156,7 @@ class ConfiguracionCatalogo(models.Model):
     # — Personalización visual/textual — colores de marca, uno por plantilla
     # (cada plantilla tiene su propia identidad, elegir un color en una no
     # debe "contaminar" a las demás). "almacen" usa color_marca/color_marca_
-    # secundario (nombres históricos, sin migrar datos). "kinetic" no suma
-    # campos propios porque no los lee (paleta fija, ver plantillas/kinetic).
+    # secundario (nombres históricos, sin migrar datos).
     color_marca = models.CharField(
         'Color de marca (Almacén)', max_length=7, blank=True,
         help_text='Código hex, ej: #ff9343. Vacío = color por defecto. Botones, precios y detalles.',
@@ -189,6 +194,37 @@ class ConfiguracionCatalogo(models.Model):
         'Color de fondo — modo oscuro (Bento)', max_length=7, blank=True,
         help_text='Código hex. Vacío = color por defecto de Bento.',
     )
+    # Kinetic es siempre oscura (no tiene modo claro/oscuro como Bento) —
+    # un solo campo alcanza. El resto de la paleta (superficies, bordes)
+    # se deriva de este color en CSS con color-mix(), así que un solo hex
+    # mantiene el contraste sin que el dueño tenga que elegir 4 tonos.
+    color_fondo_kinetic = models.CharField(
+        'Color de fondo (Kinetic)', max_length=7, blank=True,
+        help_text='Código hex. Vacío = negro por defecto de Kinetic.',
+    )
+    # Acento principal de Kinetic — campo propio (antes reutilizaba
+    # color_marca de Almacén "para no duplicar campos", pero eso violaba la
+    # independencia de plantillas: cambiar el color de Almacén cambiaba el
+    # de Kinetic sin que nadie lo pidiera, y el panel de admin mostraba/
+    # guardaba el color equivocado al estar parado en la pestaña Kinetic.
+    # El secundario (--k-secondary) sigue fijo a propósito, no tiene campo.
+    color_marca_kinetic = models.CharField(
+        'Color de marca (Kinetic)', max_length=7, blank=True,
+        help_text='Código hex. Vacío = color por defecto de Kinetic.',
+    )
+    # Banner destacado de Kinetic — pieza única (no una lista como
+    # BannerCatalogo/BannerBentoCatalogo) a propósito: Kinetic es minimalista
+    # y esto es una excepción puntual para sumar una foto grande a la home,
+    # no un sistema de banners múltiples. La presencia de la imagen decide
+    # si se muestra, mismo criterio que cta_final_imagen en Bento.
+    kinetic_banner_imagen = models.ImageField(
+        'Imagen — banner destacado (Kinetic)', upload_to=_catalogo_kinetic_banner_path, blank=True, null=True,
+        help_text='Opcional — con imagen cargada, aparece un banner grande debajo del hero.',
+    )
+    kinetic_banner_titulo = models.CharField('Título — banner destacado (Kinetic)', max_length=120, blank=True)
+    kinetic_banner_texto = models.CharField('Texto — banner destacado (Kinetic)', max_length=240, blank=True)
+    kinetic_banner_cta_texto = models.CharField('Texto del botón — banner destacado (Kinetic)', max_length=40, blank=True)
+    kinetic_banner_cta_url = models.CharField('Link del botón — banner destacado (Kinetic)', max_length=300, blank=True)
     nav_catalogo_label = models.CharField('Texto del menú "Catálogo"', max_length=30, blank=True)
     nav_ofertas_label  = models.CharField('Texto del menú "Ofertas"', max_length=30, blank=True)
     nav_combos_label   = models.CharField('Texto del menú "Combos"', max_length=30, blank=True)
@@ -246,12 +282,14 @@ class ConfiguracionCatalogo(models.Model):
     # :root y en html[data-theme="dark"]) — quedar vacío cae en estos.
     DEFAULT_COLOR_FONDO_BENTO = '#faf9f6'
     DEFAULT_COLOR_FONDO_BENTO_OSCURO = '#121320'
-    # "kinetic" no lee estos colores todavía (paleta fija en kinetic.css,
-    # ver plantillas/kinetic/base.html) — quedan acá solo para el día que
-    # se sume personalización de marca a esa plantilla, mismo criterio que
-    # las de arriba.
+    # DEFAULT_COLOR_MARCA_KINETIC respalda a color_marca_kinetic (editable).
+    # El secundario sigue sin campo propio — acento fijo en kinetic.css,
+    # queda acá solo como referencia del valor hardcodeado.
     DEFAULT_COLOR_MARCA_KINETIC = '#ff3366'
     DEFAULT_COLOR_MARCA_SECUNDARIO_KINETIC = '#00e699'
+    # Mismo valor que ya estaba hardcodeado en kinetic.css (--k-bg) — quedar
+    # vacío cae en este.
+    DEFAULT_COLOR_FONDO_KINETIC = '#0d0d0f'
     # Default propio de "lumina" — salvia + terracota, paleta pastel cálida.
     DEFAULT_COLOR_MARCA_LUMINA = '#4a6b5d'
     DEFAULT_COLOR_MARCA_SECUNDARIO_LUMINA = '#e76f51'
@@ -662,6 +700,13 @@ class ItemPedido(models.Model):
     producto = models.ForeignKey(
         'productos.Producto', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
     )
+    # Variante elegida (opcional) — mismo mecanismo que ItemVenta.combinacion
+    # (ventas/models.py), incluido el snapshot en texto para que el pedido
+    # siga siendo legible aunque la combinación se borre/desactive después.
+    combinacion = models.ForeignKey(
+        'productos.CombinacionVariante', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    combinacion_descripcion = models.CharField(max_length=300, blank=True)
     # Snapshot: el pedido tiene que seguir siendo legible aunque el
     # producto se borre o cambie de nombre/precio después.
     producto_nombre = models.CharField(max_length=255, blank=True)
@@ -674,9 +719,13 @@ class ItemPedido(models.Model):
         ordering             = ['id']
 
     def __str__(self):
-        return f'{self.producto_nombre} x{self.cantidad}'
+        combinacion = f' [{self.combinacion_descripcion}]' if self.combinacion_descripcion else ''
+        return f'{self.producto_nombre}{combinacion} x{self.cantidad}'
 
     def save(self, *args, **kwargs):
-        if not self.pk and self.producto and not self.producto_nombre:
-            self.producto_nombre = self.producto.nombre
+        if not self.pk:
+            if self.producto and not self.producto_nombre:
+                self.producto_nombre = self.producto.nombre
+            if self.combinacion and not self.combinacion_descripcion:
+                self.combinacion_descripcion = self.combinacion.descripcion_legible() or ''
         super().save(*args, **kwargs)

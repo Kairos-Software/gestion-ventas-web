@@ -15,16 +15,16 @@
     <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'catalogo/css/kinetic.css' %}">
     <style>
-        /* Mismo campo compartido que ya usa Almacén/Bento (color_marca) —
-           acá pisa el rosa por defecto de Kinetic, para que el dueño pueda
-           hacerlo combinar con su propio logo. El verde (--k-secondary) NO
-           lee color_marca_secundario a propósito: en Almacén/Bento ese campo
-           guarda un tono oscuro (fondo de header/footer), y usado como
-           acento brillante sobre una interfaz ya oscura como la de Kinetic
-           se vuelve ilegible (texto oscuro sobre fondo oscuro) — se necesita
-           un campo propio para eso, no reutilizar ese. */
+        /* Campo propio de Kinetic (color_marca_kinetic) — no reutiliza el
+           color_marca de Almacén. El verde (--k-secondary) sigue fijo, sin
+           campo propio: en Almacén/Bento ese segundo color guarda un tono
+           oscuro (fondo de header/footer), y usado como acento brillante
+           sobre una interfaz ya oscura como la de Kinetic se vuelve
+           ilegible (texto oscuro sobre fondo oscuro) — necesitaría su
+           propio campo si algún día se edita, no reutilizar ese. */
         :root {
-            --k-primary: {{ config_catalogo.color_marca|default:default_color_marca_kinetic }};
+            --k-primary: {{ config_catalogo.color_marca_kinetic|default:default_color_marca_kinetic }};
+            --k-bg: {{ config_catalogo.color_fondo_kinetic|default:default_color_fondo_kinetic }};
         }
     </style>
     {% block extra_css %}{% endblock %}
@@ -53,6 +53,12 @@
                 <a href="{% url 'catalogo:institucional' %}"><span id="kcNavTienda">{{ config_catalogo.nav_tienda_label|default:default_nav_tienda }}</span></a>
             </nav>
 
+            <form class="k-search k-search--header" method="get" action="{% url 'catalogo:home' %}#kcCatalogo" id="kcSearchForm" autocomplete="off">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+                <input type="text" name="q" placeholder="Buscar por nombre o código…" value="{{ request.GET.q }}">
+                <div class="k-search-dropdown" id="kcSearchDropdown"></div>
+            </form>
+
             <div class="k-header-actions">
                 <button type="button" class="k-cart-trigger" id="kcBtnCarrito" aria-label="Ver tu pedido">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 5H4L5.5 13.5H15.5L17 6.5H5"/><circle cx="7.5" cy="17" r="1.15"/><circle cx="14.5" cy="17" r="1.15"/></svg>
@@ -71,7 +77,7 @@
 
     <footer class="k-footer">
         <div class="k-footer-inner">
-            <div class="k-footer-col">
+            <div class="k-footer-col k-footer-col--brand">
                 <div class="k-footer-brand">
                     {% if empresa.logo %}
                         <img src="{{ empresa.logo.url }}" alt="{{ empresa.nombre_comercial }}" class="k-footer-logo">
@@ -95,12 +101,15 @@
                 <a href="{% url 'catalogo:home' %}?seccion=paquetes#kcCatalogo">{{ config_catalogo.nav_combos_label|default:default_nav_combos }}</a>
                 <a href="{% url 'catalogo:institucional' %}">{{ config_catalogo.nav_tienda_label|default:default_nav_tienda }}</a>
             </div>
+            {% if whatsapp_url or empresa.domicilio or empresa.email or config_catalogo.contacto_texto %}
             <div class="k-footer-col">
                 <h4>Contacto</h4>
+                {% if config_catalogo.contacto_texto %}<div>{{ config_catalogo.contacto_texto }}</div>{% endif %}
                 {% if whatsapp_url %}<a href="{{ whatsapp_url }}" target="_blank" rel="noopener">WhatsApp</a>{% endif %}
                 {% if empresa.domicilio %}<div>{{ empresa.domicilio }}</div>{% endif %}
                 {% if empresa.email %}<div>{{ empresa.email }}</div>{% endif %}
             </div>
+            {% endif %}
         </div>
     </footer>
 
@@ -159,11 +168,15 @@
     {{ ofertas_umbral_json|json_script:"kcOfertasUmbral" }}
     {{ ofertas_nxm_json|json_script:"kcOfertasNxm" }}
     <script>
-        window.KC_URLS = { pedidoCrear: "{% url 'catalogo:pedido_crear' %}" };
+        window.KC_URLS = {
+            pedidoCrear: "{% url 'catalogo:pedido_crear' %}",
+            buscarSugerencias: "{% url 'catalogo:buscar_sugerencias' %}"
+        };
         window.KC_OFERTAS_UMBRAL = JSON.parse(document.getElementById('kcOfertasUmbral').textContent) || [];
         window.KC_OFERTAS_NXM = JSON.parse(document.getElementById('kcOfertasNxm').textContent) || [];
     </script>
     <script src="{% static 'catalogo/js/carrito.js' %}"></script>
+    <script src="{% static 'catalogo/js/variantes.js' %}"></script>
     <script src="{% static 'catalogo/js/kinetic.js' %}"></script>
     {% block extra_js %}{% endblock %}
 </body>

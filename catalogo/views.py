@@ -91,6 +91,7 @@ def _contexto_base(request):
         'default_color_fondo_bento_oscuro': ConfiguracionCatalogo.DEFAULT_COLOR_FONDO_BENTO_OSCURO,
         'default_color_marca_kinetic': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_KINETIC,
         'default_color_marca_secundario_kinetic': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_KINETIC,
+        'default_color_fondo_kinetic': ConfiguracionCatalogo.DEFAULT_COLOR_FONDO_KINETIC,
         'default_color_marca_lumina': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_LUMINA,
         'default_color_marca_secundario_lumina': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_LUMINA,
         'default_nav_catalogo': ConfiguracionCatalogo.DEFAULT_NAV_CATALOGO,
@@ -296,13 +297,64 @@ def _hero_producto(ofertas, config):
     return candidato
 
 
-def _disponible_compra(producto):
-    """Tiene precio y no está sin stock — condición para mostrar 'Agregar' en vez de nada."""
+def _disponible_compra(producto, combinacion=None):
+    """Tiene precio y no está sin stock — condición para mostrar 'Agregar' en vez de nada.
+
+    Con `combinacion` (producto que gestiona variantes, una combinación
+    puntual elegida): el stock que cuenta es el de esa combinación, no el
+    agregado del producto — mismo criterio que usa Ventas/POS.
+    """
     if producto.precio_venta is None or producto.estado == EstadoProducto.AGOTADO:
         return False
+    if combinacion is not None:
+        return combinacion.activo and combinacion.stock_actual > 0
     if producto.gestiona_stock and producto.stock_actual <= 0:
         return False
     return True
+
+
+def _variantes_contexto(producto):
+    """
+    Arma la matriz de variantes de un producto para la ficha del catálogo
+    público: qué tipos de variante tiene (Color, Talle...) y qué opciones
+    de CADA UNO aparecen realmente en las combinaciones de ESTE producto
+    (no todo el catálogo global de opciones — un producto puede venir en
+    3 colores de los 20 que existen en el sistema), más la lista de
+    combinaciones activas para que el selector resuelva en el cliente sin
+    pedir nada al servidor (mismo espíritu que ofertas_umbral_json).
+    """
+    combinaciones = list(
+        producto.combinaciones.filter(activo=True).prefetch_related('opciones__opcion__variante')
+    )
+    tipos_por_id = {}
+    combinaciones_json = []
+    for c in combinaciones:
+        opciones_ids = []
+        for rel in sorted(c.opciones.all(), key=lambda r: (r.opcion.variante.orden, r.opcion.orden)):
+            op = rel.opcion
+            tipo = tipos_por_id.setdefault(
+                op.variante_id, {'id': op.variante_id, 'nombre': op.variante.nombre, 'orden': op.variante.orden, 'opciones': {}},
+            )
+            tipo['opciones'][op.id] = (op.orden, op.nombre)
+            opciones_ids.append(op.id)
+        combinaciones_json.append({
+            'pk': c.pk,
+            'opciones': sorted(opciones_ids),
+            'descripcion': c.descripcion_legible(),
+            'stock': float(c.stock_actual),
+            'disponible': c.stock_actual > 0,
+        })
+    tipos = [
+        {
+            'id': t['id'], 'nombre': t['nombre'],
+            'opciones': [
+                {'id': oid, 'nombre': onombre}
+                for oid, (oorden, onombre) in sorted(t['opciones'].items(), key=lambda kv: kv[1][0])
+            ],
+        }
+        for t in sorted(tipos_por_id.values(), key=lambda t: t['orden'])
+    ]
+    return {'tipos': tipos, 'combinaciones': combinaciones_json}
 
 
 def _url_sin(get_params, *campos):
@@ -795,6 +847,8 @@ class ProductoDetalleView(DetailView):
         ctx['es_nuevo'] = _es_nuevo(self.object)
         ctx['disponible_compra'] = _disponible_compra(self.object)
         ctx['tags_producto'] = [t.strip() for t in self.object.tags.split(',') if t.strip()]
+        if self.object.gestiona_variantes:
+            ctx['variantes_json'] = _variantes_contexto(self.object)
         if self.object.es_paquete:
             ctx['componentes'] = list(
                 self.object.componentes.select_related('producto', 'combinacion')

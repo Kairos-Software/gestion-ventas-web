@@ -86,14 +86,32 @@
             {% endif %}
 
             {% if disponible_compra %}
+            {% if producto.gestiona_variantes %}
+            <div class="kc-variantes">
+                {% for tipo in variantes_json.tipos %}
+                <div class="kc-variante-grupo" data-variante-tipo="{{ tipo.id }}">
+                    <span class="kc-variante-tipo-nombre">{{ tipo.nombre }}</span>
+                    <div class="kc-variante-opciones">
+                        {% for opcion in tipo.opciones %}
+                        <button type="button" class="kc-variante-opcion" data-variante-opcion="{{ opcion.id }}">{{ opcion.nombre }}</button>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+                <p class="kc-variante-estado" id="kcVarianteEstado">Elegí una opción</p>
+            </div>
+            {{ variantes_json.combinaciones|json_script:"kcVariantesCombinaciones" }}
+            {% endif %}
             <div class="kc-detalle-agregar" data-carrito-slot>
-                <button type="button" class="kc-btn-agregar kc-btn-agregar--grande"
-                    data-carrito-agregar="{% if producto.es_paquete %}paq{% else %}prod{% endif %}-{{ producto.pk }}"
+                <button type="button" class="kc-btn-agregar kc-btn-agregar--grande" id="btnAgregarDetalle"
+                    {% if not producto.gestiona_variantes %}data-carrito-agregar="{% if producto.es_paquete %}paq{% else %}prod{% endif %}-{{ producto.pk }}"{% endif %}
+                    data-id-base="{% if producto.es_paquete %}paq{% else %}prod{% endif %}-{{ producto.pk }}"
                     data-nombre="{{ producto.nombre }}"
                     data-precio="{{ oferta_info.precio_final|default:producto.precio_venta }}"
                     data-precio-lista="{{ producto.precio_venta }}"
                     data-categoria-id="{{ producto.categoria.pk|default:'' }}"
-                    data-imagen="{% if imagenes %}{{ imagenes.0.imagen.url }}{% endif %}">
+                    data-imagen="{% if imagenes %}{{ imagenes.0.imagen.url }}{% endif %}"
+                    {% if producto.gestiona_variantes %}disabled{% endif %}>
                     Agregar al pedido
                 </button>
             </div>
@@ -209,16 +227,22 @@
                             {% endif %}
                         </div>
                         {% if p.disponible_compra %}
-                        <div data-carrito-slot>
-                            <button type="button" class="kc-rel-btn-agregar" data-carrito-agregar="prod-{{ p.pk }}"
-                                data-nombre="{{ p.nombre }}" data-precio="{{ p.oferta_info.precio_final|default:p.precio_venta }}"
-                                data-precio-lista="{{ p.precio_venta }}"
-                                data-categoria-id="{{ p.categoria.pk|default:'' }}"
-                                data-imagen="{% if p.imagenes.first %}{{ p.imagenes.first.imagen.url }}{% endif %}"
-                                aria-label="Agregar {{ p.nombre }} al pedido">
-                                <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M2 5H4L5.5 13.5H15.5L17 6.5H5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7.5" cy="17" r="1.15" fill="currentColor"/><circle cx="14.5" cy="17" r="1.15" fill="currentColor"/><path d="M13 3v5M10.5 5.5h5" stroke-linecap="round"/></svg>
-                            </button>
-                        </div>
+                            {% if p.gestiona_variantes %}
+                            <a href="{% url 'catalogo:producto_detalle' p.pk %}" class="kc-rel-btn-agregar" aria-label="Ver opciones de {{ p.nombre }}">
+                                <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 5l6 5-6 5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            </a>
+                            {% else %}
+                            <div data-carrito-slot>
+                                <button type="button" class="kc-rel-btn-agregar" data-carrito-agregar="prod-{{ p.pk }}"
+                                    data-nombre="{{ p.nombre }}" data-precio="{{ p.oferta_info.precio_final|default:p.precio_venta }}"
+                                    data-precio-lista="{{ p.precio_venta }}"
+                                    data-categoria-id="{{ p.categoria.pk|default:'' }}"
+                                    data-imagen="{% if p.imagenes.first %}{{ p.imagenes.first.imagen.url }}{% endif %}"
+                                    aria-label="Agregar {{ p.nombre }} al pedido">
+                                    <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M2 5H4L5.5 13.5H15.5L17 6.5H5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7.5" cy="17" r="1.15" fill="currentColor"/><circle cx="14.5" cy="17" r="1.15" fill="currentColor"/><path d="M13 3v5M10.5 5.5h5" stroke-linecap="round"/></svg>
+                                </button>
+                            </div>
+                            {% endif %}
                         {% endif %}
                     </div>
                 </div>

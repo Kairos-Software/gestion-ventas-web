@@ -37,7 +37,10 @@
     }
 
     function _pkDeId(id) {
-        return parseInt(String(id).replace(/^(prod|paq)-/, ''), 10);
+        // Un ítem con variante tiene id "prod-{pk}-combo-{combinacion_pk}"
+        // — el "-combo-N" se pela antes de sacar el pk, así las ofertas
+        // NXM/umbral (que matchean por producto) siguen andando igual.
+        return parseInt(String(id).replace(/-combo-\d+$/, '').replace(/^(prod|paq)-/, ''), 10);
     }
 
     function agregar(id, datos) {
@@ -49,6 +52,8 @@
         actual.precioLista = datos.precioLista;
         actual.categoriaId = datos.categoriaId;
         actual.imagen = datos.imagen;
+        actual.combinacionId = datos.combinacionId || null;
+        actual.varianteLabel = datos.varianteLabel || '';
         carrito[id] = actual;
         guardar(carrito);
         render();
@@ -199,6 +204,9 @@
                     var nxmTag = efectivo.oferta
                         ? '<span class="kc-drawer-item-oferta">' + efectivo.oferta.cantidad_lleva + 'x' + efectivo.oferta.cantidad_paga + ' aplicado</span>'
                         : '';
+                    var varianteTag = item.varianteLabel
+                        ? '<span class="kc-drawer-item-variante">' + item.varianteLabel + '</span>'
+                        : '';
                     return (
                         '<div class="kc-drawer-item">' +
                         '<div class="kc-drawer-item-img">' + img + '</div>' +
@@ -209,6 +217,7 @@
                         '<svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M1 1L11 11M11 1L1 11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>' +
                         '</button>' +
                         '</div>' +
+                        varianteTag +
                         nxmTag +
                         '<div class="kc-drawer-item-row">' +
                         '<div class="kc-stepper">' +
@@ -254,6 +263,8 @@
                 precioLista: parseFloat(btnAgregar.dataset.precioLista || btnAgregar.dataset.precio),
                 categoriaId: btnAgregar.dataset.categoriaId ? Number(btnAgregar.dataset.categoriaId) : null,
                 imagen: btnAgregar.dataset.imagen || '',
+                combinacionId: btnAgregar.dataset.combinacionId ? Number(btnAgregar.dataset.combinacionId) : null,
+                varianteLabel: btnAgregar.dataset.varianteLabel || '',
             });
             return;
         }
@@ -298,7 +309,11 @@
 
         var carrito = leer();
         var items = Object.keys(carrito).map(function (id) {
-            return { producto_id: _pkDeId(id), cantidad: carrito[id].cantidad };
+            return {
+                producto_id: _pkDeId(id),
+                cantidad: carrito[id].cantidad,
+                combinacion_id: carrito[id].combinacionId || null,
+            };
         });
 
         var boton = document.getElementById('kcBtnConfirmarPedido');

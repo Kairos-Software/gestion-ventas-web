@@ -322,6 +322,8 @@ html[data-theme="dark"] .kc-bento .theme-switch i{ left:20px; background:var(--l
 .kc-bento .tile-agregar{ margin-top:6px; }
 .kc-bento .tile-agregar button{ width:100%; padding:8px; border-radius:var(--r-sm); background:var(--lime); color:#fff; font-weight:700; font-size:12px; }
 .kc-bento .tile-agregar button:hover{ background:var(--lime-dark); }
+.kc-bento .tile-agregar--opciones{ display:block; width:100%; padding:8px; border-radius:var(--r-sm); background:var(--lime); color:#fff; font-weight:700; font-size:12px; text-align:center; text-decoration:none; transition:.15s; }
+.kc-bento .tile-agregar--opciones:hover{ background:var(--lime-dark); }
 .kc-bento .kc-en-pedido{ display:block; font-size:10.5px; font-weight:700; color:var(--lime-dark); margin-top:4px; }
 
 /* ================= Franja de confianza ================= */
@@ -458,6 +460,7 @@ html[data-theme="dark"] .kc-bento .theme-switch i{ left:20px; background:var(--l
 .kc-bento .kc-drawer-item-quitar{ color:var(--ink-faint); padding:2px; flex-shrink:0; }
 .kc-bento .kc-drawer-item-quitar:hover{ color:var(--red); }
 .kc-bento .kc-drawer-item-oferta{ display:inline-block; font-family:var(--f-mono); font-size:10px; color:var(--lime-dark); background:var(--lime-soft); border-radius:var(--r-sm); padding:1px 6px; margin-top:3px; }
+.kc-bento .kc-drawer-item-variante{ display:block; font-family:var(--f-mono); font-size:11px; color:var(--ink-faint); margin:1px 0 2px; }
 .kc-bento .kc-drawer-item-row{ display:flex; align-items:center; justify-content:space-between; margin-top:6px; }
 .kc-bento .kc-stepper{ display:flex; align-items:center; border:1.5px solid var(--line); border-radius:var(--r-sm); }
 .kc-bento .kc-stepper button{ width:28px; height:28px; display:flex; align-items:center; justify-content:center; }
@@ -551,7 +554,21 @@ html[data-theme="dark"] .kc-bento .theme-switch i{ left:20px; background:var(--l
 
 .kc-bento .kc-detalle-agregar{ margin:0 0 18px; }
 .kc-bento .kc-detalle-agregar button{ width:100%; padding:14px 28px; border-radius:var(--r-sm); background:var(--lime); color:#fff; font-weight:700; font-size:14px; }
-.kc-bento .kc-detalle-agregar button:hover{ background:var(--lime-dark); }
+.kc-bento .kc-detalle-agregar button:hover:not(:disabled){ background:var(--lime-dark); }
+.kc-bento .kc-detalle-agregar button:disabled{ opacity:.5; cursor:not-allowed; }
+
+/* Selector de variantes (color/sabor/talle) — mismo lenguaje mosaico/lima
+   que el resto de Bento. La lógica de click/resolución vive en
+   variantes.js (compartida con las otras plantillas), acá solo el
+   aspecto. */
+.kc-bento .kc-variantes{ margin:0 0 16px; }
+.kc-bento .kc-variante-grupo{ margin-bottom:12px; }
+.kc-bento .kc-variante-tipo-nombre{ display:block; font-size:12px; font-weight:700; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.03em; margin-bottom:6px; }
+.kc-bento .kc-variante-opciones{ display:flex; flex-wrap:wrap; gap:8px; }
+.kc-bento .kc-variante-opcion{ font-size:13px; font-weight:600; padding:8px 15px; border-radius:var(--r-pill); border:1.5px solid var(--line); background:var(--surface); color:var(--ink); transition:.15s; }
+.kc-bento .kc-variante-opcion:hover{ border-color:var(--lime); }
+.kc-bento .kc-variante-opcion.kc-variante-activa{ border-color:var(--lime); background:var(--lime); color:#fff; }
+.kc-bento .kc-variante-estado{ font-size:12.5px; color:var(--ink-faint); margin:6px 0 0; }
 
 .kc-bento .kc-detalle-tags{ display:flex; gap:7px; flex-wrap:wrap; margin-top:18px; }
 .kc-bento .kc-tag-chip{ font-size:11.5px; font-weight:600; color:var(--ink-soft); background:var(--surface-2); border:1px solid var(--line); border-radius:var(--r-pill); padding:4px 11px; }

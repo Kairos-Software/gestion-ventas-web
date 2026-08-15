@@ -20,6 +20,7 @@ urlpatterns = [
     path('config/hero-spot2-imagen/', views_config.CatalogoConfigHeroSpot2ImagenAjax.as_view(), name='config_hero_spot2_imagen'),
     path('config/cta-final-imagen/', views_config.CatalogoConfigCtaFinalImagenAjax.as_view(), name='config_cta_final_imagen'),
     path('config/kinetic-hero-fondo/', views_config.CatalogoKineticHeroFondoAjax.as_view(), name='config_kinetic_hero_fondo'),
+    path('config/kinetic-banner-imagen/', views_config.CatalogoConfigKineticBannerImagenAjax.as_view(), name='config_kinetic_banner_imagen'),
     path('config/slides/guardar/', views_config.CatalogoSlideGuardarAjax.as_view(), name='config_slide_guardar'),
     path('config/slides/imagen/', views_config.CatalogoSlideImagenAjax.as_view(), name='config_slide_imagen'),
     path('config/slides/eliminar/', views_config.CatalogoSlideEliminarAjax.as_view(), name='config_slide_eliminar'),

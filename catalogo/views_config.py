@@ -56,7 +56,9 @@ class CatalogoConfigGuardarAjax(LoginRequiredMixin, View):
         for campo in (
             'color_marca_bento', 'color_marca_secundario_bento',
             'color_marca_lumina', 'color_marca_secundario_lumina',
+            'color_marca_kinetic',
             'color_fondo_bento', 'color_fondo_bento_oscuro',
+            'color_fondo_kinetic',
         ):
             valor = (body.get(campo) or '').strip()
             if valor and not re.fullmatch(r'#[0-9a-fA-F]{6}', valor):
@@ -98,8 +100,14 @@ class CatalogoConfigGuardarAjax(LoginRequiredMixin, View):
         config.color_marca_secundario_bento   = colores_por_plantilla['color_marca_secundario_bento']
         config.color_marca_lumina             = colores_por_plantilla['color_marca_lumina']
         config.color_marca_secundario_lumina  = colores_por_plantilla['color_marca_secundario_lumina']
+        config.color_marca_kinetic            = colores_por_plantilla['color_marca_kinetic']
         config.color_fondo_bento              = colores_por_plantilla['color_fondo_bento']
         config.color_fondo_bento_oscuro       = colores_por_plantilla['color_fondo_bento_oscuro']
+        config.color_fondo_kinetic            = colores_por_plantilla['color_fondo_kinetic']
+        config.kinetic_banner_titulo    = (body.get('kinetic_banner_titulo') or '').strip()[:120]
+        config.kinetic_banner_texto     = (body.get('kinetic_banner_texto') or '').strip()[:240]
+        config.kinetic_banner_cta_texto = (body.get('kinetic_banner_cta_texto') or '').strip()[:40]
+        config.kinetic_banner_cta_url   = (body.get('kinetic_banner_cta_url') or '').strip()[:300]
         config.nav_catalogo_label = (body.get('nav_catalogo_label') or '').strip()[:30]
         config.nav_ofertas_label  = (body.get('nav_ofertas_label') or '').strip()[:30]
         config.nav_combos_label   = (body.get('nav_combos_label') or '').strip()[:30]
@@ -280,6 +288,43 @@ class CatalogoConfigCtaFinalImagenAjax(LoginRequiredMixin, View):
     def _borrar_archivo_actual(self, config):
         if config.cta_final_imagen and os.path.isfile(config.cta_final_imagen.path):
             os.remove(config.cta_final_imagen.path)
+
+
+class CatalogoConfigKineticBannerImagenAjax(LoginRequiredMixin, View):
+    """POST (FormData, campo 'imagen') = subir/reemplazar la imagen del banner destacado (Kinetic). DELETE = quitarla."""
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        archivo = request.FILES.get('imagen')
+        if not archivo:
+            return JsonResponse({'error': 'No se recibió ningún archivo.'}, status=400)
+        ext = os.path.splitext(archivo.name)[1].lower()
+        if ext not in EXTENSIONES_PERMITIDAS:
+            return JsonResponse({'error': 'Usá JPG, PNG o WEBP.'}, status=400)
+
+        archivo = comprimir_imagen_subida(archivo)
+
+        config = ConfiguracionCatalogo.get_solo()
+        self._borrar_archivo_actual(config)
+        config.kinetic_banner_imagen = archivo
+        config.save(update_fields=['kinetic_banner_imagen'])
+        return JsonResponse({'ok': True, 'imagen_url': config.kinetic_banner_imagen.url})
+
+    def delete(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        config = ConfiguracionCatalogo.get_solo()
+        self._borrar_archivo_actual(config)
+        config.kinetic_banner_imagen = None
+        config.save(update_fields=['kinetic_banner_imagen'])
+        return JsonResponse({'ok': True})
+
+    def _borrar_archivo_actual(self, config):
+        if config.kinetic_banner_imagen and os.path.isfile(config.kinetic_banner_imagen.path):
+            os.remove(config.kinetic_banner_imagen.path)
 
 
 class CatalogoKineticHeroFondoAjax(LoginRequiredMixin, View):

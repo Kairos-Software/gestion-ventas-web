@@ -63,3 +63,68 @@
     overlay.addEventListener('click', cerrarPanel);
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') cerrarPanel(); });
 })();
+
+/* Desplegable de sugerencias en vivo del buscador del header — mismo
+   patrón/endpoint que catalogo.js (Almacén) y bento.js (Bento), cada
+   plantilla con su propia copia porque los nombres de clase/ids del
+   buscador son propios de cada una. */
+(function () {
+    var form = document.getElementById('kcSearchForm');
+    var input = form ? form.querySelector('input[name="q"]') : null;
+    var dropdown = document.getElementById('kcSearchDropdown');
+    if (!form || !input || !dropdown || !window.KC_URLS || !window.KC_URLS.buscarSugerencias) return;
+
+    var timer = null;
+
+    function urlResultados() {
+        var base = form.action.split('#')[0].split('?')[0];
+        return base + '?q=' + encodeURIComponent(input.value.trim()) + '#kcCatalogo';
+    }
+
+    function ocultar() {
+        dropdown.classList.remove('k-search-dropdown--abierto');
+        dropdown.innerHTML = '';
+    }
+
+    function escapeHtml(s) {
+        var div = document.createElement('div');
+        div.textContent = s;
+        return div.innerHTML;
+    }
+
+    function render(resultados) {
+        if (!resultados.length) { ocultar(); return; }
+        var destino = urlResultados();
+        var html = resultados.map(function (r) {
+            return '<a class="k-search-dropdown-item" href="' + destino + '">' +
+                '<span class="k-search-dropdown-img">' + (r.imagen ? '<img src="' + r.imagen + '" alt="">' : '') + '</span>' +
+                '<span class="k-search-dropdown-info">' +
+                    '<span class="k-search-dropdown-nombre">' + escapeHtml(r.nombre) + '</span>' +
+                    '<span class="k-search-dropdown-precio">' + escapeHtml(r.precio) + '</span>' +
+                '</span>' +
+            '</a>';
+        }).join('');
+        html += '<a class="k-search-dropdown-vertodos" href="' + destino + '">Ver todos los resultados →</a>';
+        dropdown.innerHTML = html;
+        dropdown.classList.add('k-search-dropdown--abierto');
+    }
+
+    input.addEventListener('input', function () {
+        clearTimeout(timer);
+        var q = input.value.trim();
+        if (q.length < 2) { ocultar(); return; }
+        timer = setTimeout(function () {
+            fetch(window.KC_URLS.buscarSugerencias + '?q=' + encodeURIComponent(q))
+                .then(function (r) { return r.json(); })
+                .then(function (data) { render(data.resultados || []); })
+                .catch(function () { ocultar(); });
+        }, 250);
+    });
+
+    document.addEventListener('click', function (e) {
+        if (!form.contains(e.target)) ocultar();
+    });
+    input.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') ocultar();
+    });
+})();

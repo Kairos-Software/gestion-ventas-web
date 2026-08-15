@@ -319,6 +319,7 @@
 .kc-lumina .kc-drawer-item-top { display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem; }
 .kc-lumina .kc-drawer-item-nombre { font-size: .87rem; font-weight: 700; color: var(--l-text); }
 .kc-lumina .kc-drawer-item-oferta { font-size: .68rem; font-weight: 700; color: var(--l-secondary); text-transform: uppercase; }
+.kc-lumina .kc-drawer-item-variante { display: block; font-size: .74rem; color: var(--l-text-muted); margin: 1px 0 2px; }
 .kc-lumina .kc-drawer-item-quitar { width: 24px; height: 24px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: var(--l-text-muted); border-radius: 50%; background: none; border: none; }
 .kc-lumina .kc-drawer-item-quitar:hover { background: var(--l-surface-alt); color: #d64545; }
 .kc-lumina .kc-drawer-item-row { display: flex; justify-content: space-between; align-items: center; }

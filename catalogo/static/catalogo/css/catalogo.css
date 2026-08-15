@@ -886,6 +886,21 @@ img { max-width: 100%; display: block; }
 .kc-detalle-precio { display: flex; align-items: baseline; gap: 0.7rem; flex-wrap: wrap; }
 .kc-detalle-ahorro { display: flex; align-items: center; gap: 0.35rem; font-size: 0.78rem; font-weight: 600; color: var(--primary-dark); margin-top: 0.4rem; }
 .kc-detalle-agregar { margin-top: 0.5rem; max-width: 320px; }
+.kc-btn-agregar:disabled { opacity: .5; cursor: not-allowed; }
+.kc-btn-agregar:disabled:hover { background: var(--primary-soft); color: var(--primary-dark); box-shadow: none; }
+
+/* Selector de variantes (color/sabor/talle) — pills redondeados, mismo
+   lenguaje que el resto del kit de Almacén. La lógica de click/resolución
+   vive en variantes.js (compartida con las otras plantillas), acá solo
+   el aspecto. */
+.kc-variantes { margin: 0.6rem 0 1rem; }
+.kc-variante-grupo { margin-bottom: 0.85rem; }
+.kc-variante-tipo-nombre { display: block; font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.02em; margin-bottom: 0.4rem; }
+.kc-variante-opciones { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.kc-variante-opcion { font-size: 0.85rem; font-weight: 600; padding: 0.5rem 1rem; border-radius: var(--radius-sm); border: 1.5px solid var(--line-soft); background: var(--surface); color: var(--ink); transition: .15s; }
+.kc-variante-opcion:hover { border-color: var(--primary); }
+.kc-variante-opcion.kc-variante-activa { border-color: var(--primary); background: var(--primary); color: #fff; }
+.kc-variante-estado { font-size: 0.8rem; color: var(--text-muted); margin: 0.3rem 0 0; }
 .kc-detalle-trust {
     margin-top: 1.1rem; padding-top: 1rem; border-top: 1px solid var(--line-soft);
     display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; text-align: center;
@@ -1015,6 +1030,7 @@ img { max-width: 100%; display: block; }
 .kc-drawer-item-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem; }
 .kc-drawer-item-nombre { font-size: 0.85rem; font-weight: 700; }
 .kc-drawer-item-oferta { font-size: 0.68rem; font-weight: 700; color: var(--success); text-transform: uppercase; letter-spacing: 0.02em; }
+.kc-drawer-item-variante { display: block; font-size: 0.72rem; color: var(--text-muted); margin: 1px 0 2px; }
 .kc-drawer-item-quitar {
     flex-shrink: 0;
     width: 20px;

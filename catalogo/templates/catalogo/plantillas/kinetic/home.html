@@ -29,6 +29,22 @@
         </div>
     </section>
 
+    {% if mostrar_vidriera and ofertas_destacadas %}
+    <section class="k-ticker-sec">
+        <span class="k-mono-eyebrow"><span class="k-status-dot" style="background:var(--k-primary); box-shadow:0 0 8px var(--k-primary);"></span> OFERTAS ACTIVAS · EN VIVO</span>
+        <div class="k-ticker-table">
+            {% for p in ofertas_destacadas %}
+            <a href="{% url 'catalogo:producto_detalle' p.pk %}" class="k-ticker-row">
+                <span class="k-ticker-name">{{ p.nombre }}</span>
+                <span class="k-ticker-price">${{ p.oferta_info.precio_final }}<s>${{ p.precio_venta }}</s></span>
+                <span class="k-ticker-off">{{ p.oferta_info.badge }}</span>
+                <span class="k-ticker-arrow">→</span>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
     {% if marcas %}
     <section class="k-marquee" aria-label="Marcas disponibles en el catálogo">
         <div class="k-marquee-track">
@@ -38,12 +54,21 @@
     </section>
     {% endif %}
 
-    <section class="k-toolbar" id="kcCatalogo">
-        <form class="k-search" method="get" action="{% url 'catalogo:home' %}#kcCatalogo">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-            <input type="text" name="q" placeholder="Buscar por nombre o código…" value="{{ request.GET.q }}">
-        </form>
+    {% if mostrar_vidriera and categorias %}
+    <section class="k-dir-sec">
+        <span class="k-mono-eyebrow">/ CATEGORÍAS</span>
+        <div class="k-dir-grid">
+            {% for cat in categorias %}
+            <a href="{{ cat.url }}" class="k-dir-item">
+                <span class="k-dir-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg></span>
+                <span class="k-dir-info"><span class="k-dir-name">{{ cat.nombre|lower }}/</span><span class="k-dir-count">{{ cat.cantidad }} producto{{ cat.cantidad|pluralize }}</span></span>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
 
+    <section class="k-toolbar" id="kcCatalogo">
         <div class="k-toolbar-actions">
             <button type="button" class="k-btn-filtros" id="kcFiltrosToggle">
                 <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 5H15M5.5 9H12.5M7.5 13H10.5" stroke-linecap="round"/></svg>
@@ -99,6 +124,29 @@
         {% if pagina.has_next %}<a href="{{ url_pagina_siguiente }}" class="k-pagina-flecha" aria-label="Página siguiente">›</a>{% endif %}
     </nav>
     {% endif %}
+    {% endif %}
+
+    {% if config_catalogo.kinetic_banner_imagen %}
+    <section class="k-banner-kinetic" style="--k-banner-url:url('{{ config_catalogo.kinetic_banner_imagen.url }}');">
+        <div class="k-banner-kinetic-overlay">
+            {% if config_catalogo.kinetic_banner_titulo %}<h2 id="kcKineticBannerTitulo">{{ config_catalogo.kinetic_banner_titulo }}</h2>{% endif %}
+            {% if config_catalogo.kinetic_banner_texto %}<p id="kcKineticBannerTexto">{{ config_catalogo.kinetic_banner_texto }}</p>{% endif %}
+            {% if config_catalogo.kinetic_banner_cta_texto and config_catalogo.kinetic_banner_cta_url %}
+                <a href="{{ config_catalogo.kinetic_banner_cta_url }}" class="k-hero-cta k-hero-cta--primary">{{ config_catalogo.kinetic_banner_cta_texto }} →</a>
+            {% endif %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if mostrar_vidriera and destacados %}
+    <section class="k-destacados-sec">
+        <span class="k-mono-eyebrow">📌 FIJADOS POR EL EQUIPO</span>
+        <div class="k-rail-scroll">
+            {% for p in destacados %}
+                {% include 'catalogo/plantillas/kinetic/_product_card.html' with p=p %}
+            {% endfor %}
+        </div>
+    </section>
     {% endif %}
 
     {% if mostrar_paquetes and paquetes %}

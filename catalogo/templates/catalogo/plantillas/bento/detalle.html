@@ -106,14 +106,32 @@
             {% endif %}
 
             {% if disponible_compra %}
+            {% if producto.gestiona_variantes %}
+            <div class="kc-variantes">
+                {% for tipo in variantes_json.tipos %}
+                <div class="kc-variante-grupo" data-variante-tipo="{{ tipo.id }}">
+                    <span class="kc-variante-tipo-nombre">{{ tipo.nombre }}</span>
+                    <div class="kc-variante-opciones">
+                        {% for opcion in tipo.opciones %}
+                        <button type="button" class="kc-variante-opcion" data-variante-opcion="{{ opcion.id }}">{{ opcion.nombre }}</button>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+                <p class="kc-variante-estado" id="kcVarianteEstado">Elegí una opción</p>
+            </div>
+            {{ variantes_json.combinaciones|json_script:"kcVariantesCombinaciones" }}
+            {% endif %}
             <div class="kc-detalle-agregar" data-carrito-slot>
-                <button type="button"
-                    data-carrito-agregar="{% if producto.es_paquete %}paq{% else %}prod{% endif %}-{{ producto.pk }}"
+                <button type="button" id="btnAgregarDetalle"
+                    {% if not producto.gestiona_variantes %}data-carrito-agregar="{% if producto.es_paquete %}paq{% else %}prod{% endif %}-{{ producto.pk }}"{% endif %}
+                    data-id-base="{% if producto.es_paquete %}paq{% else %}prod{% endif %}-{{ producto.pk }}"
                     data-nombre="{{ producto.nombre }}"
                     data-precio="{{ oferta_info.precio_final|default:producto.precio_venta }}"
                     data-precio-lista="{{ producto.precio_venta }}"
                     data-categoria-id="{{ producto.categoria.pk|default:'' }}"
-                    data-imagen="{% if imagenes %}{{ imagenes.0.imagen.url }}{% endif %}">
+                    data-imagen="{% if imagenes %}{{ imagenes.0.imagen.url }}{% endif %}"
+                    {% if producto.gestiona_variantes %}disabled{% endif %}>
                     Agregar al pedido
                 </button>
             </div>

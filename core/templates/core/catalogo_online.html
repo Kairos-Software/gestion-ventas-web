@@ -123,6 +123,49 @@
                             <span class="config-row-desc">Opcional — si no se carga, el hero se ve igual que ahora, sin fondo.</span>
                         </div>
                     </div>
+
+                    <div class="config-section">
+                        <div class="config-section-header">
+                            <div>
+                                <h2>Banner destacado</h2>
+                                <p>Una foto grande debajo del hero, con título y botón opcionales</p>
+                            </div>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start; gap:0.6rem;">
+                            <span class="config-row-label">Imagen</span>
+                            <div style="display:flex; align-items:center; gap:1rem;">
+                                <div class="config-logo-box" id="catalogoKineticBannerPreviewBox">
+                                    {% if configuracion_catalogo.kinetic_banner_imagen %}
+                                        <img src="{{ configuracion_catalogo.kinetic_banner_imagen.url }}" alt="Banner destacado">
+                                    {% else %}
+                                        <span style="font-size:0.7rem; color:var(--text-muted);">Sin imagen</span>
+                                    {% endif %}
+                                </div>
+                                <input type="file" id="inputCatalogoKineticBanner" accept=".jpg,.jpeg,.png,.webp" style="display:none;">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('inputCatalogoKineticBanner').click()">Subir / cambiar</button>
+                                <button type="button" id="btnEliminarCatalogoKineticBanner" class="btn btn-sm btn-outline-danger" {% if not configuracion_catalogo.kinetic_banner_imagen %}style="display:none;"{% endif %}>Eliminar</button>
+                            </div>
+                            <span class="config-row-desc">Sin imagen cargada, el banner no aparece — es 100% opcional.</span>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                            <label class="config-row-label" for="idCatalogoKineticBannerTitulo">Título</label>
+                            <input class="form-control" id="idCatalogoKineticBannerTitulo" value="{{ configuracion_catalogo.kinetic_banner_titulo }}" maxlength="120" placeholder="Ej: Nuevo ingreso de temporada">
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                            <label class="config-row-label" for="idCatalogoKineticBannerTexto">Texto</label>
+                            <input class="form-control" id="idCatalogoKineticBannerTexto" value="{{ configuracion_catalogo.kinetic_banner_texto }}" maxlength="240" placeholder="Bajada corta, opcional">
+                        </div>
+                        <div class="config-row co-row-grid2">
+                            <div class="co-campo-corto">
+                                <label class="config-row-label" for="idCatalogoKineticBannerCtaTexto">Texto del botón</label>
+                                <input class="form-control" id="idCatalogoKineticBannerCtaTexto" value="{{ configuracion_catalogo.kinetic_banner_cta_texto }}" maxlength="40" placeholder="Ej: Ver más">
+                            </div>
+                            <div class="co-campo-corto">
+                                <label class="config-row-label" for="idCatalogoKineticBannerCtaUrl">Link del botón</label>
+                                <input class="form-control" id="idCatalogoKineticBannerCtaUrl" value="{{ configuracion_catalogo.kinetic_banner_cta_url }}" maxlength="300" placeholder="Vacío = sin botón">
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- ── Panel: Carrusel — propio de la plantilla "Bento" ── -->
@@ -180,7 +223,7 @@
                      cerca del final, historia/banda al cierre. No hay "categorías/marcas
                      destacadas" acá — Bento ya navega categorías por el rail de stories y
                      marcas por la fila de logos, esa sección se sacó por redundante. ── -->
-                <div class="co-panel" data-panel="contenidohome" style="display:none;">
+                <div class="co-panel" data-panel="contenidohome" data-plantilla="bento" style="display:none;">
                     <p class="config-row-desc" style="padding:0 0 0.5rem;">
                         Esta sección es específica de la plantilla <strong>Bento</strong> — lo que cargues
                         acá solo se ve en tu catálogo si Bento es la plantilla guardada (pestaña
@@ -558,6 +601,14 @@
                                     <button type="button" id="btnResetColorFondoOscuro" class="btn btn-sm btn-outline-secondary">Restablecer</button>
                                 </div>
                             </div>
+                            <div class="co-campo-color" data-plantilla-oculta="almacen,bento,lumina">
+                                <label class="config-row-label">Fondo (Kinetic)</label>
+                                <span class="config-row-desc">El negro de fondo de toda la página</span>
+                                <div class="co-color-control">
+                                    <input type="color" id="idCatalogoColorFondoKinetic" value="{{ color_fondo_kinetic_actual|default:default_color_fondo_kinetic }}">
+                                    <button type="button" id="btnResetColorFondoKinetic" class="btn btn-sm btn-outline-secondary">Restablecer</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -791,7 +842,7 @@
                         <button type="button" class="co-tab" data-tab="hero" data-plantilla-tab="almacen" data-preview="home">Hero</button>
                         <button type="button" class="co-tab" data-tab="fondo" data-plantilla-tab="kinetic" data-preview="home">Fondo</button>
                         <button type="button" class="co-tab" data-tab="carrusel" data-plantilla-tab="bento" data-preview="home">Carrusel</button>
-                        <button type="button" class="co-tab" data-tab="contenidohome" data-preview="home">Contenido de home</button>
+                        <button type="button" class="co-tab" data-tab="contenidohome" data-plantilla-tab="bento" data-preview="home">Contenido de home</button>
                         <button type="button" class="co-tab" data-tab="apariencia" data-preview="home">Apariencia</button>
                         <button type="button" class="co-tab" data-tab="tienda" data-preview="institucional">La tienda</button>
                         <button type="button" class="co-tab" data-tab="contacto" data-preview="institucional">Contacto</button>
@@ -1154,6 +1205,7 @@
         heroSpot2Imagen:   "{% url 'catalogo:config_hero_spot2_imagen' %}",
         ctaFinalImagen:    "{% url 'catalogo:config_cta_final_imagen' %}",
         kineticHeroFondo:  "{% url 'catalogo:config_kinetic_hero_fondo' %}",
+        kineticBannerImagen: "{% url 'catalogo:config_kinetic_banner_imagen' %}",
         institucionalImagen: "{% url 'catalogo:config_institucional_imagen' %}",
     };
     // Mismos textos de fallback que usa el template público (ConfiguracionCatalogo.
@@ -1169,6 +1221,7 @@
         colorMarcaSecundarioBento: "{{ default_color_marca_secundario_bento|escapejs }}",
         colorFondoBento: "{{ default_color_fondo_bento|escapejs }}",
         colorFondoOscuroBento: "{{ default_color_fondo_bento_oscuro|escapejs }}",
+        colorFondoKinetic: "{{ default_color_fondo_kinetic|escapejs }}",
         colorMarcaKinetic: "{{ default_color_marca_kinetic|escapejs }}",
         colorMarcaSecundarioKinetic: "{{ default_color_marca_secundario_kinetic|escapejs }}",
         colorMarcaLumina: "{{ default_color_marca_lumina|escapejs }}",
@@ -1208,6 +1261,10 @@
         lumina: {
             marca: "{{ configuracion_catalogo.color_marca_lumina|escapejs }}",
             secundario: "{{ configuracion_catalogo.color_marca_secundario_lumina|escapejs }}",
+        },
+        kinetic: {
+            marca: "{{ configuracion_catalogo.color_marca_kinetic|escapejs }}",
+            fondo: "{{ configuracion_catalogo.color_fondo_kinetic|escapejs }}",
         },
     };
     window.CONFIG_SLIDES_URLS = {

@@ -98,7 +98,22 @@ class CrearPedidoAjax(View):
                 continue
 
             producto = productos_disponibles.filter(pk=producto_id).first()
-            if not producto or not _disponible_compra(producto):
+            if not producto:
+                continue
+
+            # Producto con variantes: la combinación puntual es obligatoria
+            # y define la disponibilidad (el stock del producto es solo el
+            # agregado). Sin variantes, sigue el criterio de siempre.
+            combinacion = None
+            if producto.gestiona_variantes:
+                combinacion_id = item.get('combinacion_id')
+                if not combinacion_id:
+                    continue
+                combinacion = producto.combinaciones.filter(pk=combinacion_id, activo=True).first()
+                if not combinacion:
+                    continue
+
+            if not _disponible_compra(producto, combinacion):
                 continue
 
             oferta_info = _info_oferta(producto, ofertas, cantidad=cantidad)
@@ -106,7 +121,10 @@ class CrearPedidoAjax(View):
             if precio is None:
                 continue
 
-            items_a_crear.append({'producto': producto, 'cantidad': cantidad, 'precio_unitario': precio})
+            items_a_crear.append({
+                'producto': producto, 'combinacion': combinacion,
+                'cantidad': cantidad, 'precio_unitario': precio,
+            })
 
         if not items_a_crear:
             return JsonResponse(
@@ -124,7 +142,7 @@ class CrearPedidoAjax(View):
             )
             for it in items_a_crear:
                 ItemPedido.objects.create(
-                    pedido=pedido, producto=it['producto'],
+                    pedido=pedido, producto=it['producto'], combinacion=it['combinacion'],
                     cantidad=it['cantidad'], precio_unitario=it['precio_unitario'],
                 )
 
@@ -215,7 +233,7 @@ class PedidoVenderAjax(LoginRequiredMixin, View):
                     if not item.producto_id:
                         continue  # el producto se borró después del pedido — no hay nada que cargar
                     ItemVenta.objects.create(
-                        venta=venta, producto=item.producto,
+                        venta=venta, producto=item.producto, combinacion=item.combinacion,
                         cantidad=item.cantidad, precio_unitario=item.precio_unitario,
                     )
                 pedido.venta = venta

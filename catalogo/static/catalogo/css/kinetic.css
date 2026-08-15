@@ -1,17 +1,19 @@
 /* Plantilla "Kinetic" — estética industrial/ERP oscura, adaptada del diseño
    de referencia del cliente. Todo bajo .kc-kinetic (en <body>), mismo
    criterio de scope que bento.css, para no pisar estilos de otras páginas.
-   --k-primary NO se define acá (ver :root más abajo): tiene que quedar
-   declarada en :root, no en .kc-kinetic (body), para que catalogo_online.js
-   pueda pisarla en vivo con doc.documentElement.style.setProperty(...) sin
-   guardar — si estuviera en .kc-kinetic, la propia declaración del body le
-   gana a la heredada de :root pase lo que pase (ver base.html). */
-:root { --k-primary: #ff3366; }
+   --k-primary/--k-bg NO se definen acá (ver :root más abajo): tienen que
+   quedar declaradas en :root, no en .kc-kinetic (body), para que
+   catalogo_online.js pueda pisarlas en vivo con
+   doc.documentElement.style.setProperty(...) sin guardar — si estuvieran en
+   .kc-kinetic, la propia declaración del body le gana a la heredada de
+   :root pase lo que pase (ver base.html). El resto de la paleta (superficies,
+   bordes) sí queda fija acá: --k-bg solo cambia el color de fondo de la
+   página en sí, mismo criterio que --paper en Bento (ver bento.css). */
+:root { --k-primary: #ff3366; --k-bg: #0d0d0f; }
 
 .kc-kinetic {
     margin: 0;
     overflow-x: hidden;
-    --k-bg: #0d0d0f;
     --k-surface: #15161a;
     --k-surface-card: #1c1d22;
     --k-border: #2e3038;
@@ -96,6 +98,14 @@
 .kc-kinetic .k-btn-login:hover { background: var(--k-primary-dark); transform: translateY(-2px); }
 .kc-kinetic .k-btn-login svg { width: 15px; height: 15px; flex-shrink: 0; }
 
+/* Buscador del encabezado — mismo .k-search del toolbar (ver más abajo),
+   acá solo se acota el ancho para convivir con nav + acciones en una sola
+   fila. Sticky en el header: siempre a mano, sin tener que scrollear hasta
+   el toolbar de la grilla. Nunca se oculta en mobile (a diferencia del nav) —
+   es la única forma de buscar ahora que no queda un segundo buscador más
+   abajo, en el toolbar. */
+.kc-kinetic .k-header-inner .k-search--header { flex: 1 1 200px; min-width: 90px; max-width: 360px; margin: 0 .25rem; }
+
 /* ═══════════════════════════ HERO ═══════════════════════════ */
 .kc-kinetic .k-hero {
     padding: 3.5rem 1.5rem; max-width: 1400px; margin: 0 auto;
@@ -154,10 +164,82 @@
 .kc-kinetic .k-erp-value { color: #fff; text-align: right; text-transform: uppercase; }
 .kc-kinetic .k-erp-value--accent { color: var(--k-secondary); }
 
+/* Etiqueta chica reutilizada arriba de las secciones nuevas (panel de
+   ofertas, directorio de categorías, destacados) — mismo tratamiento que
+   .k-hero-eyebrow, generalizado para no repetir la regla. Siempre va
+   anidada dentro de una sección que YA tiene su propio max-width/padding
+   (.k-ticker-sec, .k-dir-sec, .k-destacados-sec), así que acá no se
+   repiten — solo el espaciado vertical. */
+.kc-kinetic .k-mono-eyebrow {
+    display: flex; align-items: center; gap: 7px;
+    font-family: var(--k-mono); font-size: .72rem; font-weight: 700; color: var(--k-secondary);
+    text-transform: uppercase; letter-spacing: .06em; margin: 2.4rem 0 1rem;
+}
+
+/* ═══════════════════════════ BANNER DESTACADO (opcional) ═══════════════════════════
+   Pieza única (no una lista) — ver ConfiguracionCatalogo.kinetic_banner_imagen.
+   Sin imagen cargada, la sección ni se renderiza (ver home.html). */
+.kc-kinetic .k-banner-kinetic {
+    max-width: 1400px; margin: 2rem auto 0; padding: 0 1.5rem;
+}
+.kc-kinetic .k-banner-kinetic-overlay {
+    position: relative; border-radius: var(--k-radius); overflow: hidden;
+    aspect-ratio: 21 / 6; min-height: 160px;
+    background-image: linear-gradient(90deg, rgba(8,8,10,.88) 0%, rgba(8,8,10,.35) 55%, rgba(8,8,10,.05) 100%), var(--k-banner-url);
+    background-size: cover; background-position: center;
+    border: 1px solid var(--k-border);
+    display: flex; flex-direction: column; justify-content: center; gap: .6rem;
+    padding: 2rem 2.4rem;
+}
+.kc-kinetic .k-banner-kinetic-overlay h2 {
+    font-family: var(--k-heading); font-size: 1.8rem; text-transform: uppercase; color: #fff; max-width: 22ch;
+}
+.kc-kinetic .k-banner-kinetic-overlay p { color: rgba(255,255,255,.8); font-size: .92rem; max-width: 40ch; }
+.kc-kinetic .k-banner-kinetic-overlay .k-hero-cta { width: fit-content; margin-top: .3rem; }
+@media (max-width: 620px) { .kc-kinetic .k-banner-kinetic-overlay { aspect-ratio: auto; padding: 1.5rem; } }
+
+/* ═══════════════════════════ OFERTAS ACTIVAS (ticker) ═══════════════════════════ */
+.kc-kinetic .k-ticker-sec { max-width: 1400px; margin: 0 auto 2.6rem; padding: 0 1.5rem; }
+.kc-kinetic .k-ticker-table { border: 1px solid var(--k-border); border-radius: var(--k-radius); overflow: hidden; background: var(--k-surface); }
+.kc-kinetic .k-ticker-row {
+    display: grid; grid-template-columns: 2.2fr .9fr auto auto; align-items: center; gap: 1.2rem;
+    padding: .9rem 1.2rem; border-bottom: 1px solid var(--k-border); text-decoration: none; transition: background .15s;
+}
+.kc-kinetic .k-ticker-row:last-child { border-bottom: none; }
+.kc-kinetic .k-ticker-row:hover { background: var(--k-surface-card); }
+.kc-kinetic .k-ticker-name { font-weight: 600; font-size: .88rem; color: #fff; }
+.kc-kinetic .k-ticker-price { font-family: var(--k-mono); font-weight: 700; color: #fff; white-space: nowrap; }
+.kc-kinetic .k-ticker-price s { color: var(--k-text-dim); font-weight: 400; margin-left: .5rem; font-size: .82rem; }
+.kc-kinetic .k-ticker-off { font-family: var(--k-mono); font-size: .72rem; font-weight: 800; color: #fff; background: var(--k-primary); padding: .25rem .55rem; border-radius: 3px; width: fit-content; }
+.kc-kinetic .k-ticker-arrow { color: var(--k-text-dim); font-family: var(--k-mono); }
+@media (max-width: 620px) {
+    .kc-kinetic .k-ticker-row { grid-template-columns: 1fr auto; grid-template-areas: "name off" "price arrow"; row-gap: .4rem; }
+    .kc-kinetic .k-ticker-name { grid-area: name; }
+    .kc-kinetic .k-ticker-off { grid-area: off; }
+    .kc-kinetic .k-ticker-price { grid-area: price; }
+    .kc-kinetic .k-ticker-arrow { grid-area: arrow; }
+}
+
+/* ═══════════════════════════ CATEGORÍAS (directorio) ═══════════════════════════ */
+.kc-kinetic .k-dir-sec { max-width: 1400px; margin: 0 auto 1rem; padding: 0 1.5rem; }
+.kc-kinetic .k-dir-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px,1fr)); gap: .9rem; }
+.kc-kinetic .k-dir-item {
+    display: flex; align-items: center; gap: .85rem; background: var(--k-surface); border: 1px solid var(--k-border);
+    border-radius: var(--k-radius); padding: .9rem 1rem; text-decoration: none; transition: border-color .15s, transform .15s;
+}
+.kc-kinetic .k-dir-item:hover { border-color: var(--k-primary); transform: translateY(-2px); }
+.kc-kinetic .k-dir-icon {
+    width: 34px; height: 34px; border-radius: var(--k-radius); background: var(--k-surface-card); border: 1px solid var(--k-border);
+    display: flex; align-items: center; justify-content: center; color: var(--k-secondary); flex-shrink: 0;
+}
+.kc-kinetic .k-dir-info { display: flex; flex-direction: column; min-width: 0; gap: .1rem; }
+.kc-kinetic .k-dir-name { font-family: var(--k-mono); font-size: .84rem; color: #fff; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kc-kinetic .k-dir-count { font-family: var(--k-mono); font-size: .68rem; color: var(--k-text-dim); }
+
 /* ═══════════════════════════ TOOLBAR ═══════════════════════════ */
 .kc-kinetic .k-toolbar {
     max-width: 1400px; margin: 2rem auto; padding: 0 1.5rem;
-    display: flex; justify-content: space-between; align-items: center; gap: 1.25rem; flex-wrap: wrap;
+    display: flex; justify-content: flex-end; align-items: center; gap: 1.25rem; flex-wrap: wrap;
 }
 .kc-kinetic .k-search { position: relative; flex: 1; min-width: 260px; display: flex; }
 .kc-kinetic .k-search input {
@@ -168,6 +250,18 @@
 .kc-kinetic .k-search input:focus { border-color: var(--k-primary); }
 .kc-kinetic .k-search input::placeholder { color: var(--k-text-dim); }
 .kc-kinetic .k-search svg { position: absolute; left: .9rem; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--k-text-dim); pointer-events: none; }
+
+.kc-kinetic .k-search-dropdown { display: none; position: absolute; left: 0; right: 0; top: calc(100% + 8px); z-index: 90; background: var(--k-surface-card); border: 1px solid var(--k-border); border-radius: var(--k-radius); box-shadow: 0 12px 28px rgba(0,0,0,.45); overflow: hidden; }
+.kc-kinetic .k-search-dropdown--abierto { display: block; }
+.kc-kinetic .k-search-dropdown-item { display: flex; align-items: center; gap: 10px; padding: .6rem .8rem; border-bottom: 1px solid var(--k-border); }
+.kc-kinetic .k-search-dropdown-item:hover { background: var(--k-surface); }
+.kc-kinetic .k-search-dropdown-img { width: 36px; height: 36px; flex-shrink: 0; border-radius: 3px; overflow: hidden; background: var(--k-surface); display: flex; align-items: center; justify-content: center; }
+.kc-kinetic .k-search-dropdown-img img { width: 100%; height: 100%; object-fit: contain; }
+.kc-kinetic .k-search-dropdown-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.kc-kinetic .k-search-dropdown-nombre { font-size: .8rem; font-weight: 600; color: var(--k-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kc-kinetic .k-search-dropdown-precio { font-family: var(--k-mono); font-size: .74rem; color: var(--k-text-dim); }
+.kc-kinetic .k-search-dropdown-vertodos { display: block; text-align: center; padding: .65rem; font-family: var(--k-mono); font-size: .74rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--k-primary); background: var(--k-surface); }
+.kc-kinetic .k-search-dropdown-vertodos:hover { background: var(--k-border); }
 
 .kc-kinetic .k-cat-btn {
     background: var(--k-surface); border: 1px solid var(--k-border); color: var(--k-text-dim);
@@ -308,6 +402,15 @@
 .kc-kinetic .k-btn-add-cart:hover:not(:disabled) { background: var(--k-primary-dark); }
 .kc-kinetic .k-btn-add-cart:disabled { opacity: .45; cursor: not-allowed; }
 .kc-kinetic .k-btn-add-cart svg { width: 14px; height: 14px; }
+.kc-kinetic .k-btn-add-cart--opciones { text-decoration: none; justify-content: center; }
+
+/* ═══════════════════════════ FIJADOS POR EL EQUIPO (destacados) ═══════════════════════════
+   Mismas tarjetas .k-product-card de la grilla — el borde de color a la
+   izquierda es la única diferencia visual, no un componente nuevo. */
+.kc-kinetic .k-destacados-sec { max-width: 1400px; margin: 0 auto 3rem; padding: 0 1.5rem; }
+.kc-kinetic .k-rail-scroll { display: flex; gap: 1.2rem; overflow-x: auto; padding-bottom: 6px; scroll-snap-type: x proximity; scrollbar-width: none; }
+.kc-kinetic .k-rail-scroll::-webkit-scrollbar { display: none; height: 0; }
+.kc-kinetic .k-rail-scroll .k-product-card { flex: 0 0 250px; scroll-snap-align: start; border-left: 3px solid var(--k-primary); }
 
 .kc-kinetic .k-combos { max-width: 1400px; margin: 0 auto 5rem; padding: 0 1.5rem; }
 .kc-kinetic .k-combo-card:hover { border-color: var(--k-secondary); }
@@ -319,10 +422,16 @@
 
 /* ═══════════════════════════ FOOTER ═══════════════════════════ */
 .kc-kinetic .k-footer { background: var(--k-surface); border-top: 1px solid var(--k-border); margin-top: 2rem; }
-.kc-kinetic .k-footer-inner { max-width: 1400px; margin: 0 auto; padding: 3rem 1.5rem 2rem; display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 2.5rem; }
+/* Flex + wrap en vez de grid de 3 columnas fijas: la columna "Contacto"
+   solo se renderiza si hay algo que mostrar (ver footer en base.html), así
+   que una grilla de 3 tracks fijos dejaba un hueco vacío cuando faltaba —
+   con flex, las columnas que sí existen se acomodan solas. */
+.kc-kinetic .k-footer-inner { max-width: 1400px; margin: 0 auto; padding: 3rem 1.5rem 2rem; display: flex; flex-wrap: wrap; gap: 2.5rem 3rem; }
+.kc-kinetic .k-footer-col--brand { flex: 1 1 280px; max-width: 400px; }
+.kc-kinetic .k-footer-col { flex: 1 1 160px; }
 .kc-kinetic .k-footer-brand { display: flex; align-items: center; gap: 10px; margin-bottom: .75rem; }
 .kc-kinetic .k-footer-logo { height: 28px; width: auto; max-width: 130px; object-fit: contain; }
-.kc-kinetic .k-footer-tagline { color: var(--k-text-dim); font-size: .85rem; line-height: 1.5; max-width: 40ch; margin: 0 0 .9rem; }
+.kc-kinetic .k-footer-tagline { color: var(--k-text-dim); font-size: .85rem; line-height: 1.5; max-width: 40ch; margin: 0 0 .9rem; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .kc-kinetic .k-footer-redes { display: flex; gap: .5rem; }
 .kc-kinetic .k-footer-redes a {
     width: 30px; height: 30px; border-radius: 50%; background: var(--k-surface-card); border: 1px solid var(--k-border);
@@ -366,6 +475,7 @@
 .kc-kinetic .kc-drawer-item-top { display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem; }
 .kc-kinetic .kc-drawer-item-nombre { font-size: .85rem; font-weight: 700; color: #fff; }
 .kc-kinetic .kc-drawer-item-oferta { font-family: var(--k-mono); font-size: .65rem; font-weight: 700; color: var(--k-secondary); text-transform: uppercase; }
+.kc-kinetic .kc-drawer-item-variante { display: block; font-family: var(--k-mono); font-size: .68rem; color: var(--k-text-dim); margin: 1px 0 2px; }
 .kc-kinetic .kc-drawer-item-quitar { width: 24px; height: 24px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: var(--k-text-dim); border-radius: var(--k-radius); }
 .kc-kinetic .kc-drawer-item-quitar:hover { background: var(--k-primary-glow); color: var(--k-primary); }
 .kc-kinetic .kc-drawer-item-row { display: flex; justify-content: space-between; align-items: center; }
@@ -454,6 +564,19 @@
 .kc-kinetic .k-btn-add-cart--grande { width: 100%; height: 50px; font-size: .85rem; margin-bottom: 1.75rem; }
 .kc-kinetic .k-btn-add-cart--grande svg { width: 16px; height: 16px; }
 
+/* Selector de variantes (color/sabor/talle) — chips monospace, coherente
+   con el resto de la interfaz "terminal" de Kinetic. La lógica de click/
+   resolución vive en variantes.js (compartido con las otras plantillas),
+   acá solo el aspecto. */
+.kc-kinetic .k-variantes { margin-bottom: 1.5rem; }
+.kc-kinetic .k-variante-grupo { margin-bottom: 1rem; }
+.kc-kinetic .k-variante-tipo-nombre { display: block; font-family: var(--k-mono); font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--k-text-dim); margin-bottom: .5rem; }
+.kc-kinetic .k-variante-opciones { display: flex; flex-wrap: wrap; gap: .5rem; }
+.kc-kinetic .k-variante-opcion { font-family: var(--k-mono); font-size: .8rem; padding: .5rem .9rem; border-radius: var(--k-radius); border: 1px solid var(--k-border); background: var(--k-surface); color: var(--k-text); transition: .15s; }
+.kc-kinetic .k-variante-opcion:hover { border-color: var(--k-text-dim); }
+.kc-kinetic .k-variante-opcion.kc-variante-activa { border-color: var(--k-primary); background: var(--k-primary); color: #fff; }
+.kc-kinetic .k-variante-estado { font-family: var(--k-mono); font-size: .78rem; color: var(--k-text-dim); margin: .2rem 0 0; }
+
 .kc-kinetic .k-detalle-ficha { margin-bottom: 1.25rem; }
 .kc-kinetic .k-detalle-ficha h2 { font-family: var(--k-heading); font-size: .92rem; color: #fff; margin: 0 0 .85rem; text-transform: uppercase; letter-spacing: .03em; }
 .kc-kinetic .k-detalle-ficha p { color: var(--k-text-dim); font-size: .88rem; line-height: 1.6; margin: 0; }
@@ -519,7 +642,6 @@
     .kc-kinetic .k-hero { grid-template-columns: 1fr; padding: 2.5rem 1.5rem; }
     .kc-kinetic .k-hero h1 { font-size: 2.4rem; }
     .kc-kinetic .k-nav { display: none; }
-    .kc-kinetic .k-footer-inner { grid-template-columns: 1fr 1fr; }
     .kc-kinetic .k-detalle-galeria { position: static; top: auto; flex-direction: column-reverse; }
     .kc-kinetic .k-galeria-thumbs { flex-direction: row; max-height: none; overflow-x: auto; overflow-y: visible; }
     .kc-kinetic .k-inst-info { grid-template-columns: 1fr; }
@@ -527,13 +649,18 @@
 
 @media (max-width: 620px) {
     .kc-kinetic .k-header-inner, .kc-kinetic .k-toolbar, .kc-kinetic .k-catalog-grid, .kc-kinetic .k-hero { padding-left: 1rem; padding-right: 1rem; }
-    .kc-kinetic .k-header-inner { gap: .6rem; }
+    .kc-kinetic .k-header-inner { gap: .5rem; }
+    .kc-kinetic .k-header-inner .k-search--header { min-width: 60px; margin: 0; }
+    .kc-kinetic .k-cart-trigger span:not(.k-cart-count) { display: none; }
+    .kc-kinetic .k-cart-trigger { padding: .55rem .7rem; }
+    .kc-kinetic .k-header-actions { gap: .4rem; }
     .kc-kinetic .k-status-extra { display: none; }
     .kc-kinetic .k-brand-logo { max-width: 130px; }
     .kc-kinetic .k-btn-login-text { display: none; }
     .kc-kinetic .k-btn-login { padding: .6rem; }
     .kc-kinetic .k-hero h1 { font-size: 2rem; }
-    .kc-kinetic .k-footer-inner { grid-template-columns: 1fr; gap: 1.75rem; }
+    .kc-kinetic .k-footer-inner { gap: 1.75rem; }
+    .kc-kinetic .k-footer-col, .kc-kinetic .k-footer-col--brand { flex-basis: 100%; max-width: none; }
     .kc-kinetic .k-detalle { grid-template-columns: 1fr; }
     .kc-kinetic .k-inst-destacados-inner { grid-template-columns: 1fr; }
     .kc-kinetic .k-inst-contacto { flex-direction: column; align-items: flex-start; gap: 1.25rem; }
