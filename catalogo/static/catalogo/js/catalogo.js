@@ -268,7 +268,7 @@ function toggleFiltrosMobile(abrir) {
         if (!resultados.length) { ocultar(); return; }
         var destino = urlResultados();
         var html = resultados.map(function (r) {
-            return '<a class="kc-search-dropdown-item" href="' + destino + '">' +
+            return '<a class="kc-search-dropdown-item" href="' + r.url + '">' +
                 '<span class="kc-search-dropdown-img">' + (r.imagen ? '<img src="' + r.imagen + '" alt="">' : '') + '</span>' +
                 '<span class="kc-search-dropdown-info">' +
                     '<span class="kc-search-dropdown-nombre">' + escapeHtml(r.nombre) + '</span>' +

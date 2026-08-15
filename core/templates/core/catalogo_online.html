@@ -127,42 +127,107 @@
                     <div class="config-section">
                         <div class="config-section-header">
                             <div>
-                                <h2>Banner destacado</h2>
-                                <p>Una foto grande debajo del hero, con título y botón opcionales</p>
+                                <h2>Tarjeta "En vivo" del hero</h2>
+                                <p>Las 3 filas al costado del título — editá etiqueta y valor, o dejalas vacías para el comportamiento de siempre</p>
                             </div>
-                        </div>
-                        <div class="config-row" style="flex-direction:column; align-items:flex-start; gap:0.6rem;">
-                            <span class="config-row-label">Imagen</span>
-                            <div style="display:flex; align-items:center; gap:1rem;">
-                                <div class="config-logo-box" id="catalogoKineticBannerPreviewBox">
-                                    {% if configuracion_catalogo.kinetic_banner_imagen %}
-                                        <img src="{{ configuracion_catalogo.kinetic_banner_imagen.url }}" alt="Banner destacado">
-                                    {% else %}
-                                        <span style="font-size:0.7rem; color:var(--text-muted);">Sin imagen</span>
-                                    {% endif %}
-                                </div>
-                                <input type="file" id="inputCatalogoKineticBanner" accept=".jpg,.jpeg,.png,.webp" style="display:none;">
-                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('inputCatalogoKineticBanner').click()">Subir / cambiar</button>
-                                <button type="button" id="btnEliminarCatalogoKineticBanner" class="btn btn-sm btn-outline-danger" {% if not configuracion_catalogo.kinetic_banner_imagen %}style="display:none;"{% endif %}>Eliminar</button>
-                            </div>
-                            <span class="config-row-desc">Sin imagen cargada, el banner no aparece — es 100% opcional.</span>
-                        </div>
-                        <div class="config-row" style="flex-direction:column; align-items:flex-start;">
-                            <label class="config-row-label" for="idCatalogoKineticBannerTitulo">Título</label>
-                            <input class="form-control" id="idCatalogoKineticBannerTitulo" value="{{ configuracion_catalogo.kinetic_banner_titulo }}" maxlength="120" placeholder="Ej: Nuevo ingreso de temporada">
-                        </div>
-                        <div class="config-row" style="flex-direction:column; align-items:flex-start;">
-                            <label class="config-row-label" for="idCatalogoKineticBannerTexto">Texto</label>
-                            <input class="form-control" id="idCatalogoKineticBannerTexto" value="{{ configuracion_catalogo.kinetic_banner_texto }}" maxlength="240" placeholder="Bajada corta, opcional">
                         </div>
                         <div class="config-row co-row-grid2">
                             <div class="co-campo-corto">
-                                <label class="config-row-label" for="idCatalogoKineticBannerCtaTexto">Texto del botón</label>
-                                <input class="form-control" id="idCatalogoKineticBannerCtaTexto" value="{{ configuracion_catalogo.kinetic_banner_cta_texto }}" maxlength="40" placeholder="Ej: Ver más">
+                                <label class="config-row-label" for="idCatalogoKineticStat1Titulo">Etiqueta 1</label>
+                                <input class="form-control" id="idCatalogoKineticStat1Titulo" value="{{ configuracion_catalogo.kinetic_hero_stat1_titulo }}" maxlength="20" placeholder="{{ default_kinetic_hero_stat1_titulo }}">
                             </div>
                             <div class="co-campo-corto">
-                                <label class="config-row-label" for="idCatalogoKineticBannerCtaUrl">Link del botón</label>
-                                <input class="form-control" id="idCatalogoKineticBannerCtaUrl" value="{{ configuracion_catalogo.kinetic_banner_cta_url }}" maxlength="300" placeholder="Vacío = sin botón">
+                                <label class="config-row-label" for="idCatalogoKineticStat1Valor">Valor 1</label>
+                                <input class="form-control" id="idCatalogoKineticStat1Valor" value="{{ configuracion_catalogo.kinetic_hero_stat1_valor }}" maxlength="40" placeholder="Vacío = cantidad real de productos">
+                            </div>
+                        </div>
+                        <div class="config-row co-row-grid2">
+                            <div class="co-campo-corto">
+                                <label class="config-row-label" for="idCatalogoKineticStat2Titulo">Etiqueta 2</label>
+                                <input class="form-control" id="idCatalogoKineticStat2Titulo" value="{{ configuracion_catalogo.kinetic_hero_stat2_titulo }}" maxlength="20" placeholder="{{ default_kinetic_hero_stat2_titulo }}">
+                            </div>
+                            <div class="co-campo-corto">
+                                <label class="config-row-label" for="idCatalogoKineticStat2Valor">Valor 2</label>
+                                <input class="form-control" id="idCatalogoKineticStat2Valor" value="{{ configuracion_catalogo.kinetic_hero_stat2_valor }}" maxlength="40" placeholder="{{ default_kinetic_hero_stat2_valor }}">
+                            </div>
+                        </div>
+                        <div class="config-row co-row-grid2">
+                            <div class="co-campo-corto">
+                                <label class="config-row-label" for="idCatalogoKineticStat3Titulo">Etiqueta 3</label>
+                                <input class="form-control" id="idCatalogoKineticStat3Titulo" value="{{ configuracion_catalogo.kinetic_hero_stat3_titulo }}" maxlength="20" placeholder="{{ default_kinetic_hero_stat3_titulo }}">
+                            </div>
+                            <div class="co-campo-corto">
+                                <label class="config-row-label" for="idCatalogoKineticStat3Valor">Valor 3</label>
+                                <input class="form-control" id="idCatalogoKineticStat3Valor" value="{{ configuracion_catalogo.kinetic_hero_stat3_valor }}" maxlength="40" placeholder="Vacío = según tengas WhatsApp cargado">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="config-section">
+                        <div class="config-section-header">
+                            <div>
+                                <h2>Barra de anuncios (opcional)</h2>
+                                <p>Hasta 4 mensajes cortos, rotan solos en la barra de estado de arriba de todo</p>
+                            </div>
+                            <button type="button" class="btn btn-sm" style="background:var(--brand-orange); color:white; margin-left:auto;" data-bs-toggle="modal" data-bs-target="#tickerKineticModal" id="btnNuevoTickerKinetic">+ Nuevo</button>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:stretch;">
+                            <span class="config-row-desc" style="margin-bottom:0.6rem;">Sin ninguno cargado, sigue mostrando el texto fijo de siempre ("STOCK ACTUALIZADO EN TIEMPO REAL").</span>
+                            <div id="listaTickerKinetic">
+                                {% for m in configuracion_catalogo.ticker_mensajes_kinetic.all %}
+                                <div class="config-row ticker-kinetic-row" data-pk="{{ m.pk }}" data-texto="{{ m.texto }}">
+                                    <div class="config-row-info"><div class="config-row-label">{{ m.texto }}</div></div>
+                                    <div style="display:flex; gap:0.4rem;">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary btn-editar-ticker-kinetic">Editar</button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger btn-eliminar-ticker-kinetic">Eliminar</button>
+                                    </div>
+                                </div>
+                                {% empty %}
+                                <div class="config-row"><div class="config-row-info"><div class="config-row-label">Sin mensajes cargados</div></div></div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="config-section">
+                        <div class="config-section-header">
+                            <div>
+                                <h2>Banner destacado (opcional)</h2>
+                                <p>Foto grande debajo de la grilla de productos, con título y botón opcionales</p>
+                            </div>
+                            <button type="button" class="btn btn-sm" style="background:var(--brand-orange); color:white; margin-left:auto;" data-bs-toggle="modal" data-bs-target="#bannerKineticModal" id="btnNuevoBannerKinetic">+ Nuevo banner</button>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:stretch;">
+                            <span class="config-row-desc" style="margin-bottom:0.6rem;">Sin ninguno cargado, esa sección no aparece. Se muestra siempre el primero de la lista — podés cargar hasta 3, los demás quedan guardados sin usarse todavía.</span>
+                            <div id="listaBannersKinetic">
+                                {% for banner in configuracion_catalogo.banners_kinetic.all %}
+                                <div class="config-row banner-kinetic-row"
+                                     data-pk="{{ banner.pk }}"
+                                     data-titulo="{{ banner.titulo }}"
+                                     data-texto="{{ banner.texto }}"
+                                     data-color-fondo="{{ banner.color_fondo }}"
+                                     data-cta-texto="{{ banner.cta_texto }}"
+                                     data-cta-url="{{ banner.cta_url }}">
+                                    <div style="display:flex; align-items:center; gap:0.75rem; flex:1; min-width:0;">
+                                        <div class="config-logo-box" style="width:44px; height:44px;">
+                                            {% if banner.imagen %}<img src="{{ banner.imagen.url }}" alt="">{% else %}<span style="font-size:0.55rem; color:var(--text-muted);">Sin foto</span>{% endif %}
+                                        </div>
+                                        <div class="config-row-info">
+                                            <div class="config-row-label">{{ banner.titulo|default:"(sin título)" }}</div>
+                                        </div>
+                                    </div>
+                                    <div style="display:flex; gap:0.4rem;">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary btn-editar-banner-kinetic">Editar</button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger btn-eliminar-banner-kinetic">Eliminar</button>
+                                    </div>
+                                </div>
+                                {% empty %}
+                                <div class="config-row">
+                                    <div class="config-row-info">
+                                        <div class="config-row-label">Sin banners cargados</div>
+                                    </div>
+                                </div>
+                                {% endfor %}
                             </div>
                         </div>
                     </div>
@@ -262,16 +327,29 @@
                         <div class="config-section-header">
                             <div>
                                 <h2>② Banners / anuncios (opcional)</h2>
-                                <p>Hasta 6 — con imagen o de color sólido. La ubicación define la forma: rail de tarjetas, grilla o franja ancha</p>
+                                <p>Tres formatos independientes, con hasta 6 piezas en cada uno.</p>
                             </div>
-                            <button type="button" class="btn btn-sm" style="background:var(--brand-orange); color:white; margin-left:auto;" data-bs-toggle="modal" data-bs-target="#bannerBentoModal" id="btnNuevoBannerBento">+ Nuevo banner</button>
                         </div>
-                        <div class="config-row" style="flex-direction:column; align-items:stretch;">
-                            <span class="config-row-desc" style="margin-bottom:0.6rem;">Sin ninguno cargado, esa sección no aparece — no es obligatorio.</span>
-                            <div id="listaBannersBento">
-                                {% for banner in configuracion_catalogo.banners_bento.all %}
+                        {% for grupo in grupos_banners_bento %}
+                        <div class="config-row co-banner-bento-grupo" style="flex-direction:column; align-items:stretch;">
+                            <div class="co-banner-bento-grupo-head">
+                                <div>
+                                    <div class="config-row-label">{{ grupo.titulo }}</div>
+                                    <div class="config-row-desc">{{ grupo.descripcion }} · {{ grupo.banners|length }}/6 cargados</div>
+                                </div>
+                                <button type="button"
+                                        class="btn btn-sm btn-nuevo-banner-bento"
+                                        style="background:var(--brand-orange); color:white;"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#bannerBentoModal"
+                                        data-banner-formato="{{ grupo.codigo }}"
+                                        data-banner-posicion="{{ grupo.posicion_default }}">+ Agregar</button>
+                            </div>
+                            <div class="co-banner-bento-lista">
+                                {% for banner in grupo.banners %}
                                 <div class="config-row banner-bento-row"
                                      data-pk="{{ banner.pk }}"
+                                     data-formato="{{ grupo.codigo }}"
                                      data-titulo="{{ banner.titulo }}"
                                      data-texto="{{ banner.texto }}"
                                      data-posicion="{{ banner.posicion }}"
@@ -284,7 +362,7 @@
                                         </div>
                                         <div class="config-row-info">
                                             <div class="config-row-label">{{ banner.titulo }}</div>
-                                            <div class="config-row-desc">{{ banner.get_posicion_display }}</div>
+                                            {% if grupo.codigo == 'franjas' %}<div class="config-row-desc">{{ banner.get_posicion_display }}</div>{% endif %}
                                         </div>
                                     </div>
                                     <div style="display:flex; gap:0.4rem;">
@@ -293,14 +371,11 @@
                                     </div>
                                 </div>
                                 {% empty %}
-                                <div class="config-row">
-                                    <div class="config-row-info">
-                                        <div class="config-row-label">Sin banners cargados</div>
-                                    </div>
-                                </div>
+                                <div class="co-banner-bento-vacio">Todavía no cargaste piezas en este formato.</div>
                                 {% endfor %}
                             </div>
                         </div>
+                        {% endfor %}
                     </div>
 
                     <div class="config-section">
@@ -348,49 +423,6 @@
                         <span class="config-row-desc" style="padding:0 1.375rem 0.5rem;">En "La tienda" siempre se muestra. Desactivá esto si preferís no repetirlo en la portada del catálogo.</span>
                     </div>
 
-                    <div class="config-section">
-                        <div class="config-section-header">
-                            <div>
-                                <h2>Banda final (opcional)</h2>
-                                <p>Cierre de la home, para un mensaje distinto a "Nuestra historia" (envíos, empresas, lo que haga falta)</p>
-                            </div>
-                        </div>
-                        <div class="config-row" style="flex-direction:column; align-items:flex-start;">
-                            <label class="config-row-label" for="idCatalogoCtaFinalTitulo">Título</label>
-                            <input class="form-control" id="idCatalogoCtaFinalTitulo" value="{{ configuracion_catalogo.cta_final_titulo }}" placeholder="Vacío = la banda no se muestra">
-                        </div>
-                        <div class="config-row" style="flex-direction:column; align-items:flex-start;">
-                            <label class="config-row-label" for="idCatalogoCtaFinalTexto">Bajada (opcional)</label>
-                            <input class="form-control" id="idCatalogoCtaFinalTexto" value="{{ configuracion_catalogo.cta_final_texto }}">
-                        </div>
-                        <div class="config-row" style="flex-direction:column; align-items:flex-start; gap:0.6rem;">
-                            <span class="config-row-label">Imagen de fondo (opcional)</span>
-                            <div style="display:flex; align-items:center; gap:1rem;">
-                                <div class="config-logo-box" id="catalogoCtaFinalImagenPreviewBox" style="width:72px; height:52px; border-radius:8px;">
-                                    {% if configuracion_catalogo.cta_final_imagen %}
-                                        <img src="{{ configuracion_catalogo.cta_final_imagen.url }}" alt="">
-                                    {% else %}
-                                        <span style="font-size:0.65rem; color:var(--text-muted);">Sin imagen</span>
-                                    {% endif %}
-                                </div>
-                                <input type="file" id="inputCatalogoCtaFinalImagen" accept=".jpg,.jpeg,.png,.webp" style="display:none;">
-                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('inputCatalogoCtaFinalImagen').click()">Subir / cambiar</button>
-                                <button type="button" id="btnEliminarCatalogoCtaFinalImagen" class="btn btn-sm btn-outline-danger" {% if not configuracion_catalogo.cta_final_imagen %}style="display:none;"{% endif %}>Eliminar</button>
-                            </div>
-                            <span class="config-row-desc">Sin imagen, la banda se ve con el color de fondo liso de siempre.</span>
-                        </div>
-                        <div class="config-row" style="gap:0.75rem;">
-                            <div style="flex:1;">
-                                <label class="config-row-label" for="idCatalogoCtaFinalBotonTexto">Texto del botón (opcional)</label>
-                                <input class="form-control" id="idCatalogoCtaFinalBotonTexto" value="{{ configuracion_catalogo.cta_final_boton_texto }}" placeholder="Ej: Ver cómo funciona">
-                            </div>
-                            <div style="flex:1;">
-                                <label class="config-row-label" for="idCatalogoCtaFinalBotonUrl">Link del botón (opcional)</label>
-                                <input class="form-control" id="idCatalogoCtaFinalBotonUrl" value="{{ configuracion_catalogo.cta_final_boton_url }}" placeholder="https://...">
-                            </div>
-                        </div>
-                        <span class="config-row-desc" style="padding:0 1.375rem 0.5rem;">Sin texto Y link del botón cargados los dos, la banda no muestra botón.</span>
-                    </div>
                 </div>
 
                 <!-- ── Panel: Apariencia — hero + color de marca + menú superior (todas las plantillas) ── -->
@@ -637,6 +669,50 @@
                                 <input class="form-control" id="idCatalogoNavTienda" value="{{ configuracion_catalogo.nav_tienda_label }}" placeholder="La tienda" maxlength="30">
                             </div>
                         </div>
+                    </div>
+
+                    <div class="config-section">
+                        <div class="config-section-header">
+                            <div>
+                                <h2>Banda final (opcional)</h2>
+                                <p>Cierre de la home — un mensaje libre (envíos, empresas, lo que haga falta). Hoy se ve en Bento y Kinetic.</p>
+                            </div>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                            <label class="config-row-label" for="idCatalogoCtaFinalTitulo">Título</label>
+                            <input class="form-control" id="idCatalogoCtaFinalTitulo" value="{{ configuracion_catalogo.cta_final_titulo }}" placeholder="Vacío = la banda no se muestra">
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                            <label class="config-row-label" for="idCatalogoCtaFinalTexto">Bajada (opcional)</label>
+                            <input class="form-control" id="idCatalogoCtaFinalTexto" value="{{ configuracion_catalogo.cta_final_texto }}">
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start; gap:0.6rem;">
+                            <span class="config-row-label">Imagen de fondo (opcional)</span>
+                            <div style="display:flex; align-items:center; gap:1rem;">
+                                <div class="config-logo-box" id="catalogoCtaFinalImagenPreviewBox" style="width:72px; height:52px; border-radius:8px;">
+                                    {% if configuracion_catalogo.cta_final_imagen %}
+                                        <img src="{{ configuracion_catalogo.cta_final_imagen.url }}" alt="">
+                                    {% else %}
+                                        <span style="font-size:0.65rem; color:var(--text-muted);">Sin imagen</span>
+                                    {% endif %}
+                                </div>
+                                <input type="file" id="inputCatalogoCtaFinalImagen" accept=".jpg,.jpeg,.png,.webp" style="display:none;">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('inputCatalogoCtaFinalImagen').click()">Subir / cambiar</button>
+                                <button type="button" id="btnEliminarCatalogoCtaFinalImagen" class="btn btn-sm btn-outline-danger" {% if not configuracion_catalogo.cta_final_imagen %}style="display:none;"{% endif %}>Eliminar</button>
+                            </div>
+                            <span class="config-row-desc">Sin imagen, la banda se ve con el color de fondo liso de siempre.</span>
+                        </div>
+                        <div class="config-row" style="gap:0.75rem;">
+                            <div style="flex:1;">
+                                <label class="config-row-label" for="idCatalogoCtaFinalBotonTexto">Texto del botón (opcional)</label>
+                                <input class="form-control" id="idCatalogoCtaFinalBotonTexto" value="{{ configuracion_catalogo.cta_final_boton_texto }}" placeholder="Ej: Ver cómo funciona">
+                            </div>
+                            <div style="flex:1;">
+                                <label class="config-row-label" for="idCatalogoCtaFinalBotonUrl">Link del botón (opcional)</label>
+                                <input class="form-control" id="idCatalogoCtaFinalBotonUrl" value="{{ configuracion_catalogo.cta_final_boton_url }}" placeholder="https://...">
+                            </div>
+                        </div>
+                        <span class="config-row-desc" style="padding:0 1.375rem 0.5rem;">Sin texto Y link del botón cargados los dos, la banda no muestra botón.</span>
                     </div>
                 </div>
 
@@ -1057,7 +1133,7 @@
                 <div class="modal-header">
                     <div>
                         <h5 class="modal-title" id="bannerBentoModalLabel">Nuevo banner</h5>
-                        <p class="modal-subtitle">Bloque promocional opcional de Bento — imagen o color sólido</p>
+                        <p class="modal-subtitle" id="bannerBentoModalSubtitle">Bloque promocional opcional de Bento — imagen o color sólido</p>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
@@ -1078,7 +1154,7 @@
                             <span class="config-row-desc">Sin imagen, el banner se muestra como un bloque de color sólido. La forma final depende de dónde lo ubiques (abajo).</span>
                         </div>
                         <div class="config-row" style="flex-direction:column; align-items:flex-start; padding:0 0 0.85rem;">
-                            <label class="config-row-label" for="bannerBentoPosicion">Dónde va</label>
+                            <label class="config-row-label" for="bannerBentoPosicion">Ubicación dentro del formato</label>
                             <select class="form-control" id="bannerBentoPosicion">
                                 <option value="novedades">Novedades (rail de tarjetas, arriba)</option>
                                 <option value="promos_mes">Promos del mes (grilla fija de 4)</option>
@@ -1152,6 +1228,98 @@
         </div>
     </div>
 
+    <div class="modal fade" id="tickerKineticModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title" id="tickerKineticModalLabel">Nuevo mensaje</h5>
+                        <p class="modal-subtitle">Texto corto para la barra de estado de Kinetic</p>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="formTickerKinetic">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <input type="hidden" id="tickerKineticPk">
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start; padding:0 0 0.85rem;">
+                            <label class="config-row-label" for="tickerKineticTexto">Mensaje</label>
+                            <input class="form-control" id="tickerKineticTexto" maxlength="80" placeholder="Ej: Envíos a todo el país" required>
+                        </div>
+                        <div id="tickerKineticMsg" class="config-empresa-msg" style="padding:0;"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-sm" style="background:var(--brand-orange); color:white;">Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="bannerKineticModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title" id="bannerKineticModalLabel">Nuevo banner</h5>
+                        <p class="modal-subtitle">Tarjeta del rail de banners de Kinetic — imagen o color sólido</p>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="formBannerKinetic">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <input type="hidden" id="bannerKineticPk">
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start; padding:0 0 0.85rem;">
+                            <span class="config-row-label">Imagen (opcional)</span>
+                            <div style="display:flex; align-items:center; gap:1rem;">
+                                <div class="config-logo-box" id="bannerKineticImagenPreviewBox">
+                                    <span style="font-size:0.6rem; color:var(--text-muted);">Sin imagen</span>
+                                </div>
+                                <input type="file" id="inputBannerKineticImagen" accept=".jpg,.jpeg,.png,.webp" style="display:none;">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('inputBannerKineticImagen').click()">Elegir imagen</button>
+                                <button type="button" id="btnQuitarBannerKineticImagen" class="btn btn-sm btn-outline-danger" style="display:none;">Quitar</button>
+                            </div>
+                            <span class="config-row-desc">Sin imagen, el banner se muestra como un bloque de color sólido.</span>
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start; padding:0 0 0.85rem;">
+                            <label class="config-row-label" for="bannerKineticTitulo">Título (opcional)</label>
+                            <input class="form-control" id="bannerKineticTitulo" maxlength="120" placeholder="Ej: Nuevo ingreso de temporada">
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start; padding:0 0 0.85rem;">
+                            <label class="config-row-label" for="bannerKineticTexto">Texto (opcional)</label>
+                            <input class="form-control" id="bannerKineticTexto" maxlength="240" placeholder="Bajada corta">
+                        </div>
+                        <div class="config-row" style="flex-direction:column; align-items:flex-start; padding:0 0 0.85rem;">
+                            <label class="config-row-label">Color de fondo (solo si no tiene imagen)</label>
+                            <div class="co-color-control">
+                                <input type="color" id="bannerKineticColorFondo" value="#15161a">
+                                <button type="button" id="btnResetBannerKineticColor" class="btn btn-sm btn-outline-secondary">Restablecer</button>
+                            </div>
+                        </div>
+                        <div class="config-row co-row-grid2">
+                            <div class="co-campo-corto">
+                                <label class="config-row-label" for="bannerKineticCtaTexto">Texto del botón (opcional)</label>
+                                <input class="form-control" id="bannerKineticCtaTexto" maxlength="40" placeholder="Ej: Ver más">
+                            </div>
+                            <div class="co-campo-corto">
+                                <label class="config-row-label" for="bannerKineticCtaUrl">Link del botón (opcional)</label>
+                                <input class="form-control" id="bannerKineticCtaUrl" maxlength="300" placeholder="https://...">
+                            </div>
+                        </div>
+                        <span class="config-row-desc" style="padding:0 1.375rem;">Con texto y link cargados los dos aparece el botón — si falta alguno, no se muestra.</span>
+                        <div id="bannerKineticMsg" class="config-empresa-msg" style="padding:0;"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-sm" style="background:var(--brand-orange); color:white;">Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="marcaModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -1205,7 +1373,6 @@
         heroSpot2Imagen:   "{% url 'catalogo:config_hero_spot2_imagen' %}",
         ctaFinalImagen:    "{% url 'catalogo:config_cta_final_imagen' %}",
         kineticHeroFondo:  "{% url 'catalogo:config_kinetic_hero_fondo' %}",
-        kineticBannerImagen: "{% url 'catalogo:config_kinetic_banner_imagen' %}",
         institucionalImagen: "{% url 'catalogo:config_institucional_imagen' %}",
     };
     // Mismos textos de fallback que usa el template público (ConfiguracionCatalogo.
@@ -1294,6 +1461,15 @@
     window.CONFIG_TICKER_URLS = {
         guardar:  "{% url 'catalogo:config_ticker_guardar' %}",
         eliminar: "{% url 'catalogo:config_ticker_eliminar' %}",
+    };
+    window.CONFIG_TICKER_KINETIC_URLS = {
+        guardar:  "{% url 'catalogo:config_ticker_kinetic_guardar' %}",
+        eliminar: "{% url 'catalogo:config_ticker_kinetic_eliminar' %}",
+    };
+    window.CONFIG_BANNERS_KINETIC_URLS = {
+        guardar:  "{% url 'catalogo:config_banner_kinetic_guardar' %}",
+        imagen:   "{% url 'catalogo:config_banner_kinetic_imagen' %}",
+        eliminar: "{% url 'catalogo:config_banner_kinetic_eliminar' %}",
     };
     window.CONFIG_MARCAS_URLS = {
         guardar:  "{% url 'catalogo:config_marca_guardar' %}",

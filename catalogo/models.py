@@ -212,19 +212,19 @@ class ConfiguracionCatalogo(models.Model):
         'Color de marca (Kinetic)', max_length=7, blank=True,
         help_text='Código hex. Vacío = color por defecto de Kinetic.',
     )
-    # Banner destacado de Kinetic — pieza única (no una lista como
-    # BannerCatalogo/BannerBentoCatalogo) a propósito: Kinetic es minimalista
-    # y esto es una excepción puntual para sumar una foto grande a la home,
-    # no un sistema de banners múltiples. La presencia de la imagen decide
-    # si se muestra, mismo criterio que cta_final_imagen en Bento.
-    kinetic_banner_imagen = models.ImageField(
-        'Imagen — banner destacado (Kinetic)', upload_to=_catalogo_kinetic_banner_path, blank=True, null=True,
-        help_text='Opcional — con imagen cargada, aparece un banner grande debajo del hero.',
-    )
-    kinetic_banner_titulo = models.CharField('Título — banner destacado (Kinetic)', max_length=120, blank=True)
-    kinetic_banner_texto = models.CharField('Texto — banner destacado (Kinetic)', max_length=240, blank=True)
-    kinetic_banner_cta_texto = models.CharField('Texto del botón — banner destacado (Kinetic)', max_length=40, blank=True)
-    kinetic_banner_cta_url = models.CharField('Link del botón — banner destacado (Kinetic)', max_length=300, blank=True)
+    # Las 3 filas de la tarjeta "En vivo" del hero — antes texto fijo
+    # ("CATÁLOGO: N productos" / "STOCK: actualizado en tiempo real" /
+    # "PEDIDOS: a consultar"), el dueño pidió poder escribir otra cosa ahí.
+    # Vacío = se sigue mostrando el valor de siempre (conteo real de
+    # productos y el texto según haya WhatsApp cargado o no, ver
+    # _contexto_base/home.html) — así nadie pierde el comportamiento actual
+    # por no haber tocado esto.
+    kinetic_hero_stat1_titulo = models.CharField('Etiqueta 1 (tarjeta hero, Kinetic)', max_length=20, blank=True)
+    kinetic_hero_stat1_valor  = models.CharField('Valor 1 (tarjeta hero, Kinetic)', max_length=40, blank=True)
+    kinetic_hero_stat2_titulo = models.CharField('Etiqueta 2 (tarjeta hero, Kinetic)', max_length=20, blank=True)
+    kinetic_hero_stat2_valor  = models.CharField('Valor 2 (tarjeta hero, Kinetic)', max_length=40, blank=True)
+    kinetic_hero_stat3_titulo = models.CharField('Etiqueta 3 (tarjeta hero, Kinetic)', max_length=20, blank=True)
+    kinetic_hero_stat3_valor  = models.CharField('Valor 3 (tarjeta hero, Kinetic)', max_length=40, blank=True)
     nav_catalogo_label = models.CharField('Texto del menú "Catálogo"', max_length=30, blank=True)
     nav_ofertas_label  = models.CharField('Texto del menú "Ofertas"', max_length=30, blank=True)
     nav_combos_label   = models.CharField('Texto del menú "Combos"', max_length=30, blank=True)
@@ -290,6 +290,14 @@ class ConfiguracionCatalogo(models.Model):
     # Mismo valor que ya estaba hardcodeado en kinetic.css (--k-bg) — quedar
     # vacío cae en este.
     DEFAULT_COLOR_FONDO_KINETIC = '#0d0d0f'
+    # Etiquetas fijas de la tarjeta "En vivo" del hero — los VALORES de la 1
+    # y la 3 no tienen constante acá porque son calculados (conteo real de
+    # productos / según haya WhatsApp cargado), no texto fijo — ver
+    # home.html y _contexto_base en views.py.
+    DEFAULT_KINETIC_HERO_STAT1_TITULO = 'CATÁLOGO'
+    DEFAULT_KINETIC_HERO_STAT2_TITULO = 'STOCK'
+    DEFAULT_KINETIC_HERO_STAT2_VALOR  = 'ACTUALIZADO EN TIEMPO REAL'
+    DEFAULT_KINETIC_HERO_STAT3_TITULO = 'PEDIDOS'
     # Default propio de "lumina" — salvia + terracota, paleta pastel cálida.
     DEFAULT_COLOR_MARCA_LUMINA = '#4a6b5d'
     DEFAULT_COLOR_MARCA_SECUNDARIO_LUMINA = '#e76f51'
@@ -570,8 +578,8 @@ def _catalogo_banner_bento_path(instance, filename):
 
 class BannerBentoCatalogo(models.Model):
     """
-    Banner promocional opcional de Bento — hasta MAX_BANNERS_BENTO (ver
-    catalogo/views_config.py). Mismos campos que BannerCatalogo (Almacén)
+    Banner promocional opcional de Bento — con límite independiente por
+    formato visual (ver catalogo/views_config.py). Mismos campos que BannerCatalogo (Almacén)
     pero modelo y tabla propios: son conceptos distintos aunque compartan
     forma de datos, cada plantilla maneja los suyos sin cruzarse. Exclusivo
     de "bento".
@@ -604,6 +612,77 @@ class BannerBentoCatalogo(models.Model):
 
     def __str__(self):
         return self.titulo
+
+    @property
+    def muestra_cta(self):
+        return bool(self.cta_texto and self.cta_url)
+
+
+class TickerMensajeKineticCatalogo(models.Model):
+    """
+    Mensaje corto que rota en la barra de estado del header (ver
+    catalogo/plantillas/kinetic/base.html) — reemplaza el texto fijo
+    "STOCK ACTUALIZADO EN TIEMPO REAL" cuando hay al menos uno cargado.
+    Mismo concepto que TickerMensajeCatalogo (Bento) pero tabla propia —
+    exclusivo de "kinetic", nunca se cruzan.
+    """
+    configuracion = models.ForeignKey(
+        ConfiguracionCatalogo, on_delete=models.CASCADE, related_name='ticker_mensajes_kinetic',
+    )
+    texto = models.CharField('Mensaje', max_length=80)
+    activo = models.BooleanField(default=True)
+    orden = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name        = 'Mensaje de la barra de estado (Kinetic)'
+        verbose_name_plural  = 'Mensajes de la barra de estado (Kinetic)'
+        ordering             = ['orden', 'id']
+
+    def __str__(self):
+        return self.texto
+
+
+def _catalogo_banner_kinetic_path(instance, filename):
+    import os
+    ext = os.path.splitext(filename)[1].lower()
+    return f'catalogo/banners-kinetic/{instance.pk}{ext}'
+
+
+class BannerKineticCatalogo(models.Model):
+    """
+    Banner promocional de Kinetic — hasta MAX_BANNERS_KINETIC, mostrados en
+    un rail horizontal (ver catalogo/plantillas/kinetic/home.html). Mismos
+    campos que BannerBentoCatalogo pero sin 'posicion': Kinetic solo tiene
+    un destino visual para esto, a diferencia de Bento. Reemplaza los
+    campos sueltos kinetic_banner_* que tenía ConfiguracionCatalogo (un
+    solo banner posible) — ver migración de datos que preserva el banner
+    ya cargado al pasar de campo único a esta tabla.
+    """
+    configuracion = models.ForeignKey(
+        ConfiguracionCatalogo, on_delete=models.CASCADE, related_name='banners_kinetic',
+    )
+    imagen = models.ImageField('Imagen (opcional)', upload_to=_catalogo_banner_kinetic_path, blank=True, null=True)
+    titulo = models.CharField('Título', max_length=120, blank=True)
+    texto = models.CharField('Texto (opcional)', max_length=240, blank=True)
+    color_fondo = models.CharField(
+        'Color de fondo', max_length=7, blank=True,
+        help_text='Código hex. Vacío = usa el fondo oscuro estándar de Kinetic. Solo se ve si el banner no tiene imagen.',
+    )
+    cta_texto = models.CharField('Texto del botón (opcional)', max_length=40, blank=True)
+    cta_url = models.CharField(
+        'Link del botón (opcional)', max_length=300, blank=True,
+        help_text='Sin texto Y link del botón cargados los dos, el banner no muestra botón.',
+    )
+    activo = models.BooleanField(default=True)
+    orden = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name        = 'Banner (Kinetic)'
+        verbose_name_plural  = 'Banners (Kinetic)'
+        ordering             = ['orden', 'id']
+
+    def __str__(self):
+        return self.titulo or f'Banner #{self.pk}'
 
     @property
     def muestra_cta(self):

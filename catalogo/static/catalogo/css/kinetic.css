@@ -52,6 +52,21 @@
 .kc-kinetic .k-status-extra { white-space: nowrap; }
 @keyframes k-pulse { 0% { opacity: 1; } 50% { opacity: .3; } 100% { opacity: 1; } }
 
+/* Barra de anuncios de la status bar — hasta 4 mensajes, uno visible por
+   vez. El cambio de turno lo maneja kinetic.js (togglea .k-status-ticker-msg--activa
+   cada pocos segundos) — así funciona igual de bien con 1, 2, 3 o 4
+   mensajes cargados, sin huecos vacíos entre turnos. */
+.kc-kinetic .k-status-ticker { position: relative; height: 1.1em; overflow: hidden; flex: 1; max-width: 360px; text-align: right; white-space: nowrap; }
+.kc-kinetic .k-status-ticker-msg {
+    position: absolute; right: 0; top: 0; white-space: nowrap;
+    opacity: 0; transform: translateY(6px);
+    transition: opacity .4s ease, transform .4s ease;
+}
+.kc-kinetic .k-status-ticker-msg--activa { opacity: 1; transform: translateY(0); }
+@media (prefers-reduced-motion: reduce) {
+    .kc-kinetic .k-status-ticker-msg { transition: none; }
+}
+
 /* ═══════════════════════════ HEADER ═══════════════════════════ */
 .kc-kinetic .k-header {
     position: sticky; top: 0; z-index: 100;
@@ -177,26 +192,28 @@
 }
 
 /* ═══════════════════════════ BANNER DESTACADO (opcional) ═══════════════════════════
-   Pieza única (no una lista) — ver ConfiguracionCatalogo.kinetic_banner_imagen.
-   Sin imagen cargada, la sección ni se renderiza (ver home.html). */
-.kc-kinetic .k-banner-kinetic {
-    max-width: 1400px; margin: 2rem auto 0; padding: 0 1.5rem;
+   Ver ConfiguracionCatalogo.banners_kinetic (BannerKineticCatalogo) — el
+   panel admin permite cargar hasta 3, pero acá se muestra solo el primero
+   (según orden) como pieza grande — los demás quedan guardados, pendiente
+   de usarse en otro lugar más adelante. Sin ninguno activo, la sección ni
+   se renderiza (ver home.html). */
+.kc-kinetic .k-banner-destacado-sec { max-width: 1400px; margin: 2rem auto 0; padding: 0 1.5rem; }
+.kc-kinetic .k-banner-destacado {
+    border-radius: var(--k-radius); overflow: hidden; border: 1px solid var(--k-border); background-color: var(--k-surface);
 }
-.kc-kinetic .k-banner-kinetic-overlay {
-    position: relative; border-radius: var(--k-radius); overflow: hidden;
-    aspect-ratio: 21 / 6; min-height: 160px;
-    background-image: linear-gradient(90deg, rgba(8,8,10,.88) 0%, rgba(8,8,10,.35) 55%, rgba(8,8,10,.05) 100%), var(--k-banner-url);
+.kc-kinetic .k-banner-destacado-overlay {
+    position: relative; aspect-ratio: 21 / 6; min-height: 160px;
+    background-image: linear-gradient(90deg, rgba(8,8,10,.88) 0%, rgba(8,8,10,.35) 55%, rgba(8,8,10,.05) 100%), var(--k-banner-url, none);
     background-size: cover; background-position: center;
-    border: 1px solid var(--k-border);
     display: flex; flex-direction: column; justify-content: center; gap: .6rem;
     padding: 2rem 2.4rem;
 }
-.kc-kinetic .k-banner-kinetic-overlay h2 {
+.kc-kinetic .k-banner-destacado-overlay h2 {
     font-family: var(--k-heading); font-size: 1.8rem; text-transform: uppercase; color: #fff; max-width: 22ch;
 }
-.kc-kinetic .k-banner-kinetic-overlay p { color: rgba(255,255,255,.8); font-size: .92rem; max-width: 40ch; }
-.kc-kinetic .k-banner-kinetic-overlay .k-hero-cta { width: fit-content; margin-top: .3rem; }
-@media (max-width: 620px) { .kc-kinetic .k-banner-kinetic-overlay { aspect-ratio: auto; padding: 1.5rem; } }
+.kc-kinetic .k-banner-destacado-overlay p { color: rgba(255,255,255,.8); font-size: .92rem; max-width: 40ch; }
+.kc-kinetic .k-banner-destacado-overlay .k-hero-cta { width: fit-content; margin-top: .3rem; }
+@media (max-width: 620px) { .kc-kinetic .k-banner-destacado-overlay { aspect-ratio: auto; padding: 1.5rem; } }
 
 /* ═══════════════════════════ OFERTAS ACTIVAS (ticker) ═══════════════════════════ */
 .kc-kinetic .k-ticker-sec { max-width: 1400px; margin: 0 auto 2.6rem; padding: 0 1.5rem; }
@@ -420,6 +437,29 @@
 .kc-kinetic .k-combo-price-block { display: flex; flex-direction: column; gap: .15rem; }
 .kc-kinetic .k-combo-ahorro { font-family: var(--k-mono); font-size: .68rem; font-weight: 400; color: var(--k-secondary); }
 
+/* ═══════════════════════════ CTA FINAL / BANDA DE CIERRE (opcional) ═══════════════════════════
+   Mismos campos que ya usa Bento (ConfiguracionCatalogo.cta_final_*,
+   compartido — no hay modelo propio de Kinetic acá) — a Kinetic nunca se
+   le había sumado el diseño para mostrarla. Sin título cargado, la
+   sección ni se renderiza (ver home.html). A diferencia del banner
+   destacado (contenido dentro de .k-contenido, max-width 1400px), esta
+   franja va a todo el ancho de la página, como cierre de la home. */
+.kc-kinetic .k-cta-final {
+    margin-top: 3rem; padding: 3.6rem 1.5rem; text-align: center;
+    border-top: 1px solid var(--k-border); border-bottom: 1px solid var(--k-border);
+    background: var(--k-surface);
+    position: relative;
+}
+.kc-kinetic .k-cta-final--con-imagen {
+    background-image: linear-gradient(180deg, rgba(8,8,10,.85) 0%, rgba(8,8,10,.7) 100%), var(--k-cta-final-url);
+    background-size: cover; background-position: center;
+}
+.kc-kinetic .k-cta-final-inner { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; gap: .7rem; }
+.kc-kinetic .k-cta-final-inner .k-mono-eyebrow { margin: 0; }
+.kc-kinetic .k-cta-final-inner h2 { font-family: var(--k-heading); font-size: 1.9rem; text-transform: uppercase; color: #fff; margin: 0; }
+.kc-kinetic .k-cta-final-inner p { color: var(--k-text-dim); font-size: .95rem; margin: 0 0 .4rem; }
+.kc-kinetic .k-cta-final--con-imagen .k-cta-final-inner p { color: rgba(255,255,255,.82); }
+
 /* ═══════════════════════════ FOOTER ═══════════════════════════ */
 .kc-kinetic .k-footer { background: var(--k-surface); border-top: 1px solid var(--k-border); margin-top: 2rem; }
 /* Flex + wrap en vez de grid de 3 columnas fijas: la columna "Contacto"
@@ -432,12 +472,20 @@
 .kc-kinetic .k-footer-brand { display: flex; align-items: center; gap: 10px; margin-bottom: .75rem; }
 .kc-kinetic .k-footer-logo { height: 28px; width: auto; max-width: 130px; object-fit: contain; }
 .kc-kinetic .k-footer-tagline { color: var(--k-text-dim); font-size: .85rem; line-height: 1.5; max-width: 40ch; margin: 0 0 .9rem; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
-.kc-kinetic .k-footer-redes { display: flex; gap: .5rem; }
-.kc-kinetic .k-footer-redes a {
-    width: 30px; height: 30px; border-radius: 50%; background: var(--k-surface-card); border: 1px solid var(--k-border);
-    color: var(--k-text-dim); display: flex; align-items: center; justify-content: center; transition: .15s;
+/* Selectores compuestos (.k-footer-col .k-footer-redes / .k-footer-col
+   .k-footer-redes a) a propósito: la regla genérica de abajo
+   (.k-footer-col a, .k-footer-col div) tiene la MISMA especificidad que un
+   simple ".k-footer-redes a" y gana por orden de aparición, apilando los
+   íconos en columna en vez de fila — hace falta un selector más específico
+   para ganarle, no solo reordenar el archivo. */
+.kc-kinetic .k-footer-col .k-footer-redes { display: flex; gap: .6rem; margin-bottom: 0; }
+.kc-kinetic .k-footer-col .k-footer-redes a {
+    width: 32px; height: 32px; border-radius: 50%; background: var(--k-surface-card); border: 1px solid var(--k-border);
+    color: var(--k-text); display: flex; align-items: center; justify-content: center; transition: .15s;
+    margin-bottom: 0;
 }
-.kc-kinetic .k-footer-redes a:hover { border-color: var(--k-primary); color: var(--k-primary); }
+.kc-kinetic .k-footer-col .k-footer-redes a svg { width: 15px; height: 15px; }
+.kc-kinetic .k-footer-col .k-footer-redes a:hover { border-color: var(--k-primary); background: var(--k-primary); color: #fff; }
 .kc-kinetic .k-footer-col h4 { font-family: var(--k-mono); font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--k-text-dim); margin: 0 0 .9rem; }
 .kc-kinetic .k-footer-col a, .kc-kinetic .k-footer-col div { display: block; color: var(--k-text-dim); text-decoration: none; font-size: .85rem; margin-bottom: .55rem; }
 .kc-kinetic .k-footer-col a:hover { color: var(--k-primary); }
@@ -655,6 +703,7 @@
     .kc-kinetic .k-cart-trigger { padding: .55rem .7rem; }
     .kc-kinetic .k-header-actions { gap: .4rem; }
     .kc-kinetic .k-status-extra { display: none; }
+    .kc-kinetic .k-status-ticker { display: none; }
     .kc-kinetic .k-brand-logo { max-width: 130px; }
     .kc-kinetic .k-btn-login-text { display: none; }
     .kc-kinetic .k-btn-login { padding: .6rem; }

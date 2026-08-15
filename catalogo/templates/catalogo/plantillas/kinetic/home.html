@@ -23,9 +23,18 @@
         </div>
 
         <div class="k-erp-card k-erp-card--vivo">
-            <div class="k-erp-row"><span>CATÁLOGO:</span><span class="k-erp-value">{{ total_catalogo }} PRODUCTO{{ total_catalogo|pluralize }}</span></div>
-            <div class="k-erp-row"><span>STOCK:</span><span class="k-erp-value k-erp-value--accent">ACTUALIZADO EN TIEMPO REAL</span></div>
-            <div class="k-erp-row"><span>PEDIDOS:</span><span class="k-erp-value">{% if whatsapp_url %}COORDINADOS POR WHATSAPP{% else %}A CONSULTAR{% endif %}</span></div>
+            <div class="k-erp-row">
+                <span>{{ config_catalogo.kinetic_hero_stat1_titulo|default:default_kinetic_hero_stat1_titulo }}:</span>
+                <span class="k-erp-value">{% if config_catalogo.kinetic_hero_stat1_valor %}{{ config_catalogo.kinetic_hero_stat1_valor }}{% else %}{{ total_catalogo }} PRODUCTO{{ total_catalogo|pluralize }}{% endif %}</span>
+            </div>
+            <div class="k-erp-row">
+                <span>{{ config_catalogo.kinetic_hero_stat2_titulo|default:default_kinetic_hero_stat2_titulo }}:</span>
+                <span class="k-erp-value k-erp-value--accent">{{ config_catalogo.kinetic_hero_stat2_valor|default:default_kinetic_hero_stat2_valor }}</span>
+            </div>
+            <div class="k-erp-row">
+                <span>{{ config_catalogo.kinetic_hero_stat3_titulo|default:default_kinetic_hero_stat3_titulo }}:</span>
+                <span class="k-erp-value">{% if config_catalogo.kinetic_hero_stat3_valor %}{{ config_catalogo.kinetic_hero_stat3_valor }}{% elif whatsapp_url %}COORDINADOS POR WHATSAPP{% else %}A CONSULTAR{% endif %}</span>
+            </div>
         </div>
     </section>
 
@@ -126,17 +135,21 @@
     {% endif %}
     {% endif %}
 
-    {% if config_catalogo.kinetic_banner_imagen %}
-    <section class="k-banner-kinetic" style="--k-banner-url:url('{{ config_catalogo.kinetic_banner_imagen.url }}');">
-        <div class="k-banner-kinetic-overlay">
-            {% if config_catalogo.kinetic_banner_titulo %}<h2 id="kcKineticBannerTitulo">{{ config_catalogo.kinetic_banner_titulo }}</h2>{% endif %}
-            {% if config_catalogo.kinetic_banner_texto %}<p id="kcKineticBannerTexto">{{ config_catalogo.kinetic_banner_texto }}</p>{% endif %}
-            {% if config_catalogo.kinetic_banner_cta_texto and config_catalogo.kinetic_banner_cta_url %}
-                <a href="{{ config_catalogo.kinetic_banner_cta_url }}" class="k-hero-cta k-hero-cta--primary">{{ config_catalogo.kinetic_banner_cta_texto }} →</a>
-            {% endif %}
+    {% with banner=banners_kinetic.first %}
+    {% if banner %}
+    <section class="k-banner-destacado-sec">
+        <div class="k-banner-destacado" {% if banner.imagen %}style="--k-banner-url:url('{{ banner.imagen.url }}');"{% elif banner.color_fondo %}style="background-color:{{ banner.color_fondo }};"{% endif %}>
+            <div class="k-banner-destacado-overlay">
+                {% if banner.titulo %}<h2>{{ banner.titulo }}</h2>{% endif %}
+                {% if banner.texto %}<p>{{ banner.texto }}</p>{% endif %}
+                {% if banner.muestra_cta %}
+                    <a href="{{ banner.cta_url }}" class="k-hero-cta k-hero-cta--primary">{{ banner.cta_texto }} →</a>
+                {% endif %}
+            </div>
         </div>
     </section>
     {% endif %}
+    {% endwith %}
 
     {% if mostrar_vidriera and destacados %}
     <section class="k-destacados-sec">
@@ -156,6 +169,19 @@
             {% for pq in paquetes %}
                 {% include 'catalogo/plantillas/kinetic/_combo_card.html' with pq=pq %}
             {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if mostrar_vidriera and config_catalogo.cta_final_titulo %}
+    <section class="k-cta-final {% if config_catalogo.cta_final_imagen %}k-cta-final--con-imagen{% endif %}" {% if config_catalogo.cta_final_imagen %}style="--k-cta-final-url:url('{{ config_catalogo.cta_final_imagen.url }}');"{% endif %}>
+        <div class="k-cta-final-inner">
+            <span class="k-mono-eyebrow">/ SERVICIO</span>
+            <h2>{{ config_catalogo.cta_final_titulo }}</h2>
+            {% if config_catalogo.cta_final_texto %}<p>{{ config_catalogo.cta_final_texto }}</p>{% endif %}
+            {% if config_catalogo.cta_final_boton_texto and config_catalogo.cta_final_boton_url %}
+                <a href="{{ config_catalogo.cta_final_boton_url }}" class="k-hero-cta k-hero-cta--primary">{{ config_catalogo.cta_final_boton_texto }} →</a>
+            {% endif %}
         </div>
     </section>
     {% endif %}

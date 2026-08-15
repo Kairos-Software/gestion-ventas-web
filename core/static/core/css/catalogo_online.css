@@ -189,6 +189,39 @@
     grid-template-columns: 1fr 1fr;
     gap: 0.9rem 1.1rem;
 }
+
+.co-banner-bento-grupo + .co-banner-bento-grupo {
+    border-top: 1px dashed var(--border-color);
+}
+
+.co-banner-bento-grupo-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.65rem;
+}
+
+.co-banner-bento-lista {
+    border: 1px solid var(--border-color);
+    border-radius: 0.65rem;
+    overflow: hidden;
+}
+
+.co-banner-bento-lista > .config-row {
+    margin: 0;
+    border-radius: 0;
+}
+
+.co-banner-bento-lista > .config-row + .config-row {
+    border-top: 1px solid var(--border-color);
+}
+
+.co-banner-bento-vacio {
+    padding: 0.85rem 1rem;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+}
 .co-campo-color, .co-campo-corto { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
 .co-campo-color .config-row-desc { margin: 0 0 0.15rem; }
 .co-color-control { display: flex; align-items: center; gap: 0.6rem; }
@@ -203,4 +236,5 @@
 
 @media (max-width: 479px) {
     .co-row-grid2 { grid-template-columns: 1fr; }
+    .co-banner-bento-grupo-head { align-items: flex-start; }
 }

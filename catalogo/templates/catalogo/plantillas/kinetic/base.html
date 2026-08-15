@@ -33,7 +33,15 @@
 
     <div class="k-status-bar">
         <span class="k-status-badge"><span class="k-status-dot"></span> SISTEMA KAIROS · CATÁLOGO EN LÍNEA</span>
+        {% if ticker_mensajes_kinetic %}
+        <span class="k-status-ticker" id="kcStatusTicker">
+            {% for m in ticker_mensajes_kinetic %}
+            <span class="k-status-ticker-msg{% if forloop.first %} k-status-ticker-msg--activa{% endif %}">{{ m.texto }}</span>
+            {% endfor %}
+        </span>
+        {% else %}
         <span class="k-status-extra">STOCK ACTUALIZADO EN TIEMPO REAL</span>
+        {% endif %}
     </div>
 
     <header class="k-header">

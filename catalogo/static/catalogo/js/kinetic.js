@@ -96,7 +96,7 @@
         if (!resultados.length) { ocultar(); return; }
         var destino = urlResultados();
         var html = resultados.map(function (r) {
-            return '<a class="k-search-dropdown-item" href="' + destino + '">' +
+            return '<a class="k-search-dropdown-item" href="' + r.url + '">' +
                 '<span class="k-search-dropdown-img">' + (r.imagen ? '<img src="' + r.imagen + '" alt="">' : '') + '</span>' +
                 '<span class="k-search-dropdown-info">' +
                     '<span class="k-search-dropdown-nombre">' + escapeHtml(r.nombre) + '</span>' +
@@ -127,4 +127,22 @@
     input.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') ocultar();
     });
+})();
+
+/* Ticker de la barra de estado — crossfade entre los mensajes cargados
+   (ver ConfiguracionCatalogo.ticker_mensajes_kinetic). Togglear una clase
+   por JS en vez de animar por CSS puro evita huecos vacíos entre turnos
+   cuando hay menos de 4 mensajes cargados. */
+(function () {
+    var ticker = document.getElementById('kcStatusTicker');
+    if (!ticker) return;
+    var msgs = ticker.querySelectorAll('.k-status-ticker-msg');
+    if (msgs.length < 2) return;
+
+    var indice = 0;
+    setInterval(function () {
+        msgs[indice].classList.remove('k-status-ticker-msg--activa');
+        indice = (indice + 1) % msgs.length;
+        msgs[indice].classList.add('k-status-ticker-msg--activa');
+    }, 3500);
 })();

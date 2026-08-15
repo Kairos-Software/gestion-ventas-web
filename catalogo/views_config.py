@@ -12,9 +12,10 @@ from productos.models import CategoriaProducto
 from productos.utils_imagenes import comprimir_imagen_subida
 
 from .models import (
-    BannerBentoCatalogo, BannerCatalogo, ConfiguracionCatalogo, ImagenInstitucional,
-    MarcaLogoCatalogo, PlantillaCatalogo, PosicionBanner, PosicionBannerBento,
-    SlideHeroCatalogo, TickerMensajeCatalogo, TileDestacadoCatalogo, TipoTileDestacado,
+    BannerBentoCatalogo, BannerCatalogo, BannerKineticCatalogo, ConfiguracionCatalogo,
+    ImagenInstitucional, MarcaLogoCatalogo, PlantillaCatalogo, PosicionBanner,
+    PosicionBannerBento, SlideHeroCatalogo, TickerMensajeCatalogo,
+    TickerMensajeKineticCatalogo, TileDestacadoCatalogo, TipoTileDestacado,
 )
 from .views import _productos_publicados_base
 
@@ -25,7 +26,13 @@ MAX_BANNERS = 6
 MAX_TILES = 16
 MAX_TICKER = 5
 MAX_MARCAS = 20
-MAX_BANNERS_BENTO = 6
+# Bento tiene tres piezas visuales distintas aunque compartan tabla:
+# Novedades (rail), Promos del mes (grilla) y Franjas anchas. El cupo es
+# independiente por formato; compartir un máximo global dejaba inevitablemente
+# incompleta alguna de las tres secciones.
+MAX_BANNERS_BENTO_POR_FORMATO = 6
+MAX_TICKER_KINETIC = 4
+MAX_BANNERS_KINETIC = 3
 
 
 class CatalogoConfigGuardarAjax(LoginRequiredMixin, View):
@@ -104,10 +111,12 @@ class CatalogoConfigGuardarAjax(LoginRequiredMixin, View):
         config.color_fondo_bento              = colores_por_plantilla['color_fondo_bento']
         config.color_fondo_bento_oscuro       = colores_por_plantilla['color_fondo_bento_oscuro']
         config.color_fondo_kinetic            = colores_por_plantilla['color_fondo_kinetic']
-        config.kinetic_banner_titulo    = (body.get('kinetic_banner_titulo') or '').strip()[:120]
-        config.kinetic_banner_texto     = (body.get('kinetic_banner_texto') or '').strip()[:240]
-        config.kinetic_banner_cta_texto = (body.get('kinetic_banner_cta_texto') or '').strip()[:40]
-        config.kinetic_banner_cta_url   = (body.get('kinetic_banner_cta_url') or '').strip()[:300]
+        config.kinetic_hero_stat1_titulo = (body.get('kinetic_hero_stat1_titulo') or '').strip()[:20]
+        config.kinetic_hero_stat1_valor  = (body.get('kinetic_hero_stat1_valor') or '').strip()[:40]
+        config.kinetic_hero_stat2_titulo = (body.get('kinetic_hero_stat2_titulo') or '').strip()[:20]
+        config.kinetic_hero_stat2_valor  = (body.get('kinetic_hero_stat2_valor') or '').strip()[:40]
+        config.kinetic_hero_stat3_titulo = (body.get('kinetic_hero_stat3_titulo') or '').strip()[:20]
+        config.kinetic_hero_stat3_valor  = (body.get('kinetic_hero_stat3_valor') or '').strip()[:40]
         config.nav_catalogo_label = (body.get('nav_catalogo_label') or '').strip()[:30]
         config.nav_ofertas_label  = (body.get('nav_ofertas_label') or '').strip()[:30]
         config.nav_combos_label   = (body.get('nav_combos_label') or '').strip()[:30]
@@ -288,43 +297,6 @@ class CatalogoConfigCtaFinalImagenAjax(LoginRequiredMixin, View):
     def _borrar_archivo_actual(self, config):
         if config.cta_final_imagen and os.path.isfile(config.cta_final_imagen.path):
             os.remove(config.cta_final_imagen.path)
-
-
-class CatalogoConfigKineticBannerImagenAjax(LoginRequiredMixin, View):
-    """POST (FormData, campo 'imagen') = subir/reemplazar la imagen del banner destacado (Kinetic). DELETE = quitarla."""
-
-    def post(self, request):
-        if not chequear_permiso(request.user, 'editar_catalogo'):
-            return JsonResponse({'error': 'Sin permiso.'}, status=403)
-
-        archivo = request.FILES.get('imagen')
-        if not archivo:
-            return JsonResponse({'error': 'No se recibió ningún archivo.'}, status=400)
-        ext = os.path.splitext(archivo.name)[1].lower()
-        if ext not in EXTENSIONES_PERMITIDAS:
-            return JsonResponse({'error': 'Usá JPG, PNG o WEBP.'}, status=400)
-
-        archivo = comprimir_imagen_subida(archivo)
-
-        config = ConfiguracionCatalogo.get_solo()
-        self._borrar_archivo_actual(config)
-        config.kinetic_banner_imagen = archivo
-        config.save(update_fields=['kinetic_banner_imagen'])
-        return JsonResponse({'ok': True, 'imagen_url': config.kinetic_banner_imagen.url})
-
-    def delete(self, request):
-        if not chequear_permiso(request.user, 'editar_catalogo'):
-            return JsonResponse({'error': 'Sin permiso.'}, status=403)
-
-        config = ConfiguracionCatalogo.get_solo()
-        self._borrar_archivo_actual(config)
-        config.kinetic_banner_imagen = None
-        config.save(update_fields=['kinetic_banner_imagen'])
-        return JsonResponse({'ok': True})
-
-    def _borrar_archivo_actual(self, config):
-        if config.kinetic_banner_imagen and os.path.isfile(config.kinetic_banner_imagen.path):
-            os.remove(config.kinetic_banner_imagen.path)
 
 
 class CatalogoKineticHeroFondoAjax(LoginRequiredMixin, View):
@@ -895,9 +867,40 @@ class CatalogoBannerBentoGuardarAjax(LoginRequiredMixin, View):
         if pk:
             banner = get_object_or_404(BannerBentoCatalogo, pk=pk, configuracion=config)
         else:
-            if config.banners_bento.count() >= MAX_BANNERS_BENTO:
-                return JsonResponse({'error': f'Máximo {MAX_BANNERS_BENTO} banners.'}, status=400)
             banner = BannerBentoCatalogo(configuracion=config)
+
+        formatos = {
+            'novedades': {
+                'posiciones': [PosicionBannerBento.NOVEDADES],
+                'etiqueta': 'Novedades',
+            },
+            'promos': {
+                'posiciones': [PosicionBannerBento.PROMOS_MES],
+                'etiqueta': 'Promos del mes',
+            },
+            'franjas': {
+                'posiciones': [
+                    PosicionBannerBento.ANTES_DESTACADOS,
+                    PosicionBannerBento.ANTES_COMBOS,
+                ],
+                'etiqueta': 'Franjas anchas',
+            },
+        }
+        formato = next(
+            datos for datos in formatos.values() if posicion in datos['posiciones']
+        )
+        banners_del_formato = config.banners_bento.filter(
+            posicion__in=formato['posiciones'],
+        )
+        if pk:
+            banners_del_formato = banners_del_formato.exclude(pk=banner.pk)
+        if banners_del_formato.count() >= MAX_BANNERS_BENTO_POR_FORMATO:
+            return JsonResponse({
+                'error': (
+                    f'Máximo {MAX_BANNERS_BENTO_POR_FORMATO} banners en '
+                    f'{formato["etiqueta"]}.'
+                ),
+            }, status=400)
 
         banner.titulo      = titulo
         banner.texto       = (body.get('texto') or '').strip()
@@ -968,6 +971,166 @@ class CatalogoBannerBentoEliminarAjax(LoginRequiredMixin, View):
 
         banner = get_object_or_404(
             BannerBentoCatalogo, pk=body.get('pk'), configuracion=ConfiguracionCatalogo.get_solo(),
+        )
+        if banner.imagen and os.path.isfile(banner.imagen.path):
+            os.remove(banner.imagen.path)
+        banner.delete()
+        return JsonResponse({'ok': True})
+
+
+class CatalogoTickerKineticGuardarAjax(LoginRequiredMixin, View):
+    """
+    Versión Kinetic de CatalogoTickerGuardarAjax — mismo flujo, tabla
+    propia (TickerMensajeKineticCatalogo), rota en la barra de estado en
+    vez de en la franja de anuncios de Bento.
+    """
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        texto = (body.get('texto') or '').strip()
+        if not texto:
+            return JsonResponse({'error': 'Escribí el mensaje.'}, status=400)
+
+        config = ConfiguracionCatalogo.get_solo()
+        pk = body.get('pk')
+        if pk:
+            mensaje = get_object_or_404(TickerMensajeKineticCatalogo, pk=pk, configuracion=config)
+        else:
+            if config.ticker_mensajes_kinetic.count() >= MAX_TICKER_KINETIC:
+                return JsonResponse({'error': f'Máximo {MAX_TICKER_KINETIC} mensajes.'}, status=400)
+            mensaje = TickerMensajeKineticCatalogo(configuracion=config)
+
+        mensaje.texto  = texto[:80]
+        mensaje.activo = bool(body.get('activo', True))
+        mensaje.save()
+
+        return JsonResponse({'ok': True, 'pk': mensaje.pk})
+
+
+class CatalogoTickerKineticEliminarAjax(LoginRequiredMixin, View):
+    """POST JSON {'pk': ...} — borra un mensaje de la barra de estado (Kinetic)."""
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        mensaje = get_object_or_404(
+            TickerMensajeKineticCatalogo, pk=body.get('pk'), configuracion=ConfiguracionCatalogo.get_solo(),
+        )
+        mensaje.delete()
+        return JsonResponse({'ok': True})
+
+
+class CatalogoBannerKineticGuardarAjax(LoginRequiredMixin, View):
+    """
+    Versión Kinetic de CatalogoBannerBentoGuardarAjax — mismo flujo (imagen
+    en un segundo paso contra CatalogoBannerKineticImagenAjax), tabla
+    propia (BannerKineticCatalogo). Sin 'posicion': Kinetic solo tiene un
+    destino visual (el rail debajo de la grilla de productos).
+    """
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        color_fondo = (body.get('color_fondo') or '').strip()
+        if color_fondo and not re.fullmatch(r'#[0-9a-fA-F]{6}', color_fondo):
+            return JsonResponse({'error': 'Color de fondo inválido.'}, status=400)
+
+        config = ConfiguracionCatalogo.get_solo()
+        pk = body.get('pk')
+        if pk:
+            banner = get_object_or_404(BannerKineticCatalogo, pk=pk, configuracion=config)
+        else:
+            if config.banners_kinetic.count() >= MAX_BANNERS_KINETIC:
+                return JsonResponse({'error': f'Máximo {MAX_BANNERS_KINETIC} banners.'}, status=400)
+            banner = BannerKineticCatalogo(configuracion=config)
+
+        banner.titulo      = (body.get('titulo') or '').strip()[:120]
+        banner.texto       = (body.get('texto') or '').strip()[:240]
+        banner.color_fondo = color_fondo
+        banner.cta_texto   = (body.get('cta_texto') or '').strip()[:40]
+        banner.cta_url     = (body.get('cta_url') or '').strip()[:300]
+        banner.activo      = bool(body.get('activo', True))
+        banner.save()
+
+        return JsonResponse({'ok': True, 'pk': banner.pk})
+
+
+class CatalogoBannerKineticImagenAjax(LoginRequiredMixin, View):
+    """POST (FormData, campos 'pk' + 'imagen') = subir/reemplazar la imagen de un banner de Kinetic ya creado."""
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        pk = request.POST.get('pk')
+        banner = get_object_or_404(BannerKineticCatalogo, pk=pk, configuracion=ConfiguracionCatalogo.get_solo())
+
+        archivo = request.FILES.get('imagen')
+        if not archivo:
+            return JsonResponse({'error': 'No se recibió ningún archivo.'}, status=400)
+        ext = os.path.splitext(archivo.name)[1].lower()
+        if ext not in EXTENSIONES_PERMITIDAS:
+            return JsonResponse({'error': 'Usá JPG, PNG o WEBP.'}, status=400)
+
+        archivo = comprimir_imagen_subida(archivo)
+
+        if banner.imagen and os.path.isfile(banner.imagen.path):
+            os.remove(banner.imagen.path)
+        banner.imagen = archivo
+        banner.save(update_fields=['imagen'])
+        return JsonResponse({'ok': True, 'imagen_url': banner.imagen.url})
+
+    def delete(self, request):
+        """Quitar la imagen sin borrar el banner — vuelve a mostrarse como bloque de color sólido."""
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        banner = get_object_or_404(BannerKineticCatalogo, pk=body.get('pk'), configuracion=ConfiguracionCatalogo.get_solo())
+        if banner.imagen and os.path.isfile(banner.imagen.path):
+            os.remove(banner.imagen.path)
+        banner.imagen = None
+        banner.save(update_fields=['imagen'])
+        return JsonResponse({'ok': True})
+
+
+class CatalogoBannerKineticEliminarAjax(LoginRequiredMixin, View):
+    """POST JSON {'pk': ...} — borra un banner de Kinetic y su imagen."""
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        banner = get_object_or_404(
+            BannerKineticCatalogo, pk=body.get('pk'), configuracion=ConfiguracionCatalogo.get_solo(),
         )
         if banner.imagen and os.path.isfile(banner.imagen.path):
             os.remove(banner.imagen.path)

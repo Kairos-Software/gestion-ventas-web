@@ -14,7 +14,7 @@ from compras.models import LoteCompra
 from productos.models import CategoriaProducto, EstadoProducto, Moneda, Producto
 from asistencia.models import CanalNotificacion, PreferenciaAsistencia
 from asistencia.services.alertas import productos_por_vencer
-from catalogo.models import ConfiguracionCatalogo, PlantillaCatalogo
+from catalogo.models import ConfiguracionCatalogo, PlantillaCatalogo, PosicionBannerBento
 
 
 class CustomLoginView(LoginView):
@@ -189,6 +189,33 @@ def catalogo_online(request):
         config_catalogo.plantilla,
         (config_catalogo.color_marca, config_catalogo.color_marca_secundario),
     )
+    banners_bento = config_catalogo.banners_bento.all()
+    grupos_banners_bento = [
+        {
+            'codigo': 'novedades',
+            'titulo': 'Novedades',
+            'descripcion': 'Tarjetas apaisadas que se recorren en un rail debajo de las categorías.',
+            'posicion_default': PosicionBannerBento.NOVEDADES,
+            'banners': banners_bento.filter(posicion=PosicionBannerBento.NOVEDADES),
+        },
+        {
+            'codigo': 'promos',
+            'titulo': 'Promos del mes',
+            'descripcion': 'Piezas verticales de la grilla promocional.',
+            'posicion_default': PosicionBannerBento.PROMOS_MES,
+            'banners': banners_bento.filter(posicion=PosicionBannerBento.PROMOS_MES),
+        },
+        {
+            'codigo': 'franjas',
+            'titulo': 'Franjas anchas',
+            'descripcion': 'Banners horizontales que separan Destacados o Combos.',
+            'posicion_default': PosicionBannerBento.ANTES_DESTACADOS,
+            'banners': banners_bento.filter(posicion__in=[
+                PosicionBannerBento.ANTES_DESTACADOS,
+                PosicionBannerBento.ANTES_COMBOS,
+            ]),
+        },
+    ]
     return render(request, 'core/catalogo_online.html', {
         'datos_empresa':          DatosEmpresa.get_solo(),
         'configuracion_catalogo': config_catalogo,
@@ -196,6 +223,7 @@ def catalogo_online(request):
         'puede_editar_catalogo':  chequear_permiso(request.user, 'editar_catalogo'),
         'productos_para_hero':    productos_para_hero,
         'categorias_para_tiles':  CategoriaProducto.objects.filter(activo=True).order_by('orden', 'nombre'),
+        'grupos_banners_bento':   grupos_banners_bento,
         'default_hero_subtitulo': ConfiguracionCatalogo.DEFAULT_HERO_SUBTITULO,
         'default_sobre_nosotros': ConfiguracionCatalogo.DEFAULT_SOBRE_NOSOTROS,
         'default_color_marca':    ConfiguracionCatalogo.DEFAULT_COLOR_MARCA,
@@ -214,6 +242,10 @@ def catalogo_online(request):
         # Fondo — exclusivo de Kinetic, mismo criterio que el de Bento arriba.
         'default_color_fondo_kinetic': ConfiguracionCatalogo.DEFAULT_COLOR_FONDO_KINETIC,
         'color_fondo_kinetic_actual': config_catalogo.color_fondo_kinetic,
+        'default_kinetic_hero_stat1_titulo': ConfiguracionCatalogo.DEFAULT_KINETIC_HERO_STAT1_TITULO,
+        'default_kinetic_hero_stat2_titulo': ConfiguracionCatalogo.DEFAULT_KINETIC_HERO_STAT2_TITULO,
+        'default_kinetic_hero_stat2_valor': ConfiguracionCatalogo.DEFAULT_KINETIC_HERO_STAT2_VALOR,
+        'default_kinetic_hero_stat3_titulo': ConfiguracionCatalogo.DEFAULT_KINETIC_HERO_STAT3_TITULO,
         'default_color_marca_lumina': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_LUMINA,
         'default_color_marca_secundario_lumina': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_LUMINA,
         'default_color_marca_actual': default_color_marca_actual,

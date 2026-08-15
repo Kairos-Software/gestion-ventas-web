@@ -4,6 +4,7 @@ from django.core.paginator import Paginator
 from django.db.models import Count, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views import View
@@ -92,6 +93,10 @@ def _contexto_base(request):
         'default_color_marca_kinetic': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_KINETIC,
         'default_color_marca_secundario_kinetic': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_KINETIC,
         'default_color_fondo_kinetic': ConfiguracionCatalogo.DEFAULT_COLOR_FONDO_KINETIC,
+        'default_kinetic_hero_stat1_titulo': ConfiguracionCatalogo.DEFAULT_KINETIC_HERO_STAT1_TITULO,
+        'default_kinetic_hero_stat2_titulo': ConfiguracionCatalogo.DEFAULT_KINETIC_HERO_STAT2_TITULO,
+        'default_kinetic_hero_stat2_valor': ConfiguracionCatalogo.DEFAULT_KINETIC_HERO_STAT2_VALOR,
+        'default_kinetic_hero_stat3_titulo': ConfiguracionCatalogo.DEFAULT_KINETIC_HERO_STAT3_TITULO,
         'default_color_marca_lumina': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_LUMINA,
         'default_color_marca_secundario_lumina': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_LUMINA,
         'default_nav_catalogo': ConfiguracionCatalogo.DEFAULT_NAV_CATALOGO,
@@ -104,6 +109,9 @@ def _contexto_base(request):
         # públicas (no solo la home), mismo criterio que el header/footer
         # compartidos. Exclusiva de "bento" por ahora.
         'ticker_mensajes': config.ticker_mensajes.filter(activo=True),
+        # Barra de estado de Kinetic — mismo criterio, tabla propia,
+        # exclusiva de "kinetic".
+        'ticker_mensajes_kinetic': config.ticker_mensajes_kinetic.filter(activo=True)[:4],
     }
     return ctx, ofertas
 
@@ -678,6 +686,9 @@ class CatalogoHomeView(TemplateView):
         ctx['banners_bento_promos'] = banners_bento_activos.filter(posicion=PosicionBannerBento.PROMOS_MES)
         ctx['banners_bento_antes_destacados'] = banners_bento_activos.filter(posicion=PosicionBannerBento.ANTES_DESTACADOS)
         ctx['banners_bento_antes_combos'] = banners_bento_activos.filter(posicion=PosicionBannerBento.ANTES_COMBOS)
+        # Banners de Kinetic — tabla propia (BannerKineticCatalogo), un solo
+        # destino visual (rail debajo de la grilla), sin 'posicion'.
+        ctx['banners_kinetic'] = ctx['config_catalogo'].banners_kinetic.filter(activo=True)
         # Categorías/marcas destacadas — accesos directos con imagen que
         # filtran el catálogo al click, exclusivos de "almacen" (en Bento
         # son redundantes: las categorías ya se navegan por el rail de
@@ -808,6 +819,7 @@ class BuscarSugerenciasAjax(View):
                 'imagen': p.imagenes.first().imagen.url if p.imagenes.first() else '',
                 'precio': f'${p.precio_venta:.0f}' if p.precio_venta else 'A consultar',
                 'categoria': p.categoria.nombre if p.categoria else '',
+                'url': reverse('catalogo:producto_detalle', args=[p.pk]),
             }
             for p in productos
         ]

@@ -101,12 +101,12 @@
 
 <div class="stories-wrap">
   <div class="stories-rail hide-scrollbar">
-    <a href="{{ url_todas_categorias }}" class="story {% if not categoria_activa %}active{% endif %}">
+    <a href="{{ url_todas_categorias }}" class="story {% if not categoria_activa %}active{% endif %}" title="Todos los productos">
       <div class="story-ring"><div class="story-ring-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h16"/></svg></div></div>
       <div class="story-label">Todos</div>
     </a>
     {% for cat in categorias %}
-    <a href="{{ cat.url }}" class="story {% if cat.activa %}active{% endif %}">
+    <a href="{{ cat.url }}" class="story {% if cat.activa %}active{% endif %}" title="{{ cat.nombre }}">
       <div class="story-ring"><div class="story-ring-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg></div></div>
       <div class="story-label">{{ cat.nombre }}</div>
     </a>

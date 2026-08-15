@@ -40,7 +40,7 @@ html[data-theme="dark"]{
 .kc-bento{
   background:var(--paper); color:var(--ink); font-family:var(--f-body);
   line-height:1.5; -webkit-font-smoothing:antialiased; transition:background .2s,color .2s;
-  min-height:100vh;
+  min-height:100vh; margin:0;
 }
 .kc-bento img{max-width:100%; display:block;}
 .kc-bento button{font-family:inherit; cursor:pointer; border:none; background:none; color:inherit;}
@@ -258,17 +258,28 @@ html[data-theme="dark"] .kc-bento .theme-switch i{ left:20px; background:var(--l
 
 /* ================= Stories category rail ================= */
 .kc-bento .stories-wrap{ padding:26px 0 4px; }
-.kc-bento .stories-rail{ display:flex; gap:20px; overflow-x:auto; padding:2px 26px 4px; }
-.kc-bento .story{ flex-shrink:0; display:flex; flex-direction:column; align-items:center; gap:8px; width:68px; }
+/* En escritorio las categorías ocupan y reparten todo el ancho disponible.
+   Antes eran ítems fijos de 68px pegados a la izquierda: al alejar el zoom
+   el resto de la página se acomodaba, pero este rail quedaba igual. */
+.kc-bento .stories-rail{
+  max-width:1320px; margin:0 auto; padding:2px 26px 6px;
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(92px,1fr));
+  gap:16px; overflow:visible;
+}
+.kc-bento .story{ min-width:0; display:flex; flex-direction:column; align-items:center; gap:8px; }
 .kc-bento .story-ring{ width:60px; height:60px; border-radius:50%; padding:3px; background:linear-gradient(135deg, var(--lime), var(--amber)); display:flex; align-items:center; justify-content:center; transition:.15s; }
 .kc-bento .story:not(.active) .story-ring{ background:var(--line); opacity:.8; }
 .kc-bento .story-ring-inner{ width:100%; height:100%; border-radius:50%; background:var(--surface); display:flex; align-items:center; justify-content:center; color:var(--ink); }
 .kc-bento .story-ring-inner svg{ width:22px; height:22px; }
-.kc-bento .story-label{ font-size:11px; font-weight:600; color:var(--ink-soft); text-align:center; line-height:1.2; }
+.kc-bento .story-label{
+  width:100%; min-height:3.6em; padding:0 3px;
+  font-size:11px; font-weight:600; color:var(--ink-soft); text-align:center; line-height:1.2;
+  overflow-wrap:anywhere; hyphens:auto;
+}
 .kc-bento .story.active .story-label{ color:var(--ink); }
 
 /* ================= Sub toolbar ================= */
-.kc-bento .subbar{ position:sticky; top:0; z-index:60; background:var(--paper); }
+.kc-bento .subbar{ position:sticky; top:var(--topbar-h, 0px); z-index:60; background:var(--paper); }
 .kc-bento .subbar-inner{ display:flex; align-items:center; gap:12px; padding:16px 0; flex-wrap:wrap; border-bottom:1px solid var(--line); }
 .kc-bento .subbar-right{ display:flex; align-items:center; gap:8px; margin-left:auto; }
 .kc-bento .result-count{ font-size:12.5px; color:var(--ink-faint); margin-right:4px; }
@@ -760,7 +771,8 @@ footer.kc-bento-footer .foot-bottom{ max-width:1320px; margin:36px auto 0; paddi
    Ofertas/Combos/La tienda tienen que seguir siendo alcanzables en mobile. */
 @media (max-width:980px){
   .kc-bento .topbar-inner{ flex-wrap:wrap; row-gap:8px; }
-  .kc-bento .main-nav{ order:5; flex-basis:100%; overflow-x:auto; gap:18px; padding-bottom:2px; }
+  .kc-bento .main-nav{ order:5; flex-basis:100%; overflow-x:auto; gap:18px; padding-bottom:2px; scrollbar-width:none; }
+  .kc-bento .main-nav::-webkit-scrollbar{ display:none; }
 }
 
 @media (max-width:860px){
@@ -775,4 +787,181 @@ footer.kc-bento-footer .foot-bottom{ max-width:1320px; margin:36px auto 0; paddi
   .kc-bento .kc-detalle{ grid-template-columns:1fr; gap:24px; padding:20px; margin:14px 0 28px; }
   .kc-bento .kc-galeria-col{ position:static; }
   .kc-bento .kc-galeria-principal{ height:300px; }
+}
+
+/* ================= Responsive integral de Bento =================
+   Los breakpoints anteriores resolvían piezas aisladas. Este bloque ordena
+   la composición completa (header, home, detalle e institucional) y va al
+   final para que las decisiones de mobile ganen por cascada. */
+@media (max-width:900px){
+  .kc-bento .shell{ padding-left:20px; padding-right:20px; }
+  .kc-bento .topbar-inner{ padding-left:20px; padding-right:20px; }
+  .kc-bento .topbar.shrink .topbar-inner{ padding-left:20px; padding-right:20px; }
+  .kc-bento .hero-row{ margin-top:14px; }
+  .kc-bento .hero-side{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .kc-bento .side-spot{ min-height:0; aspect-ratio:16/9; }
+  .kc-bento .promo-grid{ grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .kc-bento .tm-historia-inner{ padding-left:20px; padding-right:20px; }
+  footer.kc-bento-footer .foot-bottom{ padding-left:20px; padding-right:20px; }
+}
+
+@media (max-width:700px){
+  .kc-bento{ overflow-x:clip; }
+  .kc-bento .shell{ padding-left:16px; padding-right:16px; }
+
+  .kc-bento .ticker{ min-height:36px; }
+  .kc-bento .ticker-msg{ line-height:1.25; }
+
+  .kc-bento .topbar-inner{ gap:8px; padding:10px 16px; }
+  .kc-bento .topbar.shrink .topbar-inner{ padding:8px 16px; }
+  .kc-bento .brand{ min-width:0; }
+  .kc-bento .brand-mark img{ height:32px; max-width:112px; }
+  .kc-bento .brand-text{ display:none; }
+  .kc-bento .top-actions{ gap:2px; }
+  .kc-bento .theme-switch{ width:38px; }
+  .kc-bento .theme-switch i{ width:18px; height:18px; top:3px; }
+  html[data-theme="dark"] .kc-bento .theme-switch i{ left:17px; }
+  .kc-bento .btn-login{ width:36px; height:36px; padding:0; justify-content:center; font-size:0; }
+  .kc-bento .btn-login svg{ width:16px; height:16px; }
+  .kc-bento .main-nav{ gap:16px; margin:0 -16px; padding:4px 16px 3px; }
+  .kc-bento .main-nav a{ font-size:12px; }
+  .kc-bento .topbar.search-open .search-wrap{ margin-top:0; }
+
+  .kc-bento .hero-row{ gap:10px; }
+  .kc-bento .carousel-track-wrap,
+  .kc-bento .hero-simple{ height:auto; min-height:0; aspect-ratio:4/3; border-radius:var(--r-md); }
+  .kc-bento .hero-simple{ padding:24px; }
+  .kc-bento .c-overlay{
+    max-width:none; padding:22px; justify-content:flex-end;
+    background:linear-gradient(0deg,rgba(23,25,39,.9) 0%,rgba(23,25,39,.5) 60%,rgba(23,25,39,.08) 100%);
+  }
+  .kc-bento .c-eyebrow{ font-size:10px; margin-bottom:6px; }
+  .kc-bento .c-title{ font-size:clamp(22px,7vw,30px); margin-bottom:7px; }
+  .kc-bento .c-desc{ font-size:12.5px; line-height:1.4; margin-bottom:12px; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+  .kc-bento .c-cta{ padding:9px 14px; font-size:12px; }
+  .kc-bento .c-arrow{ width:34px; height:34px; }
+  .kc-bento .c-arrow.prev{ left:10px; }
+  .kc-bento .c-arrow.next{ right:10px; }
+  .kc-bento .c-dots{ bottom:10px; }
+  .kc-bento .hero-side{ gap:10px; }
+  .kc-bento .side-spot{ aspect-ratio:4/3; border-radius:var(--r-md); }
+  .kc-bento .side-spot-overlay{ padding:12px; }
+  .kc-bento .side-spot-overlay .tag{ font-size:8.5px; margin-bottom:5px; }
+  .kc-bento .side-spot-overlay h3{ font-size:12.5px; }
+  .kc-bento .side-spot-overlay .price{ font-size:13px; }
+
+  .kc-bento .trust{
+    display:flex; gap:10px; overflow-x:auto; padding:14px 0 4px; margin:0;
+    scroll-snap-type:x proximity; scrollbar-width:none;
+  }
+  .kc-bento .trust::-webkit-scrollbar{ display:none; }
+  .kc-bento .trust-item{ flex:0 0 min(280px,calc(100vw - 64px)); padding:11px; background:var(--surface); border:1px solid var(--line); scroll-snap-align:start; }
+  .kc-bento .trust-ic{ width:36px; height:36px; }
+  .kc-bento .trust-item strong{ font-size:12.5px; }
+  .kc-bento .trust-item small{ font-size:11px; }
+
+  .kc-bento .stories-wrap{ padding:20px 0 2px; }
+  .kc-bento .stories-rail{
+    display:flex; gap:12px; max-width:none; margin:0; padding:2px 16px 6px;
+    overflow-x:auto; scroll-snap-type:x proximity; scrollbar-width:none;
+  }
+  .kc-bento .stories-rail::-webkit-scrollbar{ display:none; }
+  .kc-bento .story{ flex:0 0 84px; scroll-snap-align:start; }
+  .kc-bento .story-ring{ width:54px; height:54px; }
+  .kc-bento .story-label{ min-height:3.6em; font-size:10px; }
+
+  .kc-bento .ads-wrap,
+  .kc-bento .promo-grid-wrap{ padding-top:26px; }
+  .kc-bento .rail-head{ align-items:center; margin-bottom:12px; }
+  .kc-bento .rail-title{ font-size:17px; }
+  .kc-bento .rail-eyebrow{ font-size:9.5px; }
+  .kc-bento .ads-rail{ gap:12px; scroll-padding-left:0; }
+  .kc-bento .ad-card{ flex-basis:calc(100vw - 48px); max-width:360px; border-radius:var(--r-md); }
+  .kc-bento .ad-card-overlay{ padding:15px; gap:8px; }
+  .kc-bento .ad-card-title{ font-size:15px; }
+  .kc-bento .ad-card-text{ font-size:11.5px; }
+  .kc-bento .ad-card-cta{ font-size:11px; padding:7px 12px; }
+  .kc-bento .promo-grid{ grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+  .kc-bento .promo-card{ padding:12px; border-radius:var(--r-md); }
+
+  .kc-bento .subbar{ box-shadow:0 5px 14px -12px rgba(23,25,39,.4); }
+  .kc-bento .subbar-inner{ padding:10px 16px; gap:8px; }
+  .kc-bento .subbar-right{ gap:6px; }
+  .kc-bento .result-count{ font-size:11px; }
+  .kc-bento .sort-select,
+  .kc-bento .filter-fab{ min-height:36px; padding:7px 9px; font-size:11.5px; }
+
+  .kc-bento .flash{ padding:18px 14px 16px; margin-top:18px; border-radius:var(--r-md); }
+  .kc-bento .flash-row,
+  .kc-bento .destacados-row{ gap:10px; }
+  .kc-bento .flash-card{ flex-basis:150px; }
+  .kc-bento .destacado-card{ flex-basis:165px; }
+  .kc-bento .bento{ gap:10px; padding:18px 0 38px; }
+  .kc-bento .tile{ border-radius:var(--r-md); }
+  .kc-bento .tile-body{ padding:10px; }
+  .kc-bento .tile-name{ font-size:12px; }
+  .kc-bento .tile-agregar button,
+  .kc-bento .tile-agregar--opciones{ font-size:11.5px; padding:8px 5px; }
+  .kc-bento .banner-strip{ padding:16px 0; }
+  .kc-bento .banner-strip-item{ min-height:140px; border-radius:var(--r-md); }
+  .kc-bento .banner-strip-copy{ padding:18px; max-width:88%; }
+  .kc-bento .banner-strip-copy b{ font-size:16px; }
+  .kc-bento .combos-section{ padding-top:28px; }
+  .kc-bento .cta-band{ padding:34px 16px; }
+  .kc-bento .brands-wrap{ padding:28px 0; }
+  .kc-bento .brands{ gap:14px; }
+  .kc-bento .tm-historia-inner,
+  .kc-bento .tm-historia--home .tm-historia-inner{ padding:34px 16px; }
+
+  .kc-bento .drawer{ width:100%; max-width:100vw; }
+  .kc-bento #kcDrawer{ max-width:none; max-height:88dvh; }
+  .kc-bento #kcDrawerItems{ padding-left:16px; padding-right:16px; }
+  .kc-bento .kc-drawer-foot{ padding:12px 16px calc(16px + env(safe-area-inset-bottom)); }
+
+  .kc-bento .kc-breadcrumb{ padding-top:12px; }
+  .kc-bento .kc-detalle{ gap:18px; padding:14px; margin:10px 0 24px; border-radius:var(--r-md); box-shadow:var(--shadow-sm); }
+  .kc-bento .kc-galeria-principal{ height:auto; aspect-ratio:1; border-radius:var(--r-md); }
+  .kc-bento .kc-galeria-thumbs{ overflow-x:auto; padding-bottom:3px; scrollbar-width:none; }
+  .kc-bento .kc-galeria-thumbs::-webkit-scrollbar{ display:none; }
+  .kc-bento .kc-detalle-nombre{ font-size:clamp(23px,7vw,29px); }
+  .kc-bento .kc-detalle-precio-card{ padding:14px; }
+  .kc-bento .kc-detalle-specs{ grid-template-columns:1fr; }
+
+  .kc-bento .inst-portada-inner{ padding:44px 16px; }
+  .kc-bento .inst-subnav{ padding:11px 16px; gap:18px; scrollbar-width:none; }
+  .kc-bento .inst-subnav::-webkit-scrollbar{ display:none; }
+  .kc-bento .tm-mosaico{ gap:10px; padding-top:18px; }
+  .kc-bento .tm-tile--num{ padding:18px; }
+  .kc-bento .tm-tile--stats{ padding:18px; }
+  .kc-bento .inst-info{ gap:10px; padding:18px 0; }
+  .kc-bento .inst-info-card{ padding:18px; }
+  .kc-bento .inst-contacto{ padding:8px 0 36px; }
+  .kc-bento .inst-contacto-card{ padding:24px 20px; align-items:stretch; }
+  .kc-bento .inst-whatsapp-btn{ justify-content:center; width:100%; }
+
+  footer.kc-bento-footer{ margin-top:34px; padding-top:34px; }
+  footer.kc-bento-footer .foot-grid{ gap:22px; }
+  footer.kc-bento-footer .foot-bottom{ margin-top:26px; padding-left:16px; padding-right:16px; }
+}
+
+@media (max-width:420px){
+  .kc-bento .hero-simple{ padding:20px; }
+  .kc-bento .c-overlay{ padding:18px; }
+  .kc-bento .c-desc{ -webkit-line-clamp:2; }
+  .kc-bento .c-arrow{ display:none; }
+  .kc-bento .story{ flex-basis:78px; }
+  .kc-bento .promo-grid{ gap:8px; }
+  .kc-bento .promo-card-copy b{ font-size:13px; }
+  .kc-bento .promo-card-copy small{ font-size:10px; }
+  .kc-bento .promo-card-cta{ font-size:9.5px; padding:5px 8px; }
+  .kc-bento .result-count{ flex-basis:100%; }
+  .kc-bento .subbar-right{ width:100%; }
+  .kc-bento .subbar-right form{ flex:1; }
+  .kc-bento .sort-select{ width:100%; }
+  .kc-bento .filter-fab{ flex:none; }
+  .kc-bento .bento{ gap:8px; }
+  .kc-bento .tile-body{ padding:9px; }
+  .kc-bento .tile-cat{ font-size:8.5px; }
+  .kc-bento .tile-price,
+  .kc-bento .tile-price-off{ font-size:13px; }
 }

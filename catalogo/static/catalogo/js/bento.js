@@ -215,7 +215,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!resultados.length) { ocultar(); return; }
             var destino = urlResultados();
             var html = resultados.map(function (r) {
-                return '<a class="search-dropdown-item" href="' + destino + '">' +
+                return '<a class="search-dropdown-item" href="' + r.url + '">' +
                     '<span class="search-dropdown-img">' + (r.imagen ? '<img src="' + r.imagen + '" alt="">' : '') + '</span>' +
                     '<span class="search-dropdown-info">' +
                         '<span class="search-dropdown-nombre">' + escapeHtml(r.nombre) + '</span>' +

@@ -208,10 +208,6 @@ document.addEventListener('DOMContentLoaded', function () {
             const inputTexto = document.getElementById('idCatalogoDestacado' + n + 'Texto');
             if (textoEl && inputTexto) textoEl.textContent = inputTexto.value || defaults['destacado' + n + 'Texto'] || '';
         });
-        const kineticBannerTitulo = doc.getElementById('kcKineticBannerTitulo');
-        if (kineticBannerTitulo) kineticBannerTitulo.textContent = document.getElementById('idCatalogoKineticBannerTitulo')?.value || '';
-        const kineticBannerTexto = doc.getElementById('kcKineticBannerTexto');
-        if (kineticBannerTexto) kineticBannerTexto.textContent = document.getElementById('idCatalogoKineticBannerTexto')?.value || '';
         const color = document.getElementById('idCatalogoColorMarca').value || colorDefaultActual('marca');
         const colorSecundario = document.getElementById('idCatalogoColorMarcaSecundario')?.value || colorDefaultActual('secundario');
         if (doc.documentElement) {
@@ -277,8 +273,6 @@ document.addEventListener('DOMContentLoaded', function () {
         'idCatalogoDestacado1Titulo', 'idCatalogoDestacado1Texto',
         'idCatalogoDestacado2Titulo', 'idCatalogoDestacado2Texto',
         'idCatalogoDestacado3Titulo', 'idCatalogoDestacado3Texto',
-        'idCatalogoKineticBannerTitulo', 'idCatalogoKineticBannerTexto',
-        'idCatalogoKineticBannerCtaTexto', 'idCatalogoKineticBannerCtaUrl',
     ].forEach(function (id) {
         const el = document.getElementById(id);
         if (el) el.addEventListener('input', aplicarValoresAlPreview);
@@ -487,10 +481,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 color_fondo_bento:        colorFondoTocado ? document.getElementById('idCatalogoColorFondo').value : '',
                 color_fondo_bento_oscuro: colorFondoOscuroTocado ? document.getElementById('idCatalogoColorFondoOscuro').value : '',
                 color_fondo_kinetic:      colorFondoKineticTocado ? document.getElementById('idCatalogoColorFondoKinetic').value : '',
-                kinetic_banner_titulo:    document.getElementById('idCatalogoKineticBannerTitulo')?.value || '',
-                kinetic_banner_texto:     document.getElementById('idCatalogoKineticBannerTexto')?.value || '',
-                kinetic_banner_cta_texto: document.getElementById('idCatalogoKineticBannerCtaTexto')?.value || '',
-                kinetic_banner_cta_url:   document.getElementById('idCatalogoKineticBannerCtaUrl')?.value || '',
+                kinetic_hero_stat1_titulo: document.getElementById('idCatalogoKineticStat1Titulo')?.value || '',
+                kinetic_hero_stat1_valor:  document.getElementById('idCatalogoKineticStat1Valor')?.value || '',
+                kinetic_hero_stat2_titulo: document.getElementById('idCatalogoKineticStat2Titulo')?.value || '',
+                kinetic_hero_stat2_valor:  document.getElementById('idCatalogoKineticStat2Valor')?.value || '',
+                kinetic_hero_stat3_titulo: document.getElementById('idCatalogoKineticStat3Titulo')?.value || '',
+                kinetic_hero_stat3_valor:  document.getElementById('idCatalogoKineticStat3Valor')?.value || '',
                 nav_catalogo_label: document.getElementById('idCatalogoNavCatalogo').value,
                 nav_ofertas_label:  document.getElementById('idCatalogoNavOfertas').value,
                 nav_combos_label:   document.getElementById('idCatalogoNavCombos').value,
@@ -613,7 +609,6 @@ document.addEventListener('DOMContentLoaded', function () {
     initSubidaImagenSpot('inputCatalogoHeroSpot1', 'btnEliminarCatalogoHeroSpot1', 'catalogoHeroSpot1PreviewBox', urls.heroSpot1Imagen);
     initSubidaImagenSpot('inputCatalogoHeroSpot2', 'btnEliminarCatalogoHeroSpot2', 'catalogoHeroSpot2PreviewBox', urls.heroSpot2Imagen);
     initSubidaImagenSpot('inputCatalogoCtaFinalImagen', 'btnEliminarCatalogoCtaFinalImagen', 'catalogoCtaFinalImagenPreviewBox', urls.ctaFinalImagen);
-    initSubidaImagenSpot('inputCatalogoKineticBanner', 'btnEliminarCatalogoKineticBanner', 'catalogoKineticBannerPreviewBox', urls.kineticBannerImagen);
 
     document.getElementById('btnEliminarCatalogoHero')?.addEventListener('click', function () {
         fetch(urls.heroImagen, {
@@ -1218,8 +1213,8 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // ── Banners/anuncios de Bento (opcional, hasta 6) — tabla propia, sin
-    //    cruzarse con los banners de Almacén (mismo patrón que formBanner). ──
+    // ── Banners/anuncios de Bento — tres formatos visuales con cupos
+    //    independientes. Comparten tabla, pero el editor no los mezcla. ──
     const formBannerBento = document.getElementById('formBannerBento');
     if (formBannerBento) {
         const csrfBannerBento = () => formBannerBento.querySelector('[name=csrfmiddlewaretoken]').value;
@@ -1229,6 +1224,29 @@ document.addEventListener('DOMContentLoaded', function () {
         const colorFondoBentoDefault = document.getElementById('bannerBentoColorFondo').value;
         let bannerBentoImagenFile = null;
         let bannerBentoTieneImagenGuardada = false;
+        const posicionesPorFormatoBannerBento = {
+            novedades: ['novedades'],
+            promos: ['promos_mes'],
+            franjas: ['antes_destacados', 'antes_combos'],
+        };
+        const nombresFormatoBannerBento = {
+            novedades: 'Novedades',
+            promos: 'Promos del mes',
+            franjas: 'Franjas anchas',
+        };
+
+        function configurarFormatoBannerBento(formato, posicion) {
+            const permitidas = posicionesPorFormatoBannerBento[formato] || posicionesPorFormatoBannerBento.novedades;
+            const select = document.getElementById('bannerBentoPosicion');
+            Array.from(select.options).forEach(function (option) {
+                const visible = permitidas.includes(option.value);
+                option.disabled = !visible;
+                option.hidden = !visible;
+            });
+            select.value = permitidas.includes(posicion) ? posicion : permitidas[0];
+            document.getElementById('bannerBentoModalSubtitle').textContent =
+                `${nombresFormatoBannerBento[formato] || 'Banner'} · imagen o color sólido`;
+        }
 
         function limpiarFormBannerBento() {
             document.getElementById('bannerBentoPk').value = '';
@@ -1246,18 +1264,23 @@ document.addEventListener('DOMContentLoaded', function () {
             bannerBentoTieneImagenGuardada = false;
         }
 
-        document.getElementById('btnNuevoBannerBento')?.addEventListener('click', function () {
-            limpiarFormBannerBento();
-            document.getElementById('bannerBentoModalLabel').textContent = 'Nuevo banner';
+        document.querySelectorAll('.btn-nuevo-banner-bento').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                limpiarFormBannerBento();
+                configurarFormatoBannerBento(btn.dataset.bannerFormato, btn.dataset.bannerPosicion);
+                document.getElementById('bannerBentoModalLabel').textContent =
+                    `Nuevo banner · ${nombresFormatoBannerBento[btn.dataset.bannerFormato]}`;
+            });
         });
 
         document.querySelectorAll('.btn-editar-banner-bento').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 const row = btn.closest('.banner-bento-row');
                 limpiarFormBannerBento();
-                document.getElementById('bannerBentoModalLabel').textContent = 'Editar banner';
+                configurarFormatoBannerBento(row.dataset.formato, row.dataset.posicion);
+                document.getElementById('bannerBentoModalLabel').textContent =
+                    `Editar banner · ${nombresFormatoBannerBento[row.dataset.formato]}`;
                 document.getElementById('bannerBentoPk').value = row.dataset.pk;
-                document.getElementById('bannerBentoPosicion').value = row.dataset.posicion;
                 document.getElementById('bannerBentoTitulo').value = row.dataset.titulo;
                 document.getElementById('bannerBentoTexto').value = row.dataset.texto;
                 document.getElementById('bannerBentoColorFondo').value = row.dataset.colorFondo || colorFondoBentoDefault;
@@ -1439,6 +1462,228 @@ document.addEventListener('DOMContentLoaded', function () {
                     return;
                 }
                 recargarPreservandoTab();
+            });
+        });
+    }
+
+    // ── Mensajes de la barra de estado (opcional, hasta 4, plantilla "Kinetic") ──
+    const formTickerKinetic = document.getElementById('formTickerKinetic');
+    if (formTickerKinetic) {
+        const csrfTickerKinetic = () => formTickerKinetic.querySelector('[name=csrfmiddlewaretoken]').value;
+        const urlsTickerKinetic = window.CONFIG_TICKER_KINETIC_URLS || {};
+        const modalTickerKineticEl = document.getElementById('tickerKineticModal');
+        const modalTickerKinetic = window.bootstrap ? new bootstrap.Modal(modalTickerKineticEl) : null;
+
+        function limpiarFormTickerKinetic() {
+            document.getElementById('tickerKineticPk').value = '';
+            document.getElementById('tickerKineticTexto').value = '';
+            document.getElementById('tickerKineticMsg').textContent = '';
+        }
+
+        document.getElementById('btnNuevoTickerKinetic')?.addEventListener('click', function () {
+            limpiarFormTickerKinetic();
+            document.getElementById('tickerKineticModalLabel').textContent = 'Nuevo mensaje';
+        });
+
+        document.querySelectorAll('.btn-editar-ticker-kinetic').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const row = btn.closest('.ticker-kinetic-row');
+                limpiarFormTickerKinetic();
+                document.getElementById('tickerKineticModalLabel').textContent = 'Editar mensaje';
+                document.getElementById('tickerKineticPk').value = row.dataset.pk;
+                document.getElementById('tickerKineticTexto').value = row.dataset.texto;
+                if (modalTickerKinetic) modalTickerKinetic.show();
+            });
+        });
+
+        document.querySelectorAll('.btn-eliminar-ticker-kinetic').forEach(function (btn) {
+            btn.addEventListener('click', async function () {
+                const row = btn.closest('.ticker-kinetic-row');
+                const ok = await KaiConfirm(`¿Seguro que querés eliminar el mensaje "${row.dataset.texto}"?`);
+                if (!ok) return;
+                fetch(urlsTickerKinetic.eliminar, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfTickerKinetic() },
+                    body: JSON.stringify({ pk: row.dataset.pk }),
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) { KaiToast.show(data.error, 'danger'); return; }
+                    recargarPreservandoTab();
+                });
+            });
+        });
+
+        formTickerKinetic.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const msg = document.getElementById('tickerKineticMsg');
+            const pk = document.getElementById('tickerKineticPk').value || null;
+            fetch(urlsTickerKinetic.guardar, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfTickerKinetic() },
+                body: JSON.stringify({ pk: pk, texto: document.getElementById('tickerKineticTexto').value }),
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    msg.style.color = '#e11d48';
+                    msg.textContent = data.error;
+                    return;
+                }
+                recargarPreservandoTab();
+            });
+        });
+    }
+
+    // ── Banners de Kinetic (opcional, hasta 3) — tabla propia, rail único
+    //    (sin 'posicion', a diferencia de Bento) — mismo patrón que formBannerBento. ──
+    const formBannerKinetic = document.getElementById('formBannerKinetic');
+    if (formBannerKinetic) {
+        const csrfBannerKinetic = () => formBannerKinetic.querySelector('[name=csrfmiddlewaretoken]').value;
+        const urlsBannerKinetic = window.CONFIG_BANNERS_KINETIC_URLS || {};
+        const modalBannerKineticEl = document.getElementById('bannerKineticModal');
+        const modalBannerKinetic = window.bootstrap ? new bootstrap.Modal(modalBannerKineticEl) : null;
+        const colorFondoKineticBannerDefault = document.getElementById('bannerKineticColorFondo').value;
+        let bannerKineticImagenFile = null;
+        let bannerKineticTieneImagenGuardada = false;
+
+        function limpiarFormBannerKinetic() {
+            document.getElementById('bannerKineticPk').value = '';
+            document.getElementById('bannerKineticTitulo').value = '';
+            document.getElementById('bannerKineticTexto').value = '';
+            document.getElementById('bannerKineticColorFondo').value = colorFondoKineticBannerDefault;
+            document.getElementById('bannerKineticCtaTexto').value = '';
+            document.getElementById('bannerKineticCtaUrl').value = '';
+            document.getElementById('bannerKineticImagenPreviewBox').innerHTML =
+                '<span style="font-size:0.6rem; color:var(--text-muted);">Sin imagen</span>';
+            document.getElementById('btnQuitarBannerKineticImagen').style.display = 'none';
+            document.getElementById('bannerKineticMsg').textContent = '';
+            bannerKineticImagenFile = null;
+            bannerKineticTieneImagenGuardada = false;
+        }
+
+        document.getElementById('btnNuevoBannerKinetic')?.addEventListener('click', function () {
+            limpiarFormBannerKinetic();
+            document.getElementById('bannerKineticModalLabel').textContent = 'Nuevo banner';
+        });
+
+        document.querySelectorAll('.btn-editar-banner-kinetic').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const row = btn.closest('.banner-kinetic-row');
+                limpiarFormBannerKinetic();
+                document.getElementById('bannerKineticModalLabel').textContent = 'Editar banner';
+                document.getElementById('bannerKineticPk').value = row.dataset.pk;
+                document.getElementById('bannerKineticTitulo').value = row.dataset.titulo;
+                document.getElementById('bannerKineticTexto').value = row.dataset.texto;
+                document.getElementById('bannerKineticColorFondo').value = row.dataset.colorFondo || colorFondoKineticBannerDefault;
+                document.getElementById('bannerKineticCtaTexto').value = row.dataset.ctaTexto;
+                document.getElementById('bannerKineticCtaUrl').value = row.dataset.ctaUrl;
+                const imgActual = row.querySelector('.config-logo-box img');
+                if (imgActual) {
+                    document.getElementById('bannerKineticImagenPreviewBox').innerHTML = `<img src="${imgActual.src}" alt="">`;
+                    document.getElementById('btnQuitarBannerKineticImagen').style.display = 'inline-block';
+                    bannerKineticTieneImagenGuardada = true;
+                }
+                if (modalBannerKinetic) modalBannerKinetic.show();
+            });
+        });
+
+        document.getElementById('inputBannerKineticImagen').addEventListener('change', function () {
+            if (!this.files[0]) return;
+            bannerKineticImagenFile = this.files[0];
+            document.getElementById('bannerKineticImagenPreviewBox').innerHTML =
+                `<img src="${URL.createObjectURL(bannerKineticImagenFile)}" alt="">`;
+            document.getElementById('btnQuitarBannerKineticImagen').style.display = 'inline-block';
+        });
+
+        document.getElementById('btnQuitarBannerKineticImagen').addEventListener('click', function () {
+            const pk = document.getElementById('bannerKineticPk').value;
+            function quitarLocal() {
+                bannerKineticImagenFile = null;
+                bannerKineticTieneImagenGuardada = false;
+                document.getElementById('bannerKineticImagenPreviewBox').innerHTML =
+                    '<span style="font-size:0.6rem; color:var(--text-muted);">Sin imagen</span>';
+                document.getElementById('btnQuitarBannerKineticImagen').style.display = 'none';
+            }
+            if (!bannerKineticTieneImagenGuardada || !pk) { quitarLocal(); return; }
+            fetch(urlsBannerKinetic.imagen, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfBannerKinetic() },
+                body: JSON.stringify({ pk: pk }),
+            })
+            .then(r => r.json())
+            .then(function (data) {
+                if (data.error) { KaiToast.show(data.error, 'danger'); return; }
+                quitarLocal();
+            });
+        });
+
+        document.getElementById('btnResetBannerKineticColor')?.addEventListener('click', function () {
+            document.getElementById('bannerKineticColorFondo').value = colorFondoKineticBannerDefault;
+        });
+
+        document.querySelectorAll('.btn-eliminar-banner-kinetic').forEach(function (btn) {
+            btn.addEventListener('click', async function () {
+                const row = btn.closest('.banner-kinetic-row');
+                const ok = await KaiConfirm(`¿Seguro que querés eliminar el banner "${row.dataset.titulo || 'sin título'}"?`);
+                if (!ok) return;
+                fetch(urlsBannerKinetic.eliminar, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfBannerKinetic() },
+                    body: JSON.stringify({ pk: row.dataset.pk }),
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) { KaiToast.show(data.error, 'danger'); return; }
+                    recargarPreservandoTab();
+                });
+            });
+        });
+
+        formBannerKinetic.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const msg = document.getElementById('bannerKineticMsg');
+            const pk = document.getElementById('bannerKineticPk').value || null;
+            fetch(urlsBannerKinetic.guardar, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfBannerKinetic() },
+                body: JSON.stringify({
+                    pk: pk,
+                    titulo: document.getElementById('bannerKineticTitulo').value,
+                    texto: document.getElementById('bannerKineticTexto').value,
+                    color_fondo: document.getElementById('bannerKineticColorFondo').value,
+                    cta_texto: document.getElementById('bannerKineticCtaTexto').value,
+                    cta_url: document.getElementById('bannerKineticCtaUrl').value,
+                }),
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    msg.style.color = '#e11d48';
+                    msg.textContent = data.error;
+                    return;
+                }
+                if (!bannerKineticImagenFile) {
+                    recargarPreservandoTab();
+                    return;
+                }
+                const fd = new FormData();
+                fd.append('pk', data.pk);
+                fd.append('imagen', bannerKineticImagenFile);
+                fetch(urlsBannerKinetic.imagen, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrfBannerKinetic() },
+                    body: fd,
+                })
+                .then(r => r.json())
+                .then(function (dataImg) {
+                    if (dataImg.error) {
+                        msg.style.color = '#e11d48';
+                        msg.textContent = dataImg.error;
+                        return;
+                    }
+                    recargarPreservandoTab();
+                });
             });
         });
     }
