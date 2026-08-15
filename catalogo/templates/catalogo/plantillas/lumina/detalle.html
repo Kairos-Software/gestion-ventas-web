@@ -4,7 +4,7 @@
 
 {% block content %}
 
-    <nav class="l-breadcrumb">
+    <nav class="l-breadcrumb l-wrap">
         <a href="{% url 'catalogo:home' %}">Catálogo</a>
         {% if producto.categoria %}
             <span>/</span>
@@ -14,13 +14,13 @@
         <span class="l-breadcrumb-actual">{{ producto.nombre }}</span>
     </nav>
 
-    <section class="l-detalle">
+    <section class="l-detalle l-wrap">
         <div>
             <div class="l-galeria-principal">
                 {% if imagenes %}
                     <img src="{{ imagenes.0.imagen.url }}" alt="{{ producto.nombre }}" id="kcGaleriaImgActual">
                 {% else %}
-                    <svg width="52" height="52" viewBox="0 0 24 24" fill="none"><path d="M3 8L12 3.5L21 8V16L12 20.5L3 16V8Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M3 8L12 12.5L21 8" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M12 12.5V20.5" stroke="currentColor" stroke-width="1.3"/></svg>
+                    <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 8L12 3.5L21 8V16L12 20.5L3 16V8Z" stroke-linejoin="round"/><path d="M3 8L12 12.5L21 8" stroke-linejoin="round"/><path d="M12 12.5V20.5"/></svg>
                 {% endif %}
                 {% if oferta_info or producto.destacado or es_nuevo %}
                 <div class="l-galeria-badges">
@@ -58,37 +58,27 @@
 
             <div class="l-detalle-precio-card">
                 {% if oferta_info and oferta_info.precio_final != producto.precio_venta %}
-                    <span class="l-detalle-precio-final">${{ oferta_info.precio_final }}</span>
                     <span class="l-detalle-precio-tachado">${{ producto.precio_venta }}</span>
+                    <span class="l-detalle-precio-final">${{ oferta_info.precio_final }}</span>
                 {% elif producto.precio_venta %}
                     <span class="l-detalle-precio-final">${{ producto.precio_venta }}</span>
                 {% else %}
                     <span class="l-precio-consultar">Precio a consultar</span>
                 {% endif %}
-                {% if ahorro_pct %}
-                <p class="l-detalle-ahorro">
-                    <svg width="13" height="13" viewBox="0 0 20 20" fill="none"><path d="M8.5 1.5L14.5 7.5L7.5 14.5L1.5 8.5V2.5C1.5 1.95 1.95 1.5 2.5 1.5H8.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><circle cx="5" cy="5" r="0.9" fill="currentColor"/></svg>
-                    Ahorrás {{ ahorro_pct }}% en esta compra
-                </p>
-                {% endif %}
-                {% if ahorro %}
-                <p class="l-detalle-ahorro">
-                    <svg width="13" height="13" viewBox="0 0 20 20" fill="none"><path d="M8.5 1.5L14.5 7.5L7.5 14.5L1.5 8.5V2.5C1.5 1.95 1.95 1.5 2.5 1.5H8.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><circle cx="5" cy="5" r="0.9" fill="currentColor"/></svg>
-                    Ahorrás ${{ ahorro.ahorro|floatformat:0 }} llevando el combo en vez de los productos sueltos
-                </p>
-                {% endif %}
+                {% if ahorro_pct %}<p class="l-detalle-ahorro">Ahorrás {{ ahorro_pct }}% en esta compra</p>{% endif %}
+                {% if ahorro %}<p class="l-detalle-ahorro">Ahorrás ${{ ahorro.ahorro|floatformat:0 }} llevando el combo en vez de los productos sueltos</p>{% endif %}
             </div>
 
             {% if disponible_compra %}
             <div class="l-detalle-agregar" data-carrito-slot>
-                <button type="button" class="l-btn-agregar-grande"
+                <button type="button" class="l-btn-cta l-btn-agregar-grande"
                     data-carrito-agregar="{% if producto.es_paquete %}paq{% else %}prod{% endif %}-{{ producto.pk }}"
                     data-nombre="{{ producto.nombre }}"
                     data-precio="{{ oferta_info.precio_final|default:producto.precio_venta }}"
                     data-precio-lista="{{ producto.precio_venta }}"
                     data-categoria-id="{{ producto.categoria.pk|default:'' }}"
                     data-imagen="{% if imagenes %}{{ imagenes.0.imagen.url }}{% endif %}">
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
                     Agregar al pedido
                 </button>
             </div>
@@ -138,16 +128,11 @@
                 <div class="l-ficha-row"><span>Código</span><span>{{ producto.codigo }}</span></div>
                 <div class="l-ficha-row"><span>Unidad</span><span>{{ producto.get_unidad_medida_display }}</span></div>
             </div>
-
-            <div class="l-detalle-trust">
-                <div class="l-detalle-trust-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 11.5a8.5 8.5 0 01-12.4 7.55L3 20l1.02-5.4A8.5 8.5 0 1121 11.5z"/></svg><span>Coordinamos el pago y la entrega por WhatsApp</span></div>
-                <div class="l-detalle-trust-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span>Atención personalizada</span></div>
-            </div>
         </div>
     </section>
 
     {% if relacionados %}
-    <section class="l-relacionados">
+    <section class="l-relacionados l-wrap">
         <div class="l-sec-head"><h2>También te puede interesar</h2></div>
         <div class="l-grid">
             {% for p in relacionados %}

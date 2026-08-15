@@ -154,54 +154,192 @@ function toggleFiltrosMobile(abrir) {
     });
 })();
 
-/* Partículas flotantes de fondo en el hero — puramente decorativo, sin
-   datos ni dependencias externas (mismo recurso que el diseño de
-   referencia, adaptado). */
+/* Red conectada del hero y de la historia. Replica el movimiento orgánico
+   de la referencia, usa el color configurado por la tienda y se detiene
+   cuando la pestaña no está visible. */
 (function () {
-    var canvas = document.getElementById('kcHeroCanvas');
-    if (!canvas || !canvas.getContext) return;
-    var ctx = canvas.getContext('2d');
-    var particles = [];
+    var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    function resize() {
-        canvas.width = canvas.parentElement.clientWidth;
-        canvas.height = canvas.parentElement.clientHeight;
+    function cssColorToRgb(value, fallback) {
+        var probe = document.createElement('span');
+        probe.style.color = value;
+        probe.style.display = 'none';
+        document.body.appendChild(probe);
+        var computed = getComputedStyle(probe).color.match(/\d+(?:\.\d+)?/g);
+        probe.remove();
+        return computed && computed.length >= 3
+            ? computed.slice(0, 3).map(function (part) { return Math.round(Number(part)); }).join(',')
+            : fallback;
     }
-    window.addEventListener('resize', resize);
-    resize();
 
-    function Particle() {
-        this.reset();
+    function initNetworkCanvas(canvasId, options) {
+        var canvas = document.getElementById(canvasId);
+        if (!canvas || !canvas.getContext) return;
+
+        var context = canvas.getContext('2d');
+        var nodes = [];
+        var width = 0;
+        var height = 0;
+        var pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+        var color = options.color;
+        var frameId = null;
+
+        function resize() {
+            width = canvas.parentElement.clientWidth;
+            height = canvas.parentElement.clientHeight;
+            canvas.width = Math.round(width * pixelRatio);
+            canvas.height = Math.round(height * pixelRatio);
+            canvas.style.width = width + 'px';
+            canvas.style.height = height + 'px';
+            context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+            nodes.forEach(function (node) {
+                node.x = Math.min(node.x, width);
+                node.y = Math.min(node.y, height);
+            });
+        }
+
+        function NetworkNode() {
+            this.x = Math.random() * width;
+            this.y = Math.random() * height;
+            this.vx = (Math.random() - 0.5) * options.speed;
+            this.vy = (Math.random() - 0.5) * options.speed;
+            this.radius = Math.random() * 1.55 + 0.8;
+        }
+
+        NetworkNode.prototype.update = function () {
+            this.x += this.vx;
+            this.y += this.vy;
+            if (this.x <= 0 || this.x >= width) this.vx *= -1;
+            if (this.y <= 0 || this.y >= height) this.vy *= -1;
+        };
+
+        function draw() {
+            context.clearRect(0, 0, width, height);
+            nodes.forEach(function (node, index) {
+                if (!reduceMotion) node.update();
+                for (var next = index + 1; next < nodes.length; next++) {
+                    var dx = node.x - nodes[next].x;
+                    var dy = node.y - nodes[next].y;
+                    var distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance < options.linkDistance) {
+                        context.strokeStyle = 'rgba(' + color + ',' + ((1 - distance / options.linkDistance) * options.linkAlpha) + ')';
+                        context.lineWidth = 1;
+                        context.beginPath();
+                        context.moveTo(node.x, node.y);
+                        context.lineTo(nodes[next].x, nodes[next].y);
+                        context.stroke();
+                    }
+                }
+            });
+            nodes.forEach(function (node) {
+                context.fillStyle = 'rgba(' + color + ',' + options.nodeAlpha + ')';
+                context.beginPath();
+                context.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+                context.fill();
+            });
+        }
+
+        function animate() {
+            draw();
+            if (!reduceMotion && !document.hidden) frameId = requestAnimationFrame(animate);
+        }
+
+        resize();
+        for (var i = 0; i < options.count; i++) nodes.push(new NetworkNode());
+        animate();
+
+        window.addEventListener('resize', resize);
+        document.addEventListener('visibilitychange', function () {
+            if (document.hidden && frameId) cancelAnimationFrame(frameId);
+            if (!document.hidden && !reduceMotion) {
+                if (frameId) cancelAnimationFrame(frameId);
+                frameId = requestAnimationFrame(animate);
+            }
+        });
     }
-    Particle.prototype.reset = function () {
-        this.x = Math.random() * canvas.width;
-        this.y = Math.random() * canvas.height;
-        this.size = Math.random() * 2.5 + 1;
-        this.speedX = (Math.random() - 0.5) * 0.6;
-        this.speedY = (Math.random() - 0.5) * 0.6;
-        this.opacity = Math.random() * 0.4 + 0.1;
-    };
-    Particle.prototype.update = function () {
-        this.x += this.speedX;
-        this.y += this.speedY;
-        if (this.x < 0 || this.x > canvas.width) this.speedX *= -1;
-        if (this.y < 0 || this.y > canvas.height) this.speedY *= -1;
-    };
-    Particle.prototype.draw = function () {
-        ctx.fillStyle = 'rgba(255, 147, 67, ' + this.opacity + ')';
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fill();
-    };
 
-    for (var i = 0; i < 40; i++) particles.push(new Particle());
+    var configuredPrimary = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim();
+    var primaryRgb = cssColorToRgb(configuredPrimary, '255,147,67');
+    initNetworkCanvas('kcHeroCanvas', { count: 54, linkDistance: 145, speed: 0.38, color: primaryRgb, linkAlpha: 0.34, nodeAlpha: 0.84 });
+    initNetworkCanvas('kcStoryCanvas', { count: 26, linkDistance: 105, speed: 0.28, color: '148,163,184', linkAlpha: 0.25, nodeAlpha: 0.7 });
+    initNetworkCanvas('kcInstCanvas', { count: 48, linkDistance: 135, speed: 0.34, color: primaryRgb, linkAlpha: 0.3, nodeAlpha: 0.78 });
+    initNetworkCanvas('kcDetailCanvas', { count: 38, linkDistance: 125, speed: 0.3, color: primaryRgb, linkAlpha: 0.22, nodeAlpha: 0.66 });
+})();
 
-    function animate() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        particles.forEach(function (p) { p.update(); p.draw(); });
-        requestAnimationFrame(animate);
+/* Apariciones escalonadas, contadores y una mínima profundidad al hacer
+   scroll. Todo es progresivo: sin IntersectionObserver el contenido queda
+   visible y la funcionalidad del catálogo no cambia. */
+(function () {
+    var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var revealSelectors = [
+        '.kc-feature-item', '.kc-banner-promo', '.kc-home-story > *',
+        '.kc-sec-head', '.kc-tile-destacado', '.kc-gondola',
+        '.kc-flash-card', '.kc-card', '.kc-feat-card', '.kc-combo-card',
+        '.kc-inst-portada-copy', '.kc-inst-portada-media',
+        '.kc-inst-historia-inner > *', '.kc-destacado-card',
+        '.kc-galeria-item', '.kc-inst-info-col', '.kc-inst-contacto-texto',
+        '.kc-galeria', '.kc-detalle-info', '.kc-detalle-editorial-copy',
+        '.kc-detalle-caracteristicas', '.kc-detalle-ficha-wrap', '.kc-rel-card'
+    ];
+    var revealItems = document.querySelectorAll(revealSelectors.join(','));
+
+    revealItems.forEach(function (item, index) {
+        item.classList.add('kc-reveal');
+        item.style.setProperty('--kc-reveal-delay', ((index % 6) * 65) + 'ms');
+    });
+
+    if (!reduceMotion && 'IntersectionObserver' in window) {
+        var revealObserver = new IntersectionObserver(function (entries) {
+            entries.forEach(function (entry) {
+                if (!entry.isIntersecting) return;
+                entry.target.classList.add('kc-reveal--in');
+                revealObserver.unobserve(entry.target);
+            });
+        }, { threshold: 0.09, rootMargin: '0px 0px -5% 0px' });
+        revealItems.forEach(function (item) { revealObserver.observe(item); });
+    } else {
+        revealItems.forEach(function (item) { item.classList.add('kc-reveal--in'); });
     }
-    animate();
+
+    function animateCounter(element) {
+        var target = Number(element.getAttribute('data-kc-count')) || 0;
+        var startedAt = performance.now();
+        var duration = 1250;
+        function tick(now) {
+            var progress = Math.min((now - startedAt) / duration, 1);
+            var eased = 1 - Math.pow(1 - progress, 3);
+            element.textContent = Math.round(target * eased).toLocaleString('es-AR');
+            if (progress < 1) requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+    }
+
+    var counters = document.querySelectorAll('[data-kc-count]');
+    if (!reduceMotion && 'IntersectionObserver' in window) {
+        var counterObserver = new IntersectionObserver(function (entries) {
+            entries.forEach(function (entry) {
+                if (!entry.isIntersecting) return;
+                animateCounter(entry.target);
+                counterObserver.unobserve(entry.target);
+            });
+        }, { threshold: 0.55 });
+        counters.forEach(function (counter) { counterObserver.observe(counter); });
+    }
+
+    var hero = document.querySelector('.kc-hero');
+    var heroShape = document.querySelector('.kc-hero-bg-shape');
+    if (!reduceMotion && hero && heroShape) {
+        var ticking = false;
+        window.addEventListener('scroll', function () {
+            if (ticking) return;
+            ticking = true;
+            requestAnimationFrame(function () {
+                var progress = Math.min(window.scrollY, hero.offsetHeight);
+                heroShape.style.setProperty('--kc-hero-parallax', (progress * 0.075) + 'px');
+                ticking = false;
+            });
+        }, { passive: true });
+    }
 })();
 
 /* Toast de confirmación al agregar algo al carrito — aditivo: escucha los

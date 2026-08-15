@@ -1,0 +1,25 @@
+{% load static %}
+<div class="ed-set-card">
+    <a href="{% url 'catalogo:producto_detalle' pq.pk %}" class="ed-set-brace">{</a>
+    <div class="ed-set-items">
+        {% for c in pq.componentes.all %}{{ c.cantidad|floatformat:"-2" }}× {{ c.producto.nombre }}{% if not forloop.last %}<br>{% endif %}{% endfor %}
+    </div>
+    <a href="{% url 'catalogo:producto_detalle' pq.pk %}" class="ed-set-nombre"><h3>{{ pq.nombre }}</h3></a>
+    <div class="ed-set-price">
+        {% if pq.precio_venta %}<span class="ed-set-now">${{ pq.precio_venta }}</span>{% else %}<span class="ed-set-now">A consultar</span>{% endif %}
+        {% if pq.ahorro %}<span class="ed-set-before">${{ pq.ahorro.suma|floatformat:0 }}</span>{% endif %}
+    </div>
+    {% if pq.ahorro %}<div class="ed-set-save">AHORRÁS ${{ pq.ahorro.ahorro|floatformat:0 }}</div>{% endif %}
+    {% if pq.disponible_compra %}
+    <div data-carrito-slot>
+        <button type="button" class="ed-btn ed-btn-red ed-set-add"
+            data-carrito-agregar="paq-{{ pq.pk }}"
+            data-nombre="{{ pq.nombre }}" data-precio="{{ pq.precio_venta }}"
+            data-precio-lista="{{ pq.precio_venta }}"
+            data-categoria-id="{{ pq.categoria.pk|default:'' }}"
+            data-imagen="{% if pq.imagenes.first %}{{ pq.imagenes.first.imagen.url }}{% endif %}">
+            Agregar set
+        </button>
+    </div>
+    {% endif %}
+</div>

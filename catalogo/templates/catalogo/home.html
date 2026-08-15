@@ -26,11 +26,26 @@
                     </a>
                     <a href="?seccion=ofertas#kcCatalogo" class="kc-hero-cta kc-hero-cta--secondary">Ofertas de hoy &rarr;</a>
                 </div>
+                <div class="kc-hero-metrics" aria-label="Resumen del catálogo">
+                    <div><strong data-kc-count="{{ total_productos }}">{{ total_productos }}</strong><span>productos</span></div>
+                    <div><strong data-kc-count="{{ categorias|length }}">{{ categorias|length }}</strong><span>categorías</span></div>
+                    <div><strong data-kc-count="{{ marcas|length }}">{{ marcas|length }}</strong><span>marcas</span></div>
+                </div>
             </div>
             <div class="kc-hero-tilt-wrap" id="kcHeroTiltWrap">
+                <div class="kc-hero-float-chip kc-hero-float-chip--top" aria-hidden="true">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg>
+                    Catálogo actualizado
+                </div>
                 <!-- id usado por configuracion.js (vista previa en vivo) — no renombrar sin actualizar ese archivo -->
                 <div class="kc-hero-visual {% if config_catalogo.hero_imagen_sin_fondo %}kc-hero-visual--sin-fondo{% elif hero_producto %}kc-hero-visual--producto{% endif %}" id="kcHeroVisual">
                     <div class="kc-hero-glare"></div>
+                    {% if hero_producto and not config_catalogo.hero_imagen_sin_fondo %}
+                    <div class="kc-hero-card-top">
+                        <span>Disponible</span>
+                        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                    </div>
+                    {% endif %}
                     <div class="kc-hero-product-img">
                         {% if config_catalogo.hero_imagen %}
                             <img src="{{ config_catalogo.hero_imagen.url }}" alt="">
@@ -94,6 +109,31 @@
     {% for banner in banners_debajo_hero %}
         {% include 'catalogo/_banner_promo.html' with banner=banner tamano='completo' %}
     {% endfor %}
+
+    {% if config_catalogo.mostrar_historia_en_home and config_catalogo.sobre_nosotros %}
+    <section class="kc-home-story" aria-labelledby="kcHomeStoryTitle">
+        <div class="kc-home-story-visual">
+            <canvas id="kcStoryCanvas" aria-hidden="true"></canvas>
+            <div class="kc-home-story-orbit" aria-hidden="true"></div>
+            <div class="kc-home-story-brand">
+                {% if empresa.logo %}<img src="{{ empresa.logo.url }}" alt="">{% endif %}
+                <strong data-kc-count="{{ total_productos }}">{{ total_productos }}</strong>
+                <span>productos publicados</span>
+            </div>
+        </div>
+        <div class="kc-home-story-copy">
+            <span class="kc-home-story-eyebrow">Sobre nosotros</span>
+            <h2 id="kcHomeStoryTitle">Conocé {{ empresa.nombre_comercial }}</h2>
+            <p>{{ config_catalogo.sobre_nosotros|linebreaksbr }}</p>
+            <div class="kc-home-story-stats" aria-label="Datos de la tienda">
+                <span><b data-kc-count="{{ total_productos }}">{{ total_productos }}</b> productos</span>
+                <span><b data-kc-count="{{ categorias|length }}">{{ categorias|length }}</b> categorías</span>
+                <span><b data-kc-count="{{ marcas|length }}">{{ marcas|length }}</b> marcas</span>
+            </div>
+            <a href="{% url 'catalogo:institucional' %}">Conocer la tienda <span>→</span></a>
+        </div>
+    </section>
+    {% endif %}
 
     {% if tiles_destacados %}
     <section class="kc-sec-vidriera kc-tiles-sec">
@@ -202,7 +242,7 @@
     {% endif %}
 
     {% if mostrar_vidriera and ofertas_destacadas %}
-    <section class="kc-sec-vidriera">
+    <section class="kc-sec-vidriera kc-sec-vidriera--oscura">
         <div class="kc-flash-band">
             <div class="kc-flash-head">
                 <h2><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h7l-1 8 11-13h-7l1-7z"/></svg></span>Ofertas del momento</h2>
@@ -235,6 +275,16 @@
             </div>
         </div>
     </section>
+    {% endif %}
+
+    {% if not q %}
+    <header class="kc-catalog-intro">
+        <div>
+            <span>Catálogo</span>
+            <h2>{{ config_catalogo.nav_catalogo_label|default:default_nav_catalogo }}</h2>
+        </div>
+        <p>{{ total_productos }} producto{{ total_productos|pluralize }} disponible{{ total_productos|pluralize }} para explorar.</p>
+    </header>
     {% endif %}
 
     <div class="kc-layout" id="kcCatalogo">

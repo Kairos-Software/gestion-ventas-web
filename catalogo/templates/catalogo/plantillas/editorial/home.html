@@ -1,0 +1,169 @@
+{% extends 'catalogo/plantillas/editorial/base.html' %}
+
+{% block content %}
+
+    <section class="ed-hero">
+        <div class="ed-wrap ed-hero-grid">
+            <div class="ed-hero-left">
+                <div class="ed-hero-num">N.º 001 — CATÁLOGO GENERAL</div>
+                <!-- ids usados por catalogo_online.js (vista previa en vivo) — no renombrar sin actualizar ese archivo -->
+                <h1 id="kcHeroTitulo">{{ config_catalogo.hero_titulo|default:empresa.nombre_comercial }}</h1>
+                <p class="ed-hero-lead" id="kcHeroSubtitulo">{{ config_catalogo.hero_subtitulo|default:default_hero_subtitulo }}</p>
+                <div class="ed-hero-ctas">
+                    <a href="#kcCatalogo" class="ed-btn ed-btn-fill">Ver catálogo
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                    </a>
+                    {% if mostrar_paquetes and paquetes %}<a href="#sets" class="ed-link-sec">Ver sets armados</a>{% endif %}
+                </div>
+            </div>
+            <div class="ed-hero-right">
+                <div class="ed-hero-fact"><b>{{ total_productos|default:total_catalogo }}</b><span>Productos activos</span></div>
+                <div class="ed-hero-fact"><b>{{ categorias|length }}</b><span>Categorías</span></div>
+                <div class="ed-hero-fact"><b>{{ marcas|length }}</b><span>Marcas</span></div>
+            </div>
+        </div>
+    </section>
+
+    {% if categorias %}
+    <section class="ed-toc">
+        {% for cat in categorias %}
+        <a href="{{ cat.url }}" class="ed-toc-row">
+            <span class="ed-toc-n">{{ forloop.counter|stringformat:"02d" }}</span>
+            <span class="ed-toc-title">{{ cat.nombre }}</span>
+            <span class="ed-toc-arrow">Ver
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </span>
+        </a>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    {% if ofertas_destacadas %}
+    <section class="ed-ofertas">
+        <div class="ed-wrap">
+            <div class="ed-idx-label">Ofertas de la semana</div>
+            <div class="ed-of-grid">
+                {% for o in ofertas_destacadas|slice:":3" %}
+                <div class="ed-of-item">
+                    <div class="ed-of-num">{{ o.oferta_info.badge }}</div>
+                    <h3>{{ o.nombre }}</h3>
+                    <p>{{ o.descripcion_publica|default:o.categoria.nombre|truncatewords:14 }}</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
+    <section class="ed-catalogo" id="kcCatalogo">
+        <div class="ed-wrap">
+            <div class="ed-cat-toolbar">
+                <h2>Catálogo completo</h2>
+                {% if categorias %}
+                <div class="ed-filters">
+                    <a href="{{ url_todas_categorias }}" class="ed-chip {% if not categoria_activa %}ed-chip-activa{% endif %}">Todo</a>
+                    {% for cat in categorias %}
+                        <a href="{{ cat.url }}" class="ed-chip {% if cat.activa %}ed-chip-activa{% endif %}">{{ cat.nombre }}</a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+
+            {% if filtros_activos %}
+            <div class="ed-filtros-activos">
+                <span>Filtrando por:</span>
+                {% for f in filtros_activos %}<a href="?{{ f.quitar }}" class="ed-chip-filtro">{{ f.etiqueta }} ×</a>{% endfor %}
+                <a href="{% url 'catalogo:home' %}#kcCatalogo" class="ed-limpiar-filtros">Limpiar todo</a>
+            </div>
+            {% endif %}
+
+            {% if mostrar_productos and productos %}
+            <form method="get" class="ed-orden" id="formOrden" action="{% url 'catalogo:home' %}#kcCatalogo">
+                {% for c in categoria_activa %}<input type="hidden" name="categoria" value="{{ c }}">{% endfor %}
+                {% if seccion_activa != 'todos' %}<input type="hidden" name="seccion" value="{{ seccion_activa }}">{% endif %}
+                {% if request.GET.q %}<input type="hidden" name="q" value="{{ request.GET.q }}">{% endif %}
+                <label for="ordenSelect">Ordenar</label>
+                <select name="orden" id="ordenSelect" onchange="document.getElementById('formOrden').submit()">
+                    <option value="" {% if not orden_activo %}selected{% endif %}>Relevancia</option>
+                    <option value="precio_asc" {% if orden_activo == 'precio_asc' %}selected{% endif %}>Menor precio</option>
+                    <option value="precio_desc" {% if orden_activo == 'precio_desc' %}selected{% endif %}>Mayor precio</option>
+                    <option value="nuevos" {% if orden_activo == 'nuevos' %}selected{% endif %}>Más nuevos</option>
+                </select>
+            </form>
+            {% endif %}
+
+            {% if total_productos == 0 %}
+                <p class="ed-empty-msg">No encontramos productos que coincidan con tu búsqueda.</p>
+            {% endif %}
+
+            {% if mostrar_productos and productos %}
+            <div class="ed-list-head">
+                <span>Art.</span><span></span><span>Producto</span><span>Categoría</span><span class="ed-right">Precio</span><span></span>
+            </div>
+            <div id="productList">
+                {% for p in productos %}
+                    {% include 'catalogo/plantillas/editorial/_product_row.html' with p=p %}
+                {% endfor %}
+            </div>
+
+            {% if paginas|length > 1 %}
+            <nav class="ed-paginacion" aria-label="Paginación">
+                {% if pagina.has_previous %}<a href="{{ url_pagina_anterior }}" aria-label="Página anterior">‹</a>{% endif %}
+                {% for p in paginas %}
+                    <a href="{{ p.url }}" class="{% if p.activa %}ed-pagina-activa{% endif %}">{{ p.numero }}</a>
+                {% endfor %}
+                {% if pagina.has_next %}<a href="{{ url_pagina_siguiente }}" aria-label="Página siguiente">›</a>{% endif %}
+            </nav>
+            {% endif %}
+            {% endif %}
+        </div>
+    </section>
+
+    {% if mostrar_paquetes and paquetes %}
+    <section class="ed-sets" id="sets">
+        <div class="ed-wrap">
+            <div class="ed-idx-label">Paquetes armados</div>
+            <h2>Sets pensados para ahorrarte tiempo y plata.</h2>
+            <p>Agrupamos productos que se usan juntos, a un precio especial por comprarlos en conjunto.</p>
+            <div class="ed-set-grid">
+                {% for pq in paquetes %}
+                    {% include 'catalogo/plantillas/editorial/_combo_card.html' with pq=pq %}
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
+    <section class="ed-nosotros" id="nosotros">
+        <div class="ed-wrap ed-nos-grid">
+            <div class="ed-nos-quote">
+                <div class="ed-qmark">"</div>
+                <p>Un catálogo hecho para vender más simple.</p>
+            </div>
+            <div class="ed-nos-body">
+                <p>{{ config_catalogo.sobre_nosotros|default:default_sobre_nosotros }}</p>
+                <div class="ed-nos-contacto">
+                    {% if empresa.domicilio %}<div class="ed-nos-contacto-item">{{ empresa.domicilio }}</div>{% endif %}
+                    {% if whatsapp_url %}<div class="ed-nos-contacto-item"><a href="{{ whatsapp_url }}" target="_blank" rel="noopener">{{ empresa.telefono }}</a></div>
+                    {% elif empresa.telefono %}<div class="ed-nos-contacto-item">{{ empresa.telefono }}</div>{% endif %}
+                    {% if empresa.email %}<div class="ed-nos-contacto-item">{{ empresa.email }}</div>{% endif %}
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="ed-pasos">
+        <div class="ed-wrap">
+            <div class="ed-pasos-head">
+                <h2>¿Cómo comprar?</h2>
+                <p>Tres pasos, sin vueltas.</p>
+            </div>
+            <div class="ed-pasos-grid">
+                <div class="ed-paso"><div class="ed-paso-n">01</div><h3>Elegí tus productos</h3><p>Navegá el catálogo, agregá lo que necesites y revisá tu pedido.</p></div>
+                <div class="ed-paso"><div class="ed-paso-n">02</div><h3>Coordiná pago y entrega</h3><p>Dejanos tu WhatsApp y coordinamos el medio de pago y la entrega.</p></div>
+                <div class="ed-paso"><div class="ed-paso-n">03</div><h3>Recibí tu pedido</h3><p>Te confirmamos por WhatsApp y coordinamos el horario de entrega.</p></div>
+            </div>
+        </div>
+    </section>
+
+{% endblock %}

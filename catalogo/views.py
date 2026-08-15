@@ -435,6 +435,8 @@ class CatalogoHomeView(TemplateView):
             return ['catalogo/plantillas/kinetic/home.html']
         if plantilla == PlantillaCatalogo.LUMINA:
             return ['catalogo/plantillas/lumina/home.html']
+        if plantilla == PlantillaCatalogo.EDITORIAL:
+            return ['catalogo/plantillas/editorial/home.html']
         return ['catalogo/home.html']
 
     def get_context_data(self, **kwargs):
@@ -874,6 +876,8 @@ class ProductoDetalleView(DetailView):
             return ['catalogo/plantillas/kinetic/detalle.html']
         if plantilla == PlantillaCatalogo.LUMINA:
             return ['catalogo/plantillas/lumina/detalle.html']
+        if plantilla == PlantillaCatalogo.EDITORIAL:
+            return ['catalogo/plantillas/editorial/detalle.html']
         return ['catalogo/detalle.html']
 
     def get_queryset(self):

@@ -5,14 +5,38 @@
 {% block content %}
 
     <section class="kc-inst-portada {% if not config_catalogo.institucional_imagen %}kc-inst-portada--sin-imagen{% endif %}">
-        {% if config_catalogo.institucional_imagen %}
-            <img src="{{ config_catalogo.institucional_imagen.url }}" alt="" class="kc-inst-portada-img">
-            <div class="kc-inst-portada-overlay"></div>
-        {% endif %}
+        <canvas id="kcInstCanvas" aria-hidden="true"></canvas>
         <div class="kc-inst-portada-inner">
-            <!-- ids usados por catalogo_online.js (vista previa en vivo) — no renombrar sin actualizar ese archivo -->
-            <h1 id="kcInstTitulo">{{ config_catalogo.institucional_titulo|default:default_institucional_titulo }}</h1>
-            <p id="kcInstBajada">{{ config_catalogo.institucional_bajada|default:default_institucional_bajada }}</p>
+            <div class="kc-inst-portada-copy">
+                <span class="kc-inst-portada-eyebrow">{{ config_catalogo.nav_tienda_label|default:default_nav_tienda }}</span>
+                <!-- ids usados por catalogo_online.js (vista previa en vivo) — no renombrar sin actualizar ese archivo -->
+                <h1 id="kcInstTitulo">{{ config_catalogo.institucional_titulo|default:default_institucional_titulo }}</h1>
+                <p id="kcInstBajada">{{ config_catalogo.institucional_bajada|default:default_institucional_bajada }}</p>
+                <div class="kc-inst-portada-actions">
+                    <a href="#kc-inst-historia">Conocer nuestra historia <span>→</span></a>
+                    <a href="#kc-inst-contacto" class="kc-inst-portada-actions--ghost">Contactarnos</a>
+                </div>
+            </div>
+            <div class="kc-inst-portada-media">
+                {% if config_catalogo.institucional_imagen %}
+                    <img src="{{ config_catalogo.institucional_imagen.url }}" alt="" class="kc-inst-portada-img">
+                {% else %}
+                    <div class="kc-inst-portada-fallback">
+                        {% if empresa.logo %}<img src="{{ empresa.logo.url }}" alt="">{% endif %}
+                        <span>{{ empresa.nombre_comercial }}</span>
+                        <strong data-kc-count="{{ total_catalogo }}">{{ total_catalogo }}</strong>
+                        <small>productos publicados</small>
+                        <div class="kc-inst-portada-fallback-data">
+                            <span><b data-kc-count="{{ total_categorias }}">{{ total_categorias }}</b> categorías</span>
+                            {% if total_ofertas_activas %}<span><b data-kc-count="{{ total_ofertas_activas }}">{{ total_ofertas_activas }}</b> ofertas activas</span>{% endif %}
+                        </div>
+                    </div>
+                {% endif %}
+                <div class="kc-inst-portada-media-caption">
+                    <span>{{ empresa.nombre_comercial }}</span>
+                    <strong>{{ total_catalogo }} producto{{ total_catalogo|pluralize }}</strong>
+                </div>
+            </div>
         </div>
     </section>
 
@@ -36,10 +60,10 @@
         <div class="kc-inst-destacados-inner">
             {% if total_catalogo or total_categorias %}
             <div class="kc-inst-stats-strip">
-                <div class="kc-inst-stat"><span class="kc-inst-stat-num">{{ total_catalogo }}</span><span class="kc-inst-stat-label">producto{{ total_catalogo|pluralize }} en catálogo</span></div>
-                <div class="kc-inst-stat"><span class="kc-inst-stat-num">{{ total_categorias }}</span><span class="kc-inst-stat-label">categoría{{ total_categorias|pluralize }}</span></div>
+                <div class="kc-inst-stat"><span class="kc-inst-stat-num" data-kc-count="{{ total_catalogo }}">{{ total_catalogo }}</span><span class="kc-inst-stat-label">producto{{ total_catalogo|pluralize }} en catálogo</span></div>
+                <div class="kc-inst-stat"><span class="kc-inst-stat-num" data-kc-count="{{ total_categorias }}">{{ total_categorias }}</span><span class="kc-inst-stat-label">categoría{{ total_categorias|pluralize }}</span></div>
                 {% if total_ofertas_activas %}
-                <div class="kc-inst-stat"><span class="kc-inst-stat-num">{{ total_ofertas_activas }}</span><span class="kc-inst-stat-label">oferta{{ total_ofertas_activas|pluralize }} activa{{ total_ofertas_activas|pluralize }} hoy</span></div>
+                <div class="kc-inst-stat"><span class="kc-inst-stat-num" data-kc-count="{{ total_ofertas_activas }}">{{ total_ofertas_activas }}</span><span class="kc-inst-stat-label">oferta{{ total_ofertas_activas|pluralize }} activa{{ total_ofertas_activas|pluralize }} hoy</span></div>
                 {% endif %}
             </div>
             {% endif %}

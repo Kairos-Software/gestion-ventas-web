@@ -1,48 +1,32 @@
 {% load static %}
-<div class="l-combo-card">
-    <a href="{% url 'catalogo:producto_detalle' pq.pk %}" class="l-combo-top">
-        {% with portada=pq.imagenes.first %}
-            {% if portada %}
-                <span class="l-combo-foto"><img src="{{ portada.imagen.url }}" alt="{{ pq.nombre }}" loading="lazy"></span>
-            {% else %}
-                {% for c in pq.componentes.all|slice:":3" %}
-                    <span class="l-combo-thumb">
-                        {% with img=c.producto.imagen_principal %}
-                            {% if img %}
-                                <img src="{{ img.imagen.url }}" alt="">
-                            {% else %}
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 8L12 3.5L21 8V16L12 20.5L3 16V8Z"/></svg>
-                            {% endif %}
-                        {% endwith %}
-                    </span>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-    </a>
-    <div class="l-combo-body">
-        {% if pq.oferta_info %}<span class="l-combo-eyebrow">{{ pq.oferta_info.badge }} off</span>{% elif pq.destacado %}<span class="l-combo-eyebrow">Destacado</span>{% endif %}
-        <a href="{% url 'catalogo:producto_detalle' pq.pk %}" style="text-decoration:none;"><h3 class="l-combo-nombre">{{ pq.nombre }}</h3></a>
-        <ul class="l-combo-items">
-            {% for c in pq.componentes.all %}<li>{{ c.cantidad|floatformat:"-2" }}× {{ c.producto.nombre }}</li>{% endfor %}
-        </ul>
+<div class="l-paq-card">
+    <div class="l-paq-items">
+        {% for c in pq.componentes.all|slice:":3" %}
+            <span class="l-paq-chip">
+                {% with img=c.producto.imagen_principal %}
+                    {% if img %}<img src="{{ img.imagen.url }}" alt="">{% else %}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8L12 3.5L21 8V16L12 20.5L3 16V8Z"/></svg>{% endif %}
+                {% endwith %}
+            </span>
+            {% if not forloop.last %}<span class="l-paq-plus">+</span>{% endif %}
+        {% endfor %}
     </div>
-    <div class="l-combo-bottom">
-        <div class="l-combo-priceblock">
-            {% if pq.ahorro %}<span class="l-combo-sum">${{ pq.ahorro.suma|floatformat:2 }}</span>{% endif %}
-            {% if pq.precio_venta %}<span class="l-combo-final">${{ pq.precio_venta }}</span>{% else %}<span class="l-precio-consultar">A consultar</span>{% endif %}
-            {% if pq.ahorro %}<span class="l-combo-save">Ahorrás ${{ pq.ahorro.ahorro|floatformat:2 }}</span>{% endif %}
-        </div>
-        {% if pq.disponible_compra %}
-        <div data-carrito-slot>
-            <button type="button" class="l-btn-agregar" data-carrito-agregar="paq-{{ pq.pk }}"
-                data-nombre="{{ pq.nombre }}" data-precio="{{ pq.precio_venta }}"
-                data-precio-lista="{{ pq.precio_venta }}"
-                data-categoria-id="{{ pq.categoria.pk|default:'' }}"
-                data-imagen="{% if pq.imagenes.first %}{{ pq.imagenes.first.imagen.url }}{% endif %}"
-                aria-label="Agregar {{ pq.nombre }} al pedido">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
-            </button>
-        </div>
-        {% endif %}
+    <a href="{% url 'catalogo:producto_detalle' pq.pk %}" class="l-paq-nombre-link"><h3>{{ pq.nombre }}</h3></a>
+    <p class="l-paq-desc">{% for c in pq.componentes.all %}{{ c.cantidad|floatformat:"-2" }}× {{ c.producto.nombre }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+    <div class="l-paq-price">
+        {% if pq.precio_venta %}<span class="l-paq-now">${{ pq.precio_venta }}</span>{% else %}<span class="l-precio-consultar">A consultar</span>{% endif %}
+        {% if pq.ahorro %}<span class="l-paq-before">${{ pq.ahorro.suma|floatformat:0 }}</span>{% endif %}
     </div>
+    {% if pq.ahorro %}<div class="l-paq-save">Ahorrás ${{ pq.ahorro.ahorro|floatformat:0 }} comprando el combo</div>{% endif %}
+    {% if pq.disponible_compra %}
+    <div data-carrito-slot>
+        <button type="button" class="l-btn-cta l-paq-add"
+            data-carrito-agregar="paq-{{ pq.pk }}"
+            data-nombre="{{ pq.nombre }}" data-precio="{{ pq.precio_venta }}"
+            data-precio-lista="{{ pq.precio_venta }}"
+            data-categoria-id="{{ pq.categoria.pk|default:'' }}"
+            data-imagen="{% if pq.imagenes.first %}{{ pq.imagenes.first.imagen.url }}{% endif %}">
+            Agregar combo
+        </button>
+    </div>
+    {% endif %}
 </div>

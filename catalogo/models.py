@@ -55,10 +55,16 @@ def _catalogo_tile_path(instance, filename):
 
 
 class PlantillaCatalogo(models.TextChoices):
-    ALMACEN = 'almacen', 'Almacén'
-    BENTO   = 'bento',   'Bento'
-    KINETIC = 'kinetic', 'Kinetic'
-    LUMINA  = 'lumina',  'Lumina'
+    ALMACEN   = 'almacen',   'Almacén'
+    BENTO     = 'bento',     'Bento'
+    KINETIC   = 'kinetic',   'Kinetic'
+    # El slug interno sigue siendo 'lumina' (campos de color, carpeta de
+    # templates, CSS/JS) — solo cambió el nombre visible tras el rediseño
+    # cobalto/coral, que ya no tiene nada que ver con la identidad pastel
+    # original. Renombrar el slug implicaría migrar campos de modelo sin
+    # ganar nada para el dueño, que solo ve la etiqueta.
+    LUMINA    = 'lumina',    'Directo'
+    EDITORIAL = 'editorial', 'Editorial'
 
 
 class ConfiguracionCatalogo(models.Model):
@@ -298,9 +304,9 @@ class ConfiguracionCatalogo(models.Model):
     DEFAULT_KINETIC_HERO_STAT2_TITULO = 'STOCK'
     DEFAULT_KINETIC_HERO_STAT2_VALOR  = 'ACTUALIZADO EN TIEMPO REAL'
     DEFAULT_KINETIC_HERO_STAT3_TITULO = 'PEDIDOS'
-    # Default propio de "lumina" — salvia + terracota, paleta pastel cálida.
-    DEFAULT_COLOR_MARCA_LUMINA = '#4a6b5d'
-    DEFAULT_COLOR_MARCA_SECUNDARIO_LUMINA = '#e76f51'
+    # Default propio de "lumina" — cobalto + coral, e-commerce prolijo.
+    DEFAULT_COLOR_MARCA_LUMINA = '#1E3A5F'
+    DEFAULT_COLOR_MARCA_SECUNDARIO_LUMINA = '#FF5A3C'
     DEFAULT_NAV_CATALOGO = 'Catálogo'
     DEFAULT_NAV_OFERTAS  = 'Ofertas'
     DEFAULT_NAV_COMBOS   = 'Combos'

@@ -1,0 +1,43 @@
+{% load static %}
+<div class="ed-p-row">
+    <span class="ed-p-idx">{{ p.pk|stringformat:"04d" }}</span>
+    <a href="{% url 'catalogo:producto_detalle' p.pk %}" class="ed-p-swatch">
+        {% with portada=p.imagenes.first %}
+            {% if portada %}
+                <img src="{{ portada.imagen.url }}" alt="{{ p.nombre }}" loading="lazy">
+            {% else %}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 8L12 3.5L21 8V16L12 20.5L3 16V8Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M3 8L12 12.5L21 8" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M12 12.5V20.5" stroke="currentColor" stroke-width="1.4"/></svg>
+            {% endif %}
+        {% endwith %}
+    </a>
+    <a href="{% url 'catalogo:producto_detalle' p.pk %}" class="ed-p-name">
+        {{ p.nombre }}
+        {% if p.oferta_info %}<span class="ed-p-badge">{{ p.oferta_info.badge }}</span>{% endif %}
+        {% if p.es_nuevo %}<span class="ed-p-badge ed-p-badge--nuevo">Nuevo</span>{% endif %}
+        {% if p.gestiona_stock and p.stock_actual <= 0 %}<span class="ed-p-badge ed-p-badge--stock">Sin stock</span>{% endif %}
+    </a>
+    <span class="ed-p-cat">{{ p.categoria.nombre|default:"—" }}</span>
+    <span class="ed-p-price">
+        {% if p.oferta_info and p.oferta_info.precio_final != p.precio_venta %}
+            <span class="ed-p-old">${{ p.precio_venta }}</span>${{ p.oferta_info.precio_final }}
+        {% elif p.precio_venta %}
+            ${{ p.precio_venta }}
+        {% else %}
+            A consultar
+        {% endif %}
+    </span>
+    {% if p.disponible_compra %}
+    <div data-carrito-slot>
+        <button type="button" class="ed-add-btn" aria-label="Agregar {{ p.nombre }} al pedido"
+            data-carrito-agregar="{% if p.es_paquete %}paq{% else %}prod{% endif %}-{{ p.pk }}"
+            data-nombre="{{ p.nombre }}" data-precio="{{ p.oferta_info.precio_final|default:p.precio_venta }}"
+            data-precio-lista="{{ p.precio_venta }}"
+            data-categoria-id="{{ p.categoria.pk|default:'' }}"
+            data-imagen="{% if p.imagenes.first %}{{ p.imagenes.first.imagen.url }}{% endif %}">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+    </div>
+    {% else %}
+    <span></span>
+    {% endif %}
+</div>
