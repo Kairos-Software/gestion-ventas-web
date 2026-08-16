@@ -33,6 +33,24 @@ def _catalogo_bento_hero_spot2_path(instance, filename):
     return f'catalogo/bento-hero-spot2{ext}'
 
 
+def _catalogo_directo_hero_pieza1_path(instance, filename):
+    import os
+    ext = os.path.splitext(filename)[1].lower()
+    return f'catalogo/directo-hero-pieza1{ext}'
+
+
+def _catalogo_directo_hero_pieza2_path(instance, filename):
+    import os
+    ext = os.path.splitext(filename)[1].lower()
+    return f'catalogo/directo-hero-pieza2{ext}'
+
+
+def _catalogo_directo_hero_pieza3_path(instance, filename):
+    import os
+    ext = os.path.splitext(filename)[1].lower()
+    return f'catalogo/directo-hero-pieza3{ext}'
+
+
 def _catalogo_cta_final_path(instance, filename):
     import os
     ext = os.path.splitext(filename)[1].lower()
@@ -43,6 +61,12 @@ def _catalogo_kinetic_banner_path(instance, filename):
     import os
     ext = os.path.splitext(filename)[1].lower()
     return f'catalogo/kinetic-banner{ext}'
+
+
+def _catalogo_coleccion_editorial_path(instance, filename):
+    import os
+    ext = os.path.splitext(filename)[1].lower()
+    return f'catalogo/colecciones-editorial/{instance.pk}{ext}'
 
 
 def _catalogo_tile_path(instance, filename):
@@ -76,7 +100,7 @@ class ConfiguracionCatalogo(models.Model):
     Mismo patrón singleton que DatosEmpresa (ver core/models.py).
     hero_titulo/hero_imagen son exclusivos de la plantilla "almacen" (esa
     no tiene carrusel). hero_subtitulo lo usan las cuatro plantillas.
-    hero_producto lo usan "almacen"/"bento"/"lumina" para armar la tarjeta
+    hero_producto lo usan "almacen"/"bento" para armar la tarjeta
     lateral del hero ("kinetic" tiene su propio panel de stats en su lugar)
     — en "bento", hero_subtitulo es el texto de respaldo hasta que se carga
     el primer slide (ver SlideHeroCatalogo).
@@ -135,6 +159,36 @@ class ConfiguracionCatalogo(models.Model):
     hero_spot2_imagen = models.ImageField(
         'Imagen — tarjeta 2 del hero (Bento)', upload_to=_catalogo_bento_hero_spot2_path, blank=True, null=True,
         help_text='Opcional — con imagen cargada, reemplaza al producto de esta tarjeta.',
+    )
+    directo_hero_producto1 = models.ForeignKey(
+        'productos.Producto', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+        verbose_name='Producto — pieza 1 del hero (Directo)',
+        help_text='Vacío = usa el primer producto destacado automático.',
+    )
+    directo_hero_imagen1 = models.ImageField(
+        'Imagen — pieza 1 del hero (Directo)', upload_to=_catalogo_directo_hero_pieza1_path,
+        blank=True, null=True,
+        help_text='Opcional — con imagen cargada, reemplaza al producto de esta pieza.',
+    )
+    directo_hero_producto2 = models.ForeignKey(
+        'productos.Producto', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+        verbose_name='Producto — pieza 2 del hero (Directo)',
+        help_text='Vacío = usa el segundo producto destacado automático.',
+    )
+    directo_hero_imagen2 = models.ImageField(
+        'Imagen — pieza 2 del hero (Directo)', upload_to=_catalogo_directo_hero_pieza2_path,
+        blank=True, null=True,
+        help_text='Opcional — con imagen cargada, reemplaza al producto de esta pieza.',
+    )
+    directo_hero_producto3 = models.ForeignKey(
+        'productos.Producto', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+        verbose_name='Producto — pieza 3 del hero (Directo)',
+        help_text='Vacío = usa el tercer producto destacado automático.',
+    )
+    directo_hero_imagen3 = models.ImageField(
+        'Imagen — pieza 3 del hero (Directo)', upload_to=_catalogo_directo_hero_pieza3_path,
+        blank=True, null=True,
+        help_text='Opcional — con imagen cargada, reemplaza al producto de esta pieza.',
     )
     sobre_nosotros = models.TextField('Sobre nosotros', blank=True)
     mostrar_historia_en_home = models.BooleanField(
@@ -217,6 +271,14 @@ class ConfiguracionCatalogo(models.Model):
     color_marca_kinetic = models.CharField(
         'Color de marca (Kinetic)', max_length=7, blank=True,
         help_text='Código hex. Vacío = color por defecto de Kinetic.',
+    )
+    color_marca_editorial = models.CharField(
+        'Color principal (Editorial)', max_length=7, blank=True,
+        help_text='Código hex. Vacío = rojo editorial por defecto.',
+    )
+    color_marca_secundario_editorial = models.CharField(
+        'Color de tinta (Editorial)', max_length=7, blank=True,
+        help_text='Código hex. Vacío = negro editorial por defecto.',
     )
     # Las 3 filas de la tarjeta "En vivo" del hero — antes texto fijo
     # ("CATÁLOGO: N productos" / "STOCK: actualizado en tiempo real" /
@@ -307,6 +369,8 @@ class ConfiguracionCatalogo(models.Model):
     # Default propio de "lumina" — cobalto + coral, e-commerce prolijo.
     DEFAULT_COLOR_MARCA_LUMINA = '#1E3A5F'
     DEFAULT_COLOR_MARCA_SECUNDARIO_LUMINA = '#FF5A3C'
+    DEFAULT_COLOR_MARCA_EDITORIAL = '#D6432E'
+    DEFAULT_COLOR_MARCA_SECUNDARIO_EDITORIAL = '#121212'
     DEFAULT_NAV_CATALOGO = 'Catálogo'
     DEFAULT_NAV_OFERTAS  = 'Ofertas'
     DEFAULT_NAV_COMBOS   = 'Combos'
@@ -729,6 +793,99 @@ class BannerKineticCatalogo(models.Model):
     @property
     def muestra_cta(self):
         return bool(self.cta_texto and self.cta_url)
+
+
+class EntradaBitacoraKineticCatalogo(models.Model):
+    """Novedad breve presentada como registro operativo en la home Kinetic."""
+    configuracion = models.ForeignKey(
+        ConfiguracionCatalogo, on_delete=models.CASCADE, related_name='bitacora_kinetic',
+    )
+    codigo = models.CharField('Etiqueta', max_length=20, blank=True)
+    titulo = models.CharField('Titulo', max_length=100)
+    texto = models.CharField('Detalle (opcional)', max_length=280, blank=True)
+    enlace_texto = models.CharField('Texto del enlace (opcional)', max_length=40, blank=True)
+    url = models.CharField('Link (opcional)', max_length=300, blank=True)
+    activo = models.BooleanField(default=True)
+    orden = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name = 'Entrada de bitacora (Kinetic)'
+        verbose_name_plural = 'Entradas de bitacora (Kinetic)'
+        ordering = ['orden', 'id']
+
+    def __str__(self):
+        return self.titulo
+
+    @property
+    def muestra_enlace(self):
+        return bool(self.enlace_texto and self.url)
+
+
+class ConsultaKineticCatalogo(models.Model):
+    """Pregunta y respuesta desplegable exclusiva de la home Kinetic."""
+    configuracion = models.ForeignKey(
+        ConfiguracionCatalogo, on_delete=models.CASCADE, related_name='consultas_kinetic',
+    )
+    pregunta = models.CharField('Pregunta', max_length=140)
+    respuesta = models.TextField('Respuesta', max_length=700)
+    activo = models.BooleanField(default=True)
+    orden = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name = 'Consulta frecuente (Kinetic)'
+        verbose_name_plural = 'Consultas frecuentes (Kinetic)'
+        ordering = ['orden', 'id']
+
+    def __str__(self):
+        return self.pregunta
+
+
+class TipoSeleccionEditorial(models.TextChoices):
+    CATEGORIA = 'categoria', 'Categoría'
+    PRODUCTO = 'producto', 'Producto'
+
+
+class SeleccionEditorialCatalogo(models.Model):
+    """Capítulo visual opcional y exclusivo de Editorial.
+
+    La selección siempre apunta a contenido real del catálogo. El dueño puede
+    sumar una portada y textos propios, pero nunca necesita duplicar productos:
+    sin imagen se reutiliza la primera foto disponible del producto/categoría.
+    """
+    configuracion = models.ForeignKey(
+        ConfiguracionCatalogo, on_delete=models.CASCADE, related_name='selecciones_editorial',
+    )
+    tipo = models.CharField(
+        'Contenido', max_length=12, choices=TipoSeleccionEditorial.choices,
+        default=TipoSeleccionEditorial.CATEGORIA,
+    )
+    categoria = models.ForeignKey(
+        'productos.CategoriaProducto', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='selecciones_catalogo_editorial',
+    )
+    producto = models.ForeignKey(
+        'productos.Producto', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='selecciones_catalogo_editorial',
+    )
+    etiqueta = models.CharField('Etiqueta (opcional)', max_length=32, blank=True)
+    titulo = models.CharField('Título (opcional)', max_length=100, blank=True)
+    texto = models.CharField('Bajada (opcional)', max_length=240, blank=True)
+    imagen = models.ImageField(
+        'Portada (opcional)', upload_to=_catalogo_coleccion_editorial_path, blank=True, null=True,
+    )
+    activo = models.BooleanField(default=True)
+    orden = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name = 'Selección de la edición (Editorial)'
+        verbose_name_plural = 'Selecciones de la edición (Editorial)'
+        ordering = ['orden', 'id']
+
+    def __str__(self):
+        return self.titulo or (
+            self.producto.nombre if self.producto_id else
+            self.categoria.nombre if self.categoria_id else f'Selección #{self.pk}'
+        )
 
 
 class DatoDemo(models.Model):

@@ -3,145 +3,44 @@
 {% block title %}{{ producto.nombre }} — {{ empresa.nombre_comercial }}{% endblock %}
 
 {% block content %}
+<main class="ed-product-page">
+    <nav class="ed-breadcrumb ed-wrap"><span class="ed-breadcrumb-num">N.º {{ producto.pk|stringformat:"04d" }} — FICHA DE PRODUCTO</span><div><a href="{% url 'catalogo:home' %}">Catálogo</a>{% if producto.categoria %}<span>/</span><a href="{% url 'catalogo:home' %}?categoria={{ producto.categoria.slug }}#kcCatalogo">{{ producto.categoria.nombre }}</a>{% endif %}<span>/</span><span class="ed-breadcrumb-actual">{{ producto.nombre }}</span></div></nav>
 
-    <nav class="ed-breadcrumb ed-wrap">
-        <span class="ed-breadcrumb-num">N.º {{ producto.pk|stringformat:"04d" }} — FICHA DE PRODUCTO</span>
-        <div>
-            <a href="{% url 'catalogo:home' %}">Catálogo</a>
-            {% if producto.categoria %}
-                <span>/</span>
-                <a href="{% url 'catalogo:home' %}?categoria={{ producto.categoria.slug }}">{{ producto.categoria.nombre }}</a>
-            {% endif %}
-            <span>/</span>
-            <span class="ed-breadcrumb-actual">{{ producto.nombre }}</span>
-        </div>
-    </nav>
+    <article class="ed-product-sheet ed-wrap">
+        <header class="ed-product-sheet-head"><span>FICHA / {{ producto.codigo|default:producto.pk }}</span><span>EDICIÓN ACTUALIZADA</span><span>{{ empresa.nombre_comercial|upper }}</span></header>
 
-    <section class="ed-detalle ed-wrap">
-        <div>
-            <div class="ed-galeria-principal">
-                {% if imagenes %}
-                    <img src="{{ imagenes.0.imagen.url }}" alt="{{ producto.nombre }}" id="kcGaleriaImgActual">
-                {% else %}
-                    <svg width="52" height="52" viewBox="0 0 24 24" fill="none"><path d="M3 8L12 3.5L21 8V16L12 20.5L3 16V8Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M3 8L12 12.5L21 8" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M12 12.5V20.5" stroke="currentColor" stroke-width="1.3"/></svg>
-                {% endif %}
-                {% if oferta_info or producto.destacado or es_nuevo %}
-                <div class="ed-galeria-badges">
-                    {% if oferta_info %}<span class="ed-badge ed-badge--oferta">{{ oferta_info.badge }}</span>{% endif %}
-                    {% if es_nuevo %}<span class="ed-badge ed-badge--nuevo">Nuevo</span>{% endif %}
-                    {% if producto.destacado %}<span class="ed-badge ed-badge--destacado">Destacado</span>{% endif %}
+        <div class="ed-product-layout">
+            <div class="ed-product-visual">
+                <div class="ed-product-index">{{ producto.pk|stringformat:"04d" }}</div>
+                <div class="ed-galeria-principal">
+                    {% if imagenes %}<img src="{{ imagenes.0.imagen.url }}" alt="{{ producto.nombre }}" id="kcGaleriaImgActual">{% else %}<div class="ed-product-noimage"><span>IMAGEN</span><b>NO DISPONIBLE</b></div>{% endif %}
+                    {% if oferta_info or producto.destacado or es_nuevo %}<div class="ed-galeria-badges">{% if oferta_info %}<span class="ed-badge ed-badge--oferta">{{ oferta_info.badge }}</span>{% endif %}{% if es_nuevo %}<span class="ed-badge ed-badge--nuevo">Nuevo</span>{% endif %}{% if producto.destacado %}<span class="ed-badge ed-badge--destacado">Selección</span>{% endif %}</div>{% endif %}
                 </div>
-                {% endif %}
-            </div>
-            {% if imagenes|length > 1 %}
-            <div class="ed-galeria-thumbs">
-                {% for img in imagenes %}
-                    <button type="button" class="ed-thumb {% if forloop.first %}ed-thumb--activo{% endif %}" data-src="{{ img.imagen.url }}">
-                        <img src="{{ img.imagen.url }}" alt="{{ producto.nombre }} {{ forloop.counter }}">
-                    </button>
-                {% endfor %}
-            </div>
-            {% endif %}
-        </div>
-
-        <div class="ed-detalle-info">
-            <div class="ed-detalle-topmeta">
-                {% if producto.categoria %}<span class="ed-chip-categoria">{{ producto.categoria.nombre }}</span>{% endif %}
-                {% if producto.gestiona_stock %}
-                    {% if producto.stock_actual > 0 %}
-                        <span class="ed-stock-indicador ed-stock-indicador--ok">Stock disponible</span>
-                    {% else %}
-                        <span class="ed-stock-indicador ed-stock-indicador--no">Sin stock por el momento</span>
-                    {% endif %}
-                {% endif %}
+                {% if imagenes|length > 1 %}<div class="ed-galeria-thumbs">{% for img in imagenes %}<button type="button" class="ed-thumb {% if forloop.first %}ed-thumb--activo{% endif %}" data-src="{{ img.imagen.url }}"><span>{{ forloop.counter|stringformat:"02d" }}</span><img src="{{ img.imagen.url }}" alt="{{ producto.nombre }} {{ forloop.counter }}"></button>{% endfor %}</div>{% endif %}
+                <p class="ed-product-caption">FIG. {{ producto.pk|stringformat:"04d" }} — Imagen de referencia del artículo.</p>
             </div>
 
-            <h1 class="ed-detalle-nombre">{{ producto.nombre }}</h1>
-            {% if producto.marca %}<p class="ed-detalle-marca">{{ producto.marca }}{% if producto.modelo %} · {{ producto.modelo }}{% endif %}</p>{% endif %}
+            <div class="ed-detalle-info">
+                <div class="ed-detalle-topmeta">{% if producto.categoria %}<span class="ed-chip-categoria">{{ producto.categoria.nombre }}</span>{% endif %}{% if producto.gestiona_stock %}{% if producto.stock_actual > 0 %}<span class="ed-stock-indicador ed-stock-indicador--ok">● Stock disponible</span>{% else %}<span class="ed-stock-indicador ed-stock-indicador--no">● Sin stock</span>{% endif %}{% endif %}</div>
+                <h1 class="ed-detalle-nombre">{{ producto.nombre }}</h1>
+                {% if producto.marca or producto.modelo %}<p class="ed-detalle-marca">{% if producto.marca %}{{ producto.marca }}{% endif %}{% if producto.modelo %} / {{ producto.modelo }}{% endif %}</p>{% endif %}
 
-            <div class="ed-detalle-precio-card">
-                {% if oferta_info and oferta_info.precio_final != producto.precio_venta %}
-                    <span class="ed-detalle-precio-tachado">${{ producto.precio_venta }}</span>
-                    <span class="ed-detalle-precio-final">${{ oferta_info.precio_final }}</span>
-                {% elif producto.precio_venta %}
-                    <span class="ed-detalle-precio-final">${{ producto.precio_venta }}</span>
-                {% else %}
-                    <span class="ed-precio-consultar">Precio a consultar</span>
-                {% endif %}
-                {% if ahorro_pct %}<p class="ed-detalle-ahorro">Ahorrás {{ ahorro_pct }}% en esta compra</p>{% endif %}
-                {% if ahorro %}<p class="ed-detalle-ahorro">Ahorrás ${{ ahorro.ahorro|floatformat:0 }} llevando el combo en vez de los productos sueltos</p>{% endif %}
-            </div>
+                <div class="ed-product-price-band"><span>PRECIO ACTUAL</span><div>{% if oferta_info and oferta_info.precio_final != producto.precio_venta %}<del>${{ producto.precio_venta }}</del><strong>${{ oferta_info.precio_final }}</strong>{% elif producto.precio_venta %}<strong>${{ producto.precio_venta }}</strong>{% else %}<strong class="ed-precio-consultar">A consultar</strong>{% endif %}</div>{% if ahorro_pct %}<b>AHORRÁS {{ ahorro_pct }}%</b>{% endif %}{% if ahorro %}<b>AHORRÁS ${{ ahorro.ahorro|floatformat:0 }} CON EL SET</b>{% endif %}</div>
 
-            {% if disponible_compra %}
-            <div class="ed-detalle-agregar" data-carrito-slot>
-                <button type="button" class="ed-btn ed-btn-fill ed-btn-agregar-grande"
-                    data-carrito-agregar="{% if producto.es_paquete %}paq{% else %}prod{% endif %}-{{ producto.pk }}"
-                    data-nombre="{{ producto.nombre }}"
-                    data-precio="{{ oferta_info.precio_final|default:producto.precio_venta }}"
-                    data-precio-lista="{{ producto.precio_venta }}"
-                    data-categoria-id="{{ producto.categoria.pk|default:'' }}"
-                    data-imagen="{% if imagenes %}{{ imagenes.0.imagen.url }}{% endif %}">
-                    Agregar al pedido
-                </button>
-            </div>
-            {% endif %}
+                {% if producto.gestiona_variantes %}<div class="ed-variantes">{% for tipo in variantes_json.tipos %}<div class="ed-variante-grupo" data-variante-tipo="{{ tipo.id }}"><span>{{ tipo.nombre }}</span><div>{% for opcion in tipo.opciones %}<button type="button" class="ed-variante-opcion" data-variante-opcion="{{ opcion.id }}">{{ opcion.nombre }}</button>{% endfor %}</div></div>{% endfor %}<p id="kcVarianteEstado">Elegí una opción</p></div>{{ variantes_json.combinaciones|json_script:"kcVariantesCombinaciones" }}{% endif %}
 
-            {% if producto.es_paquete and componentes %}
-            <div class="ed-detalle-seccion">
-                <h2>Este combo incluye</h2>
-                <ul class="ed-detalle-incluye">
-                    {% for c in componentes %}
-                        <li><span>{{ c.cantidad|floatformat:"-2" }}×</span> {{ c.producto.nombre }}{% if c.combinacion %} — {{ c.combinacion.descripcion_legible }}{% endif %}</li>
-                    {% endfor %}
-                </ul>
-            </div>
-            {% endif %}
+                {% if disponible_compra %}<div class="ed-detalle-agregar" data-carrito-slot><button type="button" id="btnAgregarDetalle" class="ed-btn ed-btn-fill ed-btn-agregar-grande" {% if not producto.gestiona_variantes %}data-carrito-agregar="{% if producto.es_paquete %}paq{% else %}prod{% endif %}-{{ producto.pk }}"{% endif %} data-id-base="{% if producto.es_paquete %}paq{% else %}prod{% endif %}-{{ producto.pk }}" data-producto-id="{{ producto.pk }}" data-nombre="{{ producto.nombre }}" data-precio="{{ oferta_info.precio_final|default:producto.precio_venta }}" data-precio-lista="{{ producto.precio_venta }}" data-categoria-id="{{ producto.categoria.pk|default:'' }}" data-imagen="{% if imagenes %}{{ imagenes.0.imagen.url }}{% endif %}" {% if producto.gestiona_variantes %}disabled{% endif %}>Agregar al pedido <span>→</span></button></div>{% endif %}
 
-            {% if producto.descripcion_publica or producto.descripcion %}
-            <div class="ed-detalle-seccion">
-                <h2>Descripción</h2>
-                <p>{{ producto.descripcion_publica|default:producto.descripcion|linebreaksbr }}</p>
-            </div>
-            {% endif %}
-
-            {% if producto.caracteristicas.all %}
-            <div class="ed-detalle-seccion">
-                <h2>Características</h2>
-                <div class="ed-caracteristicas-grid">
-                    {% for c in producto.caracteristicas.all %}
-                    <div class="ed-caracteristica-item"><span>—</span>{{ c.texto }}</div>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
-
-            {% if tags_producto %}
-            <div class="ed-detalle-tags">
-                {% for tag in tags_producto %}<span class="ed-tag-chip">{{ tag }}</span>{% endfor %}
-            </div>
-            {% endif %}
-
-            <div class="ed-detalle-seccion">
-                <h2>Ficha técnica</h2>
-                <div class="ed-ficha-row"><span>Marca</span><span>{{ producto.marca|default:"—" }}</span></div>
-                <div class="ed-ficha-row"><span>Código</span><span>{{ producto.codigo }}</span></div>
-                <div class="ed-ficha-row"><span>Unidad</span><span>{{ producto.get_unidad_medida_display }}</span></div>
+                <div class="ed-product-assurances"><span><b>01</b> Pedido sin registro</span><span><b>02</b> Pago coordinado</span><span><b>03</b> Atención directa</span></div>
             </div>
         </div>
-    </section>
 
-    {% if relacionados %}
-    <section class="ed-relacionados ed-wrap">
-        <div class="ed-idx-label">También te puede interesar</div>
-        <div class="ed-list-head">
-            <span>Art.</span><span></span><span>Producto</span><span>Categoría</span><span class="ed-right">Precio</span><span></span>
+        <div class="ed-product-body">
+            <section class="ed-product-description"><div class="ed-idx-label">Nota de producto</div><h2>Sobre este artículo</h2>{% if producto.descripcion_publica or producto.descripcion %}<p>{{ producto.descripcion_publica|default:producto.descripcion|linebreaksbr }}</p>{% else %}<p>Consultanos para conocer más información sobre este producto.</p>{% endif %}{% if tags_producto %}<div class="ed-detalle-tags">{% for tag in tags_producto %}<span class="ed-tag-chip"># {{ tag }}</span>{% endfor %}</div>{% endif %}</section>
+            <section class="ed-product-specs"><div class="ed-idx-label">Datos técnicos</div>{% if producto.es_paquete and componentes %}<h2>Este set incluye</h2><ul class="ed-detalle-incluye">{% for c in componentes %}<li><span>{{ c.cantidad|floatformat:"-2" }}×</span> {{ c.producto.nombre }}{% if c.combinacion %} — {{ c.combinacion.descripcion_legible }}{% endif %}</li>{% endfor %}</ul>{% endif %}{% if producto.caracteristicas.all %}<h2>Características</h2><div class="ed-caracteristicas-grid">{% for c in producto.caracteristicas.all %}<div class="ed-caracteristica-item"><span>—</span>{{ c.texto }}</div>{% endfor %}</div>{% endif %}<h2>Ficha técnica</h2><div class="ed-ficha-row"><span>Marca</span><span>{{ producto.marca|default:"—" }}</span></div><div class="ed-ficha-row"><span>Código</span><span>{{ producto.codigo }}</span></div><div class="ed-ficha-row"><span>Unidad</span><span>{{ producto.get_unidad_medida_display }}</span></div></section>
         </div>
-        <div>
-            {% for p in relacionados %}
-                {% include 'catalogo/plantillas/editorial/_product_row.html' with p=p %}
-            {% endfor %}
-        </div>
-    </section>
-    {% endif %}
+    </article>
 
+    {% if relacionados %}<section class="ed-relacionados ed-wrap" data-ed-reveal><header><div class="ed-idx-label">Siguiente lectura</div><h2>También te puede interesar</h2></header><div class="ed-list-head"><span>Art.</span><span></span><span>Producto</span><span>Categoría</span><span class="ed-right">Precio</span><span></span></div><div>{% for p in relacionados %}{% include 'catalogo/plantillas/editorial/_product_row.html' with p=p %}{% endfor %}</div></section>{% endif %}
+</main>
 {% endblock %}

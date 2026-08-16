@@ -275,19 +275,87 @@
 
 /* Todos los editores del catálogo deben poder usarse en pantallas bajas.
    El encabezado y las acciones quedan visibles; sólo se desplaza el cuerpo. */
+.modal-dialog.co-modal-wide {
+    width: min(680px, calc(100% - 2rem));
+    max-width: none;
+}
+
 .modal-dialog .modal-content {
+    display: flex;
+    flex-direction: column;
     max-height: calc(100dvh - 2rem);
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    border-radius: 1rem;
+    box-shadow: 0 24px 70px rgba(13, 27, 42, 0.22);
+}
+
+/* El formulario es un nivel intermedio: tambien debe participar del layout
+   flex para que el cuerpo reciba un alto real y pueda desplazarse. */
+.modal-dialog .modal-content > form {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
     overflow: hidden;
 }
 
+.modal-dialog .modal-header,
+.modal-dialog .modal-footer {
+    flex: 0 0 auto;
+    position: relative;
+    z-index: 2;
+    background: var(--bg-white);
+}
+
+.modal-dialog .modal-header {
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.15rem 1.25rem;
+}
+.modal-dialog .modal-header > div { min-width: 0; }
+.modal-dialog .modal-title { line-height: 1.25; }
+.modal-dialog .modal-subtitle {
+    margin: 0.25rem 0 0;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    line-height: 1.4;
+}
+.modal-dialog .btn-close { flex: 0 0 auto; margin-top: 0.1rem; }
+
 .modal-dialog .modal-body {
+    flex: 1 1 auto;
     min-height: 0;
+    overflow-x: hidden;
     overflow-y: auto;
+    padding: 0.45rem 1.25rem 0.85rem;
     overscroll-behavior: contain;
+    touch-action: pan-y;
     scrollbar-gutter: stable;
     scrollbar-width: thin;
     scrollbar-color: var(--brand-orange) rgba(15, 23, 42, 0.12);
     -webkit-overflow-scrolling: touch;
+}
+
+/* Los modales se incorporaron en distintas etapas y tenian paddings
+   incompatibles. Se normalizan aca sin tocar los paneles de configuracion. */
+.modal-dialog .modal-body > .config-row {
+    width: 100%;
+    padding: 0.9rem 0 !important;
+    gap: 0.75rem;
+    background: transparent !important;
+}
+.modal-dialog .modal-body > .config-row.co-row-grid2 { align-items: start; }
+.modal-dialog .modal-body > .config-row-desc {
+    display: block;
+    padding: 0.15rem 0 0.85rem !important;
+    line-height: 1.45;
+}
+.modal-dialog .modal-body .form-control { width: 100%; }
+.modal-dialog .modal-footer {
+    gap: 0.55rem;
+    padding: 0.8rem 1.25rem;
+    border-top: 1px solid var(--border-color);
 }
 
 .modal-dialog .modal-body::-webkit-scrollbar { width: 10px; }
@@ -306,7 +374,31 @@
     background-clip: padding-box;
 }
 
-@media (max-width: 575px), (max-height: 680px) {
-    .modal-dialog { margin: 0.5rem; }
+@media (max-height: 680px) {
+    .modal-dialog { margin-top: 0.5rem; margin-bottom: 0.5rem; }
     .modal-dialog .modal-content { max-height: calc(100dvh - 1rem); }
+    .modal-dialog .modal-header { padding: 0.9rem 1rem; }
+    .modal-dialog .modal-body { padding: 0.3rem 1rem 0.75rem; }
+    .modal-dialog .modal-footer { padding: 0.75rem 1rem; }
+}
+
+@media (max-width: 575px) {
+    .modal-dialog,
+    .modal-dialog.co-modal-wide {
+        width: auto;
+        max-width: none;
+        margin: 0.5rem;
+    }
+    .modal-dialog .modal-content { max-height: calc(100dvh - 1rem); }
+    .modal-dialog .modal-header { padding: 0.9rem 1rem; }
+    .modal-dialog .modal-body { padding: 0.3rem 1rem 0.75rem; }
+    .modal-dialog .modal-footer { padding: 0.75rem 1rem; }
+}
+
+@media (max-width: 479px) {
+    .modal-dialog .modal-header .modal-title { font-size: 1rem; }
+    .modal-dialog .modal-subtitle { font-size: 0.75rem; }
+    .modal-dialog .modal-body > .config-row { padding: 0.75rem 0 !important; }
+    .modal-dialog .modal-footer > .btn { flex: 1 1 0; }
+    .modal-dialog .co-color-control { align-items: flex-start; flex-wrap: wrap; }
 }

@@ -10,6 +10,54 @@
     actualizar();
 })();
 
+/* Paquetes en una sola fila: controles manuales, gesto táctil y avance
+   automático suave. Nunca genera una segunda fila aunque haya muchos. */
+(function () {
+    var carousel = document.querySelector('[data-lumina-carousel]');
+    if (!carousel) return;
+    var track = carousel.querySelector('[data-carousel-track]');
+    var prev = carousel.querySelector('[data-carousel-prev]');
+    var next = carousel.querySelector('[data-carousel-next]');
+    if (!track) return;
+    var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var timer = null;
+    function actualizarEstado() { carousel.classList.toggle('is-static', track.scrollWidth <= track.clientWidth + 4); }
+    function paso() { return Math.max(track.clientWidth * .82, 280); }
+    function mover(direccion) { track.scrollBy({ left: direccion * paso(), behavior: reduceMotion ? 'auto' : 'smooth' }); }
+    function avanzar() {
+        if (track.scrollWidth <= track.clientWidth + 4) return;
+        var llegoAlFinal = track.scrollLeft + track.clientWidth >= track.scrollWidth - 8;
+        track.scrollTo({ left: llegoAlFinal ? 0 : track.scrollLeft + paso(), behavior: reduceMotion ? 'auto' : 'smooth' });
+    }
+    function detener() { if (timer) window.clearInterval(timer); timer = null; }
+    function iniciar() { detener(); if (!reduceMotion) timer = window.setInterval(avanzar, 5500); }
+    if (prev) prev.addEventListener('click', function () { mover(-1); iniciar(); });
+    if (next) next.addEventListener('click', function () { mover(1); iniciar(); });
+    carousel.addEventListener('mouseenter', detener);
+    carousel.addEventListener('mouseleave', iniciar);
+    carousel.addEventListener('focusin', detener);
+    carousel.addEventListener('focusout', iniciar);
+    document.addEventListener('visibilitychange', function () { if (document.hidden) detener(); else iniciar(); });
+    window.addEventListener('resize', actualizarEstado, { passive: true });
+    actualizarEstado();
+    iniciar();
+})();
+
+/* Navegación móvil completa; el header compacto ya no deja al visitante sin
+   catálogo, ofertas, combos, tienda ni buscador. */
+(function () {
+    var btn = document.getElementById('lMenuBtn');
+    var panel = document.getElementById('lMobileNav');
+    var overlay = document.getElementById('lMobileOverlay');
+    var close = document.getElementById('lMobileClose');
+    if (!btn || !panel || !overlay) return;
+    function abrir() { panel.classList.add('is-open'); overlay.classList.add('is-open'); btn.setAttribute('aria-expanded','true'); document.body.style.overflow='hidden'; }
+    function cerrar() { panel.classList.remove('is-open'); overlay.classList.remove('is-open'); btn.setAttribute('aria-expanded','false'); document.body.style.overflow=''; }
+    btn.addEventListener('click', abrir); overlay.addEventListener('click', cerrar); if (close) close.addEventListener('click', cerrar);
+    panel.querySelectorAll('a').forEach(function (link) { link.addEventListener('click', cerrar); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') cerrar(); });
+})();
+
 /* Galería del detalle de producto — clic en una miniatura cambia la
    imagen principal. Mismo patrón que editorial.js/kinetic.js. */
 (function () {

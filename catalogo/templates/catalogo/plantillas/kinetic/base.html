@@ -54,6 +54,10 @@
                 {% endif %}
             </a>
 
+            <button type="button" class="k-menu-toggle" id="kcMenuToggle" aria-label="Abrir navegación" aria-controls="kcMobileNav" aria-expanded="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h16M4 17h16" stroke-linecap="round"/></svg>
+            </button>
+
             <nav class="k-nav">
                 <a href="{% url 'catalogo:home' %}" class="{% if seccion_activa != 'ofertas' and seccion_activa != 'paquetes' %}k-nav-activo{% endif %}"><span id="kcNavCatalogo">{{ config_catalogo.nav_catalogo_label|default:default_nav_catalogo }}</span></a>
                 <a href="{% url 'catalogo:home' %}?seccion=ofertas#kcCatalogo" class="{% if seccion_activa == 'ofertas' %}k-nav-activo{% endif %}"><span id="kcNavOfertas">{{ config_catalogo.nav_ofertas_label|default:default_nav_ofertas }}</span></a>
@@ -80,6 +84,20 @@
             </div>
         </div>
     </header>
+
+    <div class="k-mobile-nav-overlay" id="kcMobileNavOverlay"></div>
+    <aside class="k-mobile-nav" id="kcMobileNav" aria-label="Navegación principal">
+        <div class="k-mobile-nav-head">
+            <span>// NAVEGACIÓN</span>
+            <button type="button" id="kcMobileNavCerrar" aria-label="Cerrar navegación">×</button>
+        </div>
+        <nav>
+            <a href="{% url 'catalogo:home' %}"><span>01</span>{{ config_catalogo.nav_catalogo_label|default:default_nav_catalogo }}</a>
+            <a href="{% url 'catalogo:home' %}?seccion=ofertas#kcCatalogo"><span>02</span>{{ config_catalogo.nav_ofertas_label|default:default_nav_ofertas }}</a>
+            <a href="{% url 'catalogo:home' %}?seccion=paquetes#kcCatalogo"><span>03</span>{{ config_catalogo.nav_combos_label|default:default_nav_combos }}</a>
+            <a href="{% url 'catalogo:institucional' %}"><span>04</span>{{ config_catalogo.nav_tienda_label|default:default_nav_tienda }}</a>
+        </nav>
+    </aside>
 
     {% block content %}{% endblock %}
 

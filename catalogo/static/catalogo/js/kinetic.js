@@ -146,3 +146,53 @@
         msgs[indice].classList.add('k-status-ticker-msg--activa');
     }, 3500);
 })();
+
+/* El nav de escritorio conserva exactamente su comportamiento. En tablet y
+   mobile, donde antes se ocultaba sin reemplazo, se abre este panel compacto. */
+(function () {
+    var toggle = document.getElementById('kcMenuToggle');
+    var panel = document.getElementById('kcMobileNav');
+    var overlay = document.getElementById('kcMobileNavOverlay');
+    var cerrarBtn = document.getElementById('kcMobileNavCerrar');
+    if (!toggle || !panel || !overlay) return;
+
+    function abrir() {
+        panel.classList.add('kc-abierto');
+        overlay.classList.add('kc-abierto');
+        toggle.setAttribute('aria-expanded', 'true');
+        document.body.style.overflow = 'hidden';
+    }
+    function cerrar() {
+        panel.classList.remove('kc-abierto');
+        overlay.classList.remove('kc-abierto');
+        toggle.setAttribute('aria-expanded', 'false');
+        document.body.style.overflow = '';
+    }
+
+    toggle.addEventListener('click', abrir);
+    overlay.addEventListener('click', cerrar);
+    if (cerrarBtn) cerrarBtn.addEventListener('click', cerrar);
+    panel.querySelectorAll('a').forEach(function (link) { link.addEventListener('click', cerrar); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') cerrar(); });
+})();
+
+/* Base de consultas Kinetic: conserva una sola respuesta abierta para que la
+   sección siga siendo compacta incluso cuando se cargan las ocho permitidas. */
+(function () {
+    var botones = document.querySelectorAll('.k-support-question');
+    if (!botones.length) return;
+    botones.forEach(function (boton) {
+        boton.addEventListener('click', function () {
+            var item = boton.closest('.k-support-item');
+            var estabaAbierto = item.classList.contains('k-support-item--abierto');
+            botones.forEach(function (otro) {
+                otro.setAttribute('aria-expanded', 'false');
+                otro.closest('.k-support-item').classList.remove('k-support-item--abierto');
+            });
+            if (!estabaAbierto) {
+                item.classList.add('k-support-item--abierto');
+                boton.setAttribute('aria-expanded', 'true');
+            }
+        });
+    });
+})();

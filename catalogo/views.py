@@ -17,7 +17,10 @@ from productos.models import (
     AplicacionOferta, CategoriaProducto, EstadoProducto, Producto, TipoOferta, TipoProducto, ofertas_vigentes_hoy,
 )
 
-from .models import ConfiguracionCatalogo, PlantillaCatalogo, PosicionBanner, PosicionBannerBento, TipoTileDestacado
+from .models import (
+    ConfiguracionCatalogo, PlantillaCatalogo, PosicionBanner, PosicionBannerBento,
+    TipoSeleccionEditorial, TipoTileDestacado,
+)
 from .utils import google_maps_link, wa_link_ar
 
 # Estados de producto que se muestran en el catálogo público. INACTIVO y
@@ -99,6 +102,8 @@ def _contexto_base(request):
         'default_kinetic_hero_stat3_titulo': ConfiguracionCatalogo.DEFAULT_KINETIC_HERO_STAT3_TITULO,
         'default_color_marca_lumina': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_LUMINA,
         'default_color_marca_secundario_lumina': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_LUMINA,
+        'default_color_marca_editorial': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_EDITORIAL,
+        'default_color_marca_secundario_editorial': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_EDITORIAL,
         'default_nav_catalogo': ConfiguracionCatalogo.DEFAULT_NAV_CATALOGO,
         'default_nav_ofertas': ConfiguracionCatalogo.DEFAULT_NAV_OFERTAS,
         'default_nav_combos': ConfiguracionCatalogo.DEFAULT_NAV_COMBOS,
@@ -691,6 +696,52 @@ class CatalogoHomeView(TemplateView):
         # Banners de Kinetic — tabla propia (BannerKineticCatalogo), un solo
         # destino visual (rail debajo de la grilla), sin 'posicion'.
         ctx['banners_kinetic'] = ctx['config_catalogo'].banners_kinetic.filter(activo=True)
+        ctx['bitacora_kinetic'] = ctx['config_catalogo'].bitacora_kinetic.filter(activo=True)
+        ctx['consultas_kinetic'] = ctx['config_catalogo'].consultas_kinetic.filter(activo=True)
+        # Selecciones de la edición — capítulos visuales exclusivos de
+        # Editorial. Siempre enlazan una categoría o producto publicado;
+        # la imagen propia es opcional y, si falta, se reutiliza una foto real.
+        selecciones_editorial = []
+        if mostrar_vidriera:
+            selecciones_qs = (
+                ctx['config_catalogo'].selecciones_editorial
+                .filter(activo=True)
+                .select_related('categoria', 'producto')[:6]
+            )
+            for numero, seleccion in enumerate(selecciones_qs, start=1):
+                objetivo = None
+                if seleccion.tipo == TipoSeleccionEditorial.PRODUCTO and seleccion.producto_id:
+                    objetivo = seleccion.producto
+                    url = reverse('catalogo:producto_detalle', args=[objetivo.pk])
+                    titulo_default = objetivo.nombre
+                    etiqueta_default = objetivo.categoria.nombre if objetivo.categoria_id else 'Producto'
+                elif seleccion.tipo == TipoSeleccionEditorial.CATEGORIA and seleccion.categoria_id:
+                    objetivo = (
+                        _productos_publicados_base()
+                        .filter(es_paquete=False, categoria=seleccion.categoria)
+                        .order_by('-destacado', '-fecha_alta', 'nombre')
+                        .first()
+                    )
+                    url = '?' + _url_con(get, categoria=seleccion.categoria.slug) + '#kcCatalogo'
+                    titulo_default = seleccion.categoria.nombre
+                    etiqueta_default = 'Categoría'
+                else:
+                    continue
+
+                imagen_url = seleccion.imagen.url if seleccion.imagen else ''
+                if not imagen_url and objetivo:
+                    portada = objetivo.imagenes.first()
+                    if portada:
+                        imagen_url = portada.imagen.url
+                selecciones_editorial.append({
+                    'numero': numero,
+                    'etiqueta': seleccion.etiqueta or etiqueta_default,
+                    'titulo': seleccion.titulo or titulo_default,
+                    'texto': seleccion.texto,
+                    'imagen_url': imagen_url,
+                    'url': url,
+                })
+        ctx['selecciones_editorial'] = selecciones_editorial
         # Categorías/marcas destacadas — accesos directos con imagen que
         # filtran el catálogo al click, exclusivos de "almacen" (en Bento
         # son redundantes: las categorías ya se navegan por el rail de
@@ -936,6 +987,8 @@ class TiendaInstitucionalView(TemplateView):
             return ['catalogo/plantillas/kinetic/institucional.html']
         if plantilla == PlantillaCatalogo.LUMINA:
             return ['catalogo/plantillas/lumina/institucional.html']
+        if plantilla == PlantillaCatalogo.EDITORIAL:
+            return ['catalogo/plantillas/editorial/institucional.html']
         return ['catalogo/institucional.html']
 
     def get_context_data(self, **kwargs):

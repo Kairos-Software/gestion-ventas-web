@@ -26,6 +26,9 @@ document.addEventListener('DOMContentLoaded', function () {
         if (plantilla === 'lumina') {
             return campo === 'marca' ? (defaults.colorMarcaLumina || '#4a6b5d') : (defaults.colorMarcaSecundarioLumina || '#e76f51');
         }
+        if (plantilla === 'editorial') {
+            return campo === 'marca' ? (defaults.colorMarcaEditorial || '#D6432E') : (defaults.colorMarcaSecundarioEditorial || '#121212');
+        }
         return campo === 'marca' ? (defaults.colorMarca || '#ff9343') : (defaults.colorMarcaSecundario || '#111e2f');
     }
     function colorDefaultActual(campo) {
@@ -53,6 +56,7 @@ document.addEventListener('DOMContentLoaded', function () {
         bento: coloresIniciales('bento'),
         lumina: coloresIniciales('lumina'),
         kinetic: coloresIniciales('kinetic'),
+        editorial: coloresIniciales('editorial'),
     };
 
     function guardarColoresVisiblesEn(plantilla) {
@@ -165,19 +169,23 @@ document.addEventListener('DOMContentLoaded', function () {
             if (visual) visual.innerHTML = `<img src="${heroObjectUrl}" alt="">`;
         }
         if (instImagenObjectUrl) {
-            const portada = doc.querySelector('.kc-inst-portada');
+            const portada = doc.querySelector('.l-store-hero-image, .k-store-hero-media, .kc-inst-portada');
             if (portada) {
-                let img = portada.querySelector('.kc-inst-portada-img');
+                const esPortadaNueva = portada.matches('.l-store-hero-image, .k-store-hero-media');
+                let img = esPortadaNueva
+                    ? portada.querySelector(':scope > img')
+                    : portada.querySelector('.kc-inst-portada-img');
                 if (!img) {
                     img = document.createElement('img');
-                    img.className = 'kc-inst-portada-img';
+                    if (!esPortadaNueva) img.className = 'kc-inst-portada-img';
                     portada.prepend(img);
-                    if (!portada.querySelector('.kc-inst-portada-overlay')) {
+                    if (!esPortadaNueva && !portada.querySelector('.kc-inst-portada-overlay')) {
                         const overlay = document.createElement('div');
                         overlay.className = 'kc-inst-portada-overlay';
                         img.after(overlay);
                     }
                 }
+                portada.classList.remove('l-store-hero-image--empty', 'k-store-hero-media--empty');
                 img.src = instImagenObjectUrl;
             }
         }
@@ -239,6 +247,10 @@ document.addEventListener('DOMContentLoaded', function () {
             // var(--l-secondary)) en lumina.css.
             doc.documentElement.style.setProperty('--l-primary', color);
             doc.documentElement.style.setProperty('--l-secondary', colorSecundario);
+            if (doc.body) {
+                doc.body.style.setProperty('--ed-red', color);
+                doc.body.style.setProperty('--ed-ink', colorSecundario);
+            }
 
             // Fondo de Bento — 2 valores (claro/oscuro) que un solo setProperty
             // no puede expresar (el oscuro solo vale bajo html[data-theme="dark"]),
@@ -469,6 +481,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 cta_final_boton_texto: document.getElementById('idCatalogoCtaFinalBotonTexto')?.value || '',
                 cta_final_boton_url:  document.getElementById('idCatalogoCtaFinalBotonUrl')?.value || '',
                 hero_spot2_producto: document.getElementById('idCatalogoHeroSpot2Producto')?.value || '',
+                directo_hero_producto1: document.getElementById('idCatalogoDirectoHeroProducto1')?.value || '',
+                directo_hero_producto2: document.getElementById('idCatalogoDirectoHeroProducto2')?.value || '',
+                directo_hero_producto3: document.getElementById('idCatalogoDirectoHeroProducto3')?.value || '',
                 sobre_nosotros:     document.getElementById('idCatalogoSobreNosotros').value,
                 contacto_texto:     document.getElementById('idCatalogoContactoTexto').value,
                 color_marca:        valorColorGuardado('almacen', 'marca'),
@@ -478,6 +493,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 color_marca_lumina:     valorColorGuardado('lumina', 'marca'),
                 color_marca_secundario_lumina: valorColorGuardado('lumina', 'secundario'),
                 color_marca_kinetic:    valorColorGuardado('kinetic', 'marca'),
+                color_marca_editorial:  valorColorGuardado('editorial', 'marca'),
+                color_marca_secundario_editorial: valorColorGuardado('editorial', 'secundario'),
                 color_fondo_bento:        colorFondoTocado ? document.getElementById('idCatalogoColorFondo').value : '',
                 color_fondo_bento_oscuro: colorFondoOscuroTocado ? document.getElementById('idCatalogoColorFondoOscuro').value : '',
                 color_fondo_kinetic:      colorFondoKineticTocado ? document.getElementById('idCatalogoColorFondoKinetic').value : '',
@@ -587,6 +604,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     document.getElementById(boxId).innerHTML = `<img src="${data.imagen_url}" alt="">`;
                     const btn = document.getElementById(btnEliminarId);
                     if (btn) btn.style.display = 'inline-block';
+                    if (previewFrame && previewFrame.contentWindow) previewFrame.contentWindow.location.reload();
                 }
             });
         });
@@ -602,12 +620,16 @@ document.addEventListener('DOMContentLoaded', function () {
                     document.getElementById(boxId).innerHTML =
                         '<span style="font-size:0.7rem; color:var(--text-muted);">Sin imagen</span>';
                     this.style.display = 'none';
+                    if (previewFrame && previewFrame.contentWindow) previewFrame.contentWindow.location.reload();
                 }
             });
         });
     }
     initSubidaImagenSpot('inputCatalogoHeroSpot1', 'btnEliminarCatalogoHeroSpot1', 'catalogoHeroSpot1PreviewBox', urls.heroSpot1Imagen);
     initSubidaImagenSpot('inputCatalogoHeroSpot2', 'btnEliminarCatalogoHeroSpot2', 'catalogoHeroSpot2PreviewBox', urls.heroSpot2Imagen);
+    initSubidaImagenSpot('inputCatalogoDirectoHero1', 'btnEliminarCatalogoDirectoHero1', 'catalogoDirectoHero1PreviewBox', urls.directoHeroImagen1);
+    initSubidaImagenSpot('inputCatalogoDirectoHero2', 'btnEliminarCatalogoDirectoHero2', 'catalogoDirectoHero2PreviewBox', urls.directoHeroImagen2);
+    initSubidaImagenSpot('inputCatalogoDirectoHero3', 'btnEliminarCatalogoDirectoHero3', 'catalogoDirectoHero3PreviewBox', urls.directoHeroImagen3);
     initSubidaImagenSpot('inputCatalogoCtaFinalImagen', 'btnEliminarCatalogoCtaFinalImagen', 'catalogoCtaFinalImagenPreviewBox', urls.ctaFinalImagen);
 
     document.getElementById('btnEliminarCatalogoHero')?.addEventListener('click', function () {
@@ -1882,4 +1904,258 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         });
     }
+
+    // Extras exclusivos de Kinetic: bitacora operativa y base de consultas.
+    // Ambos comparten el flujo simple JSON, pero mantienen formularios y
+    // endpoints separados para que cada modulo pueda evolucionar por su lado.
+    const formBitacoraKinetic = document.getElementById('formBitacoraKinetic');
+    if (formBitacoraKinetic) {
+        const modalEl = document.getElementById('bitacoraKineticModal');
+        const modal = window.bootstrap ? new bootstrap.Modal(modalEl) : null;
+        const urlsBitacora = window.CONFIG_BITACORA_KINETIC_URLS || {};
+        const csrfBitacora = () => formBitacoraKinetic.querySelector('[name=csrfmiddlewaretoken]').value;
+        const campo = id => document.getElementById(id);
+
+        function limpiarBitacora() {
+            ['Pk', 'Codigo', 'Titulo', 'Texto', 'EnlaceTexto', 'Url'].forEach(s => { campo('bitacoraKinetic' + s).value = ''; });
+            campo('bitacoraKineticOrden').value = '0';
+            campo('bitacoraKineticMsg').textContent = '';
+        }
+        campo('btnNuevaBitacoraKinetic')?.addEventListener('click', function () {
+            limpiarBitacora();
+            campo('bitacoraKineticModalLabel').textContent = 'Nueva entrada';
+        });
+        document.querySelectorAll('.btn-editar-bitacora-kinetic').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const row = btn.closest('.bitacora-kinetic-row');
+                limpiarBitacora();
+                campo('bitacoraKineticModalLabel').textContent = 'Editar entrada';
+                campo('bitacoraKineticPk').value = row.dataset.pk || '';
+                campo('bitacoraKineticCodigo').value = row.dataset.codigo || '';
+                campo('bitacoraKineticTitulo').value = row.dataset.titulo || '';
+                campo('bitacoraKineticTexto').value = row.dataset.texto || '';
+                campo('bitacoraKineticEnlaceTexto').value = row.dataset.enlaceTexto || '';
+                campo('bitacoraKineticUrl').value = row.dataset.url || '';
+                campo('bitacoraKineticOrden').value = row.dataset.orden || '0';
+                if (modal) modal.show();
+            });
+        });
+        document.querySelectorAll('.btn-eliminar-bitacora-kinetic').forEach(function (btn) {
+            btn.addEventListener('click', async function () {
+                const row = btn.closest('.bitacora-kinetic-row');
+                if (!await KaiConfirm(`¿Eliminar la entrada "${row.dataset.titulo}"?`)) return;
+                const response = await fetch(urlsBitacora.eliminar, {
+                    method: 'POST', headers: {'Content-Type':'application/json', 'X-CSRFToken':csrfBitacora()},
+                    body: JSON.stringify({pk: row.dataset.pk}),
+                });
+                const data = await response.json();
+                if (data.error) { KaiToast.show(data.error, 'danger'); return; }
+                recargarPreservandoTab();
+            });
+        });
+        formBitacoraKinetic.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            const response = await fetch(urlsBitacora.guardar, {
+                method: 'POST', headers: {'Content-Type':'application/json', 'X-CSRFToken':csrfBitacora()},
+                body: JSON.stringify({
+                    pk: campo('bitacoraKineticPk').value || null,
+                    codigo: campo('bitacoraKineticCodigo').value,
+                    titulo: campo('bitacoraKineticTitulo').value,
+                    texto: campo('bitacoraKineticTexto').value,
+                    enlace_texto: campo('bitacoraKineticEnlaceTexto').value,
+                    url: campo('bitacoraKineticUrl').value,
+                    orden: campo('bitacoraKineticOrden').value,
+                }),
+            });
+            const data = await response.json();
+            if (data.error) { campo('bitacoraKineticMsg').style.color = '#e11d48'; campo('bitacoraKineticMsg').textContent = data.error; return; }
+            recargarPreservandoTab();
+        });
+    }
+
+    const formConsultaKinetic = document.getElementById('formConsultaKinetic');
+    if (formConsultaKinetic) {
+        const modalEl = document.getElementById('consultaKineticModal');
+        const modal = window.bootstrap ? new bootstrap.Modal(modalEl) : null;
+        const urlsConsultas = window.CONFIG_CONSULTAS_KINETIC_URLS || {};
+        const csrfConsulta = () => formConsultaKinetic.querySelector('[name=csrfmiddlewaretoken]').value;
+        const campo = id => document.getElementById(id);
+
+        function limpiarConsulta() {
+            campo('consultaKineticPk').value = '';
+            campo('consultaKineticPregunta').value = '';
+            campo('consultaKineticRespuesta').value = '';
+            campo('consultaKineticOrden').value = '0';
+            campo('consultaKineticMsg').textContent = '';
+        }
+        campo('btnNuevaConsultaKinetic')?.addEventListener('click', function () {
+            limpiarConsulta();
+            campo('consultaKineticModalLabel').textContent = 'Nueva consulta';
+        });
+        document.querySelectorAll('.btn-editar-consulta-kinetic').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const row = btn.closest('.consulta-kinetic-row');
+                limpiarConsulta();
+                campo('consultaKineticModalLabel').textContent = 'Editar consulta';
+                campo('consultaKineticPk').value = row.dataset.pk || '';
+                campo('consultaKineticPregunta').value = row.dataset.pregunta || '';
+                campo('consultaKineticRespuesta').value = row.dataset.respuesta || '';
+                campo('consultaKineticOrden').value = row.dataset.orden || '0';
+                if (modal) modal.show();
+            });
+        });
+        document.querySelectorAll('.btn-eliminar-consulta-kinetic').forEach(function (btn) {
+            btn.addEventListener('click', async function () {
+                const row = btn.closest('.consulta-kinetic-row');
+                if (!await KaiConfirm(`¿Eliminar la consulta "${row.dataset.pregunta}"?`)) return;
+                const response = await fetch(urlsConsultas.eliminar, {
+                    method: 'POST', headers: {'Content-Type':'application/json', 'X-CSRFToken':csrfConsulta()},
+                    body: JSON.stringify({pk: row.dataset.pk}),
+                });
+                const data = await response.json();
+                if (data.error) { KaiToast.show(data.error, 'danger'); return; }
+                recargarPreservandoTab();
+            });
+        });
+        formConsultaKinetic.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            const response = await fetch(urlsConsultas.guardar, {
+                method: 'POST', headers: {'Content-Type':'application/json', 'X-CSRFToken':csrfConsulta()},
+                body: JSON.stringify({
+                    pk: campo('consultaKineticPk').value || null,
+                    pregunta: campo('consultaKineticPregunta').value,
+                    respuesta: campo('consultaKineticRespuesta').value,
+                    orden: campo('consultaKineticOrden').value,
+                }),
+            });
+            const data = await response.json();
+            if (data.error) { campo('consultaKineticMsg').style.color = '#e11d48'; campo('consultaKineticMsg').textContent = data.error; return; }
+            recargarPreservandoTab();
+        });
+    }
+
+    // Selecciones de la edición — contenido opcional exclusivo de Editorial.
+    const formSeleccionEditorial = document.getElementById('formSeleccionEditorial');
+    if (formSeleccionEditorial) {
+        const modalEl = document.getElementById('seleccionEditorialModal');
+        const modal = window.bootstrap ? new bootstrap.Modal(modalEl) : null;
+        const urlsSeleccion = window.CONFIG_SELECCIONES_EDITORIAL_URLS || {};
+        const csrfSeleccion = () => formSeleccionEditorial.querySelector('[name=csrfmiddlewaretoken]').value;
+        const campo = id => document.getElementById(id);
+        let archivoSeleccion = null;
+        let tieneImagenSeleccion = false;
+
+        function alternarDestinoEditorial() {
+            const esCategoria = campo('seleccionEditorialTipo').value === 'categoria';
+            campo('seleccionEditorialFilaCategoria').style.display = esCategoria ? '' : 'none';
+            campo('seleccionEditorialFilaProducto').style.display = esCategoria ? 'none' : '';
+        }
+        function limpiarSeleccionEditorial() {
+            campo('seleccionEditorialPk').value = '';
+            campo('seleccionEditorialTipo').value = 'categoria';
+            campo('seleccionEditorialCategoria').value = '';
+            campo('seleccionEditorialProducto').value = '';
+            campo('seleccionEditorialEtiqueta').value = '';
+            campo('seleccionEditorialTitulo').value = '';
+            campo('seleccionEditorialTexto').value = '';
+            campo('seleccionEditorialOrden').value = '0';
+            campo('seleccionEditorialMsg').textContent = '';
+            campo('seleccionEditorialImagenPreviewBox').innerHTML = '<span style="font-size:.6rem;color:var(--text-muted);">Automática</span>';
+            campo('btnQuitarSeleccionEditorialImagen').style.display = 'none';
+            archivoSeleccion = null;
+            tieneImagenSeleccion = false;
+            alternarDestinoEditorial();
+        }
+        campo('seleccionEditorialTipo').addEventListener('change', alternarDestinoEditorial);
+        campo('btnNuevaSeleccionEditorial')?.addEventListener('click', function () {
+            limpiarSeleccionEditorial();
+            campo('seleccionEditorialModalLabel').textContent = 'Nueva selección';
+        });
+        document.querySelectorAll('.btn-editar-seleccion-editorial').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const row = btn.closest('.seleccion-editorial-row');
+                limpiarSeleccionEditorial();
+                campo('seleccionEditorialModalLabel').textContent = 'Editar selección';
+                campo('seleccionEditorialPk').value = row.dataset.pk || '';
+                campo('seleccionEditorialTipo').value = row.dataset.tipo || 'categoria';
+                campo('seleccionEditorialCategoria').value = row.dataset.categoria || '';
+                campo('seleccionEditorialProducto').value = row.dataset.producto || '';
+                campo('seleccionEditorialEtiqueta').value = row.dataset.etiqueta || '';
+                campo('seleccionEditorialTitulo').value = row.dataset.titulo || '';
+                campo('seleccionEditorialTexto').value = row.dataset.texto || '';
+                campo('seleccionEditorialOrden').value = row.dataset.orden || '0';
+                const img = row.querySelector('.config-logo-box img');
+                if (img) {
+                    campo('seleccionEditorialImagenPreviewBox').innerHTML = `<img src="${img.src}" alt="">`;
+                    campo('btnQuitarSeleccionEditorialImagen').style.display = '';
+                    tieneImagenSeleccion = true;
+                }
+                alternarDestinoEditorial();
+                if (modal) modal.show();
+            });
+        });
+        campo('inputSeleccionEditorialImagen').addEventListener('change', function () {
+            if (!this.files || !this.files[0]) return;
+            archivoSeleccion = this.files[0];
+            campo('seleccionEditorialImagenPreviewBox').innerHTML = `<img src="${URL.createObjectURL(archivoSeleccion)}" alt="">`;
+            campo('btnQuitarSeleccionEditorialImagen').style.display = '';
+        });
+        campo('btnQuitarSeleccionEditorialImagen').addEventListener('click', async function () {
+            const pk = campo('seleccionEditorialPk').value;
+            if (tieneImagenSeleccion && pk) {
+                const response = await fetch(urlsSeleccion.imagen, {
+                    method: 'DELETE', headers: {'Content-Type':'application/json', 'X-CSRFToken':csrfSeleccion()},
+                    body: JSON.stringify({pk: pk}),
+                });
+                const data = await response.json();
+                if (data.error) { KaiToast.show(data.error, 'danger'); return; }
+            }
+            archivoSeleccion = null;
+            tieneImagenSeleccion = false;
+            campo('inputSeleccionEditorialImagen').value = '';
+            campo('seleccionEditorialImagenPreviewBox').innerHTML = '<span style="font-size:.6rem;color:var(--text-muted);">Automática</span>';
+            this.style.display = 'none';
+        });
+        document.querySelectorAll('.btn-eliminar-seleccion-editorial').forEach(function (btn) {
+            btn.addEventListener('click', async function () {
+                const row = btn.closest('.seleccion-editorial-row');
+                if (!await KaiConfirm('¿Eliminar esta selección de la edición?')) return;
+                const response = await fetch(urlsSeleccion.eliminar, {
+                    method: 'POST', headers: {'Content-Type':'application/json', 'X-CSRFToken':csrfSeleccion()},
+                    body: JSON.stringify({pk: row.dataset.pk}),
+                });
+                const data = await response.json();
+                if (data.error) { KaiToast.show(data.error, 'danger'); return; }
+                recargarPreservandoTab();
+            });
+        });
+        formSeleccionEditorial.addEventListener('submit', async function (event) {
+            event.preventDefault();
+            const response = await fetch(urlsSeleccion.guardar, {
+                method: 'POST', headers: {'Content-Type':'application/json', 'X-CSRFToken':csrfSeleccion()},
+                body: JSON.stringify({
+                    pk: campo('seleccionEditorialPk').value || null,
+                    tipo: campo('seleccionEditorialTipo').value,
+                    categoria: campo('seleccionEditorialCategoria').value || null,
+                    producto: campo('seleccionEditorialProducto').value || null,
+                    etiqueta: campo('seleccionEditorialEtiqueta').value,
+                    titulo: campo('seleccionEditorialTitulo').value,
+                    texto: campo('seleccionEditorialTexto').value,
+                    orden: campo('seleccionEditorialOrden').value,
+                }),
+            });
+            const data = await response.json();
+            if (data.error) { campo('seleccionEditorialMsg').style.color = '#e11d48'; campo('seleccionEditorialMsg').textContent = data.error; return; }
+            if (archivoSeleccion) {
+                const fd = new FormData();
+                fd.append('pk', data.pk);
+                fd.append('imagen', archivoSeleccion);
+                const upload = await fetch(urlsSeleccion.imagen, { method:'POST', headers:{'X-CSRFToken':csrfSeleccion()}, body:fd });
+                const uploadData = await upload.json();
+                if (uploadData.error) { campo('seleccionEditorialMsg').style.color = '#e11d48'; campo('seleccionEditorialMsg').textContent = uploadData.error; return; }
+            }
+            recargarPreservandoTab();
+        });
+    }
+
 });

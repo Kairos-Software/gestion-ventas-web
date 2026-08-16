@@ -29,18 +29,21 @@
                 </div>
             </div>
             <div class="l-hero-visual">
-                {% with destacado_1=destacados.0 destacado_2=destacados.1 destacado_3=destacados.2 %}
-                <a href="{% if destacado_1 %}{% url 'catalogo:producto_detalle' destacado_1.pk %}{% else %}#kcCatalogo{% endif %}" class="l-ph-block l-ph-1">
-                    {% if destacado_1.imagenes.first %}<img src="{{ destacado_1.imagenes.first.imagen.url }}" alt="{{ destacado_1.nombre }}">{% endif %}
-                    <span class="l-ph-tag">{% if destacado_1 %}{{ destacado_1.categoria.nombre|default:destacado_1.nombre }}{% else %}Catálogo{% endif %}</span>
+                {% with pieza_1=config_catalogo.directo_hero_producto1|default:destacados.0 pieza_2=config_catalogo.directo_hero_producto2|default:destacados.1 pieza_3=config_catalogo.directo_hero_producto3|default:destacados.2 %}
+                <a href="{% if not config_catalogo.directo_hero_imagen1 and pieza_1 %}{% url 'catalogo:producto_detalle' pieza_1.pk %}{% else %}#kcCatalogo{% endif %}" class="l-ph-block l-ph-1">
+                    {% if config_catalogo.directo_hero_imagen1 %}<img src="{{ config_catalogo.directo_hero_imagen1.url }}" alt="Pieza destacada">
+                    {% elif pieza_1.imagenes.first %}<img src="{{ pieza_1.imagenes.first.imagen.url }}" alt="{{ pieza_1.nombre }}">{% endif %}
+                    <span class="l-ph-tag">{% if config_catalogo.directo_hero_imagen1 %}Destacado{% elif pieza_1 %}{{ pieza_1.categoria.nombre|default:pieza_1.nombre }}{% else %}Catálogo{% endif %}</span>
                 </a>
-                <a href="{% if destacado_2 %}{% url 'catalogo:producto_detalle' destacado_2.pk %}{% else %}#kcCatalogo{% endif %}" class="l-ph-block l-ph-2">
-                    {% if destacado_2.imagenes.first %}<img src="{{ destacado_2.imagenes.first.imagen.url }}" alt="{{ destacado_2.nombre }}">{% endif %}
-                    <span class="l-ph-tag">{% if destacado_2 %}{{ destacado_2.categoria.nombre|default:destacado_2.nombre }}{% else %}Ofertas{% endif %}</span>
+                <a href="{% if not config_catalogo.directo_hero_imagen2 and pieza_2 %}{% url 'catalogo:producto_detalle' pieza_2.pk %}{% else %}#kcCatalogo{% endif %}" class="l-ph-block l-ph-2">
+                    {% if config_catalogo.directo_hero_imagen2 %}<img src="{{ config_catalogo.directo_hero_imagen2.url }}" alt="Pieza destacada">
+                    {% elif pieza_2.imagenes.first %}<img src="{{ pieza_2.imagenes.first.imagen.url }}" alt="{{ pieza_2.nombre }}">{% endif %}
+                    <span class="l-ph-tag">{% if config_catalogo.directo_hero_imagen2 %}Selección{% elif pieza_2 %}{{ pieza_2.categoria.nombre|default:pieza_2.nombre }}{% else %}Ofertas{% endif %}</span>
                 </a>
-                <a href="{% if destacado_3 %}{% url 'catalogo:producto_detalle' destacado_3.pk %}{% else %}#kcCatalogo{% endif %}" class="l-ph-block l-ph-3">
-                    {% if destacado_3.imagenes.first %}<img src="{{ destacado_3.imagenes.first.imagen.url }}" alt="{{ destacado_3.nombre }}">{% endif %}
-                    <span class="l-ph-tag">{% if destacado_3 %}{{ destacado_3.categoria.nombre|default:destacado_3.nombre }}{% else %}Nuevo{% endif %}</span>
+                <a href="{% if not config_catalogo.directo_hero_imagen3 and pieza_3 %}{% url 'catalogo:producto_detalle' pieza_3.pk %}{% else %}#kcCatalogo{% endif %}" class="l-ph-block l-ph-3">
+                    {% if config_catalogo.directo_hero_imagen3 %}<img src="{{ config_catalogo.directo_hero_imagen3.url }}" alt="Pieza destacada">
+                    {% elif pieza_3.imagenes.first %}<img src="{{ pieza_3.imagenes.first.imagen.url }}" alt="{{ pieza_3.nombre }}">{% endif %}
+                    <span class="l-ph-tag">{% if config_catalogo.directo_hero_imagen3 %}Novedad{% elif pieza_3 %}{{ pieza_3.categoria.nombre|default:pieza_3.nombre }}{% else %}Nuevo{% endif %}</span>
                 </a>
                 {% endwith %}
                 {% if ofertas_destacadas.0 %}
@@ -76,6 +79,7 @@
         </div>
     </section>
     {% endif %}
+
 
     {% if ofertas_destacadas %}
     <section class="l-ofertas">
@@ -161,10 +165,16 @@
             <div class="l-eyebrow l-eyebrow--claro">Paquetes armados</div>
             <h2 class="l-paq-titulo">Combos pensados para ahorrarte tiempo y plata.</h2>
             <p class="l-paq-bajada">Agrupamos productos que se usan juntos, con un precio especial por comprarlos en combo.</p>
-            <div class="l-paq-grid">
-                {% for pq in paquetes %}
-                    {% include 'catalogo/plantillas/lumina/_combo_card.html' with pq=pq %}
-                {% endfor %}
+            <div class="l-paq-carousel" data-lumina-carousel>
+                <div class="l-paq-controls" aria-label="Controles de paquetes">
+                    <button type="button" data-carousel-prev aria-label="Ver paquetes anteriores">←</button>
+                    <button type="button" data-carousel-next aria-label="Ver más paquetes">→</button>
+                </div>
+                <div class="l-paq-track" data-carousel-track>
+                    {% for pq in paquetes %}
+                        {% include 'catalogo/plantillas/lumina/_combo_card.html' with pq=pq %}
+                    {% endfor %}
+                </div>
             </div>
         </div>
     </section>

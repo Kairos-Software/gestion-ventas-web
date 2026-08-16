@@ -1,0 +1,392 @@
+/*
+ * Capa responsive de la aplicación interna.
+ *
+ * Se carga después del CSS propio de cada pantalla para garantizar que los
+ * componentes operativos queden contenidos sin alterar los catálogos públicos,
+ * que usan otras plantillas base.
+ */
+
+/* Contención base: ningún flex/grid puede ensanchar el viewport completo. */
+.kai-internal-app,
+.kai-internal-app .app-container,
+.kai-internal-app .main-content,
+.kai-internal-app .main-container {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+}
+
+.kai-internal-app .main-content {
+    width: auto;
+}
+
+.kai-internal-app .main-container > * {
+    max-width: 100%;
+}
+
+.kai-internal-app :where(h1, h2, h3, h4, p, label, .card-title) {
+    overflow-wrap: break-word;
+}
+
+.kai-internal-app :where(input, select, textarea, button) {
+    max-width: 100%;
+}
+
+.kai-internal-app :where(img, video, canvas) {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Los contenedores principales de cada módulo siempre respetan el ancho útil. */
+.kai-internal-app :where(
+    .dashboard, .config-page, .co-page, .perfil-page, .manual-page,
+    .inventario-page, .caja-grande, .chq-container, .cxc-container,
+    .deudas-container, .gastos-container, .rec-container, .cp-page
+) {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+}
+
+/* Cabeceras y barras de acciones: pueden ocupar una segunda línea. */
+.kai-internal-app :where(
+    .page-header, .vta-page-header, .cmp-page-header, .prd-page-header,
+    .nx-page-header, .trx-page-header, .historial-header, .cg-header,
+    .chq-header, .cxc-header, .deudas-header, .gastos-header, .rec-header,
+    .config-page-header, .manual-page-header, .perfil-header
+) {
+    min-width: 0;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.kai-internal-app :where(
+    .page-header, .vta-page-header, .cmp-page-header, .prd-page-header,
+    .nx-page-header, .trx-page-header, .historial-header, .cg-header,
+    .chq-header, .cxc-header, .deudas-header, .gastos-header, .rec-header
+) > * {
+    min-width: 0;
+}
+
+.kai-internal-app :where(
+    .prd-page-actions, .vta-page-actions, .cdt-header-actions,
+    .cg-header-actions, .rec-header-btns, .modal-actions,
+    .d-flex.gap-2
+) {
+    flex-wrap: wrap;
+}
+
+/* Filtros y buscadores ceden ancho sin salirse de la pantalla. */
+.kai-internal-app :where(
+    .filtros-bar, .filter-bar, .bal-filtros, .inventario-filtros,
+    .trx-filtros, .gastos-filtros, .deudas-filtros, .cxc-filtros,
+    .chq-filtros, .est-filtros
+) {
+    max-width: 100%;
+    min-width: 0;
+    flex-wrap: wrap;
+}
+
+.kai-internal-app :where(
+    .search-wrapper, .nx-search-wrap, .prd-search-wrap, .bal-buscador-wrap,
+    .cp-buscador-wrap, .inventario-busqueda
+) {
+    max-width: 100%;
+    min-width: 0;
+}
+
+/*
+ * Tablas: conservan todas sus columnas, pero el desplazamiento queda dentro de
+ * la tarjeta. Es preferible a ocultar datos o comprimir controles hasta volverlos
+ * inutilizables.
+ */
+.kai-internal-app :where(
+    .table-responsive, .table-card, .vta-table-wrap, .cmp-table-wrap,
+    .prd-table-wrap, .nx-table-wrap, .inventario-tabla-wrap,
+    .chq-tabla-wrap, .cxc-tabla-wrap, .deudas-tabla-wrap,
+    .gastos-tabla-wrap, .trx-table-wrap
+) {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+}
+
+.kai-internal-app :where(
+    .table, .vta-table, .cmp-table, .prd-table, .nx-table,
+    .inventario-tabla, .chq-tabla, .cxc-tabla, .deudas-tabla,
+    .gastos-tabla, .trx-table, .rec-tabla, .stock-table,
+    .cxc-cuotas-tabla, .deudas-cuotas-tabla, .manual-table
+) {
+    max-width: none;
+}
+
+.kai-internal-app .rec-card {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+/* Formularios y paneles anidados no deben imponer su mínimo al layout padre. */
+.kai-internal-app :where(
+    .form-grid, .form-grid-3, .prd-form-grid, .nx-form-grid,
+    .cmp-form-grid, .cmp-form-grid-2, .cxc-form-grid,
+    .deudas-form-grid, .chq-form-grid, .rec-form-grid,
+    .field-grid, .perfil-grid, .perfil-pwd-grid, .cp-pago-grid,
+    .vta-layout, .cmp-layout, .cdt-layout, .stock-layout, .cd-layout
+) > * {
+    min-width: 0;
+}
+
+/* Modales propios y de Bootstrap: siempre dejan margen y scroll vertical. */
+.kai-internal-app :where(
+    .modal-content, .modal-box, .prd-modal, .nx-modal, .cd-modal-content,
+    .hist-ticket-box
+) {
+    max-width: min(100%, calc(100vw - 2rem));
+    max-height: min(90vh, calc(100dvh - 2rem));
+}
+
+.kai-internal-app :where(
+    .modal-body, .prd-modal-body, .nx-modal-body, .cd-modal-body
+) {
+    min-width: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.kai-internal-app :where(.vta-toast, .cmp-toast, .prd-toast, .nx-toast) {
+    width: min(340px, calc(100vw - 2rem));
+}
+
+/* Notebook angosta, monitor 4:3 y tablet horizontal. */
+@media (max-width: 1199px) {
+    .kai-internal-app :where(.vta-layout, .cmp-layout, .cdt-layout) {
+        grid-template-columns: 1fr;
+    }
+
+    .kai-internal-app :where(
+        .est-kpi-grid, .home-kpi-grid, .prd-stats-row, .inv-stats,
+        .kpi-grid, .cg-cuentas-grid, .rec-grid
+    ) {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* Configuración contiene algunas filas inline definidas en el template. */
+@media (max-width: 900px) {
+    .kai-internal-app .config-section-header,
+    .kai-internal-app .config-callout > div {
+        flex-wrap: wrap;
+    }
+
+    .kai-internal-app .config-section-header > div:not(.config-section-icon),
+    .kai-internal-app .config-callout > div > div {
+        min-width: 0;
+        flex: 1 1 220px;
+    }
+
+    .kai-internal-app .config-section-header > .btn,
+    .kai-internal-app .config-callout > div > .btn {
+        flex: 0 0 auto;
+    }
+}
+
+/* Tablet vertical y teléfonos. El menú pasa a drawer desde este punto. */
+@media (max-width: 767px) {
+    .kai-internal-app {
+        overflow-x: clip;
+    }
+
+    .kai-internal-app .sidebar {
+        width: min(86vw, 300px) !important;
+    }
+
+    .kai-internal-app .sidebar.collapsed {
+        width: min(86vw, 300px) !important;
+    }
+
+    .kai-internal-app .main-container {
+        padding: clamp(0.625rem, 3vw, 1rem);
+    }
+
+    .kai-internal-app :where(
+        .page-header, .vta-page-header, .cmp-page-header, .prd-page-header,
+        .nx-page-header, .trx-page-header, .historial-header, .cg-header,
+        .chq-header, .cxc-header, .deudas-header, .gastos-header, .rec-header,
+        .config-page-header, .manual-page-header, .perfil-header
+    ) {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .kai-internal-app :where(
+        .prd-page-actions, .vta-page-actions, .cdt-header-actions,
+        .cg-header-actions, .rec-header-btns, .page-header > .d-flex
+    ) {
+        width: 100%;
+    }
+
+    .kai-internal-app :where(
+        .prd-page-actions, .vta-page-actions, .cdt-header-actions,
+        .cg-header-actions, .rec-header-btns, .page-header > .d-flex
+    ) > :where(.btn, button, a) {
+        flex: 1 1 auto;
+        justify-content: center;
+    }
+
+    .kai-internal-app :where(
+        .filtros-bar, .filter-bar, .bal-filtros, .inventario-filtros,
+        .trx-filtros, .gastos-filtros, .deudas-filtros, .cxc-filtros,
+        .chq-filtros, .est-filtros
+    ) {
+        display: flex;
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .kai-internal-app :where(
+        .filtros-bar, .filter-bar, .bal-filtros, .inventario-filtros,
+        .trx-filtros, .gastos-filtros, .deudas-filtros, .cxc-filtros,
+        .chq-filtros, .est-filtros
+    ) > * {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+    }
+
+    .kai-internal-app :where(
+        .form-grid, .form-grid-3, .prd-form-grid, .nx-form-grid,
+        .cmp-form-grid, .cmp-form-grid-2, .cxc-form-grid,
+        .deudas-form-grid, .chq-form-grid, .rec-form-grid,
+        .field-grid, .perfil-pwd-grid, .cp-pago-grid
+    ) {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    .kai-internal-app :where(
+        .est-kpi-grid, .home-kpi-grid, .prd-stats-row, .inv-stats,
+        .kpi-grid, .cg-cuentas-grid, .rec-grid, .est-perdida-grid,
+        .est-mini-stat-grid
+    ) {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .kai-internal-app :where(.card-body, .vta-card-body, .cmp-card-body) {
+        padding-left: clamp(0.75rem, 3vw, 1rem);
+        padding-right: clamp(0.75rem, 3vw, 1rem);
+    }
+
+    .kai-internal-app :where(.modal-dialog) {
+        width: auto;
+        max-width: none;
+        margin: 0.75rem;
+    }
+
+    .kai-internal-app :where(
+        .modal-content, .modal-box, .prd-modal, .nx-modal, .cd-modal-content,
+        .hist-ticket-box
+    ) {
+        width: 100%;
+        max-width: calc(100vw - 1.5rem);
+        max-height: calc(100dvh - 1.5rem);
+        border-radius: 0.75rem;
+    }
+
+    .kai-internal-app :where(.modal-footer, .modal-footer-custom, .prd-modal-footer, .nx-modal-footer) {
+        flex-wrap: wrap;
+    }
+
+    .kai-internal-app :where(.vta-toast, .cmp-toast, .prd-toast, .nx-toast) {
+        right: 0.75rem;
+        bottom: max(0.75rem, env(safe-area-inset-bottom));
+        left: 0.75rem;
+        width: auto;
+        max-width: none;
+    }
+
+    .kai-internal-app :where(.floating-tool, .floating-tool--sm) {
+        right: 0.5rem !important;
+        left: 0.5rem !important;
+        width: auto !important;
+        max-width: none;
+    }
+}
+
+/* Teléfonos angostos: se priorizan lectura y controles alcanzables. */
+@media (max-width: 479px) {
+    .kai-internal-app :where(h1, .vta-page-title, .cmp-page-title, .prd-page-title) {
+        font-size: clamp(1.15rem, 7vw, 1.5rem);
+    }
+
+    .kai-internal-app :where(.card-header, .vta-card-header, .cmp-card-header) {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .kai-internal-app :where(.card-footer, .modal-footer, .modal-footer-custom, .prd-modal-footer, .nx-modal-footer) > :where(.btn, button) {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .kai-internal-app .paginacion {
+        justify-content: flex-start;
+        overflow-x: auto;
+    }
+}
+
+/* Área de toque suficiente en dispositivos que realmente usan puntero táctil. */
+@media (pointer: coarse) {
+    .kai-internal-app :where(
+        button, .btn, .prd-btn, .nx-btn, .vta-btn, .cmp-btn,
+        .btn-accion, .icon-btn, .pag-btn, .rec-medio-pill
+    ) {
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    .kai-internal-app :where(
+        .icon-btn, .btn-close, .prd-icon-btn, .nx-icon-btn,
+        .vta-btn-remove, .cmp-btn-remove
+    ) {
+        min-width: 44px;
+    }
+
+    .kai-internal-app :where(input, select, textarea) {
+        min-height: 44px;
+    }
+
+    .kai-internal-app :where(label:has(input[type="checkbox"]), label:has(input[type="radio"])) {
+        min-height: 44px;
+    }
+}
+
+/* Evita el zoom automático de Safari al enfocar inputs con fuente pequeña. */
+@supports (-webkit-touch-callout: none) {
+    @media (max-width: 767px) {
+        .kai-internal-app :where(input, select, textarea) {
+            font-size: 16px !important;
+        }
+    }
+}
+
+/* TV/monitor de alta resolución: limita líneas excesivamente largas sin encoger. */
+@media (min-width: 1920px) {
+    .kai-internal-app .main-container {
+        padding-inline: clamp(2rem, 3vw, 4rem);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .kai-internal-app *,
+    .kai-internal-app *::before,
+    .kai-internal-app *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}

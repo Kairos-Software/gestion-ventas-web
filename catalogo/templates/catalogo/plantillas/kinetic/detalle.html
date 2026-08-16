@@ -3,162 +3,76 @@
 {% block title %}{{ producto.nombre }} — {{ empresa.nombre_comercial }}{% endblock %}
 
 {% block content %}
+<nav class="k-breadcrumb">
+    <a href="{% url 'catalogo:home' %}">Catálogo</a>
+    {% if producto.categoria %}<span>/</span><a href="{% url 'catalogo:home' %}?categoria={{ producto.categoria.slug }}">{{ producto.categoria.nombre }}</a>{% endif %}
+    <span>/</span><span class="k-breadcrumb-actual">{{ producto.codigo }}</span>
+</nav>
 
-    <nav class="k-breadcrumb">
-        <a href="{% url 'catalogo:home' %}">Catálogo</a>
-        {% if producto.categoria %}
-            <span>/</span>
-            <a href="{% url 'catalogo:home' %}?categoria={{ producto.categoria.slug }}">{{ producto.categoria.nombre }}</a>
-        {% endif %}
-        <span>/</span>
-        <span class="k-breadcrumb-actual">{{ producto.nombre }}</span>
-    </nav>
-
-    <section class="k-detalle">
-        <div class="k-detalle-galeria">
+<section class="k-product-view">
+    <div class="k-product-gallery-card">
+        <div class="k-product-gallery-status"><span><i class="k-status-dot"></i> PRODUCTO / {{ producto.codigo }}</span><span>{% if imagenes|length > 1 %}{{ imagenes|length|stringformat:"02d" }} IMÁGENES{% else %}VISTA PRINCIPAL{% endif %}</span></div>
+        <div class="k-product-image">
+            {% if imagenes %}<img src="{{ imagenes.0.imagen.url }}" alt="{{ producto.nombre }}" id="kcGaleriaImgActual">{% endif %}
+            {% if oferta_info %}<span class="k-galeria-oferta">{{ oferta_info.badge }}</span>{% endif %}
             {% if imagenes|length > 1 %}
-            <div class="k-galeria-thumbs">
-                {% for img in imagenes %}
-                    <button type="button" class="k-thumb {% if forloop.first %}k-thumb--activo{% endif %}" data-src="{{ img.imagen.url }}">
-                        <img src="{{ img.imagen.url }}" alt="{{ producto.nombre }} {{ forloop.counter }}">
-                    </button>
-                {% endfor %}
-            </div>
+            <button type="button" class="k-galeria-nav k-galeria-nav--prev" id="kcGaleriaPrev" aria-label="Imagen anterior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 6l-6 6 6 6"/></svg></button>
+            <button type="button" class="k-galeria-nav k-galeria-nav--next" id="kcGaleriaNext" aria-label="Imagen siguiente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg></button>
             {% endif %}
-            <div class="k-galeria-principal">
-                {% if imagenes %}
-                    <img src="{{ imagenes.0.imagen.url }}" alt="{{ producto.nombre }}" id="kcGaleriaImgActual">
-                {% endif %}
-                {% if oferta_info %}<span class="k-galeria-oferta">{{ oferta_info.badge }}</span>{% endif %}
-                {% if imagenes|length > 1 %}
-                <button type="button" class="k-galeria-nav k-galeria-nav--prev" id="kcGaleriaPrev" aria-label="Imagen anterior">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 6l-6 6 6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                </button>
-                <button type="button" class="k-galeria-nav k-galeria-nav--next" id="kcGaleriaNext" aria-label="Imagen siguiente">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                </button>
-                {% endif %}
-            </div>
+        </div>
+        {% if imagenes|length > 1 %}<div class="k-product-thumbs">{% for img in imagenes %}<button type="button" class="k-thumb {% if forloop.first %}k-thumb--activo{% endif %}" data-src="{{ img.imagen.url }}"><img src="{{ img.imagen.url }}" alt="{{ producto.nombre }} {{ forloop.counter }}"></button>{% endfor %}</div>{% endif %}
+    </div>
+
+    <div class="k-product-buy">
+        <div class="k-detalle-topmeta">
+            {% if producto.categoria %}<span class="k-cat-btn k-cat-btn--activo">{{ producto.categoria.nombre }}</span>{% endif %}
+            {% if producto.gestiona_stock %}{% if producto.stock_actual > 0 %}<span class="k-stock-tag k-stock-tag--high">STOCK: {{ producto.stock_actual }} U.</span>{% else %}<span class="k-stock-tag k-stock-tag--low">SIN STOCK</span>{% endif %}{% endif %}
+        </div>
+        <h1>{{ producto.nombre }}</h1>
+        {% if producto.marca or producto.modelo %}<p class="k-product-brand">{{ producto.marca }}{% if producto.modelo %} · {{ producto.modelo }}{% endif %}</p>{% endif %}
+
+        <div class="k-product-price-row">
+            <span class="k-product-price-label">PRECIO</span>
+            {% if oferta_info and oferta_info.precio_final != producto.precio_venta %}<span class="k-price-tag k-price-tag--grande">${{ oferta_info.precio_final }} <span class="k-price-old">${{ producto.precio_venta }}</span></span>
+            {% elif producto.precio_venta %}<span class="k-price-tag k-price-tag--grande">${{ producto.precio_venta }}</span>{% else %}<span class="k-price-consultar">Precio a consultar</span>{% endif %}
+            {% if ahorro_pct %}<small>Ahorrás {{ ahorro_pct }}% en esta compra</small>{% endif %}
+            {% if ahorro %}<small>Ahorrás ${{ ahorro.ahorro|floatformat:0 }} con este combo</small>{% endif %}
         </div>
 
-        <div class="k-detalle-info">
-            <div class="k-detalle-record">// REGISTRO: {{ producto.codigo }}</div>
+        {% if disponible_compra %}
+        {% if producto.gestiona_variantes %}
+        <div class="k-variantes">{% for tipo in variantes_json.tipos %}<div class="k-variante-grupo" data-variante-tipo="{{ tipo.id }}"><span class="k-variante-tipo-nombre">{{ tipo.nombre }}</span><div class="k-variante-opciones">{% for opcion in tipo.opciones %}<button type="button" class="k-variante-opcion" data-variante-opcion="{{ opcion.id }}">{{ opcion.nombre }}</button>{% endfor %}</div></div>{% endfor %}<p class="k-variante-estado" id="kcVarianteEstado">Elegí una opción</p></div>
+        {{ variantes_json.combinaciones|json_script:"kcVariantesCombinaciones" }}
+        {% endif %}
+        <div data-carrito-slot><button type="button" class="k-btn-add-cart k-btn-add-cart--grande" id="btnAgregarDetalle"
+            {% if not producto.gestiona_variantes %}data-carrito-agregar="{% if producto.es_paquete %}paq{% else %}prod{% endif %}-{{ producto.pk }}"{% endif %}
+            data-id-base="{% if producto.es_paquete %}paq{% else %}prod{% endif %}-{{ producto.pk }}" data-nombre="{{ producto.nombre }}"
+            data-precio="{{ oferta_info.precio_final|default:producto.precio_venta }}" data-precio-lista="{{ producto.precio_venta }}"
+            data-categoria-id="{{ producto.categoria.pk|default:'' }}" data-imagen="{% if imagenes %}{{ imagenes.0.imagen.url }}{% endif %}" {% if producto.gestiona_variantes %}disabled{% endif %}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg> AGREGAR AL PEDIDO</button></div>
+        {% endif %}
 
-            <div class="k-detalle-topmeta">
-                {% if producto.categoria %}<span class="k-cat-btn k-cat-btn--activo">{{ producto.categoria.nombre }}</span>{% endif %}
-                {% if producto.gestiona_stock %}
-                    {% if producto.stock_actual > 0 %}
-                        <span class="k-stock-tag k-stock-tag--high">STOCK: {{ producto.stock_actual }} U.</span>
-                    {% else %}
-                        <span class="k-stock-tag k-stock-tag--low">SIN STOCK</span>
-                    {% endif %}
-                {% endif %}
-            </div>
+        <div class="k-product-service"><span><b>ENVÍO</b> A coordinar</span><span><b>PAGO</b> Sin registro</span><span><b>AYUDA</b> Atención directa</span></div>
+    </div>
+</section>
 
-            <h1 class="k-detalle-nombre">{{ producto.nombre }}</h1>
-            {% if producto.marca %}<p class="k-detalle-marca">{{ producto.marca }}{% if producto.modelo %} · {{ producto.modelo }}{% endif %}</p>{% endif %}
+<section class="k-product-info">
+    <div class="k-product-description">
+        <span class="k-mono-eyebrow">/ INFORMACIÓN</span>
+        <h2>Sobre este producto</h2>
+        {% if producto.descripcion_publica or producto.descripcion %}<p>{{ producto.descripcion_publica|default:producto.descripcion|linebreaksbr }}</p>{% else %}<p class="k-inst-info-vacio">No hay descripción adicional para este producto.</p>{% endif %}
+        {% if producto.es_paquete and componentes %}<h3>ESTE COMBO INCLUYE</h3><ul class="k-detalle-incluye">{% for c in componentes %}<li><span>{{ c.cantidad|floatformat:"-2" }}×</span> {{ c.producto.nombre }}{% if c.combinacion %} — {{ c.combinacion.descripcion_legible }}{% endif %}</li>{% endfor %}</ul>{% endif %}
+        {% if producto.caracteristicas.all %}<div class="k-caracteristicas-grid">{% for c in producto.caracteristicas.all %}<div class="k-caracteristica-item"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 10l4 4 8-9"/></svg><span>{{ c.texto }}</span></div>{% endfor %}</div>{% endif %}
+    </div>
+    <aside class="k-product-specs">
+        <span class="k-mono-eyebrow">/ FICHA TÉCNICA</span>
+        <div class="k-erp-row"><span>MARCA</span><span class="k-erp-value">{{ producto.marca|default:"—" }}</span></div>
+        <div class="k-erp-row"><span>CÓDIGO</span><span class="k-erp-value">{{ producto.codigo }}</span></div>
+        <div class="k-erp-row"><span>UNIDAD</span><span class="k-erp-value">{{ producto.get_unidad_medida_display }}</span></div>
+        {% if producto.modelo %}<div class="k-erp-row"><span>MODELO</span><span class="k-erp-value">{{ producto.modelo }}</span></div>{% endif %}
+        {% if tags_producto %}<div class="k-detalle-tags">{% for tag in tags_producto %}<span class="k-tag-chip">{{ tag }}</span>{% endfor %}</div>{% endif %}
+    </aside>
+</section>
 
-            <div class="k-detalle-precio-card">
-                {% if oferta_info and oferta_info.precio_final != producto.precio_venta %}
-                    <span class="k-price-tag k-price-tag--grande">${{ oferta_info.precio_final }}<span class="k-price-old">${{ producto.precio_venta }}</span></span>
-                {% elif producto.precio_venta %}
-                    <span class="k-price-tag k-price-tag--grande">${{ producto.precio_venta }}</span>
-                {% else %}
-                    <span class="k-price-consultar">Precio a consultar</span>
-                {% endif %}
-                {% if ahorro_pct %}<p class="k-detalle-ahorro">Ahorrás {{ ahorro_pct }}% en esta compra</p>{% endif %}
-                {% if ahorro %}<p class="k-detalle-ahorro">Ahorrás ${{ ahorro.ahorro|floatformat:0 }} llevando el combo en vez de los productos sueltos</p>{% endif %}
-            </div>
-
-            {% if disponible_compra %}
-            {% if producto.gestiona_variantes %}
-            <div class="k-variantes">
-                {% for tipo in variantes_json.tipos %}
-                <div class="k-variante-grupo" data-variante-tipo="{{ tipo.id }}">
-                    <span class="k-variante-tipo-nombre">{{ tipo.nombre }}</span>
-                    <div class="k-variante-opciones">
-                        {% for opcion in tipo.opciones %}
-                        <button type="button" class="k-variante-opcion" data-variante-opcion="{{ opcion.id }}">{{ opcion.nombre }}</button>
-                        {% endfor %}
-                    </div>
-                </div>
-                {% endfor %}
-                <p class="k-variante-estado" id="kcVarianteEstado">Elegí una opción</p>
-            </div>
-            {{ variantes_json.combinaciones|json_script:"kcVariantesCombinaciones" }}
-            {% endif %}
-            <div data-carrito-slot>
-                <button type="button" class="k-btn-add-cart k-btn-add-cart--grande" id="btnAgregarDetalle"
-                    {% if not producto.gestiona_variantes %}data-carrito-agregar="{% if producto.es_paquete %}paq{% else %}prod{% endif %}-{{ producto.pk }}"{% endif %}
-                    data-id-base="{% if producto.es_paquete %}paq{% else %}prod{% endif %}-{{ producto.pk }}"
-                    data-nombre="{{ producto.nombre }}"
-                    data-precio="{{ oferta_info.precio_final|default:producto.precio_venta }}"
-                    data-precio-lista="{{ producto.precio_venta }}"
-                    data-categoria-id="{{ producto.categoria.pk|default:'' }}"
-                    data-imagen="{% if imagenes %}{{ imagenes.0.imagen.url }}{% endif %}"
-                    {% if producto.gestiona_variantes %}disabled{% endif %}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
-                    AGREGAR AL PEDIDO
-                </button>
-            </div>
-            {% endif %}
-
-            {% if producto.es_paquete and componentes %}
-            <div class="k-erp-card k-detalle-ficha">
-                <h2>ESTE COMBO INCLUYE</h2>
-                <ul class="k-detalle-incluye">
-                    {% for c in componentes %}
-                        <li><span>{{ c.cantidad|floatformat:"-2" }}×</span> {{ c.producto.nombre }}{% if c.combinacion %} — {{ c.combinacion.descripcion_legible }}{% endif %}</li>
-                    {% endfor %}
-                </ul>
-            </div>
-            {% endif %}
-
-            {% if producto.descripcion_publica or producto.descripcion %}
-            <div class="k-erp-card k-detalle-ficha">
-                <h2>DESCRIPCIÓN</h2>
-                <p>{{ producto.descripcion_publica|default:producto.descripcion|linebreaksbr }}</p>
-            </div>
-            {% endif %}
-
-            {% if producto.caracteristicas.all %}
-            <div class="k-erp-card k-detalle-ficha">
-                <h2>CARACTERÍSTICAS</h2>
-                <div class="k-caracteristicas-grid">
-                    {% for c in producto.caracteristicas.all %}
-                    <div class="k-caracteristica-item">
-                        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 10l4 4 8-9" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        <span>{{ c.texto }}</span>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
-
-            {% if tags_producto %}
-            <div class="k-detalle-tags">
-                {% for tag in tags_producto %}<span class="k-tag-chip">{{ tag }}</span>{% endfor %}
-            </div>
-            {% endif %}
-
-            <div class="k-erp-card k-detalle-ficha">
-                <h2>FICHA TÉCNICA</h2>
-                <div class="k-erp-row"><span>MARCA:</span><span class="k-erp-value">{{ producto.marca|default:"—" }}</span></div>
-                <div class="k-erp-row"><span>CÓDIGO:</span><span class="k-erp-value">{{ producto.codigo }}</span></div>
-                <div class="k-erp-row"><span>UNIDAD:</span><span class="k-erp-value">{{ producto.get_unidad_medida_display }}</span></div>
-            </div>
-        </div>
-    </section>
-
-    {% if relacionados %}
-    <section class="k-relacionados">
-        <div class="k-sec-head"><h2>También te puede interesar</h2></div>
-        <div class="k-catalog-grid">
-            {% for p in relacionados %}
-                {% include 'catalogo/plantillas/kinetic/_product_card.html' with p=p %}
-            {% endfor %}
-        </div>
-    </section>
-    {% endif %}
-
+{% if relacionados %}<section class="k-relacionados"><div class="k-sec-head"><h2>También te puede interesar</h2></div><div class="k-catalog-grid">{% for p in relacionados %}{% include 'catalogo/plantillas/kinetic/_product_card.html' with p=p %}{% endfor %}</div></section>{% endif %}
 {% endblock %}

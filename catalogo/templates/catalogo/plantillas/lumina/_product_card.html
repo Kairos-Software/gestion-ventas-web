@@ -26,6 +26,11 @@
             </div>
             {% if p.disponible_compra %}
             <div data-carrito-slot>
+                {% if p.gestiona_variantes %}
+                <a href="{% url 'catalogo:producto_detalle' p.pk %}" class="l-add-btn" aria-label="Elegir opciones de {{ p.nombre }}">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                </a>
+                {% else %}
                 <button type="button" class="l-add-btn" data-carrito-agregar="prod-{{ p.pk }}"
                     data-nombre="{{ p.nombre }}" data-precio="{{ p.oferta_info.precio_final|default:p.precio_venta }}"
                     data-precio-lista="{{ p.precio_venta }}"
@@ -34,6 +39,7 @@
                     aria-label="Agregar {{ p.nombre }} al pedido">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
                 </button>
+                {% endif %}
             </div>
             {% endif %}
         </div>

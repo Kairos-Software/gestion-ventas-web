@@ -22,8 +22,10 @@
     <link rel="stylesheet" href="{% static 'core/css/floating-tools.css' %}">
     <link rel="stylesheet" href="{% static 'core/css/notify.css' %}">
     {% block extra_css %}{% endblock %}
+    <!-- Se carga al final para contener también los estilos específicos de cada módulo. -->
+    <link rel="stylesheet" href="{% static 'core/css/responsive-interno.css' %}">
 </head>
-<body>
+<body class="kai-internal-app">
 <div class="app-container">
 
     <!-- Overlay para cerrar sidebar en móvil -->

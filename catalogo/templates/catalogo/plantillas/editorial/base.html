@@ -16,11 +16,13 @@
     <link rel="stylesheet" href="{% static 'catalogo/css/editorial.css' %}">
     {% block extra_css %}{% endblock %}
 </head>
-<body class="kc-editorial">
+<body class="kc-editorial" style="--ed-red:{{ config_catalogo.color_marca_editorial|default:default_color_marca_editorial }};--ed-ink:{{ config_catalogo.color_marca_secundario_editorial|default:default_color_marca_secundario_editorial }};">
+
+    <div class="ed-reading-progress" id="edReadingProgress" aria-hidden="true"></div>
 
     <div class="ed-masthead">
         <div class="ed-wrap">
-            <span>{{ empresa.eslogan|default:"Catálogo digital, actualizado con stock real" }}</span>
+            <span>EDICIÓN DIGITAL — {{ empresa.eslogan|default:"CATÁLOGO ACTUALIZADO" }}</span>
             {% if whatsapp_url %}
             <div class="ed-masthead-right">
                 <a href="{{ whatsapp_url }}" target="_blank" rel="noopener">WhatsApp</a>
@@ -40,10 +42,10 @@
                 {% endif %}
             </a>
             <ul class="ed-nav-links">
-                <li><a href="{% url 'catalogo:home' %}#kcCatalogo">Catálogo</a></li>
-                <li><a href="{% url 'catalogo:home' %}?seccion=ofertas#kcCatalogo">Ofertas</a></li>
-                {% if mostrar_paquetes and paquetes %}<li><a href="#sets">Sets</a></li>{% endif %}
-                <li><a href="#nosotros">Nosotros</a></li>
+                <li><a href="{% url 'catalogo:home' %}#kcCatalogo">{{ config_catalogo.nav_catalogo_label|default:default_nav_catalogo }}</a></li>
+                <li><a href="{% url 'catalogo:home' %}?seccion=ofertas#kcCatalogo">{{ config_catalogo.nav_ofertas_label|default:default_nav_ofertas }}</a></li>
+                <li><a href="{% url 'catalogo:home' %}#sets">{{ config_catalogo.nav_combos_label|default:default_nav_combos }}</a></li>
+                <li><a href="{% url 'catalogo:institucional' %}">{{ config_catalogo.nav_tienda_label|default:default_nav_tienda }}</a></li>
             </ul>
             <div class="ed-nav-actions">
                 <form class="ed-search-box" method="get" action="{% url 'catalogo:home' %}#kcCatalogo">
@@ -57,8 +59,23 @@
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3h2l2.4 12.2a2 2 0 0 0 2 1.6h7.6a2 2 0 0 0 2-1.6L20 7H6"/><circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/></svg>
                     <span class="ed-cart-count" id="kcCarritoBadge" hidden>0</span>
                 </button>
+                <button type="button" class="ed-menu-toggle" id="edMenuToggle" aria-label="Abrir menú" aria-expanded="false" aria-controls="edMobileMenu">
+                    <span></span><span></span>
+                </button>
             </div>
         </nav>
+        <div class="ed-mobile-menu" id="edMobileMenu" hidden>
+            <nav aria-label="Navegación móvil">
+                <a href="{% url 'catalogo:home' %}#kcCatalogo"><span>01</span>{{ config_catalogo.nav_catalogo_label|default:default_nav_catalogo }}</a>
+                <a href="{% url 'catalogo:home' %}?seccion=ofertas#kcCatalogo"><span>02</span>{{ config_catalogo.nav_ofertas_label|default:default_nav_ofertas }}</a>
+                <a href="{% url 'catalogo:home' %}#sets"><span>03</span>{{ config_catalogo.nav_combos_label|default:default_nav_combos }}</a>
+                <a href="{% url 'catalogo:institucional' %}"><span>04</span>{{ config_catalogo.nav_tienda_label|default:default_nav_tienda }}</a>
+            </nav>
+            <form class="ed-mobile-search" method="get" action="{% url 'catalogo:home' %}#kcCatalogo">
+                <label for="edMobileSearch">BUSCAR EN LA EDICIÓN</label>
+                <div><input id="edMobileSearch" name="q" placeholder="Producto, marca o categoría"><button>→</button></div>
+            </form>
+        </div>
     </header>
 
     {% block content %}{% endblock %}
@@ -85,6 +102,17 @@
                         <li><a href="{% url 'catalogo:institucional' %}">La tienda</a></li>
                     </ul>
                 </div>
+                {% if config_catalogo.instagram_url or config_catalogo.facebook_url or config_catalogo.tiktok_url or whatsapp_url %}
+                <div>
+                    <h4>Seguinos</h4>
+                    <ul>
+                        {% if config_catalogo.instagram_url %}<li><a href="{{ config_catalogo.instagram_url }}" target="_blank" rel="noopener">Instagram</a></li>{% endif %}
+                        {% if config_catalogo.facebook_url %}<li><a href="{{ config_catalogo.facebook_url }}" target="_blank" rel="noopener">Facebook</a></li>{% endif %}
+                        {% if config_catalogo.tiktok_url %}<li><a href="{{ config_catalogo.tiktok_url }}" target="_blank" rel="noopener">TikTok</a></li>{% endif %}
+                        {% if whatsapp_url %}<li><a href="{{ whatsapp_url }}" target="_blank" rel="noopener">WhatsApp</a></li>{% endif %}
+                    </ul>
+                </div>
+                {% endif %}
                 {% if empresa.domicilio or empresa.telefono or empresa.email %}
                 <div>
                     <h4>Contacto</h4>

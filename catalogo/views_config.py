@@ -13,9 +13,11 @@ from productos.utils_imagenes import comprimir_imagen_subida
 
 from .models import (
     BannerBentoCatalogo, BannerCatalogo, BannerKineticCatalogo, ConfiguracionCatalogo,
+    ConsultaKineticCatalogo, EntradaBitacoraKineticCatalogo,
     GondolaAlmacenCatalogo, ImagenInstitucional, MarcaLogoCatalogo, PlantillaCatalogo, PosicionBanner,
-    PosicionBannerBento, SlideHeroCatalogo, TickerMensajeCatalogo,
+    PosicionBannerBento, SeleccionEditorialCatalogo, SlideHeroCatalogo, TickerMensajeCatalogo,
     TickerMensajeKineticCatalogo, TileDestacadoCatalogo, TipoTileDestacado,
+    TipoSeleccionEditorial,
 )
 from .views import _productos_publicados_base
 
@@ -34,6 +36,9 @@ MAX_MARCAS = 20
 MAX_BANNERS_BENTO_POR_FORMATO = 6
 MAX_TICKER_KINETIC = 4
 MAX_BANNERS_KINETIC = 3
+MAX_BITACORA_KINETIC = 6
+MAX_CONSULTAS_KINETIC = 8
+MAX_SELECCIONES_EDITORIAL = 6
 
 
 class CatalogoConfigGuardarAjax(LoginRequiredMixin, View):
@@ -65,6 +70,7 @@ class CatalogoConfigGuardarAjax(LoginRequiredMixin, View):
             'color_marca_bento', 'color_marca_secundario_bento',
             'color_marca_lumina', 'color_marca_secundario_lumina',
             'color_marca_kinetic',
+            'color_marca_editorial', 'color_marca_secundario_editorial',
             'color_fondo_bento', 'color_fondo_bento_oscuro',
             'color_fondo_kinetic',
         ):
@@ -87,6 +93,16 @@ class CatalogoConfigGuardarAjax(LoginRequiredMixin, View):
             if not hero_spot2_producto:
                 return JsonResponse({'error': 'Producto de la tarjeta 2 del hero inválido.'}, status=400)
 
+        directo_hero_productos = {}
+        for numero in (1, 2, 3):
+            producto_id = body.get(f'directo_hero_producto{numero}') or None
+            producto = None
+            if producto_id:
+                producto = _productos_publicados_base().filter(pk=producto_id).first()
+                if not producto:
+                    return JsonResponse({'error': f'Producto de la pieza {numero} de Directo inválido.'}, status=400)
+            directo_hero_productos[numero] = producto
+
         config = ConfiguracionCatalogo.get_solo()
         config.plantilla          = plantilla
         config.hero_titulo        = (body.get('hero_titulo') or '').strip()
@@ -95,6 +111,9 @@ class CatalogoConfigGuardarAjax(LoginRequiredMixin, View):
         config.hero_imagen_sin_fondo = bool(body.get('hero_imagen_sin_fondo'))
         config.tiles_destacados_titulo = (body.get('tiles_destacados_titulo') or '').strip()
         config.hero_spot2_producto = hero_spot2_producto
+        config.directo_hero_producto1 = directo_hero_productos[1]
+        config.directo_hero_producto2 = directo_hero_productos[2]
+        config.directo_hero_producto3 = directo_hero_productos[3]
         config.sobre_nosotros     = (body.get('sobre_nosotros') or '').strip()
         config.mostrar_historia_en_home = bool(body.get('mostrar_historia_en_home', True))
         config.cta_final_titulo       = (body.get('cta_final_titulo') or '').strip()[:150]
@@ -109,6 +128,8 @@ class CatalogoConfigGuardarAjax(LoginRequiredMixin, View):
         config.color_marca_lumina             = colores_por_plantilla['color_marca_lumina']
         config.color_marca_secundario_lumina  = colores_por_plantilla['color_marca_secundario_lumina']
         config.color_marca_kinetic            = colores_por_plantilla['color_marca_kinetic']
+        config.color_marca_editorial          = colores_por_plantilla['color_marca_editorial']
+        config.color_marca_secundario_editorial = colores_por_plantilla['color_marca_secundario_editorial']
         config.color_fondo_bento              = colores_por_plantilla['color_fondo_bento']
         config.color_fondo_bento_oscuro       = colores_por_plantilla['color_fondo_bento_oscuro']
         config.color_fondo_kinetic            = colores_por_plantilla['color_fondo_kinetic']
@@ -261,6 +282,45 @@ class CatalogoConfigHeroSpot2ImagenAjax(LoginRequiredMixin, View):
     def _borrar_archivo_actual(self, config):
         if config.hero_spot2_imagen and os.path.isfile(config.hero_spot2_imagen.path):
             os.remove(config.hero_spot2_imagen.path)
+
+
+class CatalogoConfigDirectoHeroImagenAjax(LoginRequiredMixin, View):
+    """Sube, reemplaza o quita una de las tres imágenes del hero Directo."""
+    numero = None
+
+    @property
+    def campo(self):
+        return f'directo_hero_imagen{self.numero}'
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+        archivo = request.FILES.get('imagen')
+        if not archivo:
+            return JsonResponse({'error': 'No se recibió ningún archivo.'}, status=400)
+        ext = os.path.splitext(archivo.name)[1].lower()
+        if ext not in EXTENSIONES_PERMITIDAS:
+            return JsonResponse({'error': 'Usá JPG, PNG o WEBP.'}, status=400)
+        archivo = comprimir_imagen_subida(archivo)
+        config = ConfiguracionCatalogo.get_solo()
+        self._borrar_archivo_actual(config)
+        setattr(config, self.campo, archivo)
+        config.save(update_fields=[self.campo])
+        return JsonResponse({'ok': True, 'imagen_url': getattr(config, self.campo).url})
+
+    def delete(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+        config = ConfiguracionCatalogo.get_solo()
+        self._borrar_archivo_actual(config)
+        setattr(config, self.campo, None)
+        config.save(update_fields=[self.campo])
+        return JsonResponse({'ok': True})
+
+    def _borrar_archivo_actual(self, config):
+        imagen = getattr(config, self.campo)
+        if imagen and os.path.isfile(imagen.path):
+            os.remove(imagen.path)
 
 
 class CatalogoConfigCtaFinalImagenAjax(LoginRequiredMixin, View):
@@ -1206,6 +1266,221 @@ class CatalogoBannerKineticEliminarAjax(LoginRequiredMixin, View):
         if banner.imagen and os.path.isfile(banner.imagen.path):
             os.remove(banner.imagen.path)
         banner.delete()
+        return JsonResponse({'ok': True})
+
+
+class CatalogoBitacoraKineticGuardarAjax(LoginRequiredMixin, View):
+    """Crea o edita una entrada de la bitacora operativa de Kinetic."""
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON invalido.'}, status=400)
+
+        titulo = (body.get('titulo') or '').strip()
+        if not titulo:
+            return JsonResponse({'error': 'Escribi un titulo.'}, status=400)
+        try:
+            orden = max(0, int(body.get('orden') or 0))
+        except (TypeError, ValueError):
+            orden = 0
+
+        config = ConfiguracionCatalogo.get_solo()
+        pk = body.get('pk')
+        if pk:
+            entrada = get_object_or_404(EntradaBitacoraKineticCatalogo, pk=pk, configuracion=config)
+        else:
+            if config.bitacora_kinetic.count() >= MAX_BITACORA_KINETIC:
+                return JsonResponse({'error': f'Maximo {MAX_BITACORA_KINETIC} entradas.'}, status=400)
+            entrada = EntradaBitacoraKineticCatalogo(configuracion=config)
+
+        entrada.codigo = (body.get('codigo') or '').strip()[:20]
+        entrada.titulo = titulo[:100]
+        entrada.texto = (body.get('texto') or '').strip()[:280]
+        entrada.enlace_texto = (body.get('enlace_texto') or '').strip()[:40]
+        entrada.url = (body.get('url') or '').strip()[:300]
+        entrada.orden = orden
+        entrada.activo = bool(body.get('activo', True))
+        entrada.save()
+        return JsonResponse({'ok': True, 'pk': entrada.pk})
+
+
+class CatalogoBitacoraKineticEliminarAjax(LoginRequiredMixin, View):
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON invalido.'}, status=400)
+        entrada = get_object_or_404(
+            EntradaBitacoraKineticCatalogo,
+            pk=body.get('pk'), configuracion=ConfiguracionCatalogo.get_solo(),
+        )
+        entrada.delete()
+        return JsonResponse({'ok': True})
+
+
+class CatalogoConsultaKineticGuardarAjax(LoginRequiredMixin, View):
+    """Crea o edita una pregunta desplegable exclusiva de Kinetic."""
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON invalido.'}, status=400)
+
+        pregunta = (body.get('pregunta') or '').strip()
+        respuesta = (body.get('respuesta') or '').strip()
+        if not pregunta or not respuesta:
+            return JsonResponse({'error': 'Completa la pregunta y la respuesta.'}, status=400)
+        try:
+            orden = max(0, int(body.get('orden') or 0))
+        except (TypeError, ValueError):
+            orden = 0
+
+        config = ConfiguracionCatalogo.get_solo()
+        pk = body.get('pk')
+        if pk:
+            consulta = get_object_or_404(ConsultaKineticCatalogo, pk=pk, configuracion=config)
+        else:
+            if config.consultas_kinetic.count() >= MAX_CONSULTAS_KINETIC:
+                return JsonResponse({'error': f'Maximo {MAX_CONSULTAS_KINETIC} consultas.'}, status=400)
+            consulta = ConsultaKineticCatalogo(configuracion=config)
+
+        consulta.pregunta = pregunta[:140]
+        consulta.respuesta = respuesta[:700]
+        consulta.orden = orden
+        consulta.activo = bool(body.get('activo', True))
+        consulta.save()
+        return JsonResponse({'ok': True, 'pk': consulta.pk})
+
+
+class CatalogoConsultaKineticEliminarAjax(LoginRequiredMixin, View):
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON invalido.'}, status=400)
+        consulta = get_object_or_404(
+            ConsultaKineticCatalogo,
+            pk=body.get('pk'), configuracion=ConfiguracionCatalogo.get_solo(),
+        )
+        consulta.delete()
+        return JsonResponse({'ok': True})
+
+
+class CatalogoSeleccionEditorialGuardarAjax(LoginRequiredMixin, View):
+    """Crea o edita una selección visual vinculada al catálogo real."""
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        tipo = body.get('tipo') or TipoSeleccionEditorial.CATEGORIA
+        if tipo not in TipoSeleccionEditorial.values:
+            return JsonResponse({'error': 'Tipo de selección inválido.'}, status=400)
+
+        categoria = producto = None
+        if tipo == TipoSeleccionEditorial.CATEGORIA:
+            categoria = CategoriaProducto.objects.filter(pk=body.get('categoria'), activo=True).first()
+            if not categoria:
+                return JsonResponse({'error': 'Elegí una categoría.'}, status=400)
+        else:
+            producto = _productos_publicados_base().filter(pk=body.get('producto')).first()
+            if not producto:
+                return JsonResponse({'error': 'Elegí un producto publicado.'}, status=400)
+
+        try:
+            orden = max(0, int(body.get('orden') or 0))
+        except (TypeError, ValueError):
+            orden = 0
+
+        config = ConfiguracionCatalogo.get_solo()
+        pk = body.get('pk')
+        if pk:
+            seleccion = get_object_or_404(SeleccionEditorialCatalogo, pk=pk, configuracion=config)
+        else:
+            if config.selecciones_editorial.count() >= MAX_SELECCIONES_EDITORIAL:
+                return JsonResponse({'error': f'Máximo {MAX_SELECCIONES_EDITORIAL} selecciones.'}, status=400)
+            seleccion = SeleccionEditorialCatalogo(configuracion=config)
+
+        seleccion.tipo = tipo
+        seleccion.categoria = categoria
+        seleccion.producto = producto
+        seleccion.etiqueta = (body.get('etiqueta') or '').strip()[:32]
+        seleccion.titulo = (body.get('titulo') or '').strip()[:100]
+        seleccion.texto = (body.get('texto') or '').strip()[:240]
+        seleccion.orden = orden
+        seleccion.activo = bool(body.get('activo', True))
+        seleccion.save()
+        return JsonResponse({'ok': True, 'pk': seleccion.pk})
+
+
+class CatalogoSeleccionEditorialImagenAjax(LoginRequiredMixin, View):
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+        seleccion = get_object_or_404(
+            SeleccionEditorialCatalogo,
+            pk=request.POST.get('pk'), configuracion=ConfiguracionCatalogo.get_solo(),
+        )
+        archivo = request.FILES.get('imagen')
+        if not archivo:
+            return JsonResponse({'error': 'No se recibió ningún archivo.'}, status=400)
+        if os.path.splitext(archivo.name)[1].lower() not in EXTENSIONES_PERMITIDAS:
+            return JsonResponse({'error': 'Usá JPG, PNG o WEBP.'}, status=400)
+        archivo = comprimir_imagen_subida(archivo)
+        if seleccion.imagen and os.path.isfile(seleccion.imagen.path):
+            os.remove(seleccion.imagen.path)
+        seleccion.imagen = archivo
+        seleccion.save(update_fields=['imagen'])
+        return JsonResponse({'ok': True, 'imagen_url': seleccion.imagen.url})
+
+    def delete(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+        seleccion = get_object_or_404(
+            SeleccionEditorialCatalogo,
+            pk=body.get('pk'), configuracion=ConfiguracionCatalogo.get_solo(),
+        )
+        if seleccion.imagen and os.path.isfile(seleccion.imagen.path):
+            os.remove(seleccion.imagen.path)
+        seleccion.imagen = None
+        seleccion.save(update_fields=['imagen'])
+        return JsonResponse({'ok': True})
+
+
+class CatalogoSeleccionEditorialEliminarAjax(LoginRequiredMixin, View):
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_catalogo'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+        seleccion = get_object_or_404(
+            SeleccionEditorialCatalogo,
+            pk=body.get('pk'), configuracion=ConfiguracionCatalogo.get_solo(),
+        )
+        if seleccion.imagen and os.path.isfile(seleccion.imagen.path):
+            os.remove(seleccion.imagen.path)
+        seleccion.delete()
         return JsonResponse({'ok': True})
 
 

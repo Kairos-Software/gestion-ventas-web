@@ -135,21 +135,42 @@
     {% endif %}
     {% endif %}
 
-    {% with banner=banners_kinetic.first %}
-    {% if banner %}
+    {% if banners_kinetic %}
     <section class="k-banner-destacado-sec">
-        <div class="k-banner-destacado" {% if banner.imagen %}style="--k-banner-url:url('{{ banner.imagen.url }}');"{% elif banner.color_fondo %}style="background-color:{{ banner.color_fondo }};"{% endif %}>
-            <div class="k-banner-destacado-overlay">
-                {% if banner.titulo %}<h2>{{ banner.titulo }}</h2>{% endif %}
-                {% if banner.texto %}<p>{{ banner.texto }}</p>{% endif %}
-                {% if banner.muestra_cta %}
-                    <a href="{{ banner.cta_url }}" class="k-hero-cta k-hero-cta--primary">{{ banner.cta_texto }} →</a>
-                {% endif %}
-            </div>
+        <span class="k-mono-eyebrow">/ MENSAJES DESTACADOS</span>
+        <div class="k-banner-rail k-banner-rail--{{ banners_kinetic|length }}">
+            {% for banner in banners_kinetic %}
+            <article class="k-banner-destacado" {% if banner.imagen %}style="--k-banner-url:url('{{ banner.imagen.url }}');"{% elif banner.color_fondo %}style="background-color:{{ banner.color_fondo }};"{% endif %}>
+                <div class="k-banner-destacado-overlay">
+                    <span class="k-banner-indice">0{{ forloop.counter }} / 0{{ banners_kinetic|length }}</span>
+                    {% if banner.titulo %}<h2>{{ banner.titulo }}</h2>{% endif %}
+                    {% if banner.texto %}<p>{{ banner.texto }}</p>{% endif %}
+                    {% if banner.muestra_cta %}<a href="{{ banner.cta_url }}" class="k-hero-cta k-hero-cta--primary">{{ banner.cta_texto }} →</a>{% endif %}
+                </div>
+            </article>
+            {% endfor %}
         </div>
     </section>
     {% endif %}
-    {% endwith %}
+
+    {% if mostrar_vidriera and bitacora_kinetic %}
+    <section class="k-updates-sec">
+        <div class="k-updates-head">
+            <span class="k-mono-eyebrow"><span class="k-status-dot"></span> NOVEDADES DEL SISTEMA</span>
+            <span class="k-updates-count">{{ bitacora_kinetic|length|stringformat:"02d" }} REGISTROS</span>
+        </div>
+        <div class="k-updates-grid">
+            {% for entrada in bitacora_kinetic %}
+            <article class="k-update-card">
+                <div class="k-update-meta"><span>{{ forloop.counter|stringformat:"02d" }}</span><strong>{{ entrada.codigo|default:"INFO" }}</strong></div>
+                <h3>{{ entrada.titulo }}</h3>
+                {% if entrada.texto %}<p>{{ entrada.texto }}</p>{% endif %}
+                {% if entrada.muestra_enlace %}<a href="{{ entrada.url }}">{{ entrada.enlace_texto }} →</a>{% endif %}
+            </article>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
 
     {% if mostrar_vidriera and destacados %}
     <section class="k-destacados-sec">
@@ -168,6 +189,28 @@
         <div class="k-catalog-grid">
             {% for pq in paquetes %}
                 {% include 'catalogo/plantillas/kinetic/_combo_card.html' with pq=pq %}
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if mostrar_vidriera and consultas_kinetic %}
+    <section class="k-support-sec">
+        <div class="k-support-heading">
+            <span class="k-mono-eyebrow">/ AYUDA RÁPIDA</span>
+            <h2>Antes de pedir</h2>
+            <p>Respuestas breves a las consultas más comunes.</p>
+        </div>
+        <div class="k-support-list">
+            {% for consulta in consultas_kinetic %}
+            <article class="k-support-item">
+                <button type="button" class="k-support-question" aria-expanded="false" aria-controls="kSupportAnswer{{ consulta.pk }}">
+                    <span class="k-support-number">Q{{ forloop.counter|stringformat:"02d" }}</span>
+                    <span>{{ consulta.pregunta }}</span>
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 10h12M10 4v12"/></svg>
+                </button>
+                <div class="k-support-answer" id="kSupportAnswer{{ consulta.pk }}"><p>{{ consulta.respuesta|linebreaksbr }}</p></div>
+            </article>
             {% endfor %}
         </div>
     </section>

@@ -174,6 +174,10 @@ def catalogo_online(request):
             ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_LUMINA,
             ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_LUMINA,
         ),
+        PlantillaCatalogo.EDITORIAL: (
+            ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_EDITORIAL,
+            ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_EDITORIAL,
+        ),
     }
     default_color_marca_actual, default_color_marca_secundario_actual = defaults_color_por_plantilla.get(
         config_catalogo.plantilla,
@@ -187,6 +191,10 @@ def catalogo_online(request):
         PlantillaCatalogo.BENTO: (config_catalogo.color_marca_bento, config_catalogo.color_marca_secundario_bento),
         PlantillaCatalogo.LUMINA: (config_catalogo.color_marca_lumina, config_catalogo.color_marca_secundario_lumina),
         PlantillaCatalogo.KINETIC: (config_catalogo.color_marca_kinetic, ''),
+        PlantillaCatalogo.EDITORIAL: (
+            config_catalogo.color_marca_editorial,
+            config_catalogo.color_marca_secundario_editorial,
+        ),
     }
     color_marca_actual, color_marca_secundario_actual = valores_color_por_plantilla.get(
         config_catalogo.plantilla,
@@ -295,6 +303,8 @@ def catalogo_online(request):
         'default_kinetic_hero_stat3_titulo': ConfiguracionCatalogo.DEFAULT_KINETIC_HERO_STAT3_TITULO,
         'default_color_marca_lumina': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_LUMINA,
         'default_color_marca_secundario_lumina': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_LUMINA,
+        'default_color_marca_editorial': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_EDITORIAL,
+        'default_color_marca_secundario_editorial': ConfiguracionCatalogo.DEFAULT_COLOR_MARCA_SECUNDARIO_EDITORIAL,
         'default_color_marca_actual': default_color_marca_actual,
         'default_color_marca_secundario_actual': default_color_marca_secundario_actual,
         'color_marca_actual': color_marca_actual,

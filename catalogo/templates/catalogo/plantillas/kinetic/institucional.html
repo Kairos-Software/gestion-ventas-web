@@ -3,102 +3,60 @@
 {% block title %}{{ config_catalogo.nav_tienda_label|default:default_nav_tienda }} — {{ empresa.nombre_comercial }}{% endblock %}
 
 {% block content %}
-
-    <section class="k-inst-portada {% if not config_catalogo.institucional_imagen %}k-inst-portada--sin-imagen{% endif %}">
-        {% if config_catalogo.institucional_imagen %}
-            <img src="{{ config_catalogo.institucional_imagen.url }}" alt="" class="k-inst-portada-img">
-            <div class="k-inst-portada-overlay"></div>
-        {% endif %}
-        <div class="k-inst-portada-inner">
+<main class="k-store-page">
+    <section class="k-store-hero">
+        <div class="k-store-hero-copy">
+            <span class="k-hero-eyebrow"><span class="k-status-dot"></span> LA TIENDA</span>
             <h1 id="kcInstTitulo">{{ config_catalogo.institucional_titulo|default:default_institucional_titulo }}</h1>
             <p id="kcInstBajada">{{ config_catalogo.institucional_bajada|default:default_institucional_bajada }}</p>
+            <div class="k-store-actions"><a href="{% url 'catalogo:home' %}#kcCatalogo" class="k-hero-cta k-hero-cta--primary">Ver catálogo →</a>{% if whatsapp_url %}<a href="{{ whatsapp_url }}" target="_blank" rel="noopener" class="k-hero-cta k-hero-cta--secondary">Contactar →</a>{% endif %}</div>
+        </div>
+        <div class="k-store-hero-media {% if not config_catalogo.institucional_imagen %}k-store-hero-media--empty{% endif %}">
+            {% if config_catalogo.institucional_imagen %}<img src="{{ config_catalogo.institucional_imagen.url }}" alt="{{ empresa.nombre_comercial }}">{% endif %}
+            <span class="k-store-media-code">ABOUT.01 / {{ empresa.nombre_comercial }}</span>
+            <span class="k-store-media-status">● ACTIVO</span>
         </div>
     </section>
 
-    <section class="k-inst-historia">
-        <span class="k-hero-eyebrow">NUESTRA HISTORIA</span>
-        <p id="kcHistoriaTexto">{{ config_catalogo.sobre_nosotros|default:default_sobre_nosotros }}</p>
+    <section class="k-store-stats">
+        <div><span>PRODUCTOS</span><strong>{{ total_catalogo|stringformat:"02d" }}</strong></div>
+        <div><span>CATEGORÍAS</span><strong>{{ total_categorias|stringformat:"02d" }}</strong></div>
+        <div><span>OFERTAS ACTIVAS</span><strong>{{ total_ofertas_activas|stringformat:"02d" }}</strong></div>
     </section>
 
-    <section class="k-inst-destacados">
-        <div class="k-inst-destacados-inner">
-            <div class="k-erp-card k-inst-destacado-card">
-                <span class="k-inst-destacado-num">01</span>
-                <h3 id="kcDestacado1Titulo">{{ config_catalogo.destacado1_titulo|default:default_destacado1_titulo }}</h3>
-                <p id="kcDestacado1Texto">{{ config_catalogo.destacado1_texto|default:default_destacado1_texto }}</p>
-            </div>
-            <div class="k-erp-card k-inst-destacado-card">
-                <span class="k-inst-destacado-num">02</span>
-                <h3 id="kcDestacado2Titulo">{{ config_catalogo.destacado2_titulo|default:default_destacado2_titulo }}</h3>
-                <p id="kcDestacado2Texto">{{ config_catalogo.destacado2_texto|default:default_destacado2_texto }}</p>
-            </div>
-            <div class="k-erp-card k-inst-destacado-card">
-                <span class="k-inst-destacado-num">03</span>
-                <h3 id="kcDestacado3Titulo">{{ config_catalogo.destacado3_titulo|default:default_destacado3_titulo }}</h3>
-                <p id="kcDestacado3Texto">{{ config_catalogo.destacado3_texto|default:default_destacado3_texto }}</p>
-            </div>
+    <section class="k-store-story">
+        <div class="k-store-section-label"><span class="k-mono-eyebrow">/ NUESTRA HISTORIA</span><span>FILE_01</span></div>
+        <div><h2>Quiénes somos</h2><p id="kcHistoriaTexto">{{ config_catalogo.sobre_nosotros|default:default_sobre_nosotros }}</p></div>
+    </section>
+
+    <section class="k-store-values">
+        <div class="k-store-values-head"><span class="k-mono-eyebrow">/ LO QUE NOS DEFINE</span><h2>Trabajamos así</h2></div>
+        <div class="k-store-values-grid">
+            <article><span>01</span><h3 id="kcDestacado1Titulo">{{ config_catalogo.destacado1_titulo|default:default_destacado1_titulo }}</h3><p id="kcDestacado1Texto">{{ config_catalogo.destacado1_texto|default:default_destacado1_texto }}</p></article>
+            <article><span>02</span><h3 id="kcDestacado2Titulo">{{ config_catalogo.destacado2_titulo|default:default_destacado2_titulo }}</h3><p id="kcDestacado2Texto">{{ config_catalogo.destacado2_texto|default:default_destacado2_texto }}</p></article>
+            <article><span>03</span><h3 id="kcDestacado3Titulo">{{ config_catalogo.destacado3_titulo|default:default_destacado3_titulo }}</h3><p id="kcDestacado3Texto">{{ config_catalogo.destacado3_texto|default:default_destacado3_texto }}</p></article>
         </div>
     </section>
 
-    {% if galeria %}
-    <section class="k-inst-galeria">
-        <div class="k-sec-head"><h2>Un vistazo por adentro</h2></div>
-        <div class="k-galeria-grid">
-            {% for foto in galeria %}
-            <a href="{{ foto.imagen.url }}" target="_blank" rel="noopener" class="k-galeria-item {% if forloop.first %}k-galeria-item--grande{% endif %}">
-                <img src="{{ foto.imagen.url }}" alt="{{ foto.titulo }}" loading="lazy">
-                {% if foto.titulo %}<span class="k-galeria-caption">{{ foto.titulo }}</span>{% endif %}
-            </a>
-            {% endfor %}
-        </div>
-    </section>
-    {% endif %}
+    {% if galeria %}<section class="k-inst-galeria k-store-gallery"><div class="k-sec-head"><span class="k-mono-eyebrow">/ GALERÍA</span><h2>Un vistazo por adentro</h2></div><div class="k-galeria-grid">{% for foto in galeria %}<a href="{{ foto.imagen.url }}" target="_blank" rel="noopener" class="k-galeria-item {% if forloop.first %}k-galeria-item--grande{% endif %}"><img src="{{ foto.imagen.url }}" alt="{{ foto.titulo }}" loading="lazy">{% if foto.titulo %}<span class="k-galeria-caption">{{ foto.titulo }}</span>{% endif %}</a>{% endfor %}</div></section>{% endif %}
 
-    <section class="k-inst-info">
-        <div class="k-erp-card">
-            <div class="k-inst-info-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg> HORARIOS</div>
-            {% if config_catalogo.horarios_texto %}
-                <p class="k-inst-info-texto">{{ config_catalogo.horarios_texto|linebreaksbr }}</p>
-            {% else %}
-                <p class="k-inst-info-vacio">Todavía no cargamos los horarios de atención.</p>
-            {% endif %}
-        </div>
-        <div class="k-erp-card k-inst-mapa-card">
-            <div class="k-inst-info-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 21S5 14.5 5 9.5A7 7 0 0119 9.5C19 14.5 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5"/></svg> UBICACIÓN</div>
-            {% if empresa.domicilio %}
-                <p class="k-inst-info-texto">{{ empresa.domicilio }}</p>
-                <div class="k-inst-mapa-wrap">
-                    <iframe src="https://www.google.com/maps?q={{ empresa.domicilio|urlencode }}&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Ubicación de {{ empresa.nombre_comercial }}"></iframe>
-                </div>
-                {% if maps_url %}<a href="{{ maps_url }}" target="_blank" rel="noopener" class="k-hero-cta k-hero-cta--secondary">Cómo llegar →</a>{% endif %}
-            {% else %}
-                <p class="k-inst-info-vacio">Todavía no cargamos la dirección.</p>
-            {% endif %}
-        </div>
-    </section>
-
-    <section class="k-inst-contacto">
-        <div class="k-inst-contacto-texto">
+    <section class="k-store-contact">
+        <div class="k-store-contact-card">
+            <span class="k-mono-eyebrow"><span class="k-status-dot"></span> CONTACTO</span>
             <h2>Hablemos</h2>
             <p id="kcContactoTexto">{{ config_catalogo.contacto_texto|default:"Estamos para ayudarte con lo que necesites." }}</p>
-            <ul class="k-inst-contacto-datos">
-                {% if empresa.telefono %}<li>{{ empresa.telefono }}</li>{% endif %}
-                {% if empresa.email %}<li>{{ empresa.email }}</li>{% endif %}
-            </ul>
-            {% if config_catalogo.instagram_url or config_catalogo.facebook_url or config_catalogo.tiktok_url %}
-            <div class="k-footer-redes">
-                {% if config_catalogo.instagram_url %}<a href="{{ config_catalogo.instagram_url }}" target="_blank" rel="noopener" aria-label="Instagram"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r="1"/></svg></a>{% endif %}
-                {% if config_catalogo.facebook_url %}<a href="{{ config_catalogo.facebook_url }}" target="_blank" rel="noopener" aria-label="Facebook"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M15 8.5h-2a1.5 1.5 0 00-1.5 1.5v2h3.4l-.4 3h-3v7h-3v-7H6v-3h2.5v-2.3C8.5 6.9 10 5 12.8 5H15v3.5z"/></svg></a>{% endif %}
-                {% if config_catalogo.tiktok_url %}<a href="{{ config_catalogo.tiktok_url }}" target="_blank" rel="noopener" aria-label="TikTok"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 4v10.5a3.5 3.5 0 11-3-3.46"/><path d="M14 4a5 5 0 005 5"/></svg></a>{% endif %}
+            <div class="k-store-contact-lines">
+                {% if empresa.telefono %}<div><span>TELÉFONO</span><strong>{{ empresa.telefono }}</strong></div>{% endif %}
+                {% if empresa.email %}<div><span>EMAIL</span><strong>{{ empresa.email }}</strong></div>{% endif %}
+                <div><span>HORARIOS</span><strong>{% if config_catalogo.horarios_texto %}{{ config_catalogo.horarios_texto|linebreaksbr }}{% else %}A coordinar{% endif %}</strong></div>
             </div>
-            {% endif %}
+            {% if whatsapp_url %}<a href="{{ whatsapp_url }}" target="_blank" rel="noopener" class="k-hero-cta k-hero-cta--primary">Escribir por WhatsApp →</a>{% endif %}
         </div>
-        {% if whatsapp_url %}
-        <a href="{{ whatsapp_url }}" target="_blank" rel="noopener" class="k-hero-cta k-hero-cta--primary k-inst-whatsapp-btn">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 11.5a8.5 8.5 0 01-12.4 7.55L3 20l1.02-5.4A8.5 8.5 0 1121 11.5z"/></svg>
-            Escribir por WhatsApp
-        </a>
-        {% endif %}
+        <div class="k-store-location">
+            <header><span>UBICACIÓN</span><span>{% if empresa.domicilio %}MAPA ACTIVO{% else %}SIN DATOS{% endif %}</span></header>
+            {% if empresa.domicilio %}<div class="k-inst-mapa-wrap"><iframe src="https://www.google.com/maps?q={{ empresa.domicilio|urlencode }}&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Ubicación de {{ empresa.nombre_comercial }}"></iframe></div><footer><span>{{ empresa.domicilio }}</span>{% if maps_url %}<a href="{{ maps_url }}" target="_blank" rel="noopener">Cómo llegar →</a>{% endif %}</footer>
+            {% else %}<div class="k-store-location-empty"><span>+</span><p>La ubicación todavía no fue cargada.</p></div>{% endif %}
+        </div>
     </section>
-
+</main>
 {% endblock %}

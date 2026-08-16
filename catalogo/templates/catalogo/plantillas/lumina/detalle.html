@@ -3,143 +3,91 @@
 {% block title %}{{ producto.nombre }} — {{ empresa.nombre_comercial }}{% endblock %}
 
 {% block content %}
+<nav class="l-breadcrumb l-wrap">
+    <a href="{% url 'catalogo:home' %}">Catálogo</a>
+    {% if producto.categoria %}<span>/</span><a href="{% url 'catalogo:home' %}?categoria={{ producto.categoria.slug }}">{{ producto.categoria.nombre }}</a>{% endif %}
+    <span>/</span><span class="l-breadcrumb-actual">{{ producto.nombre }}</span>
+</nav>
 
-    <nav class="l-breadcrumb l-wrap">
-        <a href="{% url 'catalogo:home' %}">Catálogo</a>
-        {% if producto.categoria %}
-            <span>/</span>
-            <a href="{% url 'catalogo:home' %}?categoria={{ producto.categoria.slug }}">{{ producto.categoria.nombre }}</a>
-        {% endif %}
-        <span>/</span>
-        <span class="l-breadcrumb-actual">{{ producto.nombre }}</span>
-    </nav>
-
-    <section class="l-detalle l-wrap">
-        <div>
-            <div class="l-galeria-principal">
-                {% if imagenes %}
-                    <img src="{{ imagenes.0.imagen.url }}" alt="{{ producto.nombre }}" id="kcGaleriaImgActual">
-                {% else %}
-                    <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 8L12 3.5L21 8V16L12 20.5L3 16V8Z" stroke-linejoin="round"/><path d="M3 8L12 12.5L21 8" stroke-linejoin="round"/><path d="M12 12.5V20.5"/></svg>
-                {% endif %}
-                {% if oferta_info or producto.destacado or es_nuevo %}
-                <div class="l-galeria-badges">
-                    {% if oferta_info %}<span class="l-badge l-badge--oferta">{{ oferta_info.badge }}</span>{% endif %}
-                    {% if es_nuevo %}<span class="l-badge l-badge--nuevo">Nuevo</span>{% endif %}
-                    {% if producto.destacado %}<span class="l-badge l-badge--destacado">Destacado</span>{% endif %}
-                </div>
-                {% endif %}
-            </div>
-            {% if imagenes|length > 1 %}
-            <div class="l-galeria-thumbs">
-                {% for img in imagenes %}
-                    <button type="button" class="l-thumb {% if forloop.first %}l-thumb--activo{% endif %}" data-src="{{ img.imagen.url }}">
-                        <img src="{{ img.imagen.url }}" alt="{{ producto.nombre }} {{ forloop.counter }}">
-                    </button>
-                {% endfor %}
-            </div>
-            {% endif %}
-        </div>
-
-        <div class="l-detalle-info">
+<section class="l-product-stage">
+    <div class="l-wrap l-product-stage-grid">
+        <div class="l-product-buy">
             <div class="l-detalle-topmeta">
                 {% if producto.categoria %}<span class="l-chip-categoria">{{ producto.categoria.nombre }}</span>{% endif %}
                 {% if producto.gestiona_stock %}
-                    {% if producto.stock_actual > 0 %}
-                        <span class="l-stock-indicador l-stock-indicador--ok"><span class="l-stock-dot"></span>Stock disponible</span>
-                    {% else %}
-                        <span class="l-stock-indicador l-stock-indicador--no">Sin stock por el momento</span>
-                    {% endif %}
+                    {% if producto.stock_actual > 0 %}<span class="l-stock-indicador l-stock-indicador--ok"><span class="l-stock-dot"></span>Disponible</span>
+                    {% else %}<span class="l-stock-indicador l-stock-indicador--no">Sin stock por el momento</span>{% endif %}
                 {% endif %}
             </div>
-
+            <p class="l-product-code">PRODUCTO / {{ producto.codigo }}</p>
             <h1 class="l-detalle-nombre">{{ producto.nombre }}</h1>
             {% if producto.marca %}<p class="l-detalle-marca">{{ producto.marca }}{% if producto.modelo %} · {{ producto.modelo }}{% endif %}</p>{% endif %}
+            {% if producto.descripcion_publica or producto.descripcion %}<p class="l-product-intro">{{ producto.descripcion_publica|default:producto.descripcion|truncatewords:24 }}</p>{% endif %}
 
-            <div class="l-detalle-precio-card">
-                {% if oferta_info and oferta_info.precio_final != producto.precio_venta %}
-                    <span class="l-detalle-precio-tachado">${{ producto.precio_venta }}</span>
-                    <span class="l-detalle-precio-final">${{ oferta_info.precio_final }}</span>
-                {% elif producto.precio_venta %}
-                    <span class="l-detalle-precio-final">${{ producto.precio_venta }}</span>
-                {% else %}
-                    <span class="l-precio-consultar">Precio a consultar</span>
-                {% endif %}
+            <div class="l-product-price">
+                <span class="l-detail-price-label">Precio</span>
+                <div>{% if oferta_info and oferta_info.precio_final != producto.precio_venta %}<span class="l-detalle-precio-tachado">${{ producto.precio_venta }}</span><span class="l-detalle-precio-final">${{ oferta_info.precio_final }}</span>{% elif producto.precio_venta %}<span class="l-detalle-precio-final">${{ producto.precio_venta }}</span>{% else %}<span class="l-precio-consultar">Precio a consultar</span>{% endif %}</div>
                 {% if ahorro_pct %}<p class="l-detalle-ahorro">Ahorrás {{ ahorro_pct }}% en esta compra</p>{% endif %}
-                {% if ahorro %}<p class="l-detalle-ahorro">Ahorrás ${{ ahorro.ahorro|floatformat:0 }} llevando el combo en vez de los productos sueltos</p>{% endif %}
+                {% if ahorro %}<p class="l-detalle-ahorro">Ahorrás ${{ ahorro.ahorro|floatformat:0 }} con este combo</p>{% endif %}
             </div>
 
             {% if disponible_compra %}
-            <div class="l-detalle-agregar" data-carrito-slot>
-                <button type="button" class="l-btn-cta l-btn-agregar-grande"
-                    data-carrito-agregar="{% if producto.es_paquete %}paq{% else %}prod{% endif %}-{{ producto.pk }}"
-                    data-nombre="{{ producto.nombre }}"
-                    data-precio="{{ oferta_info.precio_final|default:producto.precio_venta }}"
-                    data-precio-lista="{{ producto.precio_venta }}"
-                    data-categoria-id="{{ producto.categoria.pk|default:'' }}"
-                    data-imagen="{% if imagenes %}{{ imagenes.0.imagen.url }}{% endif %}">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
-                    Agregar al pedido
-                </button>
-            </div>
-            {% endif %}
-
-            {% if producto.es_paquete and componentes %}
-            <div class="l-detalle-seccion">
-                <h2>Este combo incluye</h2>
-                <ul class="l-detalle-incluye">
-                    {% for c in componentes %}
-                        <li><span>{{ c.cantidad|floatformat:"-2" }}×</span> {{ c.producto.nombre }}{% if c.combinacion %} — {{ c.combinacion.descripcion_legible }}{% endif %}</li>
-                    {% endfor %}
-                </ul>
-            </div>
-            {% endif %}
-
-            {% if producto.descripcion_publica or producto.descripcion %}
-            <div class="l-detalle-seccion">
-                <h2>Descripción</h2>
-                <p>{{ producto.descripcion_publica|default:producto.descripcion|linebreaksbr }}</p>
-            </div>
-            {% endif %}
-
-            {% if producto.caracteristicas.all %}
-            <div class="l-detalle-seccion">
-                <h2>Características</h2>
-                <div class="l-caracteristicas-grid">
-                    {% for c in producto.caracteristicas.all %}
-                    <div class="l-caracteristica-item">
-                        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 10l4 4 8-9" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        <span>{{ c.texto }}</span>
-                    </div>
-                    {% endfor %}
+                {% if producto.gestiona_variantes %}
+                <div class="l-variantes">
+                    {% for tipo in variantes_json.tipos %}<div class="l-variante-grupo" data-variante-tipo="{{ tipo.id }}"><span class="l-variante-nombre">{{ tipo.nombre }}</span><div class="l-variante-opciones">{% for opcion in tipo.opciones %}<button type="button" class="l-variante-opcion" data-variante-opcion="{{ opcion.id }}">{{ opcion.nombre }}</button>{% endfor %}</div></div>{% endfor %}
+                    <p id="kcVarianteEstado" class="l-variante-estado">Elegí una opción</p>
                 </div>
-            </div>
+                {{ variantes_json.combinaciones|json_script:"kcVariantesCombinaciones" }}
+                {% endif %}
+                <div class="l-detalle-agregar" data-carrito-slot>
+                    <button type="button" class="l-btn-cta l-btn-agregar-grande" id="btnAgregarDetalle"
+                        {% if not producto.gestiona_variantes %}data-carrito-agregar="{% if producto.es_paquete %}paq{% else %}prod{% endif %}-{{ producto.pk }}"{% endif %}
+                        data-id-base="{% if producto.es_paquete %}paq{% else %}prod{% endif %}-{{ producto.pk }}"
+                        data-nombre="{{ producto.nombre }}" data-precio="{{ oferta_info.precio_final|default:producto.precio_venta }}"
+                        data-precio-lista="{{ producto.precio_venta }}" data-categoria-id="{{ producto.categoria.pk|default:'' }}"
+                        data-imagen="{% if imagenes %}{{ imagenes.0.imagen.url }}{% endif %}" {% if producto.gestiona_variantes %}disabled{% endif %}>
+                        Agregar al pedido <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                    </button>
+                </div>
             {% endif %}
-
-            {% if tags_producto %}
-            <div class="l-detalle-tags">
-                {% for tag in tags_producto %}<span class="l-tag-chip">{{ tag }}</span>{% endfor %}
-            </div>
-            {% endif %}
-
-            <div class="l-detalle-seccion">
-                <h2>Ficha técnica</h2>
-                <div class="l-ficha-row"><span>Marca</span><span>{{ producto.marca|default:"—" }}</span></div>
-                <div class="l-ficha-row"><span>Código</span><span>{{ producto.codigo }}</span></div>
-                <div class="l-ficha-row"><span>Unidad</span><span>{{ producto.get_unidad_medida_display }}</span></div>
-            </div>
+            <p class="l-product-order-note">No necesitás registrarte. Confirmás el pedido y coordinamos directamente con vos.</p>
         </div>
-    </section>
 
-    {% if relacionados %}
-    <section class="l-relacionados l-wrap">
-        <div class="l-sec-head"><h2>También te puede interesar</h2></div>
-        <div class="l-grid">
-            {% for p in relacionados %}
-                {% include 'catalogo/plantillas/lumina/_product_card.html' with p=p %}
-            {% endfor %}
+        <div class="l-product-gallery">
+            <span class="l-product-gallery-label">SELECCIÓN DIRECTA</span>
+            <div class="l-galeria-principal">
+                {% if imagenes %}<img src="{{ imagenes.0.imagen.url }}" alt="{{ producto.nombre }}" id="kcGaleriaImgActual">
+                {% else %}<svg width="54" height="54" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 8L12 3.5L21 8V16L12 20.5L3 16V8Z"/><path d="M3 8L12 12.5L21 8M12 12.5V20.5"/></svg>{% endif %}
+                {% if oferta_info or producto.destacado or es_nuevo %}<div class="l-galeria-badges">{% if oferta_info %}<span class="l-badge l-badge--oferta">{{ oferta_info.badge }}</span>{% endif %}{% if es_nuevo %}<span class="l-badge l-badge--nuevo">Nuevo</span>{% endif %}{% if producto.destacado %}<span class="l-badge l-badge--destacado">Destacado</span>{% endif %}</div>{% endif %}
+            </div>
+            {% if imagenes|length > 1 %}<div class="l-galeria-thumbs">{% for img in imagenes %}<button type="button" class="l-thumb {% if forloop.first %}l-thumb--activo{% endif %}" data-src="{{ img.imagen.url }}"><img src="{{ img.imagen.url }}" alt="{{ producto.nombre }} {{ forloop.counter }}"></button>{% endfor %}</div>{% endif %}
         </div>
-    </section>
-    {% endif %}
+    </div>
+</section>
 
+<section class="l-product-servicebar l-wrap" aria-label="Información de compra">
+    <div><span>01</span><strong>Entrega coordinada</strong><small>Elegís con nosotros la mejor opción</small></div>
+    <div><span>02</span><strong>Pago directo</strong><small>Sin registros ni cuentas</small></div>
+    <div><span>03</span><strong>Atención real</strong><small>Te ayudamos antes y después</small></div>
+</section>
+
+<section class="l-product-information l-wrap">
+    <div class="l-product-story">
+        <div class="l-eyebrow">Información del producto</div>
+        <h2>Detalles claros, sin letra chica.</h2>
+        {% if producto.descripcion_publica or producto.descripcion %}<p>{{ producto.descripcion_publica|default:producto.descripcion|linebreaksbr }}</p>{% else %}<p class="l-inst-info-vacio">Todavía no cargamos una descripción ampliada.</p>{% endif %}
+        {% if producto.es_paquete and componentes %}<h3>Este combo incluye</h3><ul class="l-detalle-incluye">{% for c in componentes %}<li><span>{{ c.cantidad|floatformat:"-2" }}×</span>{{ c.producto.nombre }}{% if c.combinacion %} — {{ c.combinacion.descripcion_legible }}{% endif %}</li>{% endfor %}</ul>{% endif %}
+        {% if producto.caracteristicas.all %}<div class="l-caracteristicas-grid">{% for c in producto.caracteristicas.all %}<div class="l-caracteristica-item"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 10l4 4 8-9"/></svg><span>{{ c.texto }}</span></div>{% endfor %}</div>{% endif %}
+    </div>
+    <aside class="l-product-specs">
+        <p class="l-product-code">FICHA / {{ producto.codigo }}</p>
+        <div class="l-ficha-row"><span>Marca</span><span>{{ producto.marca|default:"—" }}</span></div>
+        <div class="l-ficha-row"><span>Código</span><span>{{ producto.codigo }}</span></div>
+        <div class="l-ficha-row"><span>Unidad</span><span>{{ producto.get_unidad_medida_display }}</span></div>
+        {% if producto.modelo %}<div class="l-ficha-row"><span>Modelo</span><span>{{ producto.modelo }}</span></div>{% endif %}
+        {% if tags_producto %}<div class="l-detalle-tags">{% for tag in tags_producto %}<span class="l-tag-chip">{{ tag }}</span>{% endfor %}</div>{% endif %}
+    </aside>
+</section>
+
+{% if relacionados %}<section class="l-relacionados l-wrap"><div class="l-sec-head"><h2>También te puede interesar</h2></div><div class="l-grid">{% for p in relacionados %}{% include 'catalogo/plantillas/lumina/_product_card.html' with p=p %}{% endfor %}</div></section>{% endif %}
 {% endblock %}
