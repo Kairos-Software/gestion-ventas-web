@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function poblarSelect(select, opciones, seleccionarPk) {
         select.innerHTML = '<option value="">— Elegí una cuenta —</option>' +
-            opciones.map(c => `<option value="${c.pk}">${c.nombre}</option>`).join('');
+            opciones.map(c => `<option value="${c.pk}">${c.nombre}${c.titular ? ' · ' + c.titular : ''}</option>`).join('');
         if (seleccionarPk) select.value = String(seleccionarPk);
     }
 
@@ -207,7 +207,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function opcionesMedioPago() {
         const cuentas = cuentasPorMoneda(dMoneda.value, false);
         let html = '<option value="">— Sin especificar —</option>';
-        html += cuentas.map(c => `<option value="cuenta:${c.pk}">${c.nombre}</option>`).join('');
+        html += cuentas.map(c => `<option value="cuenta:${c.pk}">${c.nombre}${c.titular ? ' · ' + c.titular : ''}</option>`).join('');
         html += '<option value="cheque">Cheque</option>';
         html += '<option value="otro">Otro (nota)</option>';
         return html;
@@ -221,7 +221,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     <input type="text" class="ph-cheque-numero" placeholder="N° cheque">
                     <select class="ph-cheque-cuenta">
                         <option value="">— Chequera —</option>
-                        ${chequeras.map(c => `<option value="${c.pk}">${c.nombre}</option>`).join('')}
+                        ${chequeras.map(c => `<option value="${c.pk}">${c.nombre}${c.titular ? ' · ' + c.titular : ''}</option>`).join('')}
                     </select>
                     <input type="date" class="ph-cheque-emision" max="${today}" title="Fecha de emisión">
                     <input type="text" class="ph-cheque-banco" placeholder="Banco (opcional)">
@@ -645,7 +645,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     ? `<input type="text" id="detNumeroComprobante" placeholder="Opcional" value="${_deudaEscInput(d.numero_comprobante)}">`
                     : (d.numero_comprobante || '-'))}
                 ${tieneCuentaPropia ? item(cuentaLabel, puedeEditarPlan
-                    ? `<select id="detCuenta">${cuentaEditable.map(c => `<option value="${c.pk}" ${c.pk === cuentaActualPk ? 'selected' : ''}>${c.nombre}</option>`).join('')}</select>`
+                    ? `<select id="detCuenta">${cuentaEditable.map(c => `<option value="${c.pk}" ${c.pk === cuentaActualPk ? 'selected' : ''}>${c.nombre}${c.titular ? ' · ' + c.titular : ''}</option>`).join('')}</select>`
                     : cuentaValor) : ''}
                 ${item('Moneda', puedeEditarPlan
                     ? `<select id="detMoneda">${dMoneda.innerHTML}</select>`
@@ -730,7 +730,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     <div class="deudas-cuota-confirmar">
                         <select id="cuentaCuota${c.pk}" class="deudas-cuota-select"
                                 onchange="onCuentaCuotaChange(this, ${c.pk}, ${c.monto}, '${d.moneda}', false)">
-                            ${cuentasPago.map(cta => `<option value="${cta.pk}">${cta.nombre}</option>`).join('')}
+                            ${cuentasPago.map(cta => `<option value="${cta.pk}">${cta.nombre}${cta.titular ? ' · ' + cta.titular : ''}</option>`).join('')}
                             <option value="__cheque__">— Pagar con cheque —</option>
                         </select>
                         <button type="button" class="btn btn-primary btn--sm" onclick="confirmarCuota(${c.pk})">Confirmar</button>
@@ -746,7 +746,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     <div class="deudas-cuota-confirmar">
                         <select id="cuentaCuota${c.pk}" class="deudas-cuota-select"
                                 onchange="onCuentaCuotaChange(this, ${c.pk}, ${c.monto}, '${d.moneda}', true)">
-                            ${cuentasPago.map(cta => `<option value="${cta.pk}">${cta.nombre}</option>`).join('')}
+                            ${cuentasPago.map(cta => `<option value="${cta.pk}">${cta.nombre}${cta.titular ? ' · ' + cta.titular : ''}</option>`).join('')}
                             <option value="__cheque__">— Pagar con cheque —</option>
                         </select>
                         <button type="button" class="btn btn-secondary btn--sm" onclick="confirmarCuota(${c.pk}, true)">Adelantar pago</button>
@@ -855,10 +855,10 @@ document.addEventListener('DOMContentLoaded', function () {
         const financiadoraSelect = document.getElementById('cchc_financiadora');
         const chequeras = cuentasBancariasPorMoneda(moneda);
         chequeraSelect.innerHTML = '<option value="">— Elegí una cuenta —</option>' +
-            chequeras.map(c => `<option value="${c.pk}">${c.nombre}</option>`).join('');
+            chequeras.map(c => `<option value="${c.pk}">${c.nombre}${c.titular ? ' · ' + c.titular : ''}</option>`).join('');
         const financiadoras = CUENTAS.filter(c => c.moneda === moneda && !c.es_credito);
         financiadoraSelect.innerHTML = '<option value="">— No hace falta, ya tiene fondos —</option>' +
-            financiadoras.map(c => `<option value="${c.pk}">${c.nombre}</option>`).join('');
+            financiadoras.map(c => `<option value="${c.pk}">${c.nombre}${c.titular ? ' · ' + c.titular : ''}</option>`).join('');
 
         modalChequeCuota.hidden = false;
         document.body.style.overflow = 'hidden';

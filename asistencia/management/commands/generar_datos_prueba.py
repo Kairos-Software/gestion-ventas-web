@@ -26,7 +26,7 @@ class Command(BaseCommand):
 
     @property
     def hoy(self):
-        return timezone.now().date()
+        return timezone.localtime().date()
 
     def handle(self, *args, **options):
         hoy = self.hoy

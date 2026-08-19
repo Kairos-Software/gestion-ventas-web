@@ -56,7 +56,7 @@ def perfil_valor(cliente):
 # ══════════════════════════════════════════════════════════════════
 
 def comportamiento_pago(cliente):
-    hoy = timezone.now().date()
+    hoy = timezone.localtime().date()
 
     # es_historica=True: cuota cargada como "ya cobrada antes del
     # sistema" (carga inicial) — no tiene una fecha de pago real

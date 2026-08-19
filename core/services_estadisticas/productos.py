@@ -35,7 +35,7 @@ def perdidas_vencimiento(dias_alerta=30):
       de stock no guarda a qué lote específico correspondía).
       Si todavía no registrás mermas por ese modelo, esto queda vacío.
     """
-    hoy = timezone.now().date()
+    hoy = timezone.localtime().date()
     limite_alerta = hoy + timedelta(days=dias_alerta)
 
     lotes_vencidos = (
@@ -202,7 +202,7 @@ def stock_bajo(top=30):
 # ══════════════════════════════════════════════════════════════════
 
 def sin_movimiento(dias=60, top=30):
-    hoy = timezone.now().date()
+    hoy = timezone.localtime().date()
     limite = hoy - timedelta(days=dias)
 
     vendidos_recientemente = (

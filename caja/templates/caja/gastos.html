@@ -75,7 +75,7 @@
                 <select id="fCuenta" name="cuenta">
                     <option value="">Todas</option>
                     {% for cuenta in cuentas %}
-                    <option value="{{ cuenta.pk }}">{{ cuenta.nombre }} ({{ cuenta.moneda }}){% if cuenta.es_credito %} · crédito{% endif %}</option>
+                    <option value="{{ cuenta.pk }}">{{ cuenta.nombre }}{% if cuenta.titular %} · {{ cuenta.titular }}{% endif %} ({{ cuenta.moneda }}){% if cuenta.es_credito %} · crédito{% endif %}</option>
                     {% endfor %}
                 </select>
             </div>

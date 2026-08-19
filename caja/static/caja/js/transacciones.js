@@ -63,7 +63,7 @@ const Transacciones = (() => {
     ══════════════════════════════════════════════════════════════ */
     function _opcionesCuentas(lista) {
         return lista.map(c =>
-            `<option value="${c.pk}" data-moneda="${c.moneda}">${c.nombre} (${c.moneda})</option>`
+            `<option value="${c.pk}" data-moneda="${c.moneda}">${c.nombre}${c.titular ? ' · ' + c.titular : ''} (${c.moneda})</option>`
         ).join('');
     }
 

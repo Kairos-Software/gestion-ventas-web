@@ -37,7 +37,7 @@ class NuevaCompraView(LoginRequiredMixin, TemplateView):
             ctx['sin_permiso'] = True
             return ctx
         ctx['puede_crear'] = True
-        ctx['today'] = timezone.now().date().isoformat()
+        ctx['today'] = timezone.localtime().date().isoformat()
 
         ctx['listas_descuento'] = [
             {'nombre': l.nombre, 'porcentaje': str(l.porcentaje)}
@@ -334,7 +334,7 @@ class GuardarBorradorAjax(LoginRequiredMixin, View):
             return JsonResponse({'error': 'El carrito está vacío.'}, status=400)
 
         # Usar hoy si no se provee fecha (se puede editar en el detalle)
-        fecha = body.get('fecha') or timezone.now().date().isoformat()
+        fecha = body.get('fecha') or timezone.localtime().date().isoformat()
 
         # — Crear cabecera en BORRADOR —
         compra = Compra(
@@ -944,7 +944,7 @@ class DetalleCompraView(LoginRequiredMixin, View):
             .order_by('orden', 'nombre')
         )
         cuentas_json = json.dumps([
-            {'pk': c.pk, 'nombre': c.nombre, 'moneda': c.moneda, 'tipo': c.tipo}
+            {'pk': c.pk, 'nombre': c.nombre, 'moneda': c.moneda, 'tipo': c.tipo, 'titular': c.titular}
             for c in cuentas
         ])
 
@@ -954,7 +954,7 @@ class DetalleCompraView(LoginRequiredMixin, View):
             .order_by('orden', 'nombre')
         )
         tarjetas_json = json.dumps([
-            {'pk': t.pk, 'nombre': t.nombre, 'moneda': t.moneda, 'terminada_en': t.terminada_en}
+            {'pk': t.pk, 'nombre': t.nombre, 'moneda': t.moneda, 'terminada_en': t.terminada_en, 'titular': t.titular}
             for t in tarjetas
         ])
 

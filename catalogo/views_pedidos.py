@@ -225,7 +225,7 @@ class PedidoVenderAjax(LoginRequiredMixin, View):
         else:
             with transaction.atomic():
                 venta = Venta.objects.create(
-                    fecha=timezone.now().date(), creado_por=request.user,
+                    fecha=timezone.localtime().date(), creado_por=request.user,
                     descuento_global_pct=pedido.descuento_global_pct,
                     oferta_global_nombre=pedido.oferta_global_nombre,
                 )

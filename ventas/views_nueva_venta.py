@@ -449,7 +449,7 @@ class GuardarBorradorAjax(LoginRequiredMixin, View):
             return JsonResponse({'error': 'El carrito está vacío.'}, status=400)
 
         venta = Venta(
-            fecha      = body.get('fecha') or timezone.now().date().isoformat(),
+            fecha      = body.get('fecha') or timezone.localtime().date().isoformat(),
             notas      = body.get('notas', ''),
             medio_pago = MedioPago.EFECTIVO,
             estado     = EstadoVenta.BORRADOR,
@@ -1171,7 +1171,7 @@ class DetalleVentaView(LoginRequiredMixin, View):
         )
         cuentas_json = json.dumps([
             {
-                'pk': c.pk, 'nombre': c.nombre, 'moneda': c.moneda,
+                'pk': c.pk, 'nombre': c.nombre, 'moneda': c.moneda, 'titular': c.titular,
                 # Qué medios acepta ESTA CUENTA REAL (a dónde entra la
                 # plata) — ver caja.models.CuentaCaja.acepta_*. No confundir
                 # con TarjetaPago.acepta_* de más abajo (con qué le pagó el
@@ -1263,7 +1263,7 @@ class DetalleVentaView(LoginRequiredMixin, View):
                 .order_by('orden', 'nombre')
             )
             cuentas_reembolso_json = json.dumps([
-                {'pk': c.pk, 'nombre': c.nombre, 'moneda': c.moneda, 'tipo': c.tipo}
+                {'pk': c.pk, 'nombre': c.nombre, 'moneda': c.moneda, 'tipo': c.tipo, 'titular': c.titular}
                 for c in cuentas_reembolso
             ])
 

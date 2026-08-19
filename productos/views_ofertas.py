@@ -34,7 +34,7 @@ def _serializar_oferta(o):
             for p in o.productos.all()
         ],
         'categorias':     list(o.categorias.values_list('pk', flat=True)),
-        'vigente_hoy':    o.vigente_en(timezone.now().date()),
+        'vigente_hoy':    o.vigente_en(timezone.localtime().date()),
     }
 
 

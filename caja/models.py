@@ -83,8 +83,13 @@ class CuentaCaja(models.Model):
                   help_text='A qué libro pertenece esta cuenta (grande o diaria).')
 
     # ── Identificación de la cuenta (tarjetas, billeteras, bancos) ──
+    # Obligatorio para todo lo que no sea Efectivo: es lo que permite
+    # tener, por ejemplo, dos cuentas "Naranja X" (de dos personas
+    # distintas, o débito vs. crédito de la misma persona) sin que se
+    # confundan entre sí — ver unique_together y clean() más abajo.
     titular      = models.CharField(max_length=150, blank=True,
-                       help_text='Solo si difiere del titular del negocio.')
+                       help_text='Nombre de quien es titular de la tarjeta/cuenta. '
+                                  'Obligatorio salvo para Efectivo.')
     terminada_en = models.CharField(max_length=20, blank=True,
                        help_text='Últimos 4 dígitos, alias o CBU corto. Nunca el número completo.')
 
@@ -126,10 +131,23 @@ class CuentaCaja(models.Model):
         verbose_name        = 'Cuenta de caja'
         verbose_name_plural = 'Cuentas de caja'
         ordering            = ['caja', 'orden', 'nombre']
-        unique_together     = [('nombre', 'caja', 'moneda')]
+        # titular y es_credito entran en la unicidad a propósito: permite
+        # tener dos cuentas "Naranja X" en la misma moneda siempre que
+        # sean de titulares distintos, o débito/crédito de la misma
+        # persona (ver clean() — titular es obligatorio salvo Efectivo,
+        # así que esto nunca degenera en dos cuentas iguales con
+        # titular vacío de por medio).
+        unique_together     = [('nombre', 'caja', 'moneda', 'titular', 'es_credito')]
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        super().clean()
+        if self.tipo != TipoCuenta.EFECTIVO and not self.titular:
+            raise ValidationError({'titular': 'El titular es obligatorio para esta cuenta.'})
 
     def __str__(self):
-        return f'{self.nombre} ({self.get_moneda_display()})'
+        titular = f' · {self.titular}' if self.titular else ''
+        return f'{self.nombre}{titular} ({self.get_moneda_display()})'
 
     @property
     def saldo(self):
@@ -1260,7 +1278,7 @@ class Gasto(models.Model):
         if is_new:
             # Establecer hora automáticamente al crear
             if not self.hora:
-                self.hora = timezone.now().time()
+                self.hora = timezone.localtime().time()
         super().save(*args, **kwargs)
         
         # Sincronizar movimiento de caja
@@ -1552,7 +1570,7 @@ class Deuda(models.Model):
         abonos_historicos = abonos_historicos or []
         if (cuotas_historicas or abonos_historicos) and not es_carga_inicial:
             raise ValueError('Solo se pueden marcar cuotas/abonos ya pagados en una deuda de carga inicial.')
-        hoy = timezone.now().date()
+        hoy = timezone.localtime().date()
 
         if modo_cuotas == ModoCuotas.LIBRE:
             if cuotas_historicas:
@@ -1626,7 +1644,7 @@ class Deuda(models.Model):
         `medio_pago_historico` (nota libre, para lo que no encaja en
         las otras dos).
         """
-        if fecha_pago > timezone.now().date():
+        if fecha_pago > timezone.localtime().date():
             raise ValueError('La fecha de un pago histórico no puede ser futura.')
         cuota.estado = EstadoCuota.CONFIRMADA
         cuota.es_historica = True
@@ -1677,7 +1695,7 @@ class Deuda(models.Model):
         monto_total = self.monto_total
         monto_capital = (monto * self.monto_original / monto_total).quantize(Decimal('0.01')) \
             if monto_total else monto
-        fecha_pago = fecha or timezone.now().date()
+        fecha_pago = fecha or timezone.localtime().date()
 
         cuota = CuotaDeuda.objects.create(
             deuda=self, numero=numero, monto=monto, monto_capital=monto_capital,
@@ -1961,7 +1979,7 @@ class CuotaDeuda(models.Model):
     @property
     def habilitada(self):
         """True desde DIAS_HABILITACION_CUOTA días antes del vencimiento en adelante."""
-        return timezone.now().date() >= self.fecha_vencimiento - timedelta(days=DIAS_HABILITACION_CUOTA)
+        return timezone.localtime().date() >= self.fecha_vencimiento - timedelta(days=DIAS_HABILITACION_CUOTA)
 
     @transaction.atomic
     def confirmar(self, cuenta_pk, usuario, adelantar=False):
@@ -2085,7 +2103,7 @@ class CuotaDeuda(models.Model):
             creado_por=usuario,
         )
         if financiadora:
-            fondear_chequera(financiadora, cuenta_origen, monto_cheque, timezone.now().date(), cheque, usuario)
+            fondear_chequera(financiadora, cuenta_origen, monto_cheque, timezone.localtime().date(), cheque, usuario)
 
 
 def _calcular_plan_cuotas(monto_original, porcentaje_interes, cantidad_cuotas, fecha_inicio):
@@ -2498,7 +2516,7 @@ class CuentaPorCobrar(models.Model):
         abonos_historicos = abonos_historicos or []
         if (cuotas_historicas or abonos_historicos) and not es_carga_inicial:
             raise ValueError('Solo se pueden marcar cuotas/abonos ya cobrados en una cuenta de carga inicial.')
-        hoy = timezone.now().date()
+        hoy = timezone.localtime().date()
 
         if modo_cuotas == ModoCuotas.LIBRE:
             if cuotas_historicas:
@@ -2562,7 +2580,7 @@ class CuentaPorCobrar(models.Model):
         `cheque_historico` (crea un Cheque real A_COBRAR marcado
         es_historico=True), o `medio_pago_historico` (nota libre).
         """
-        if fecha_pago > timezone.now().date():
+        if fecha_pago > timezone.localtime().date():
             raise ValueError('La fecha de un pago histórico no puede ser futura.')
         cuota.estado = EstadoCuota.CONFIRMADA
         cuota.es_historica = True
@@ -2611,7 +2629,7 @@ class CuentaPorCobrar(models.Model):
         monto_total = self.monto_total
         monto_capital = (monto * self.monto_original / monto_total).quantize(Decimal('0.01')) \
             if monto_total else monto
-        fecha_pago = fecha or timezone.now().date()
+        fecha_pago = fecha or timezone.localtime().date()
 
         cuota = CuotaCobro.objects.create(
             cuenta_por_cobrar=self, numero=numero, monto=monto, monto_capital=monto_capital,
@@ -2839,7 +2857,7 @@ class CuotaCobro(models.Model):
 
     @property
     def habilitada(self):
-        return timezone.now().date() >= self.fecha_vencimiento - timedelta(days=DIAS_HABILITACION_CUOTA)
+        return timezone.localtime().date() >= self.fecha_vencimiento - timedelta(days=DIAS_HABILITACION_CUOTA)
 
     @transaction.atomic
     def confirmar(self, cuenta_pk, usuario, adelantar=False):

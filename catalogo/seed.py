@@ -103,7 +103,7 @@ def cargar_datos_demo():
         raise ValueError('Ya hay datos de prueba cargados — eliminalos antes de volver a cargar.')
 
     resumen = {'categorias': 0, 'productos': 0, 'imagenes': 0, 'paquetes': 0, 'ofertas': 0}
-    hoy = timezone.now().date()
+    hoy = timezone.localtime().date()
 
     categorias = {}
     for i, nombre in enumerate(CATEGORIAS_DEMO):

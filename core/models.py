@@ -367,8 +367,7 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
     def get_edad(self):
         if not self.fecha_nacimiento:
             return None
-        from datetime import date
-        hoy  = date.today()
+        hoy  = timezone.localtime().date()
         edad = hoy.year - self.fecha_nacimiento.year
         if (hoy.month, hoy.day) < (self.fecha_nacimiento.month, self.fecha_nacimiento.day):
             edad -= 1
@@ -378,8 +377,7 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
         """Antigüedad como string legible. Ej: '2 años y 3 meses'."""
         if not self.fecha_ingreso:
             return None
-        from datetime import date
-        fin         = self.fecha_egreso or date.today()
+        fin         = self.fecha_egreso or timezone.localtime().date()
         meses_total = (fin.year  - self.fecha_ingreso.year)  * 12 + \
                       (fin.month - self.fecha_ingreso.month)
         años  = meses_total // 12
@@ -531,8 +529,7 @@ class UsuarioExperienciaLaboral(models.Model):
         return f"{self.puesto} en {self.empresa} ({self.usuario.username})"
 
     def get_duracion(self):
-        from datetime import date
-        fin   = self.fecha_fin or date.today()
+        fin   = self.fecha_fin or timezone.localtime().date()
         meses = (fin.year - self.fecha_inicio.year) * 12 + (fin.month - self.fecha_inicio.month)
         años  = meses // 12
         resto = meses  % 12
@@ -606,8 +603,7 @@ class UsuarioCapacitacion(models.Model):
         """None = no vence / no aplica. True/False según fecha."""
         if not self.vencimiento_cert:
             return None
-        from datetime import date
-        return date.today() <= self.vencimiento_cert
+        return timezone.localtime().date() <= self.vencimiento_cert
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -648,14 +644,14 @@ class UsuarioDocumento(models.Model):
     def vencido(self):
         if not self.vencimiento:
             return False
-        from datetime import date
-        return date.today() > self.vencimiento
+        return timezone.localtime().date() > self.vencimiento
 
     def proxima_a_vencer(self, dias=30):
         if not self.vencimiento:
             return False
-        from datetime import date, timedelta
-        return date.today() <= self.vencimiento <= date.today() + timedelta(days=dias)
+        from datetime import timedelta
+        hoy = timezone.localtime().date()
+        return hoy <= self.vencimiento <= hoy + timedelta(days=dias)
 
 
 # ══════════════════════════════════════════════════════════════════

@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function poblarCuentas(moneda, seleccionarPk) {
         const disponibles = CUENTAS.filter(c => c.moneda === moneda);
         gCuenta.innerHTML = '<option value="">— Elegí una cuenta —</option>' +
-            disponibles.map(c => `<option value="${c.pk}">${c.nombre}${c.es_credito ? ' · crédito' : ''}</option>`).join('');
+            disponibles.map(c => `<option value="${c.pk}">${c.nombre}${c.titular ? ' · ' + c.titular : ''}${c.es_credito ? ' · crédito' : ''}</option>`).join('');
         if (seleccionarPk) {
             gCuenta.value = String(seleccionarPk);
         }

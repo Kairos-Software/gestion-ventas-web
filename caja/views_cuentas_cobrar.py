@@ -150,11 +150,11 @@ class CuentasCobrarView(LoginRequiredMixin, TemplateView):
         ctx['puede_confirmar'] = chequear_permiso(self.request.user, PERMISO_CONFIRMAR)
 
         ctx['monedas'] = Moneda.choices
-        ctx['today'] = timezone.now().date().isoformat()
+        ctx['today'] = timezone.localtime().date().isoformat()
 
         cuentas = CuentaCaja.objects.filter(caja=TipoCaja.GRANDE, activa=True, es_credito=False).order_by('orden', 'nombre')
         ctx['cuentas_json'] = json.dumps([
-            {'pk': c.pk, 'nombre': c.nombre, 'moneda': c.moneda, 'tipo': c.tipo}
+            {'pk': c.pk, 'nombre': c.nombre, 'moneda': c.moneda, 'tipo': c.tipo, 'titular': c.titular}
             for c in cuentas
         ])
 

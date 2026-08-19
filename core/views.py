@@ -33,7 +33,7 @@ class CustomLogoutView(LogoutView):
 @login_required
 def home(request):
     user = request.user
-    hoy = timezone.now().date()
+    hoy = timezone.localtime().date()
 
     permisos = {
         'ventas':       chequear_permiso(user, 'ver_ventas'),

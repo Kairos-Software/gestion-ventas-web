@@ -96,7 +96,7 @@ def clientes_inactivos(dias_sin_comprar=60, top=20):
     confirmada en los últimos `dias_sin_comprar` días (o que nunca
     compraron desde que están cargados).
     """
-    hoy = timezone.now().date()
+    hoy = timezone.localtime().date()
     limite = hoy - timedelta(days=dias_sin_comprar)
 
     ultima_compra_por_cliente = {
@@ -172,7 +172,7 @@ def cuentas_por_cobrar(desde, hasta, dias_proximo_vencimiento=15, top=10):
     Por no tener fecha de vencimiento, tampoco entran en "vencido" ni
     "vence en N días" (no hay contra qué fecha comparar).
     """
-    hoy = timezone.now().date()
+    hoy = timezone.localtime().date()
 
     cuotas_pendientes = CuotaCobro.objects.filter(
         estado=EstadoCuota.PENDIENTE, cuenta_por_cobrar__estado=EstadoDeuda.ACTIVA,

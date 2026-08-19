@@ -291,7 +291,7 @@ class StockAjusteAjax(LoginRequiredMixin, View):
                         cantidad_actual   = cantidad,
                         costo_unitario    = costo_unitario,
                         fecha_vencimiento = None,
-                        fecha_compra      = timezone.now().date(),
+                        fecha_compra      = timezone.localtime().date(),
                     )
                     # El costo cargado en este ajuste pasa a ser el costo
                     # "actual" del producto DE VERDAD (mismo mecanismo que

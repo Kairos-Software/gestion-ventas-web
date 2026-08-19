@@ -1506,7 +1506,7 @@ def registrar_devolucion(venta, items_data, descripcion, usuario=None,
         cotizacion = None
 
     devolucion = DevolucionVenta.objects.create(
-        venta=venta, fecha=fecha or timezone.now().date(), descripcion=descripcion,
+        venta=venta, fecha=fecha or timezone.localtime().date(), descripcion=descripcion,
         cuenta=cuenta, monto=monto, cotizacion=cotizacion, creado_por=usuario,
     )
 

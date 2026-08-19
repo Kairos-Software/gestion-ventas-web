@@ -233,7 +233,7 @@ function _cuentasDisponiblesParaMedio(medio) {
 function _pagoCuentaOpts(seleccionada, medio) {
     const disponibles = _cuentasDisponiblesParaMedio(medio);
     return '<option value="">— Elegí cuenta real —</option>' + disponibles.map(c =>
-        `<option value="${c.pk}" ${String(c.pk) === String(seleccionada) ? 'selected' : ''}>${c.nombre} (${c.moneda})</option>`
+        `<option value="${c.pk}" ${String(c.pk) === String(seleccionada) ? 'selected' : ''}>${c.nombre}${c.titular ? ' · ' + c.titular : ''} (${c.moneda})</option>`
     ).join('');
 }
 
@@ -1149,7 +1149,7 @@ function vdtAbrirModalDevolucion() {
 
     const selectCuenta = document.getElementById('vdvCuenta');
     selectCuenta.innerHTML = '<option value="">— No devolver plata (solo cambio) —</option>' +
-        (VDT.cuentasReembolso || []).map(c => `<option value="${c.pk}" data-moneda="${c.moneda}">${vdtEsc(c.nombre)} (${c.moneda})</option>`).join('');
+        (VDT.cuentasReembolso || []).map(c => `<option value="${c.pk}" data-moneda="${c.moneda}">${vdtEsc(c.nombre)}${c.titular ? ' · ' + vdtEsc(c.titular) : ''} (${c.moneda})</option>`).join('');
 
     document.getElementById('vdvMonto').value = '0';
     document.getElementById('vdvDescripcion').value = '';

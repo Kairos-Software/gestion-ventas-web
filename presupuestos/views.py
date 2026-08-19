@@ -373,7 +373,7 @@ class CrearPresupuestoAjax(LoginRequiredMixin, View):
 
         try:
             presupuesto = crear_presupuesto(
-                fecha=timezone.now().date(),
+                fecha=timezone.localtime().date(),
                 items_data=items_data,
                 cliente=cliente,
                 cliente_nombre=body.get('cliente_nombre', '') or (cliente.get_nombre_display() if cliente else ''),

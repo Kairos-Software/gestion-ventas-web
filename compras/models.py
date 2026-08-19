@@ -1457,7 +1457,7 @@ def registrar_perdida(lote, cantidad, motivo, motivo_detalle='', usuario=None,
         motivo                     = motivo,
         motivo_detalle             = motivo_detalle,
         automatica                 = automatica,
-        fecha                      = fecha or timezone.now().date(),
+        fecha                      = fecha or timezone.localtime().date(),
         registrado_por             = usuario,
     )
 
@@ -1476,7 +1476,7 @@ def procesar_lotes_vencidos():
     expuesto como comando: `manage.py procesar_lotes_vencidos`, para
     programarlo con el Task Scheduler de Windows.
     """
-    hoy = timezone.now().date()
+    hoy = timezone.localtime().date()
     vencidos = LoteCompra.objects.filter(
         activo=True, cantidad_actual__gt=0, fecha_vencimiento__lt=hoy,
     )
@@ -1662,7 +1662,7 @@ def fraccionar(producto_origen, producto_destino, cantidad_origen, cantidad_paqu
         cantidad_actual   = cantidad_paquetes,
         costo_unitario    = costo_unitario_calculado,
         fecha_vencimiento = None,
-        fecha_compra      = fecha or timezone.now().date(),
+        fecha_compra      = fecha or timezone.localtime().date(),
     )
     MovimientoStock(
         producto = producto_destino,
@@ -1696,5 +1696,5 @@ def fraccionar(producto_origen, producto_destino, cantidad_origen, cantidad_paqu
         lote_destino                      = lote_destino,
         notas                             = notas,
         creado_por                        = usuario,
-        fecha                             = fecha or timezone.now().date(),
+        fecha                             = fecha or timezone.localtime().date(),
     )

@@ -207,7 +207,7 @@ function _cdtEquivalenteArsHTML(l) {
 }
 
 function _cdtPagoCuentaOpts(seleccionada) {
-    const opt = c => `<option value="${c.pk}" ${String(c.pk) === String(seleccionada) ? 'selected' : ''}>${c.nombre} (${c.moneda})</option>`;
+    const opt = c => `<option value="${c.pk}" ${String(c.pk) === String(seleccionada) ? 'selected' : ''}>${c.nombre}${c.titular ? ' · ' + c.titular : ''} (${c.moneda})</option>`;
     const todas = _cdtCuentasDisponibles();
     // Las cuentas tipo "banco" son las únicas que habilitan "Pagar con
     // cheque" en la línea (ver _cdtCuentaEsBanco) — se agrupan aparte
@@ -219,7 +219,7 @@ function _cdtPagoCuentaOpts(seleccionada) {
         : '';
     const tarjetas = _cdtTarjetasDisponibles();
     const tarjetasOpts = tarjetas.length ? `<optgroup label="Tarjeta de crédito">${tarjetas.map(t =>
-        `<option value="${t.pk}" ${String(t.pk) === String(seleccionada) ? 'selected' : ''}>${t.nombre}${t.terminada_en ? ' ·· ' + t.terminada_en : ''} (${t.moneda})</option>`
+        `<option value="${t.pk}" ${String(t.pk) === String(seleccionada) ? 'selected' : ''}>${t.nombre}${t.titular ? ' · ' + t.titular : ''}${t.terminada_en ? ' ·· ' + t.terminada_en : ''} (${t.moneda})</option>`
     ).join('')}</optgroup>` : '';
     return '<option value="">— Elegí cuenta o Efectivo —</option>' + otrasOpts + bancosOpts + tarjetasOpts;
 }

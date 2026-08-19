@@ -24,7 +24,7 @@ def productos_por_vencer(dias_aviso, hoy=None):
     formato que necesita el mail de alerta.
     """
     datos = perdidas_vencimiento(dias_alerta=dias_aviso)
-    hoy = hoy or timezone.now().date()
+    hoy = hoy or timezone.localtime().date()
 
     lotes = []
     for lote in datos['lotes_por_vencer']:
@@ -50,7 +50,7 @@ def productos_por_vencer(dias_aviso, hoy=None):
 # ══════════════════════════════════════════════════════════════════
 
 def deudas_por_vencer(dias_aviso, hoy=None):
-    hoy = hoy or timezone.now().date()
+    hoy = hoy or timezone.localtime().date()
     limite = hoy + timedelta(days=dias_aviso)
 
     qs = (
@@ -188,7 +188,7 @@ def stock_estancado(dias, top=30):
 # ══════════════════════════════════════════════════════════════════
 
 def cheques_por_vencer(dias_aviso, hoy=None):
-    hoy = hoy or timezone.now().date()
+    hoy = hoy or timezone.localtime().date()
     limite = hoy + timedelta(days=dias_aviso)
 
     qs = (

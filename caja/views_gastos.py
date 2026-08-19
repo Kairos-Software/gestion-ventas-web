@@ -84,10 +84,11 @@ class GastosView(LoginRequiredMixin, TemplateView):
                 'nombre': c.nombre,
                 'moneda': c.moneda,
                 'es_credito': c.es_credito,
+                'titular': c.titular,
             }
             for c in cuentas
         ])
-        ctx['today'] = timezone.now().date().isoformat()
+        ctx['today'] = timezone.localtime().date().isoformat()
 
         from django.urls import reverse
         ctx['url_listar'] = reverse('caja:listar_gastos')

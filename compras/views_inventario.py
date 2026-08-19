@@ -82,7 +82,7 @@ class ListarLotesAjax(LoginRequiredMixin, View):
 
         filtro_venc = request.GET.get('vencimiento', '').strip()
         if filtro_venc:
-            hoy = timezone.now().date()
+            hoy = timezone.localtime().date()
             if filtro_venc == 'vencido':
                 qs = qs.filter(fecha_vencimiento__lt=hoy)
             elif filtro_venc == 'por_vencer':
@@ -104,7 +104,7 @@ class ListarLotesAjax(LoginRequiredMixin, View):
         combinacion = lote.combinacion
         item        = lote.item_compra
 
-        hoy = timezone.now().date()
+        hoy = timezone.localtime().date()
         estado_vencimiento = None
         if lote.fecha_vencimiento:
             if lote.fecha_vencimiento < hoy:

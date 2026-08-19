@@ -159,10 +159,11 @@ class DeudasView(LoginRequiredMixin, TemplateView):
 
         cuentas = CuentaCaja.objects.filter(caja=TipoCaja.GRANDE, activa=True).order_by('orden', 'nombre')
         ctx['cuentas_json'] = json.dumps([
-            {'pk': c.pk, 'nombre': c.nombre, 'moneda': c.moneda, 'es_credito': c.es_credito, 'tipo': c.tipo}
+            {'pk': c.pk, 'nombre': c.nombre, 'moneda': c.moneda, 'es_credito': c.es_credito,
+             'tipo': c.tipo, 'titular': c.titular}
             for c in cuentas
         ])
-        ctx['today'] = timezone.now().date().isoformat()
+        ctx['today'] = timezone.localtime().date().isoformat()
 
         from django.urls import reverse
         ctx['url_listar'] = reverse('caja:listar_deudas')

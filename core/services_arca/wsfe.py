@@ -17,6 +17,7 @@ import re
 from datetime import date
 
 import requests
+from django.utils import timezone
 
 from core.models import AmbienteArca
 from .wsaa import obtener_token, ArcaError
@@ -135,7 +136,7 @@ def solicitar_cae(config, *, cuit, tipo_comprobante, doc_tipo, doc_nro,
 
     token, sign = obtener_token(config)
     numero = comp_ultimo_autorizado(config, cuit, config.punto_venta, tipo_comprobante) + 1
-    hoy = date.today().strftime('%Y%m%d')
+    hoy = timezone.localtime().date().strftime('%Y%m%d')
 
     cuerpo = (
         '<ar:FECAESolicitar>\n'

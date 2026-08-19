@@ -61,6 +61,10 @@ class CuentaCrearEditarAjax(LoginRequiredMixin, View):
                 status=400,
             )
 
+        titular = (body.get('titular') or '').strip()
+        if not titular:
+            return JsonResponse({'error': 'El titular es obligatorio.'}, status=400)
+
         dia_cierre = body.get('dia_cierre') or None
         dia_vencimiento = body.get('dia_vencimiento') or None
         if es_credito:
@@ -84,17 +88,23 @@ class CuentaCrearEditarAjax(LoginRequiredMixin, View):
         else:
             cuenta = CuentaCaja(caja=TipoCaja.GRANDE)
 
-        duplicado = CuentaCaja.objects.filter(nombre=nombre, caja=TipoCaja.GRANDE, moneda=moneda)
+        duplicado = CuentaCaja.objects.filter(
+            nombre=nombre, caja=TipoCaja.GRANDE, moneda=moneda, titular=titular, es_credito=es_credito,
+        )
         if pk:
             duplicado = duplicado.exclude(pk=pk)
         if duplicado.exists():
-            return JsonResponse({'error': 'Ya existe una cuenta con ese nombre en esa moneda.'}, status=400)
+            return JsonResponse(
+                {'error': 'Ya existe una cuenta con ese nombre, titular y moneda '
+                          '(y el mismo tipo débito/crédito).'},
+                status=400,
+            )
 
         cuenta.nombre = nombre
         cuenta.moneda = moneda
         cuenta.tipo = tipo
         cuenta.es_credito = es_credito
-        cuenta.titular = (body.get('titular') or '').strip()
+        cuenta.titular = titular
         cuenta.terminada_en = (body.get('terminada_en') or '').strip()
         cuenta.dia_cierre = dia_cierre
         cuenta.dia_vencimiento = dia_vencimiento

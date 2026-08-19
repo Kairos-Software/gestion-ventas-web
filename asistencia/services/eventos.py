@@ -15,7 +15,7 @@ def _fmt(valor):
 
 
 def _dias_restantes(fecha, hoy=None):
-    hoy = hoy or timezone.now().date()
+    hoy = hoy or timezone.localtime().date()
     return (fecha - hoy).days
 
 

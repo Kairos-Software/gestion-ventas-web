@@ -83,7 +83,7 @@ def _resolver_rango(request, hoy):
 
 @login_required
 def resumen(request):
-    hoy = timezone.now().date()
+    hoy = timezone.localtime().date()
     preset, desde, hasta = _resolver_rango(request, hoy)
 
     resumen_ganancia = stats_ventas.resumen_ganancia(desde, hasta)
@@ -135,7 +135,7 @@ def ventas(request):
     if not chequear_permiso(request.user, 'ver_ventas'):
         return render(request, 'core/estadisticas/ventas.html', {'sin_permiso': True})
 
-    hoy = timezone.now().date()
+    hoy = timezone.localtime().date()
     preset, desde, hasta = _resolver_rango(request, hoy)
 
     por_dia_semana = stats_ventas.por_dia_semana(desde, hasta)
@@ -175,7 +175,7 @@ def compras(request):
     if not chequear_permiso(request.user, 'ver_compras'):
         return render(request, 'core/estadisticas/compras.html', {'sin_permiso': True})
 
-    hoy = timezone.now().date()
+    hoy = timezone.localtime().date()
     preset, desde, hasta = _resolver_rango(request, hoy)
 
     serie = stats_compras.serie_mensual(hoy, meses=12)
@@ -206,7 +206,7 @@ def productos(request):
     if not chequear_permiso(request.user, 'ver_productos'):
         return render(request, 'core/estadisticas/productos.html', {'sin_permiso': True})
 
-    hoy = timezone.now().date()
+    hoy = timezone.localtime().date()
     preset, desde, hasta = _resolver_rango(request, hoy)
 
     contexto = {
@@ -228,7 +228,7 @@ def clientes(request):
     if not chequear_permiso(request.user, 'ver_clientes'):
         return render(request, 'core/estadisticas/clientes.html', {'sin_permiso': True})
 
-    hoy = timezone.now().date()
+    hoy = timezone.localtime().date()
     preset, desde, hasta = _resolver_rango(request, hoy)
 
     distribucion_tipo = stats_clientes.distribucion_tipo()
@@ -290,7 +290,7 @@ def caja(request):
     if not chequear_permiso(request.user, 'ver_caja'):
         return render(request, 'core/estadisticas/caja.html', {'sin_permiso': True})
 
-    hoy = timezone.now().date()
+    hoy = timezone.localtime().date()
     preset, desde, hasta = _resolver_rango(request, hoy)
 
     gastos_categoria = stats_caja.gastos_por_categoria(desde, hasta)

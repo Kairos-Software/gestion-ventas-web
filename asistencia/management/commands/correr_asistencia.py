@@ -1,6 +1,7 @@
 from datetime import date, timedelta
 
 from django.core.management.base import BaseCommand
+from django.utils import timezone
 
 from asistencia.models import CanalNotificacion, PreferenciaAsistencia, TipoNotificacion
 from asistencia.services import alertas, reporte_periodico
@@ -34,7 +35,7 @@ class Command(BaseCommand):
                                   'se haya avisado lo mismo hace poco.')
 
     def handle(self, *args, **options):
-        hoy = date.fromisoformat(options['fecha']) if options['fecha'] else date.today()
+        hoy = date.fromisoformat(options['fecha']) if options['fecha'] else timezone.localtime().date()
         forzar = options['forzar']
         tipo = options['tipo']
 

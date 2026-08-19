@@ -412,7 +412,7 @@ class Oferta(models.Model):
 
 def ofertas_vigentes_hoy():
     """Ofertas activas ahora mismo (fecha + día de semana) — para exponer al carrito de venta."""
-    hoy = timezone.now().date()
+    hoy = timezone.localtime().date()
     candidatas = (
         Oferta.objects
         .filter(activa=True, fecha_inicio__lte=hoy, fecha_fin__gte=hoy)

@@ -114,6 +114,7 @@ class TransaccionesPageView(LoginRequiredMixin, TemplateView):
                 'pk': c.pk,
                 'nombre': c.nombre,
                 'moneda': c.moneda,
+                'titular': c.titular,
                 'es_efectivo': c.nombre == CUENTA_EFECTIVO_DEFAULT_NOMBRE,
                 'saldo': str(c.saldo),
             }

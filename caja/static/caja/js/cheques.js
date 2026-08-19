@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function poblarSelect(select, opciones, seleccionarPk, placeholder) {
         select.innerHTML = `<option value="">${placeholder || '— Elegí una cuenta —'}</option>` +
-            opciones.map(c => `<option value="${c.pk}">${c.nombre}</option>`).join('');
+            opciones.map(c => `<option value="${c.pk}">${c.nombre}${c.titular ? ' · ' + c.titular : ''}</option>`).join('');
         if (seleccionarPk) select.value = String(seleccionarPk);
     }
 
