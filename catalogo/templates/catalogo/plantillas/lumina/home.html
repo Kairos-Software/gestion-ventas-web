@@ -29,7 +29,7 @@
                 </div>
             </div>
             <div class="l-hero-visual">
-                {% with pieza_1=config_catalogo.directo_hero_producto1|default:destacados.0 pieza_2=config_catalogo.directo_hero_producto2|default:destacados.1 pieza_3=config_catalogo.directo_hero_producto3|default:destacados.2 %}
+                {% with pieza_1=directo_hero_pieza1 pieza_2=directo_hero_pieza2 pieza_3=directo_hero_pieza3 %}
                 <a href="{% if not config_catalogo.directo_hero_imagen1 and pieza_1 %}{% url 'catalogo:producto_detalle' pieza_1.pk %}{% else %}#kcCatalogo{% endif %}" class="l-ph-block l-ph-1">
                     {% if config_catalogo.directo_hero_imagen1 %}<img src="{{ config_catalogo.directo_hero_imagen1.url }}" alt="Pieza destacada">
                     {% elif pieza_1.imagenes.first %}<img src="{{ pieza_1.imagenes.first.imagen.url }}" alt="{{ pieza_1.nombre }}">{% endif %}

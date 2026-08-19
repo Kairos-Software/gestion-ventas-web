@@ -870,6 +870,21 @@ class CatalogoHomeView(TemplateView):
                             break
             ctx['hero_spot_2'] = hero_spot_2
             ctx['hero_spot_2_es_combo'] = hero_spot_2_es_combo
+
+        # Las 3 piezas del hero de Directo/Lumina (ver lumina/home.html).
+        # Resuelto acá, no en el template: la versión vieja indexaba
+        # `destacados.0/.1/.2` como argumento de un filtro `|default:` en
+        # un `{% with %}`, y Django NO protege los argumentos de filtro
+        # como protege la variable principal — con `destacados` vacía
+        # (tienda sin productos destacados) eso tira VariableDoesNotExist
+        # sin capturar y tumba la página entera con 500.
+        ctx['directo_hero_pieza1'] = config_bento.directo_hero_producto1 or (
+            destacados[0] if len(destacados) > 0 else None)
+        ctx['directo_hero_pieza2'] = config_bento.directo_hero_producto2 or (
+            destacados[1] if len(destacados) > 1 else None)
+        ctx['directo_hero_pieza3'] = config_bento.directo_hero_producto3 or (
+            destacados[2] if len(destacados) > 2 else None)
+
         ctx['total_catalogo'] = total_catalogo
         ctx['orden_activo'] = orden
         ctx['filtros_activos'] = filtros_activos
