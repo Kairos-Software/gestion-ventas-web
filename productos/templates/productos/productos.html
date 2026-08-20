@@ -352,17 +352,19 @@
                         <small class="prd-field-hint" id="hint_codigo_barras">Para productos con variantes, el código de barras se define en cada combinación.</small>
                     </div>
                 </div>
-                <div class="prd-field">
-                    <label>Código del proveedor <span class="prd-hint">(el que usa él en su factura/presupuesto)</span></label>
-                    <input type="text" id="f_codigo_proveedor" class="prd-input" placeholder="Ej: el código con el que el proveedor identifica este producto">
-                </div>
                 <div class="prd-field prd-field--required">
                     <label>Nombre del producto <span class="prd-req">*</span></label>
                     <input type="text" id="f_nombre" class="prd-input" placeholder="Nombre completo del producto" required>
                 </div>
-                <div class="prd-field">
-                    <label>Nombre corto <span class="prd-hint">(para tickets y etiquetas)</span></label>
-                    <input type="text" id="f_nombre_corto" class="prd-input" placeholder="Máx. 80 caracteres">
+                <div class="prd-form-grid prd-form-grid--2">
+                    <div class="prd-field">
+                        <label>Código del proveedor <span class="prd-hint">(el que usa él en su factura/presupuesto)</span></label>
+                        <input type="text" id="f_codigo_proveedor" class="prd-input" placeholder="Ej: el código que usa el proveedor">
+                    </div>
+                    <div class="prd-field">
+                        <label>Nombre corto <span class="prd-hint">(para tickets y etiquetas)</span></label>
+                        <input type="text" id="f_nombre_corto" class="prd-input" placeholder="Máx. 80 caracteres">
+                    </div>
                 </div>
                 <div class="prd-form-grid prd-form-grid--2">
                     <div class="prd-field">
@@ -451,6 +453,7 @@
 
             {# — TAB: CLASIFICACIÓN — #}
             <div class="prd-tab-panel" id="tab-clasificacion">
+                <div class="prd-form-grid prd-form-grid--2">
                 <div class="prd-field">
                     <label>Categoría</label>
                     <div class="prd-select-with-manager">
@@ -505,6 +508,7 @@
                         </div>
                         <small class="prd-field-hint">Se agrega dentro de la categoría elegida arriba.</small>
                     </div>
+                </div>
                 </div>
                 <div class="prd-form-grid prd-form-grid--2" style="margin-top:.5rem">
                     <div class="prd-field">
@@ -714,16 +718,6 @@
                         .prd-v2-step-title{font-size:13px;font-weight:600;color:#111827}
                         .prd-v2-step-sub{font-size:12px;color:#9CA3AF}
                         .prd-v2-block{margin-bottom:22px}
-                        .prd-v2-resumen{margin-top:14px;padding-top:12px;border-top:1px dashed #E5E7EB}
-                        .prd-v2-resumen-tipo{margin-bottom:8px}
-                        .prd-v2-resumen-tipo:last-child{margin-bottom:0}
-                        .prd-v2-resumen-tipo-nombre{font-size:11px;font-weight:600;color:#9CA3AF;text-transform:uppercase;letter-spacing:.03em;margin-bottom:5px}
-                        .prd-v2-chips{display:flex;flex-wrap:wrap;gap:6px}
-                        .prd-v2-chip{display:inline-flex;align-items:center;gap:6px;background:#EFF6FF;color:#1D4ED8;font-size:12.5px;padding:4px 6px 4px 10px;border-radius:14px;border:1px solid #DBEAFE;cursor:pointer;line-height:1.4}
-                        .prd-v2-chip:hover{border-color:#93C5FD}
-                        .prd-v2-chip-del{width:15px;height:15px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#93C5FD}
-                        .prd-v2-chip-del:hover{background:#DBEAFE;color:#1D4ED8}
-                        .prd-v2-chip-empty{font-size:12px;color:#B0B4BC;font-style:italic}
                         .prd-combinacion-item2{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
                         .prd-combinacion-item2-chips{display:flex;flex-wrap:wrap;gap:5px}
                         .prd-combinacion-item2-chip{background:#FFF1E8;color:#C2410C;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:12px;white-space:nowrap}
@@ -802,9 +796,6 @@
                                     </div>
                                     <div class="kai-help-popover" id="ayuda_variante_valor">Los valores de ese tipo. Si elegiste Color: Rojo, Azul, Verde...</div>
                                 </div>
-                            </div>
-                            <div class="prd-v2-resumen" id="catalogoValoresResumen">
-                                <span class="prd-v2-chip-empty">Todavía no cargaste tipos de variante.</span>
                             </div>
                         </div>
                     </div>

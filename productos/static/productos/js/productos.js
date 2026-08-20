@@ -595,7 +595,10 @@ function toggleInlineManager(id) {
         const node = document.getElementById(mid);
         if (node) node.style.display = 'none';
     });
-    if (!abierto) el.style.display = '';
+    if (!abierto) {
+        el.style.display = '';
+        el.querySelector('input')?.focus();
+    }
 }
 
 async function crearCategoria() {
@@ -958,7 +961,6 @@ async function cargarCatalogoVariantes() {
         _cacheOpciones  = dataOpc.results || [];
         poblarSelectVariantes(document.getElementById('f_variante_tipo'));
         actualizarSelectValoresCatalogo();
-        _renderCatalogoResumen();
         renderBulkDimensiones();
         renderBulkPreview();
     } catch {
@@ -1010,56 +1012,6 @@ function actualizarSelectValoresCatalogo() {
 }
 
 document.getElementById('f_variante_tipo')?.addEventListener('change', actualizarSelectValoresCatalogo);
-
-function _renderCatalogoResumen() {
-    const cont = document.getElementById('catalogoValoresResumen');
-    if (!cont) return;
-    const tipos = _cacheVariantes.filter(v => v.activo);
-    if (!tipos.length) {
-        cont.innerHTML = '<span class="prd-v2-chip-empty">Todavía no cargaste tipos de variante.</span>';
-        return;
-    }
-    cont.innerHTML = tipos.map(t => {
-        const valores = opcionesDeVariante(t.pk);
-        const chips = valores.length
-            ? valores.map(o => `
-                <span class="prd-v2-chip" onclick="_seleccionarChipCatalogo('${t.pk}','${o.pk}')">
-                    ${o.nombre}
-                    <span class="prd-v2-chip-del" title="Eliminar valor" onclick="event.stopPropagation(); _eliminarValorCatalogo('${o.pk}','${o.nombre.replace(/'/g, "\\'")}')">
-                        <svg width="9" height="9" viewBox="0 0 9 9" fill="none"><path d="M1 1L8 8M8 1L1 8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-                    </span>
-                </span>`).join('')
-            : '<span class="prd-v2-chip-empty">Sin valores todavía</span>';
-        return `
-            <div class="prd-v2-resumen-tipo">
-                <div class="prd-v2-resumen-tipo-nombre">${t.nombre}</div>
-                <div class="prd-v2-chips">${chips}</div>
-            </div>`;
-    }).join('');
-}
-
-function _seleccionarChipCatalogo(tipoPk, opcionPk) {
-    const selTipo = document.getElementById('f_variante_tipo');
-    selTipo.value = tipoPk;
-    actualizarSelectValoresCatalogo();
-    document.getElementById('f_variante_valor').value = opcionPk;
-}
-
-async function _eliminarValorCatalogo(pk, nombre) {
-    if (!await KaiConfirm(`¿Eliminar el valor "${nombre}"?`)) return;
-    const res  = await fetch(URLS.opcionEliminar, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
-        body: JSON.stringify({ pk }),
-    });
-    const data = await res.json();
-    if (data.ok) {
-        showToast(`Valor "${nombre}" eliminado.`);
-        await cargarCatalogoVariantes();
-    } else {
-        showToast(data.error || 'Error', 'error');
-    }
-}
 
 async function crearVariante() {
     const input  = document.getElementById('nuevaVarianteNombre');

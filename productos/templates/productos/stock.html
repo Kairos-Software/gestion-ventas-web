@@ -1,5 +1,6 @@
 {% extends 'core/base.html' %}
 {% load static %}
+{% load humanize %}
 
 {% block title %}Stock{% endblock %}
 
@@ -96,6 +97,7 @@
                     <tr>
                         <th>Producto</th>
                         <th>Stock actual</th>
+                        <th>Valor total</th>
                         <th>Mínimo</th>
                         <th>Estado</th>
                         <th></th>
@@ -158,8 +160,18 @@
                                     </span>
                                     {% endif %}
                                 {% endfor %}
+                                {% if p.combinaciones_activas_count > 4 %}
+                                <button type="button" class="stock-combinacion-mas"
+                                        onclick="verTodasCombinaciones({{ p.pk }}, '{{ p.nombre|escapejs }}')">
+                                    +{{ p.combinaciones_activas_count|add:"-4" }} más
+                                </button>
+                                {% endif %}
                             </div>
                             {% endif %}
+                        </td>
+
+                        <td>
+                            <span class="stock-valor">${{ p.valor_total_costo|floatformat:0|intcomma }}</span>
                         </td>
 
                         <td style="color:var(--text-muted);font-size:0.78rem;">
@@ -245,7 +257,7 @@
 <!-- Modal: ajuste manual de stock                                   -->
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <div class="modal-overlay" id="modalAjuste">
-    <div class="modal-box" style="width:440px;">
+    <div class="modal-box" style="width:620px;">
         <div class="modal-header">
             <div>
                 <span class="modal-title" id="modalAjusteTitulo">Ajuste de stock</span>
@@ -260,27 +272,28 @@
             <!-- Tipo de ajuste -->
             <div class="form-group" style="margin:0;">
                 <label class="form-label">¿Qué querés hacer?</label>
-                <button type="button"
-                    class="tipo-btn entrada"
-                    data-tipo="ajuste_pos"
-                    onclick="seleccionarTipoAjuste(this)"
-                    style="margin-bottom:0.375rem;">
-                    <span class="tipo-signo">+</span>
-                    Sumar unidades
-                    <span style="display:block;font-size:0.68rem;font-weight:400;color:inherit;opacity:0.75;margin-top:2px;">
-                        Encontré más stock del registrado (conteo físico, error previo)
-                    </span>
-                </button>
-                <button type="button"
-                    class="tipo-btn salida"
-                    data-tipo="ajuste_neg"
-                    onclick="seleccionarTipoAjuste(this)">
-                    <span class="tipo-signo">−</span>
-                    Restar unidades
-                    <span style="display:block;font-size:0.68rem;font-weight:400;color:inherit;opacity:0.75;margin-top:2px;">
-                        Hay menos stock del registrado (rotura, pérdida, merma)
-                    </span>
-                </button>
+                <div class="tipo-grid">
+                    <button type="button"
+                        class="tipo-btn entrada"
+                        data-tipo="ajuste_pos"
+                        onclick="seleccionarTipoAjuste(this)">
+                        <span class="tipo-signo">+</span>
+                        Sumar unidades
+                        <span style="display:block;font-size:0.68rem;font-weight:400;color:inherit;opacity:0.75;margin-top:2px;">
+                            Encontré más stock del registrado (conteo físico, error previo)
+                        </span>
+                    </button>
+                    <button type="button"
+                        class="tipo-btn salida"
+                        data-tipo="ajuste_neg"
+                        onclick="seleccionarTipoAjuste(this)">
+                        <span class="tipo-signo">−</span>
+                        Restar unidades
+                        <span style="display:block;font-size:0.68rem;font-weight:400;color:inherit;opacity:0.75;margin-top:2px;">
+                            Hay menos stock del registrado (rotura, pérdida, merma)
+                        </span>
+                    </button>
+                </div>
                 <input type="hidden" id="ajusteTipo">
             </div>
 
@@ -302,32 +315,39 @@
                 </div>
             </div>
 
-            <!-- Cantidad -->
-            <div class="form-group" style="margin:0;">
-                <label class="form-label">Cantidad a ajustar</label>
-                <input type="number" id="ajusteCantidad" class="form-control" placeholder="0" min="0.001" step="any">
-                <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.3rem;">
-                    Ingresá la diferencia, no el stock total. Ej: si tenés 8 y el sistema dice 5, ponés 3.
-                </div>
-            </div>
-
             <!--
-                Costo unitario — solo para "Sumar unidades" (stock que ya
-                se tenía, ej. migración desde otro sistema). Se precarga
-                con el costo de referencia del producto, editable por si
-                esa mercadería puntual costó distinto. NO genera ningún
-                movimiento de caja — solo queda registrado para que una
-                eventual pérdida sobre este stock no se valorice en $0.
+                Cantidad + costo lado a lado (auto-fit: si "Costo unitario"
+                está oculto -solo aplica a "Sumar unidades"- Cantidad ocupa
+                el ancho completo en vez de dejar un hueco vacío al lado).
             -->
-            <div class="form-group" id="ajusteCostoWrap" style="margin:0; display:none;">
-                <label class="form-label">
-                    Costo unitario
-                    <span style="color:var(--text-muted);font-weight:400">(no afecta la caja)</span>
-                </label>
-                <input type="number" id="ajusteCosto" class="form-control" placeholder="0.00" min="0" step="0.01">
-                <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.3rem;">
-                    Cuánto vale esta mercadería, para que las pérdidas y las estadísticas la reflejen bien. Ya
-                    precargado con el "Costo de referencia" del producto — cambialo si esta partida costó distinto.
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:1rem;">
+                <!-- Cantidad -->
+                <div class="form-group" style="margin:0;">
+                    <label class="form-label">Cantidad a ajustar</label>
+                    <input type="number" id="ajusteCantidad" class="form-control" placeholder="0" min="0.001" step="any">
+                    <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.3rem;">
+                        Ingresá la diferencia, no el stock total. Ej: si tenés 8 y el sistema dice 5, ponés 3.
+                    </div>
+                </div>
+
+                <!--
+                    Costo unitario — solo para "Sumar unidades" (stock que ya
+                    se tenía, ej. migración desde otro sistema). Se precarga
+                    con el costo de referencia del producto, editable por si
+                    esa mercadería puntual costó distinto. NO genera ningún
+                    movimiento de caja — solo queda registrado para que una
+                    eventual pérdida sobre este stock no se valorice en $0.
+                -->
+                <div class="form-group" id="ajusteCostoWrap" style="margin:0; display:none;">
+                    <label class="form-label">
+                        Costo unitario
+                        <span style="color:var(--text-muted);font-weight:400">(no afecta la caja)</span>
+                    </label>
+                    <input type="number" id="ajusteCosto" class="form-control" placeholder="0.00" min="0" step="0.01">
+                    <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.3rem;">
+                        Cuánto vale esta mercadería, para que las pérdidas y las estadísticas la reflejen bien. Ya
+                        precargado con el "Costo de referencia" del producto — cambialo si esta partida costó distinto.
+                    </div>
                 </div>
             </div>
 
@@ -356,6 +376,20 @@
         </div>
         <div class="modal-body" id="modalHistorialBody">
             <div class="empty-state">Cargando…</div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- Modal: todas las combinaciones de un producto (más de 4)        -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalCombinaciones">
+    <div class="modal-box" style="width:480px;">
+        <div class="modal-header">
+            <span class="modal-title" id="modalCombinacionesTitle">Combinaciones</span>
+            <button class="modal-close" onclick="cerrarModalCombinaciones()">✕</button>
+        </div>
+        <div class="modal-body" id="modalCombinacionesBody" style="padding:1.25rem;">
         </div>
     </div>
 </div>

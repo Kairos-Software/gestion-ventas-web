@@ -11,7 +11,7 @@ from django.db.models import Max
 
 from .models import (
     Producto, ProductoImagen, CaracteristicaProducto,
-    Variante, OpcionVariante, CombinacionVariante,
+    Variante, OpcionVariante, CombinacionVariante, CombinacionVarianteOpcion,
     CategoriaProducto, TipoProducto, ListaDescuento,
     cantidad_valida_para_unidad, ModoPrecio,
     MAX_IMAGENES_POR_PRODUCTO,
@@ -722,7 +722,7 @@ class OpcionVarianteAccionesAjax(LoginRequiredMixin, View):
 
 
 class OpcionVarianteEliminarAjax(LoginRequiredMixin, View):
-    """POST → elimina una opción de variante."""
+    """POST → elimina una opción de variante. Bloquea si está en uso en alguna combinación."""
 
     def post(self, request):
         if not chequear_permiso(request.user, 'gestionar_categorias'):
@@ -738,6 +738,17 @@ class OpcionVarianteEliminarAjax(LoginRequiredMixin, View):
             return JsonResponse({'error': 'PK requerido.'}, status=400)
 
         opcion = get_object_or_404(OpcionVariante, pk=pk)
+        # Este valor es global (se reutiliza en cualquier producto): si ya
+        # está en uso en la combinación de OTRO producto, borrarlo acá
+        # borraría en cascada esa dimensión de esa combinación ajena, sin
+        # aviso — igual criterio que VarianteEliminarAjax con el tipo.
+        total = CombinacionVarianteOpcion.objects.filter(opcion=opcion).count()
+        if total > 0:
+            return JsonResponse({
+                'ok':    False,
+                'error': f'No se puede eliminar. Está en uso en {total} combinación{"es" if total != 1 else ""} de producto{"s" if total != 1 else ""}.',
+            }, status=400)
+
         nombre = opcion.nombre
         opcion.delete()
         return JsonResponse({'ok': True, 'nombre': nombre})

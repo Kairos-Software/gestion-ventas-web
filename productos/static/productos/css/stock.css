@@ -214,7 +214,7 @@
 .stock-minimo-pct.warning { color: var(--warning); }
 .stock-minimo-pct.danger  { color: var(--danger); }
 
-
+.stock-bar-wrap {
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -267,6 +267,76 @@
 .badge-alerta.ok      { background: rgba(16,185,129,0.1);  color: var(--success); }
 .badge-alerta.warning { background: rgba(245,158,11,0.1);  color: var(--warning); }
 .badge-alerta.danger  { background: rgba(239,68,68,0.1);   color: var(--danger); }
+
+/* ── Combinaciones por producto (chips de color/sabor/etc. con stock) ── */
+.stock-combinaciones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.5rem;
+    max-width: 420px;
+}
+
+.stock-combinacion-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.7rem;
+    line-height: 1.3;
+    padding: 0.2rem 0.55rem;
+    border-radius: 1rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    white-space: nowrap;
+}
+
+.stock-combinacion-chip .chip-nombre {
+    color: var(--text-secondary);
+}
+
+.stock-combinacion-chip .chip-stock {
+    font-weight: 700;
+    font-family: var(--font-heading);
+    color: var(--text-primary);
+}
+
+/* Más de 4 combinaciones: se ocultan las siguientes y aparece "+N más"
+   (ver modalCombinaciones). Acotado a #tablaStock: el modal reusa la
+   misma clase de chip para mostrarlas TODAS, sin este límite.
+   No afecta el toggle de stock=0 en JS (actualizarChipCombinacion), que
+   solo alterna entre 'none' e '' — con '' el chip vuelve a depender de
+   esta regla, no queda forzado visible. */
+#tablaStock .stock-combinacion-chip:nth-child(n+5) {
+    display: none;
+}
+
+.stock-combinacion-mas {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.7rem;
+    font-weight: 600;
+    line-height: 1.3;
+    padding: 0.2rem 0.55rem;
+    border-radius: 1rem;
+    background: var(--brand-orange-light);
+    color: var(--brand-orange-dark);
+    border: 1px solid transparent;
+    cursor: pointer;
+    font-family: var(--font-body);
+}
+
+.stock-combinacion-mas:hover {
+    border-color: var(--brand-orange);
+}
+
+/* ── Valor total (stock × costo) ── */
+.stock-valor {
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-family: var(--font-heading);
+    color: var(--text-primary);
+    white-space: nowrap;
+}
 
 /* ── Botón acción en fila ── */
 .btn-row {

@@ -356,3 +356,40 @@ function cerrarModalHistorial() {
 document.getElementById('modalHistorial').addEventListener('click', function (e) {
     if (e.target === this) cerrarModalHistorial();
 });
+
+
+// ═══════════════════════════════════════════
+//  MODAL "VER TODAS LAS COMBINACIONES"
+//  (producto con más de 4 — ver regla nth-child en stock.css)
+// ═══════════════════════════════════════════
+
+function verTodasCombinaciones(pk, nombre) {
+    const row = document.querySelector(`tr[data-pk="${pk}"]`);
+    let combinaciones = [];
+    try {
+        combinaciones = JSON.parse(row?.dataset.colores || '[]');
+    } catch { combinaciones = []; }
+
+    document.getElementById('modalCombinacionesTitle').textContent = `Combinaciones — ${nombre}`;
+    document.getElementById('modalCombinacionesBody').innerHTML =
+        '<div class="stock-combinaciones" style="max-width:none;">' +
+        combinaciones.map(c => {
+            const val = parseFloat(c.stock_actual);
+            const fmt = (val % 1 === 0 ? parseInt(val) : val).toString();
+            return `
+            <span class="stock-combinacion-chip">
+                <span class="chip-nombre">${c.descripcion_combinacion}:</span>
+                <span class="chip-stock">${fmt}</span>
+            </span>`;
+        }).join('') +
+        '</div>';
+    document.getElementById('modalCombinaciones').classList.add('visible');
+}
+
+function cerrarModalCombinaciones() {
+    document.getElementById('modalCombinaciones').classList.remove('visible');
+}
+
+document.getElementById('modalCombinaciones').addEventListener('click', function (e) {
+    if (e.target === this) cerrarModalCombinaciones();
+});
