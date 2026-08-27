@@ -47,10 +47,22 @@ document.querySelectorAll('.prd-modal-overlay').forEach(overlay => {
 // ════════════════════════════════════════════════════════════════════
 document.querySelectorAll('.prd-tab').forEach(tab => {
     tab.addEventListener('click', () => {
-        document.querySelectorAll('.prd-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.prd-tab').forEach(t => {
+            t.classList.remove('active');
+            t.setAttribute('aria-selected', 'false');
+        });
         document.querySelectorAll('.prd-tab-panel').forEach(p => p.classList.remove('active'));
         tab.classList.add('active');
+        tab.setAttribute('aria-selected', 'true');
         document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+
+        // En pantallas angostas mantiene visible y centrada la pestaña elegida
+        // sin desplazar verticalmente el modal completo.
+        const tabs = tab.closest('.prd-tabs');
+        if (tabs && tabs.scrollWidth > tabs.clientWidth) {
+            const left = tab.offsetLeft - (tabs.clientWidth - tab.offsetWidth) / 2;
+            tabs.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
+        }
     });
 });
 
@@ -1737,6 +1749,7 @@ function agregarFilaTabla(d) {
     tr.className  = `prd-row${d.stock_bajo ? ' prd-row--stock-bajo' : ''}`;
     tr.dataset.pk = d.pk;
     tr.innerHTML  = `
+        <td class="prd-td-check"><input type="checkbox" class="prd-row-check prd-row-checkbox" value="${d.pk}"></td>
         <td class="prd-td-img">${h.thumbHtml}</td>
         <td>${h.codigoHtml}</td>
         <td>${h.nombreHtml}</td>
@@ -1768,15 +1781,15 @@ function actualizarFilaTabla(d) {
 
     const h = _buildRowHtml(d);
     tr.className = `prd-row${d.stock_bajo ? ' prd-row--stock-bajo' : ''}`;
-    tr.cells[0].innerHTML = `<td class="prd-td-img">${h.thumbHtml}</td>`.replace(/<td[^>]*>|<\/td>/g,'');
-    tr.cells[1].innerHTML = h.codigoHtml;
-    tr.cells[2].innerHTML = h.nombreHtml;
-    tr.cells[3].innerHTML = h.categHtml;
-    tr.cells[4].innerHTML = h.tipoHtml;
-    tr.cells[5].innerHTML = h.precioHtml;
-    tr.cells[6].innerHTML = h.stockHtml;
-    tr.cells[7].innerHTML = h.estadoHtml;
-    tr.cells[8].innerHTML = h.accionesHtml;
+    tr.cells[1].innerHTML = h.thumbHtml;
+    tr.cells[2].innerHTML = h.codigoHtml;
+    tr.cells[3].innerHTML = h.nombreHtml;
+    tr.cells[4].innerHTML = h.categHtml;
+    tr.cells[5].innerHTML = h.tipoHtml;
+    tr.cells[6].innerHTML = h.precioHtml;
+    tr.cells[7].innerHTML = h.stockHtml;
+    tr.cells[8].innerHTML = h.estadoHtml;
+    tr.cells[9].innerHTML = h.accionesHtml;
 
     // Destello visual para indicar que se actualizó
     tr.style.transition = 'background .15s';
@@ -2006,3 +2019,99 @@ document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
     document.querySelectorAll('.prd-modal-overlay--open').forEach(overlay => cerrarModal(overlay.id));
 });
+
+// ════════════════════════════════════════════════════════════════════
+//  SELECCIÓN MÚLTIPLE / ACCIONES MASIVAS
+// ════════════════════════════════════════════════════════════════════
+const prdSelectAll  = document.getElementById('prdSelectAll');
+const prdBulkBar     = document.getElementById('prdBulkBar');
+const prdBulkCountEl = document.getElementById('prdBulkCount');
+
+function prdFilasCheckbox() {
+    return Array.from(document.querySelectorAll('.prd-row-checkbox'));
+}
+
+function prdActualizarBulkBar() {
+    if (!prdBulkBar) return;
+    const todas         = prdFilasCheckbox();
+    const seleccionadas = todas.filter(c => c.checked);
+    prdBulkBar.style.display  = seleccionadas.length > 0 ? 'flex' : 'none';
+    prdBulkCountEl.textContent = seleccionadas.length;
+    if (prdSelectAll) {
+        prdSelectAll.checked       = todas.length > 0 && seleccionadas.length === todas.length;
+        prdSelectAll.indeterminate = seleccionadas.length > 0 && seleccionadas.length < todas.length;
+    }
+}
+
+function prdPksSeleccionados() {
+    return prdFilasCheckbox().filter(c => c.checked).map(c => parseInt(c.value, 10));
+}
+
+document.getElementById('tablaProductosBody')?.addEventListener('change', e => {
+    if (e.target.classList.contains('prd-row-checkbox')) prdActualizarBulkBar();
+});
+
+prdSelectAll?.addEventListener('change', () => {
+    prdFilasCheckbox().forEach(c => { c.checked = prdSelectAll.checked; });
+    prdActualizarBulkBar();
+});
+
+document.getElementById('btnBulkCancelar')?.addEventListener('click', () => {
+    prdFilasCheckbox().forEach(c => { c.checked = false; });
+    prdActualizarBulkBar();
+});
+
+async function prdAplicarAccionMasiva(accion) {
+    const pks = prdPksSeleccionados();
+    if (!pks.length) return;
+
+    if (accion === 'eliminar') {
+        const ok = await KaiConfirm(
+            `¿Eliminar ${pks.length} producto(s) seleccionado(s)? Esta acción eliminará también sus imágenes y no se puede deshacer.`,
+            { danger: true, confirmText: 'Eliminar' }
+        );
+        if (!ok) return;
+    }
+
+    try {
+        const res  = await fetch(URLS.productoAccionesMasivas, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+            body: JSON.stringify({ pks, accion }),
+        });
+        const data = await res.json();
+        if (!data.ok) {
+            showToast(data.error || 'Error al aplicar la acción.', 'error');
+            return;
+        }
+
+        if (accion === 'eliminar') {
+            pks.forEach(pk => document.querySelector(`tr[data-pk="${pk}"]`)?.remove());
+            actualizarContadoresStats(-data.afectados, 0, 0);
+            const countEl = document.querySelector('.prd-table-count');
+            if (countEl) {
+                const actual = Math.max(0, (parseInt(countEl.textContent) || 0) - data.afectados);
+                countEl.textContent = `${actual} resultado${actual !== 1 ? 's' : ''}`;
+            }
+            showToast(`${data.afectados} producto(s) eliminado(s).`, 'ok');
+        } else {
+            const publicar = accion === 'publicar';
+            pks.forEach(pk => {
+                const fila = document.querySelector(`tr[data-pk="${pk}"]`);
+                const btn  = fila?.querySelector('.prd-action-btn');
+                if (!btn) return;
+                btn.classList.toggle('prd-action-btn--publicado', publicar);
+                btn.title = publicar ? 'Despublicar del catálogo' : 'Publicar en catálogo';
+                btn.setAttribute('onclick', `togglePublicar(${pk}, ${publicar}, this)`);
+            });
+            showToast(`${data.afectados} producto(s) ${publicar ? 'publicado(s)' : 'despublicado(s)'}.`, 'ok');
+        }
+        prdActualizarBulkBar();
+    } catch {
+        showToast('Error de conexión.', 'error');
+    }
+}
+
+document.getElementById('btnBulkPublicar')?.addEventListener('click', () => prdAplicarAccionMasiva('publicar'));
+document.getElementById('btnBulkDespublicar')?.addEventListener('click', () => prdAplicarAccionMasiva('despublicar'));
+document.getElementById('btnBulkEliminar')?.addEventListener('click', () => prdAplicarAccionMasiva('eliminar'));

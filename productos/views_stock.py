@@ -83,7 +83,7 @@ class StockView(LoginRequiredMixin, TemplateView):
         # de templates de Django (frágil con {% for %} + {% if %} anidados).
         for p in page_obj:
             p.combinaciones_json_str = _serializar_combinaciones(p)
-            p.valor_total_costo = (p.stock_actual or 0) * (p.costo_actual or 0)
+            p.valor_total_venta = (p.stock_actual or 0) * (p.precio_venta or 0)
             # Sobre la caché ya prefetcheada (sin pegarle de nuevo a la DB) —
             # usado para el "+N más" cuando hay muchas combinaciones (ver stock.html).
             p.combinaciones_activas_count = sum(1 for c in p.combinaciones.all() if c.activo)

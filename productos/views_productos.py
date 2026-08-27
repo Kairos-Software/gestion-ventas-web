@@ -531,6 +531,50 @@ class ProductoEliminarAjax(LoginRequiredMixin, View):
         return JsonResponse({'ok': True, 'nombre': nombre})
 
 
+class ProductoAccionesMasivasAjax(LoginRequiredMixin, View):
+    """
+    POST → aplica una acción (publicar / despublicar / eliminar) a varios
+    productos seleccionados a la vez, para no tener que ir de a uno.
+    body: { "pks": [1, 2, 3], "accion": "publicar" | "despublicar" | "eliminar" }
+    """
+
+    def post(self, request):
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        pks    = body.get('pks') or []
+        accion = body.get('accion')
+
+        if not pks:
+            return JsonResponse({'error': 'No se seleccionó ningún producto.'}, status=400)
+        if accion not in ('publicar', 'despublicar', 'eliminar'):
+            return JsonResponse({'error': 'Acción inválida.'}, status=400)
+
+        if accion == 'eliminar':
+            if not chequear_permiso(request.user, 'eliminar_productos'):
+                return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+            productos = Producto.objects.filter(pk__in=pks)
+            afectados = 0
+            for producto in productos:
+                for img in producto.imagenes.all():
+                    if img.imagen and os.path.isfile(img.imagen.path):
+                        os.remove(img.imagen.path)
+                producto.delete()
+                afectados += 1
+            return JsonResponse({'ok': True, 'afectados': afectados})
+
+        if not chequear_permiso(request.user, 'editar_productos'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        afectados = Producto.objects.filter(pk__in=pks).update(
+            publicado=(accion == 'publicar')
+        )
+        return JsonResponse({'ok': True, 'afectados': afectados})
+
+
 class ProductoBuscarAjax(LoginRequiredMixin, View):
     """
     GET → búsqueda rápida para selects/autocomplete (ej: en compras).

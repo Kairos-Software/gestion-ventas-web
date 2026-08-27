@@ -4,7 +4,7 @@
 {% block title %}Permisos — {{ usuario_obj.username }}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'core/css/permisos_usuario.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/permisos_usuario.css' %}?v=4">
 {% endblock %}
 
 {% block content %}
@@ -14,55 +14,92 @@
         <h1>Permisos de <span>{{ usuario_obj.username }}</span></h1>
         {% if rol_nombre %}
             <p class="rol-info">
-                Rol actual: <strong>{{ rol_nombre }}</strong> —
-                Los permisos marcados con <span class="tag-rol">ROL</span> vienen del rol.
-                Los marcados con <span class="tag-override-si">OVERRIDE ✓</span> o
-                <span class="tag-override-no">OVERRIDE ✗</span> son excepciones individuales.
+                <span class="rol-actual">Rol: <strong>{{ rol_nombre }}</strong></span>
+                <span class="leyenda-item"><span class="tag-rol">ROL</span> heredado</span>
+                <span class="leyenda-item"><span class="tag-override-si">OVERRIDE ✓</span> permitido individualmente</span>
+                <span class="leyenda-item"><span class="tag-override-no">OVERRIDE ✗</span> quitado individualmente</span>
             </p>
         {% else %}
             <p class="rol-info sin-rol">Este usuario no tiene rol asignado. Todos los permisos son overrides individuales.</p>
         {% endif %}
     </div>
-    <div class="page-header-acciones">
-        <button type="button" class="btn btn-secondary btn-sm" id="btnSeleccionarTodo">Seleccionar todo</button>
-        <button type="button" class="btn btn-secondary btn-sm" id="btnDeseleccionarTodo">Deseleccionar todo</button>
-        <button class="btn btn-primary btn-sm" id="btnGuardar">Guardar permisos</button>
+</div>
+
+<div id="alertGuardado" class="alerta-guardado" role="status" aria-live="polite" style="display:none;"></div>
+
+<div class="permisos-toolbar">
+    <label class="permisos-buscador" for="buscarPermiso">
+        <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+            <circle cx="8" cy="8" r="5" stroke="currentColor" stroke-width="1.5"/>
+            <path d="m12 12 3.5 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <input type="search" id="buscarPermiso" placeholder="Buscar permiso…" autocomplete="off">
+        <kbd>/</kbd>
+    </label>
+
+    <div class="permisos-filtros" role="group" aria-label="Filtrar permisos por estado">
+        <button type="button" class="permiso-filtro active" data-filter="todos">Todos</button>
+        <button type="button" class="permiso-filtro" data-filter="permitidos">Permitidos</button>
+        <button type="button" class="permiso-filtro" data-filter="sin-permiso">Sin permiso</button>
+    </div>
+
+    <div class="permisos-resumen" id="permisosResumen" aria-live="polite">
+        <strong id="permisosConcedidos">0</strong> de <span id="permisosEditables">0</span> editables
+    </div>
+
+    <div class="permisos-acciones">
+        <button type="button" class="btn btn-sm btn-permitir-todo" id="btnSeleccionarTodo" title="Permitir todos los permisos que podés editar">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M3 8.25 6.25 11.5 13 4.75" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Permitir todo
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" id="btnDeseleccionarTodo" title="Quitar todos los permisos que podés editar">Quitar todo</button>
+        <button type="button" class="btn btn-primary btn-sm" id="btnGuardar">Guardar</button>
     </div>
 </div>
 
-<div id="alertGuardado" class="alerta-guardado" style="display:none;"></div>
-
 <form id="formPermisos">
     {% for modulo, permisos in modulos %}
-    <div class="modulo-card">
+    <section class="modulo-card" data-seccion="{{ modulo|lower }}">
         <div class="modulo-header">
-            <span class="modulo-icon">◈</span>
-            <h3>{{ modulo }}</h3>
-            <span class="modulo-count">{{ permisos|length }} permiso{{ permisos|length|pluralize }}</span>
+            <div class="modulo-heading">
+                <span class="modulo-icon">◈</span>
+                <h3>{{ modulo }}</h3>
+                <span class="modulo-count" data-total="{{ permisos|length }}">{{ permisos|length }} permisos</span>
+            </div>
+            <label class="modulo-select-all" title="Permitir o quitar todos los permisos editables de este módulo">
+                <input type="checkbox" class="modulo-select-all-check">
+                <span>Permitir área</span>
+            </label>
         </div>
         <div class="permisos-lista">
             {% for p in permisos %}
-            <div class="permiso-row {% if p.concedido %}concedido{% else %}denegado{% endif %} {% if not p.editable %}bloqueado{% endif %}" data-codigo="{{ p.codigo }}">
+            <div class="permiso-row {% if p.concedido %}concedido{% else %}denegado{% endif %} {% if not p.editable %}bloqueado{% endif %}"
+                 data-codigo="{{ p.codigo }}"
+                 data-search="{{ p.label|lower }} {{ p.codigo|lower }} {{ p.modulo|lower }}">
                 <div class="permiso-info">
                     <label class="permiso-label" for="perm_{{ p.codigo }}">{{ p.label }}</label>
-                    <span class="fuente-badge fuente-{{ p.fuente }}">
-                        {% if p.fuente == 'rol' %}ROL
-                        {% elif p.fuente == 'override_positivo' %}OVERRIDE ✓
-                        {% elif p.fuente == 'override_negativo' %}OVERRIDE ✗
-                        {% elif p.fuente == 'superusuario' %}SUPERUSER
-                        {% else %}—{% endif %}
-                    </span>
-                    <span class="permiso-codigo">{{ p.codigo }}</span>
-                    {% if not p.editable %}
-                    <span class="candado-badge"
-                          title="{% if p.motivo_bloqueo == 'restringido' %}Solo un superusuario puede otorgar este permiso.{% else %}No podés otorgar este permiso porque vos mismo no lo tenés.{% endif %}">
-                        <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
-                            <rect x="3.5" y="7" width="9" height="6.5" rx="1.2" stroke="currentColor" stroke-width="1.3"/>
-                            <path d="M5.5 7V4.8a2.5 2.5 0 0 1 5 0V7" stroke="currentColor" stroke-width="1.3"/>
-                        </svg>
-                        {% if p.motivo_bloqueo == 'restringido' %}Solo superusuario{% else %}No lo tenés vos{% endif %}
-                    </span>
-                    {% endif %}
+                    <div class="permiso-meta">
+                        <span class="fuente-badge fuente-{{ p.fuente }} {% if p.fuente == 'sin_permiso' %}fuente-vacia{% endif %}">
+                            {% if p.fuente == 'rol' %}ROL
+                            {% elif p.fuente == 'override_positivo' %}OVERRIDE ✓
+                            {% elif p.fuente == 'override_negativo' %}OVERRIDE ✗
+                            {% elif p.fuente == 'superusuario' %}SUPERUSER
+                            {% else %}—{% endif %}
+                        </span>
+                        <span class="permiso-codigo">{{ p.codigo }}</span>
+                        {% if not p.editable %}
+                        <span class="candado-badge"
+                              aria-label="Permiso bloqueado"
+                              title="{% if p.motivo_bloqueo == 'restringido' %}Solo un superusuario puede otorgar este permiso.{% else %}No podés otorgar este permiso porque vos mismo no lo tenés.{% endif %}">
+                            <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
+                                <rect x="3.5" y="7" width="9" height="6.5" rx="1.2" stroke="currentColor" stroke-width="1.3"/>
+                                <path d="M5.5 7V4.8a2.5 2.5 0 0 1 5 0V7" stroke="currentColor" stroke-width="1.3"/>
+                            </svg>
+                        </span>
+                        {% endif %}
+                    </div>
                 </div>
                 <label class="toggle-switch">
                     <input type="checkbox"
@@ -77,13 +114,17 @@
             </div>
             {% endfor %}
         </div>
-    </div>
+    </section>
     {% endfor %}
 </form>
 
+<div class="permisos-vacio" id="permisosVacio" hidden>
+    No hay permisos que coincidan con la búsqueda o el filtro.
+</div>
+
 <div class="acciones-bottom">
     <a href="{% url 'core:gestion_usuarios' %}" class="btn btn-secondary btn-sm">Cancelar</a>
-    <button class="btn btn-primary btn-sm" id="btnGuardarBottom">Guardar permisos</button>
+    <button type="button" class="btn btn-primary btn-sm" id="btnGuardarBottom">Guardar permisos</button>
 </div>
 {% endblock %}
 
@@ -91,5 +132,5 @@
 <script>
     window.guardarPermisosUrl = "{% url 'core:guardar_permisos' usuario_obj.pk %}";
 </script>
-<script src="{% static 'core/js/permisos_usuario.js' %}?v=2"></script>
+<script src="{% static 'core/js/permisos_usuario.js' %}?v=4"></script>
 {% endblock %}

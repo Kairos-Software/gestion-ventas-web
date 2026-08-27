@@ -14,6 +14,25 @@ from .permisos import (
 )
 
 
+# Agrupación exclusivamente visual para que la matriz de permisos sea fácil de
+# recorrer. Los códigos y la lógica de autorización no cambian.
+SECCIONES_PERMISOS = (
+    ('Administración', {'Usuarios', 'Permisos', 'Empresa', 'Notificaciones'}),
+    ('Productos e inventario', {'Stock', 'Productos', 'Categorias', 'Descuento', 'Ofertas', 'Paquetes', 'Catalogo'}),
+    ('Compras y proveedores', {'Proveedores', 'Compras'}),
+    ('Clientes y ventas', {'Clientes', 'Ventas', 'Devoluciones', 'Presupuestos', 'Pedidos', 'Balanza'}),
+    ('Caja y movimientos', {'Cuentas', 'Recargos', 'Caja', 'Turno', 'Transacciones', 'Gastos'}),
+    ('Créditos y valores', {'Deudas', 'Deuda', 'Cobrar', 'Cobro', 'Cheques'}),
+    ('Organización', {'Notas', 'Privadas'}),
+)
+
+SECCION_POR_MODULO = {
+    modulo: seccion
+    for seccion, modulos in SECCIONES_PERMISOS
+    for modulo in modulos
+}
+
+
 class GestionPermisosView(LoginRequiredMixin, View):
     def get(self, request, pk):
         # Sin permiso → volvemos a gestion_usuarios con mensaje, no página rota
@@ -39,21 +58,26 @@ class GestionPermisosView(LoginRequiredMixin, View):
         # el checkbox y mostrar un candado).
         estado = permisos_del_usuario(usuario_obj, solicitante=request.user)
 
-        modulos = {}
+        # Antes cada última palabra del código generaba una tarjeta diferente
+        # (más de 30 tarjetas para 75 permisos). Se mantienen esos módulos como
+        # referencia interna, pero se presentan en áreas funcionales amplias.
+        secciones = {nombre: [] for nombre, _ in SECCIONES_PERMISOS}
         for codigo, label in PERMISOS_CHOICES:
             partes = codigo.split('_')
             modulo = partes[-1].capitalize() if len(partes) > 1 else 'General'
-            if modulo not in modulos:
-                modulos[modulo] = []
-            modulos[modulo].append({
+            seccion = SECCION_POR_MODULO.get(modulo, 'Otros')
+            secciones.setdefault(seccion, []).append({
                 'codigo': codigo,
                 'label': label,
+                'modulo': modulo,
                 **estado[codigo],
             })
 
+        secciones = [(nombre, permisos) for nombre, permisos in secciones.items() if permisos]
+
         context = {
             'usuario_obj': usuario_obj,
-            'modulos': modulos.items(),
+            'modulos': secciones,
             'tiene_rol': usuario_obj.rol is not None,
             'rol_nombre': usuario_obj.rol.nombre if usuario_obj.rol else None,
         }

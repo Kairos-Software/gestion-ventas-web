@@ -4,7 +4,7 @@
 {% block title %}Productos{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'productos/css/productos.css' %}">
+<link rel="stylesheet" href="{% static 'productos/css/productos.css' %}?v=4">
 {% endblock %}
 
 {% block content %}
@@ -154,11 +154,21 @@
         <span class="prd-table-count">
             {{ productos.paginator.count }} resultado{% if productos.paginator.count != 1 %}s{% endif %}
         </span>
+        <div class="prd-bulk-bar" id="prdBulkBar" style="display:none">
+            <span class="prd-bulk-count"><strong id="prdBulkCount">0</strong> seleccionado(s)</span>
+            <button type="button" class="prd-btn prd-btn-secondary prd-btn--sm" id="btnBulkPublicar">Publicar</button>
+            <button type="button" class="prd-btn prd-btn-ghost prd-btn--sm" id="btnBulkDespublicar">Despublicar</button>
+            <button type="button" class="prd-btn prd-btn-danger prd-btn--sm" id="btnBulkEliminar">Eliminar</button>
+            <button type="button" class="prd-btn prd-btn-ghost prd-btn--sm" id="btnBulkCancelar">Cancelar</button>
+        </div>
     </div>
     <div class="prd-table-wrap">
         <table class="prd-table">
             <thead>
                 <tr>
+                    <th style="width:36px">
+                        <input type="checkbox" class="prd-row-check" id="prdSelectAll" title="Seleccionar todos">
+                    </th>
                     <th style="width:48px"></th>
                     <th>Código</th>
                     <th>Nombre</th>
@@ -173,6 +183,9 @@
             <tbody id="tablaProductosBody">
             {% for p in productos %}
                 <tr class="prd-row {% if p.stock_bajo %}prd-row--stock-bajo{% endif %}" data-pk="{{ p.pk }}">
+                    <td class="prd-td-check">
+                        <input type="checkbox" class="prd-row-check prd-row-checkbox" value="{{ p.pk }}">
+                    </td>
                     <td class="prd-td-img">
                         {% if p.imagen_principal %}
                             <img src="{{ p.imagen_principal.imagen.url }}" alt="{{ p.nombre }}" class="prd-thumb">
@@ -255,7 +268,7 @@
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="9" class="prd-empty">
+                    <td colspan="10" class="prd-empty">
                         <div class="prd-empty-inner">
                             <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
                                 <rect x="4" y="4" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5" opacity=".4"/>
@@ -315,24 +328,24 @@
             <input type="hidden" id="prdPk" value="">
 
             {# TABS #}
-            <div class="prd-tabs">
-                <button class="prd-tab active" data-tab="identificacion">Identificación</button>
-                <button class="prd-tab" data-tab="clasificacion">Clasificación</button>
-                <button class="prd-tab" data-tab="precios">Precios</button>
-                <button class="prd-tab" data-tab="logistica">Logística</button>
-                <button class="prd-tab" data-tab="variantes">
+            <div class="prd-tabs" role="tablist" aria-label="Secciones del producto">
+                <button type="button" class="prd-tab active" data-tab="identificacion" role="tab" aria-selected="true">Identificación</button>
+                <button type="button" class="prd-tab" data-tab="clasificacion" role="tab" aria-selected="false">Clasificación</button>
+                <button type="button" class="prd-tab" data-tab="precios" role="tab" aria-selected="false">Precios</button>
+                <button type="button" class="prd-tab" data-tab="logistica" role="tab" aria-selected="false">Logística</button>
+                <button type="button" class="prd-tab" data-tab="variantes" role="tab" aria-selected="false">
                     Variantes
                     <span class="prd-tab-badge" id="tabCombinacionCount" style="display:none">0</span>
                 </button>
-                <button class="prd-tab" data-tab="imagenes">
+                <button type="button" class="prd-tab" data-tab="imagenes" role="tab" aria-selected="false">
                     Imágenes
                     <span class="prd-tab-badge" id="tabImagenCount" style="display:none">0</span>
                 </button>
-                <button class="prd-tab" data-tab="caracteristicas">
+                <button type="button" class="prd-tab" data-tab="caracteristicas" role="tab" aria-selected="false">
                     Características
                     <span class="prd-tab-badge" id="tabCaracteristicaCount" style="display:none">0</span>
                 </button>
-                <button class="prd-tab" data-tab="notas">Notas</button>
+                <button type="button" class="prd-tab" data-tab="notas" role="tab" aria-selected="false">Notas</button>
             </div>
 
             {# — TAB: IDENTIFICACIÓN — #}
@@ -1045,6 +1058,7 @@ const CSRF = '{{ csrf_token }}';
 const URLS = {
     productoAcciones  : '{% url "productos:producto_acciones" %}',
     productoEliminar  : '{% url "productos:producto_eliminar" %}',
+    productoAccionesMasivas: '{% url "productos:producto_acciones_masivas" %}',
     productoActivarCosto : '{% url "productos:producto_activar_costo" %}',
     categoriaLista    : '{% url "productos:categoria_lista" %}',
     categoriaAcciones : '{% url "productos:categoria_acciones" %}',
@@ -1072,5 +1086,5 @@ const URLS = {
     opcionEliminar    : '{% url "productos:opcion_variante_eliminar" %}',
 };
 </script>
-<script src="{% static 'productos/js/productos.js' %}"></script>
+<script src="{% static 'productos/js/productos.js' %}?v=4"></script>
 {% endblock %}
