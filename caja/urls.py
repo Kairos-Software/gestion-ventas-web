@@ -33,6 +33,17 @@ urlpatterns = [
     path('gastos/eliminar/<int:pk>/', views_gastos.EliminarGastoAjax.as_view(),   name='eliminar_gasto'),
 
     # ══════════════════════════════════════════════════════════════════
+    #  AJAX — Movimientos programados (ingresos/egresos recurrentes)
+    # ══════════════════════════════════════════════════════════════════
+    path('gastos/programados/listar/',            views_gastos.ListarProgramadosAjax.as_view(),            name='listar_programados'),
+    path('gastos/programados/crear/',             views_gastos.CrearProgramadoAjax.as_view(),              name='crear_programado'),
+    path('gastos/programados/editar/<int:pk>/',   views_gastos.EditarProgramadoAjax.as_view(),             name='editar_programado'),
+    path('gastos/programados/eliminar/<int:pk>/', views_gastos.EliminarProgramadoAjax.as_view(),           name='eliminar_programado'),
+    path('gastos/programados/toggle/<int:pk>/',   views_gastos.ToggleActivoProgramadoAjax.as_view(),       name='toggle_programado'),
+    path('gastos/programados/instancias/<int:pk>/confirmar/', views_gastos.ConfirmarInstanciaProgramadaAjax.as_view(), name='confirmar_instancia_programada'),
+    path('gastos/programados/instancias/<int:pk>/anular/',    views_gastos.AnularInstanciaProgramadaAjax.as_view(),    name='anular_instancia_programada'),
+
+    # ══════════════════════════════════════════════════════════════════
     #  AJAX — Deudas (créditos y préstamos)
     # ══════════════════════════════════════════════════════════════════
     path('deudas/listar/',                   views_deudas.ListarDeudasAjax.as_view(),    name='listar_deudas'),

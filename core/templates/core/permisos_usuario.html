@@ -4,7 +4,7 @@
 {% block title %}Permisos — {{ usuario_obj.username }}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'core/css/permisos_usuario.css' %}?v=4">
+<link rel="stylesheet" href="{% static 'core/css/permisos_usuario.css' %}?v=5">
 {% endblock %}
 
 {% block content %}
@@ -68,12 +68,23 @@
                 <h3>{{ modulo }}</h3>
                 <span class="modulo-count" data-total="{{ permisos|length }}">{{ permisos|length }} permisos</span>
             </div>
-            <label class="modulo-select-all" title="Permitir o quitar todos los permisos editables de este módulo">
-                <input type="checkbox" class="modulo-select-all-check">
-                <span>Permitir área</span>
-            </label>
+            <div class="modulo-controles">
+                <label class="modulo-select-all" title="Permitir o quitar todos los permisos editables de este módulo">
+                    <input type="checkbox" class="modulo-select-all-check" aria-label="Permitir todos los permisos editables de {{ modulo }}">
+                    <span>Permitir área</span>
+                </label>
+                <button type="button"
+                        class="modulo-collapse"
+                        aria-expanded="true"
+                        aria-controls="permisos-modulo-{{ forloop.counter }}"
+                        aria-label="Mostrar u ocultar permisos de {{ modulo }}">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+            </div>
         </div>
-        <div class="permisos-lista">
+        <div class="permisos-lista" id="permisos-modulo-{{ forloop.counter }}">
             {% for p in permisos %}
             <div class="permiso-row {% if p.concedido %}concedido{% else %}denegado{% endif %} {% if not p.editable %}bloqueado{% endif %}"
                  data-codigo="{{ p.codigo }}"
@@ -132,5 +143,5 @@
 <script>
     window.guardarPermisosUrl = "{% url 'core:guardar_permisos' usuario_obj.pk %}";
 </script>
-<script src="{% static 'core/js/permisos_usuario.js' %}?v=4"></script>
+<script src="{% static 'core/js/permisos_usuario.js' %}?v=5"></script>
 {% endblock %}

@@ -4,7 +4,7 @@
 {% block title %}Gestión de Personal{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'core/css/gestion_usuarios.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/gestion_usuarios.css' %}?v=5">
 {% endblock %}
 
 {% block content %}
@@ -13,7 +13,7 @@
         <h1>Gestión de <span>Personal</span></h1>
         <p class="page-subtitle">{{ usuarios.count }} empleado{{ usuarios.count|pluralize }} registrado{{ usuarios.count|pluralize }}</p>
     </div>
-    <div class="d-flex gap-2">
+    <div class="page-header-actions">
         <a href="{% url 'core:home' %}" class="btn btn-secondary btn-sm">← Volver</a>
         {% if puede_crear %}
             <button class="btn btn-primary btn-sm" id="btnNuevoUsuario">+ Nuevo usuario</button>
@@ -24,6 +24,16 @@
 {% if sin_permiso %}
 <div class="alerta-inline alerta-error">No tenés permiso para ver la lista de usuarios.</div>
 {% else %}
+<div class="usuarios-toolbar">
+    <label class="usuarios-buscador" for="buscarUsuario">
+        <svg width="17" height="17" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+            <circle cx="8" cy="8" r="5" stroke="currentColor" stroke-width="1.5"/>
+            <path d="m12 12 3.5 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <input type="search" id="buscarUsuario" placeholder="Buscar por nombre, usuario, DNI, puesto o área…" autocomplete="off">
+    </label>
+    <span class="usuarios-toolbar-count"><strong id="usuariosVisibles">{{ usuarios.count }}</strong> visibles</span>
+</div>
 <div class="table-card">
     <table class="table" id="tablaUsuarios">
         <thead>
@@ -90,7 +100,7 @@
                 data-observaciones_salud="{{ usuario.observaciones_salud|default:'' }}"
                 data-notas_internas="{{ usuario.notas_internas|default:'' }}"
                 data-rol_nombre="{{ usuario.rol.nombre|default:'' }}">
-                <td>
+                <td class="usuario-avatar-cell">
                     {% if usuario.foto_perfil %}
                         <img src="{{ usuario.foto_perfil.url }}" class="tabla-avatar" alt="">
                     {% else %}
@@ -100,8 +110,8 @@
                     {% endif %}
                 </td>
                 <td class="col-username">{{ usuario.username }}</td>
-                <td>{{ usuario.get_full_name }}</td>
-                <td>
+                <td class="usuario-nombre-cell">{{ usuario.get_full_name }}</td>
+                <td class="usuario-puesto-cell">
                     {% if usuario.puesto %}
                         <span class="puesto-text">{{ usuario.puesto }}</span>
                         {% if usuario.area %}<span class="area-text">{{ usuario.area }}</span>{% endif %}
@@ -109,21 +119,21 @@
                         <span class="text-muted small">—</span>
                     {% endif %}
                 </td>
-                <td>{{ usuario.dni|default:'—' }}</td>
-                <td>
+                <td class="usuario-dni-cell" data-label="DNI">{{ usuario.dni|default:'—' }}</td>
+                <td class="usuario-rol-cell" data-label="Rol">
                     {% if usuario.rol %}
                         <span class="rol-badge">{{ usuario.rol.nombre }}</span>
                     {% else %}
                         <span class="rol-badge empty">Sin rol</span>
                     {% endif %}
                 </td>
-                <td>
+                <td class="usuario-estado-cell">
                     <span class="estado-badge estado-{{ usuario.estado_laboral|default:'activo' }}">
                         {{ usuario.get_estado_laboral_display|default:'Activo' }}
                     </span>
                 </td>
                 {% if puede_editar or puede_gestionar_permisos or puede_eliminar %}
-                <td>
+                <td class="usuario-acciones-cell">
                     <div class="acciones-cell">
                         <a href="{% url 'core:detalle_usuario' usuario.pk %}" class="btn-accion btn-ver">Ver</a>
                         {% if puede_editar %}
@@ -145,6 +155,7 @@
         </tbody>
     </table>
 </div>
+<div class="usuarios-vacio" id="usuariosVacio" hidden>No hay usuarios que coincidan con la búsqueda.</div>
 {% endif %}
 
 
@@ -862,5 +873,5 @@
     window.puedeGestionarPermisos = {{ puede_gestionar_permisos|yesno:"true,false" }};
     window.permisosBaseUrl = "{% url 'core:gestion_permisos' 0 %}";
 </script>
-<script src="{% static 'core/js/gestion_usuarios.js' %}"></script>
+<script src="{% static 'core/js/gestion_usuarios.js' %}?v=5"></script>
 {% endblock %}

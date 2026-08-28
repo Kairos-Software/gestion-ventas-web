@@ -1356,6 +1356,201 @@ def sincronizar_movimiento_gasto(gasto):
 
 
 # ══════════════════════════════════════════════════════════════════
+#  MOVIMIENTOS PROGRAMADOS (ingresos/egresos recurrentes)
+#
+#  Un MovimientoProgramado es la "plantilla" de algo que se repite en
+#  el tiempo (sueldo, alquiler, cuenta de luz). No es un Gasto ni toca
+#  la caja por sí solo: cuando llega su próxima_fecha, genera una
+#  InstanciaProgramada "pendiente de confirmar" (ver
+#  generar_instancias_pendientes(), llamada perezosamente al visitar
+#  la pantalla — no hay ningún scheduler corriendo en este proyecto,
+#  mismo criterio que procesar_lotes_vencidos en compras). Recién al
+#  confirmar esa instancia a mano se crea el Gasto real — igual
+#  filosofía que CuotaDeuda: nada mueve la caja solo.
+# ══════════════════════════════════════════════════════════════════
+
+class FrecuenciaProgramado(models.TextChoices):
+    SEMANAL   = 'semanal',   'Semanal'
+    QUINCENAL = 'quincenal', 'Quincenal'
+    MENSUAL   = 'mensual',   'Mensual'
+    BIMESTRAL = 'bimestral', 'Bimestral'
+    ANUAL     = 'anual',     'Anual'
+
+
+class TipoMontoProgramado(models.TextChoices):
+    FIJO     = 'fijo',     'Monto fijo (igual cada vez)'
+    VARIABLE = 'variable', 'Monto variable (se carga cada vez)'
+
+
+class EstadoInstanciaProgramada(models.TextChoices):
+    PENDIENTE  = 'pendiente',  'Pendiente'
+    CONFIRMADA = 'confirmada', 'Confirmada'
+    ANULADA    = 'anulada',    'Anulada'
+
+
+class MovimientoProgramado(models.Model):
+    """Plantilla de un ingreso/egreso recurrente. Ver comentario de sección arriba."""
+
+    tipo = models.CharField(max_length=10, choices=TipoMovimientoCaja.choices)
+    descripcion = models.CharField(
+        max_length=300,
+        help_text='Ej: "Alquiler local", "Sueldo Juan Pérez", "Cuenta de luz".',
+    )
+    cuenta = models.ForeignKey(
+        CuentaCaja, on_delete=models.PROTECT, related_name='programados',
+        help_text='Cuenta sugerida al confirmar cada instancia (se puede cambiar en el momento).',
+    )
+    moneda = models.CharField(max_length=5, choices=Moneda.choices, default=Moneda.ARS)
+
+    tipo_monto = models.CharField(max_length=10, choices=TipoMontoProgramado.choices)
+    monto_fijo = models.DecimalField(
+        max_digits=14, decimal_places=2, null=True, blank=True,
+        help_text='Solo si tipo_monto=fijo — se precarga en cada instancia (editable al confirmar).',
+    )
+
+    frecuencia = models.CharField(max_length=10, choices=FrecuenciaProgramado.choices)
+    proxima_fecha = models.DateField(
+        help_text='Próxima fecha en la que se genera la siguiente instancia pendiente.',
+    )
+
+    activo = models.BooleanField(
+        default=True,
+        help_text='Si se pausa, no genera más instancias nuevas — las ya generadas se pueden '
+                   'seguir confirmando o anulando igual.',
+    )
+
+    creado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='programados_creados',
+    )
+    fecha_alta         = models.DateTimeField(auto_now_add=True)
+    fecha_modificacion = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name        = 'Movimiento programado'
+        verbose_name_plural = 'Movimientos programados'
+        ordering             = ['proxima_fecha']
+
+    def __str__(self):
+        return f'{self.get_tipo_display()} — {self.descripcion}'
+
+    def avanzar_proxima_fecha(self):
+        """Corre proxima_fecha un período hacia adelante, según frecuencia."""
+        if self.frecuencia == FrecuenciaProgramado.SEMANAL:
+            self.proxima_fecha = self.proxima_fecha + timedelta(days=7)
+        elif self.frecuencia == FrecuenciaProgramado.QUINCENAL:
+            self.proxima_fecha = self.proxima_fecha + timedelta(days=15)
+        elif self.frecuencia == FrecuenciaProgramado.BIMESTRAL:
+            self.proxima_fecha = _sumar_meses(self.proxima_fecha, 2)
+        elif self.frecuencia == FrecuenciaProgramado.ANUAL:
+            self.proxima_fecha = _sumar_meses(self.proxima_fecha, 12)
+        else:  # MENSUAL
+            self.proxima_fecha = _sumar_meses(self.proxima_fecha, 1)
+
+
+class InstanciaProgramada(models.Model):
+    """
+    Una repetición concreta de un MovimientoProgramado, pendiente de
+    confirmar. Solo existen instancias de fechas ya vencidas (no se
+    pre-generan a futuro) — ver generar_instancias_pendientes().
+    """
+
+    programado = models.ForeignKey(
+        MovimientoProgramado, on_delete=models.CASCADE, related_name='instancias',
+    )
+    fecha_vencimiento = models.DateField()
+    estado = models.CharField(
+        max_length=10, choices=EstadoInstanciaProgramada.choices,
+        default=EstadoInstanciaProgramada.PENDIENTE,
+    )
+    monto = models.DecimalField(
+        max_digits=14, decimal_places=2, null=True, blank=True,
+        help_text='Precargado si el programado es de monto fijo; vacío si es variable '
+                   'hasta que se completa al confirmar.',
+    )
+    gasto = models.OneToOneField(
+        Gasto, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='instancia_programada',
+    )
+    fecha_confirmacion = models.DateTimeField(null=True, blank=True)
+    confirmado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='instancias_programadas_confirmadas',
+    )
+
+    class Meta:
+        verbose_name        = 'Instancia programada'
+        verbose_name_plural = 'Instancias programadas'
+        ordering             = ['fecha_vencimiento']
+        unique_together      = [('programado', 'fecha_vencimiento')]
+
+    def __str__(self):
+        return f'{self.programado.descripcion} — {self.fecha_vencimiento}'
+
+    @transaction.atomic
+    def confirmar(self, *, monto, cuenta, fecha, usuario):
+        # select_for_update(): mismo guard que CuotaDeuda.confirmar() —
+        # un doble clic no debe generar dos Gastos.
+        if InstanciaProgramada.objects.select_for_update().get(pk=self.pk).estado != EstadoInstanciaProgramada.PENDIENTE:
+            raise ValueError('Solo se pueden confirmar instancias pendientes.')
+
+        monto = Decimal(str(monto))
+        if monto <= 0:
+            raise ValueError('El monto debe ser mayor a cero.')
+
+        gasto = Gasto.objects.create(
+            tipo=self.programado.tipo,
+            cuenta=cuenta,
+            fecha=fecha,
+            monto=monto,
+            moneda=self.programado.moneda,
+            descripcion=self.programado.descripcion,
+            creado_por=usuario,
+        )
+        self.monto              = monto
+        self.gasto               = gasto
+        self.estado              = EstadoInstanciaProgramada.CONFIRMADA
+        self.fecha_confirmacion  = timezone.now()
+        self.confirmado_por      = usuario
+        self.save(update_fields=['monto', 'gasto', 'estado', 'fecha_confirmacion', 'confirmado_por'])
+
+    def anular(self):
+        if self.estado != EstadoInstanciaProgramada.PENDIENTE:
+            raise ValueError('Solo se pueden anular instancias pendientes.')
+        self.estado = EstadoInstanciaProgramada.ANULADA
+        self.save(update_fields=['estado'])
+
+
+def generar_instancias_pendientes():
+    """
+    Genera las InstanciaProgramada que ya vencieron desde la última vez
+    que se llamó a esto — mismo criterio perezoso que
+    compras.procesar_lotes_vencidos(): no hay scheduler en este
+    proyecto, así que se corre cada vez que alguien visita la pantalla
+    de Programados. Si nadie entró en un tiempo, se generan de una
+    todas las instancias atrasadas (una por período) para que el
+    usuario decida cada una: confirmar o anular.
+    """
+    hoy = timezone.localtime().date()
+    creadas = 0
+    for programado in MovimientoProgramado.objects.filter(activo=True, proxima_fecha__lte=hoy):
+        intentos = 0
+        while programado.proxima_fecha <= hoy and intentos < 60:
+            monto_inicial = programado.monto_fijo if programado.tipo_monto == TipoMontoProgramado.FIJO else None
+            _, created = InstanciaProgramada.objects.get_or_create(
+                programado=programado,
+                fecha_vencimiento=programado.proxima_fecha,
+                defaults={'monto': monto_inicial},
+            )
+            if created:
+                creadas += 1
+            programado.avanzar_proxima_fecha()
+            intentos += 1
+        programado.save(update_fields=['proxima_fecha'])
+    return creadas
+
+
+# ══════════════════════════════════════════════════════════════════
 #  DEUDAS (créditos con tarjeta y préstamos)
 #
 #  Una Deuda es dinero que el negocio debe pagar (compra a crédito) o

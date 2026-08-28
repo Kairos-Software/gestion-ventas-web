@@ -8,8 +8,69 @@ document.addEventListener('DOMContentLoaded', function () {
     const tablaBody= document.querySelector('#tablaUsuarios tbody');
     const btnNuevo = document.getElementById('btnNuevoUsuario');
     const btnConfirmar = document.getElementById('confirmarEliminarBtn');
+    const buscarUsuario = document.getElementById('buscarUsuario');
+    const usuariosVisibles = document.getElementById('usuariosVisibles');
+    const usuariosVacio = document.getElementById('usuariosVacio');
 
     let usuarioAEliminar = null;
+
+    function normalizarBusqueda(texto) {
+        return (texto || '')
+            .toLocaleLowerCase('es')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .trim();
+    }
+
+    function filtrarUsuarios() {
+        if (!tablaBody) return;
+        const termino = normalizarBusqueda(buscarUsuario?.value);
+        const filas = Array.from(tablaBody.querySelectorAll('tr[data-id]'));
+        let visibles = 0;
+
+        filas.forEach(tr => {
+            const contenido = normalizarBusqueda([
+                tr.dataset.username,
+                tr.dataset.first_name,
+                tr.dataset.last_name,
+                tr.dataset.email,
+                tr.dataset.dni,
+                tr.dataset.puesto,
+                tr.dataset.area,
+                tr.dataset.rol_nombre,
+                tr.textContent,
+            ].join(' '));
+            const visible = !termino || contenido.includes(termino);
+            tr.hidden = !visible;
+            if (visible) visibles += 1;
+        });
+
+        if (usuariosVisibles) usuariosVisibles.textContent = visibles;
+        if (usuariosVacio) {
+            const hayVacioOriginal = Boolean(tablaBody.querySelector('.empty-state'));
+            usuariosVacio.textContent = filas.length === 0
+                ? 'No hay usuarios registrados.'
+                : 'No hay usuarios que coincidan con la búsqueda.';
+            usuariosVacio.hidden = hayVacioOriginal || (filas.length > 0 && (!termino || visibles > 0));
+        }
+    }
+
+    buscarUsuario?.addEventListener('input', filtrarUsuarios);
+    buscarUsuario?.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && this.value) {
+            this.value = '';
+            filtrarUsuarios();
+        }
+    });
+
+    document.querySelectorAll('#usuarioTabs [data-bs-toggle="tab"]').forEach(tab => {
+        tab.addEventListener('shown.bs.tab', function () {
+            const tabs = this.closest('.form-tabs');
+            if (tabs && tabs.scrollWidth > tabs.clientWidth) {
+                this.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }
+        });
+    });
 
     // ── Elementos dinámicos de sub‑recursos ──────────────────────
     const estudiosContainer = document.getElementById('estudiosContainer');
@@ -455,16 +516,17 @@ document.addEventListener('DOMContentLoaded', function () {
         const tr = document.createElement('tr');
         setRowData(tr, u);
         tr.innerHTML = `
-             <td>${avatarHtml(u)}</td>
+            <td class="usuario-avatar-cell">${avatarHtml(u)}</td>
             <td class="col-username">${u.username}</td>
-            <td>${u.first_name || ''} ${u.last_name || ''}</td>
-            <td>${puestoHtml(u)}</td>
-            <td>${u.dni || '—'}</td>
-            <td>${rolHtml(u)}</td>
-            <td>${estadoBadge(u.estado_laboral)}</td>
-            <td>${accionesHtml(u)}</td>`;
+            <td class="usuario-nombre-cell">${u.first_name || ''} ${u.last_name || ''}</td>
+            <td class="usuario-puesto-cell">${puestoHtml(u)}</td>
+            <td class="usuario-dni-cell" data-label="DNI">${u.dni || '—'}</td>
+            <td class="usuario-rol-cell" data-label="Rol">${rolHtml(u)}</td>
+            <td class="usuario-estado-cell">${estadoBadge(u.estado_laboral)}</td>
+            <td class="usuario-acciones-cell">${accionesHtml(u)}</td>`;
         tablaBody.appendChild(tr);
         attachEvents();
+        filtrarUsuarios();
     }
 
     function actualizarFila(u) {
@@ -478,6 +540,7 @@ document.addEventListener('DOMContentLoaded', function () {
         tr.cells[4].innerText = u.dni || '—';
         tr.cells[5].innerHTML = rolHtml(u);
         tr.cells[6].innerHTML = estadoBadge(u.estado_laboral);
+        filtrarUsuarios();
     }
 
     // ── Eliminar ──────────────────────────────────────────────────
@@ -491,6 +554,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (data.success) {
             document.querySelector(`#tablaUsuarios tbody tr[data-id="${id}"]`)?.remove();
             confirmModal?.hide();
+            filtrarUsuarios();
         } else {
             KaiToast.show('Error al eliminar.', 'danger');
         }
@@ -523,6 +587,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     attachEvents();
+    filtrarUsuarios();
 
     // ── Botones para agregar sub‑recursos ─────────────────────────
     if (btnAgregarEstudio) btnAgregarEstudio.addEventListener('click', () => agregarFilaEstudio());

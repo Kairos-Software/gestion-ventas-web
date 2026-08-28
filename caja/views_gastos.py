@@ -11,7 +11,11 @@ from django.utils import timezone
 from productos.models import Moneda
 from core.permisos import chequear_permiso
 
-from .models import Gasto, CuentaCaja, TipoCaja, TipoMovimientoCaja, sincronizar_movimiento_gasto
+from .models import (
+    Gasto, CuentaCaja, TipoCaja, TipoMovimientoCaja, sincronizar_movimiento_gasto,
+    MovimientoProgramado, InstanciaProgramada, FrecuenciaProgramado, TipoMontoProgramado,
+    EstadoInstanciaProgramada, generar_instancias_pendientes,
+)
 
 
 PERMISO_VER    = 'ver_gastos'
@@ -72,6 +76,7 @@ class GastosView(LoginRequiredMixin, TemplateView):
 
         ctx['monedas'] = Moneda.choices
         ctx['tipos_movimiento'] = TipoMovimientoCaja.choices
+        ctx['frecuencias_programado'] = FrecuenciaProgramado.choices
         cuentas = (
             CuentaCaja.objects
             .filter(caja=TipoCaja.GRANDE, activa=True)
@@ -96,6 +101,14 @@ class GastosView(LoginRequiredMixin, TemplateView):
         # Las URLs de editar y eliminar se construyen dinámicamente en el JS
         ctx['url_editar'] = reverse('caja:editar_gasto', args=[0])  # Placeholder
         ctx['url_eliminar'] = reverse('caja:eliminar_gasto', args=[0])  # Placeholder
+
+        ctx['url_listar_programados']    = reverse('caja:listar_programados')
+        ctx['url_crear_programado']      = reverse('caja:crear_programado')
+        ctx['url_editar_programado']     = reverse('caja:editar_programado', args=[0])
+        ctx['url_eliminar_programado']   = reverse('caja:eliminar_programado', args=[0])
+        ctx['url_toggle_programado']     = reverse('caja:toggle_programado', args=[0])
+        ctx['url_confirmar_instancia']   = reverse('caja:confirmar_instancia_programada', args=[0])
+        ctx['url_anular_instancia']      = reverse('caja:anular_instancia_programada', args=[0])
 
         return ctx
 
@@ -281,3 +294,212 @@ class EliminarGastoAjax(LoginRequiredMixin, View):
             return JsonResponse({'success': True})
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
+
+
+# ══════════════════════════════════════════════════════════════════
+#  MOVIMIENTOS PROGRAMADOS — ingresos/egresos recurrentes
+# ══════════════════════════════════════════════════════════════════
+
+def _serializar_programado(p):
+    return {
+        'pk': p.pk,
+        'tipo': p.tipo,
+        'descripcion': p.descripcion,
+        'cuenta_pk': p.cuenta_id,
+        'cuenta_nombre': p.cuenta.nombre if p.cuenta_id else '',
+        'moneda': p.moneda,
+        'tipo_monto': p.tipo_monto,
+        'monto_fijo': str(p.monto_fijo) if p.monto_fijo is not None else '',
+        'frecuencia': p.frecuencia,
+        'frecuencia_display': p.get_frecuencia_display(),
+        'proxima_fecha': p.proxima_fecha.isoformat() if hasattr(p.proxima_fecha, 'isoformat') else str(p.proxima_fecha),
+        'activo': p.activo,
+    }
+
+
+def _serializar_instancia(i):
+    return {
+        'pk': i.pk,
+        'programado_pk': i.programado_id,
+        'descripcion': i.programado.descripcion,
+        'tipo': i.programado.tipo,
+        'fecha_vencimiento': i.fecha_vencimiento.isoformat() if hasattr(i.fecha_vencimiento, 'isoformat') else str(i.fecha_vencimiento),
+        'monto': str(i.monto) if i.monto is not None else '',
+        'tipo_monto': i.programado.tipo_monto,
+        'moneda': i.programado.moneda,
+        'cuenta_pk': i.programado.cuenta_id,
+        'cuenta_nombre': i.programado.cuenta.nombre if i.programado.cuenta_id else '',
+        'estado': i.estado,
+    }
+
+
+class ListarProgramadosAjax(LoginRequiredMixin, View):
+    def get(self, request):
+        if not chequear_permiso(request.user, PERMISO_VER):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        generar_instancias_pendientes()
+
+        programados = MovimientoProgramado.objects.select_related('cuenta').order_by('-activo', 'proxima_fecha')
+        pendientes = InstanciaProgramada.objects.filter(
+            estado=EstadoInstanciaProgramada.PENDIENTE,
+        ).select_related('programado', 'programado__cuenta').order_by('fecha_vencimiento')
+
+        return JsonResponse({
+            'programados': [_serializar_programado(p) for p in programados],
+            'pendientes': [_serializar_instancia(i) for i in pendientes],
+        })
+
+
+def _validar_datos_programado(data):
+    """Valida el payload de crear/editar programado. Devuelve (campos_dict, None) u (None, error_str)."""
+    tipo          = data.get('tipo')
+    descripcion   = (data.get('descripcion') or '').strip()
+    cuenta_pk     = data.get('cuenta_pk') or data.get('cuenta')
+    moneda        = data.get('moneda', Moneda.ARS)
+    tipo_monto    = data.get('tipo_monto')
+    monto_fijo    = data.get('monto_fijo')
+    frecuencia    = data.get('frecuencia')
+    proxima_fecha = data.get('proxima_fecha')
+
+    if tipo not in (TipoMovimientoCaja.INGRESO, TipoMovimientoCaja.EGRESO):
+        return None, 'El tipo debe ser "ingreso" o "egreso".'
+    if not descripcion:
+        return None, 'La descripción es obligatoria.'
+    if tipo_monto not in (TipoMontoProgramado.FIJO, TipoMontoProgramado.VARIABLE):
+        return None, 'Elegí si el monto es fijo o variable.'
+    if frecuencia not in FrecuenciaProgramado.values:
+        return None, 'Frecuencia inválida.'
+    if not proxima_fecha:
+        return None, 'Falta la próxima fecha.'
+
+    cuenta = _cuenta_valida(cuenta_pk)
+    if not cuenta:
+        return None, 'Elegí una cuenta válida.'
+
+    monto_fijo_dec = None
+    if tipo_monto == TipoMontoProgramado.FIJO:
+        if monto_fijo in (None, ''):
+            return None, 'Ingresá el monto fijo.'
+        try:
+            monto_fijo_dec = Decimal(str(monto_fijo))
+            if monto_fijo_dec <= 0:
+                return None, 'El monto debe ser mayor a 0.'
+        except InvalidOperation:
+            return None, 'Monto inválido.'
+
+    return dict(
+        tipo=tipo, descripcion=descripcion, cuenta=cuenta, moneda=moneda,
+        tipo_monto=tipo_monto, monto_fijo=monto_fijo_dec,
+        frecuencia=frecuencia, proxima_fecha=proxima_fecha,
+    ), None
+
+
+class CrearProgramadoAjax(LoginRequiredMixin, View):
+    def post(self, request):
+        if not chequear_permiso(request.user, PERMISO_CREAR):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido'}, status=400)
+
+        campos, error = _validar_datos_programado(data)
+        if error:
+            return JsonResponse({'error': error}, status=400)
+
+        programado = MovimientoProgramado.objects.create(creado_por=request.user, **campos)
+        return JsonResponse({'success': True, 'programado': _serializar_programado(programado)})
+
+
+class EditarProgramadoAjax(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        if not chequear_permiso(request.user, PERMISO_EDITAR):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        programado = get_object_or_404(MovimientoProgramado, pk=pk)
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido'}, status=400)
+
+        campos, error = _validar_datos_programado(data)
+        if error:
+            return JsonResponse({'error': error}, status=400)
+
+        for campo, valor in campos.items():
+            setattr(programado, campo, valor)
+        programado.save()
+
+        return JsonResponse({'success': True, 'programado': _serializar_programado(programado)})
+
+
+class ToggleActivoProgramadoAjax(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        if not chequear_permiso(request.user, PERMISO_EDITAR):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        programado = get_object_or_404(MovimientoProgramado, pk=pk)
+        programado.activo = not programado.activo
+        programado.save(update_fields=['activo'])
+        return JsonResponse({'success': True, 'activo': programado.activo})
+
+
+class EliminarProgramadoAjax(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        if not chequear_permiso(request.user, PERMISO_ELIMINAR):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        programado = get_object_or_404(MovimientoProgramado, pk=pk)
+        try:
+            programado.delete()
+            return JsonResponse({'success': True})
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+
+
+class ConfirmarInstanciaProgramadaAjax(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        if not chequear_permiso(request.user, PERMISO_CREAR):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        instancia = get_object_or_404(InstanciaProgramada, pk=pk)
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido'}, status=400)
+
+        monto = data.get('monto')
+        fecha = data.get('fecha')
+        cuenta_pk = data.get('cuenta_pk') or data.get('cuenta')
+
+        if not monto or not fecha:
+            return JsonResponse({'error': 'Faltan datos obligatorios: monto, fecha'}, status=400)
+
+        cuenta = _cuenta_valida(cuenta_pk)
+        if not cuenta:
+            return JsonResponse({'error': 'Elegí una cuenta válida.'}, status=400)
+
+        try:
+            instancia.confirmar(monto=monto, cuenta=cuenta, fecha=fecha, usuario=request.user)
+        except (ValueError, InvalidOperation) as e:
+            return JsonResponse({'error': str(e)}, status=400)
+
+        return JsonResponse({'success': True})
+
+
+class AnularInstanciaProgramadaAjax(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        if not chequear_permiso(request.user, PERMISO_EDITAR):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        instancia = get_object_or_404(InstanciaProgramada, pk=pk)
+        try:
+            instancia.anular()
+        except ValueError as e:
+            return JsonResponse({'error': str(e)}, status=400)
+
+        return JsonResponse({'success': True})

@@ -26,7 +26,7 @@
     <header class="gastos-header">
         <div>
             <h1 class="gastos-title">Ingresos y egresos</h1>
-            <p class="gastos-subtitle">Movimientos manuales de caja: sueldos, herencias, regalos, alquiler, mecánico, luz, etc.</p>
+            <p class="gastos-subtitle">Movimientos manuales de caja: sueldos, herencias, regalos, alquiler, mecánico, luz, etc. — únicos o recurrentes.</p>
         </div>
         {% if puede_crear %}
         <button type="button" class="btn btn-primary" id="btnNuevoGasto">
@@ -39,112 +39,174 @@
     </header>
 
     <!-- ══════════════════════════════════
-         FILTROS
+         MOVIMIENTOS — pestañas
     ══════════════════════════════════ -->
     <section class="gastos-section">
-        <div class="gastos-filtros-header">
-            <h2 class="gastos-section-title">Historial</h2>
-            <button type="button" class="btn-filtros-toggle" id="btnToggleFiltros" aria-expanded="false">
-                <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
-                    <path d="M2 4H14M4.5 8H11.5M7 12H9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-                </svg>
-                Filtros
+        <div class="gastos-tabs" role="tablist">
+            <button type="button" class="gastos-tab-btn gastos-tab-btn--active" data-tab="historial">Historial</button>
+            <button type="button" class="gastos-tab-btn" data-tab="pendientes">
+                Pendientes de confirmar
+                <span class="gastos-count-badge" id="pendientesCount" hidden>0</span>
             </button>
+            <button type="button" class="gastos-tab-btn" data-tab="programados">Programados</button>
         </div>
 
-        <form id="formFiltros" class="gastos-filtros" hidden>
-            <div class="filtro-campo">
-                <label for="fDesde">Desde</label>
-                <input type="date" id="fDesde" name="desde">
+        <!-- Panel: Historial -->
+        <div class="gastos-tab-panel" id="panelHistorial">
+            <div class="gastos-filtros-header">
+                <button type="button" class="btn-filtros-toggle" id="btnToggleFiltros" aria-expanded="false">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                        <path d="M2 4H14M4.5 8H11.5M7 12H9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                    </svg>
+                    Filtros
+                </button>
             </div>
-            <div class="filtro-campo">
-                <label for="fHasta">Hasta</label>
-                <input type="date" id="fHasta" name="hasta">
-            </div>
-            <div class="filtro-campo">
-                <label for="fTipo">Tipo</label>
-                <select id="fTipo" name="tipo">
-                    <option value="">Todos</option>
-                    {% for tipo, label in tipos_movimiento %}
-                    <option value="{{ tipo }}">{{ label }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="filtro-campo">
-                <label for="fCuenta">Cuenta</label>
-                <select id="fCuenta" name="cuenta">
-                    <option value="">Todas</option>
-                    {% for cuenta in cuentas %}
-                    <option value="{{ cuenta.pk }}">{{ cuenta.nombre }}{% if cuenta.titular %} · {{ cuenta.titular }}{% endif %} ({{ cuenta.moneda }}){% if cuenta.es_credito %} · crédito{% endif %}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="filtro-campo">
-                <label for="fMoneda">Moneda</label>
-                <select id="fMoneda" name="moneda">
-                    <option value="">Todas</option>
-                    {% for moneda, label in monedas %}
-                    <option value="{{ moneda }}">{{ label }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="filtro-campo filtro-campo--ancho">
-                <label for="fQ">Buscar</label>
-                <input type="text" id="fQ" name="q" placeholder="Descripción...">
-            </div>
-            <div class="filtro-acciones">
-                <button type="submit" class="btn btn-primary">Filtrar</button>
-                <button type="button" class="btn btn-ghost" id="btnLimpiarFiltros">Limpiar</button>
-            </div>
-        </form>
-    </section>
 
-    <!-- ══════════════════════════════════
-         TABLA
-    ══════════════════════════════════ -->
-    <section class="gastos-section">
-        <div class="gastos-tabla-wrap">
-            <table class="gastos-tabla">
-                <thead>
-                    <tr>
-                        <th>Fecha</th>
-                        <th>Hora</th>
-                        <th>Tipo</th>
-                        <th>Descripción</th>
-                        <th>Cuenta</th>
-                        <th>Monto</th>
-                        <th>Moneda</th>
-                        <th>Creado por</th>
-                        <th class="th-acciones">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody id="gastosBody">
-                    <tr>
-                        <td colspan="9" class="gastos-tabla-loading">Cargando…</td>
-                    </tr>
-                </tbody>
-            </table>
+            <form id="formFiltros" class="gastos-filtros" hidden>
+                <div class="filtro-campo">
+                    <label for="fDesde">Desde</label>
+                    <input type="date" id="fDesde" name="desde">
+                </div>
+                <div class="filtro-campo">
+                    <label for="fHasta">Hasta</label>
+                    <input type="date" id="fHasta" name="hasta">
+                </div>
+                <div class="filtro-campo">
+                    <label for="fTipo">Tipo</label>
+                    <select id="fTipo" name="tipo">
+                        <option value="">Todos</option>
+                        {% for tipo, label in tipos_movimiento %}
+                        <option value="{{ tipo }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filtro-campo">
+                    <label for="fCuenta">Cuenta</label>
+                    <select id="fCuenta" name="cuenta">
+                        <option value="">Todas</option>
+                        {% for cuenta in cuentas %}
+                        <option value="{{ cuenta.pk }}">{{ cuenta.nombre }}{% if cuenta.titular %} · {{ cuenta.titular }}{% endif %} ({{ cuenta.moneda }}){% if cuenta.es_credito %} · crédito{% endif %}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filtro-campo">
+                    <label for="fMoneda">Moneda</label>
+                    <select id="fMoneda" name="moneda">
+                        <option value="">Todas</option>
+                        {% for moneda, label in monedas %}
+                        <option value="{{ moneda }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filtro-campo filtro-campo--ancho">
+                    <label for="fQ">Buscar</label>
+                    <input type="text" id="fQ" name="q" placeholder="Descripción...">
+                </div>
+                <div class="filtro-acciones">
+                    <button type="submit" class="btn btn-primary">Filtrar</button>
+                    <button type="button" class="btn btn-ghost" id="btnLimpiarFiltros">Limpiar</button>
+                </div>
+            </form>
+
+            <div class="gastos-tabla-wrap">
+                <table class="gastos-tabla">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Hora</th>
+                            <th>Tipo</th>
+                            <th>Descripción</th>
+                            <th>Cuenta</th>
+                            <th>Monto</th>
+                            <th>Moneda</th>
+                            <th>Creado por</th>
+                            <th class="th-acciones">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="gastosBody">
+                        <tr>
+                            <td colspan="9" class="gastos-tabla-loading">Cargando…</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="gastos-paginacion" id="paginacionContainer"></div>
         </div>
-        <div class="gastos-paginacion" id="paginacionContainer"></div>
+
+        <!-- Panel: Pendientes de confirmar -->
+        <div class="gastos-tab-panel" id="panelPendientes" hidden>
+            <p class="gastos-subtitle" style="margin-bottom:0.9rem;">Instancias generadas por tus movimientos programados. No se carga nada a la caja hasta que confirmás cada una.</p>
+            <div class="gastos-tabla-wrap">
+                <table class="gastos-tabla">
+                    <thead>
+                        <tr>
+                            <th>Vencimiento</th>
+                            <th>Tipo</th>
+                            <th>Descripción</th>
+                            <th>Monto sugerido</th>
+                            <th>Cuenta</th>
+                            <th class="th-acciones">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pendientesBody">
+                        <tr><td colspan="6" class="gastos-tabla-loading">Cargando…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Panel: Movimientos programados -->
+        <div class="gastos-tab-panel" id="panelProgramados" hidden>
+            <p class="gastos-subtitle" style="margin-bottom:0.9rem;">Ingresos y egresos que se repiten (sueldos, alquiler, luz, etc.) — al llegar la fecha aparecen en "Pendientes de confirmar", nunca se cargan solos a la caja.</p>
+            <div class="gastos-tabla-wrap">
+                <table class="gastos-tabla">
+                    <thead>
+                        <tr>
+                            <th>Descripción</th>
+                            <th>Tipo</th>
+                            <th>Monto</th>
+                            <th>Frecuencia</th>
+                            <th>Próxima fecha</th>
+                            <th>Cuenta</th>
+                            <th>Estado</th>
+                            <th class="th-acciones">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="programadosBody">
+                        <tr><td colspan="8" class="gastos-tabla-loading">Cargando…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </section>
 </div>
 
 <!-- ══════════════════════════════════
-     MODAL NUEVO/EDITAR MOVIMIENTO
+     MODAL — NUEVO/EDITAR MOVIMIENTO (único o recurrente)
 ══════════════════════════════════ -->
-<div class="modal" id="modalGasto" hidden>
-    <div class="modal-backdrop" id="modalBackdrop"></div>
+<div class="modal" id="modalMovimiento" hidden>
+    <div class="modal-backdrop" id="modalMovBackdrop"></div>
     <div class="modal-content">
         <div class="modal-header">
-            <h2 class="modal-title" id="modalTitle">Nuevo movimiento</h2>
-            <button type="button" class="modal-close" id="btnCerrarModal" aria-label="Cerrar">
+            <h2 class="modal-title" id="modalMovTitle">Nuevo movimiento</h2>
+            <button type="button" class="modal-close" id="btnCerrarModalMov" aria-label="Cerrar">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                     <path d="M5 5L15 15M5 15L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
             </button>
         </div>
-        <form id="formGasto" class="modal-body">
-            <input type="hidden" id="gastoPk" name="pk">
+        <form id="formMovimiento" class="modal-body">
+            <input type="hidden" id="movPk" name="pk">
+            <input type="hidden" id="movEditKind" value="">
+            <input type="hidden" id="movModo" value="unico">
+
+            <div class="form-campo" id="wrapModo">
+                <label>¿Cómo se repite? *</label>
+                <div class="gastos-tipo-toggle">
+                    <button type="button" class="pg-toggle-btn pg-toggle-btn--active" data-modo="unico">Movimiento único</button>
+                    <button type="button" class="pg-toggle-btn" data-modo="recurrente">Se repite (recurrente)</button>
+                </div>
+            </div>
 
             <div class="form-campo">
                 <label>Tipo *</label>
@@ -152,22 +214,56 @@
                     <button type="button" class="gastos-tipo-btn gastos-tipo-btn--ingreso" data-tipo="ingreso">Ingreso</button>
                     <button type="button" class="gastos-tipo-btn gastos-tipo-btn--egreso gastos-tipo-btn--active" data-tipo="egreso">Egreso</button>
                 </div>
-                <input type="hidden" id="gTipo" name="tipo" value="egreso">
+                <input type="hidden" id="movTipo" name="tipo" value="egreso">
+            </div>
+
+            <!-- Campos exclusivos de "único" -->
+            <div id="wrapUnico">
+                <div class="form-campo">
+                    <label for="movFecha">Fecha *</label>
+                    <input type="date" id="movFecha" name="fecha">
+                </div>
+                <div class="form-campo">
+                    <label for="movMonto">Monto *</label>
+                    <input type="number" id="movMonto" name="monto" step="0.01" min="0.01">
+                </div>
+            </div>
+
+            <!-- Campos exclusivos de "recurrente" -->
+            <div id="wrapRecurrente" hidden>
+                <div class="form-campo">
+                    <label>Monto</label>
+                    <div class="gastos-tipo-toggle">
+                        <button type="button" class="pg-toggle-btn" data-pgmonto="fijo">Fijo</button>
+                        <button type="button" class="pg-toggle-btn pg-toggle-btn--active" data-pgmonto="variable">Variable</button>
+                    </div>
+                    <input type="hidden" id="movTipoMonto" name="tipo_monto" value="variable">
+                    <small class="form-campo-ayuda">Fijo: se repite el mismo monto cada vez (sueldo, alquiler). Variable: se carga cada vez que llega (luz, agua).</small>
+                </div>
+
+                <div class="form-campo" id="wrapMontoFijo" hidden>
+                    <label for="movMontoFijo">Monto fijo *</label>
+                    <input type="number" id="movMontoFijo" name="monto_fijo" step="0.01" min="0.01">
+                </div>
+
+                <div class="form-campo">
+                    <label for="movFrecuencia">Frecuencia *</label>
+                    <select id="movFrecuencia" name="frecuencia">
+                        {% for freq, label in frecuencias_programado %}
+                        <option value="{{ freq }}" {% if freq == 'mensual' %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-campo">
+                    <label for="movProximaFecha">Próxima fecha *</label>
+                    <input type="date" id="movProximaFecha" name="proxima_fecha">
+                </div>
             </div>
 
             <div class="form-campo">
-                <label for="gFecha">Fecha *</label>
-                <input type="date" id="gFecha" name="fecha" required>
-            </div>
-
-            <div class="form-campo">
-                <label for="gMonto">Monto *</label>
-                <input type="number" id="gMonto" name="monto" step="0.01" min="0.01" required>
-            </div>
-
-            <div class="form-campo">
-                <label for="gMoneda">Moneda</label>
-                <select id="gMoneda" name="moneda">
+                <label for="movMoneda">Moneda</label>
+                <select id="movMoneda" name="moneda">
                     {% for moneda, label in monedas %}
                     <option value="{{ moneda }}">{{ label }}</option>
                     {% endfor %}
@@ -175,21 +271,64 @@
             </div>
 
             <div class="form-campo">
-                <label for="gCuenta">Cuenta *</label>
-                <select id="gCuenta" name="cuenta_pk" required>
+                <label for="movCuenta">Cuenta *</label>
+                <select id="movCuenta" name="cuenta_pk" required>
                     <option value="">— Elegí una cuenta —</option>
                 </select>
-                <small class="form-campo-ayuda">Solo se muestran cuentas en la moneda elegida arriba.</small>
+                <small class="form-campo-ayuda" id="movCuentaAyuda">Solo se muestran cuentas en la moneda elegida arriba.</small>
             </div>
 
             <div class="form-campo">
-                <label for="gDescripcion">Descripción</label>
-                <input type="text" id="gDescripcion" name="descripcion" placeholder="Ej: Alquiler, Mecánico, Luz, Sueldo, Herencia, Regalo...">
+                <label for="movDescripcion">Descripción<span id="movDescReq" hidden> *</span></label>
+                <input type="text" id="movDescripcion" name="descripcion" placeholder="Ej: Alquiler, Mecánico, Luz, Sueldo, Herencia, Regalo...">
             </div>
 
             <div class="modal-footer">
-                <button type="button" class="btn btn-ghost" id="btnCancelarModal">Cancelar</button>
-                <button type="submit" class="btn btn-primary" id="btnGuardarGasto">Guardar</button>
+                <button type="button" class="btn btn-ghost" id="btnCancelarModalMov">Cancelar</button>
+                <button type="submit" class="btn btn-primary" id="btnGuardarMov">Guardar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════
+     MODAL CONFIRMAR INSTANCIA PENDIENTE
+══════════════════════════════════ -->
+<div class="modal" id="modalConfirmarInstancia" hidden>
+    <div class="modal-backdrop" id="modalConfirmarBackdrop"></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title">Confirmar movimiento</h2>
+            <button type="button" class="modal-close" id="btnCerrarModalConfirmar" aria-label="Cerrar">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M5 5L15 15M5 15L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
+        <form id="formConfirmarInstancia" class="modal-body">
+            <input type="hidden" id="ciPk" name="pk">
+            <p class="gastos-subtitle" id="ciDescripcion" style="margin-bottom:1rem;"></p>
+
+            <div class="form-campo">
+                <label for="ciFecha">Fecha del movimiento *</label>
+                <input type="date" id="ciFecha" name="fecha" required>
+            </div>
+
+            <div class="form-campo">
+                <label for="ciMonto">Monto *</label>
+                <input type="number" id="ciMonto" name="monto" step="0.01" min="0.01" required>
+            </div>
+
+            <div class="form-campo">
+                <label for="ciCuenta">Cuenta *</label>
+                <select id="ciCuenta" name="cuenta_pk" required>
+                    <option value="">— Elegí una cuenta —</option>
+                </select>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-ghost" id="btnCancelarModalConfirmar">Cancelar</button>
+                <button type="submit" class="btn btn-primary" id="btnGuardarConfirmarInstancia">Confirmar</button>
             </div>
         </form>
     </div>
@@ -208,6 +347,13 @@
         crear: '{{ url_crear }}',
         editar: '{{ url_editar }}',
         eliminar: '{{ url_eliminar }}',
+        listarProgramados: '{{ url_listar_programados }}',
+        crearProgramado: '{{ url_crear_programado }}',
+        editarProgramado: '{{ url_editar_programado }}',
+        eliminarProgramado: '{{ url_eliminar_programado }}',
+        toggleProgramado: '{{ url_toggle_programado }}',
+        confirmarInstancia: '{{ url_confirmar_instancia }}',
+        anularInstancia: '{{ url_anular_instancia }}',
     };
     window.gastosToday = '{{ today }}';
 </script>

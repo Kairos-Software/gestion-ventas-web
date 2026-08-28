@@ -133,14 +133,29 @@
             <option value="{{ t.pk }}" data-categoria="{{ t.categoria_id|default:'' }}" {% if filtro_tipo == t.pk|stringformat:"s" %}selected{% endif %}>{{ t.nombre }}</option>
             {% endfor %}
         </select>
+        <select name="publicado" class="prd-filter-select">
+            <option value="">Publicado: todos</option>
+            <option value="1" {% if filtro_publicado == '1' %}selected{% endif %}>Publicado en catálogo</option>
+            <option value="0" {% if filtro_publicado == '0' %}selected{% endif %}>No publicado</option>
+        </select>
         <label class="prd-filter-check">
             <input type="checkbox" name="stock_bajo" value="1"
                    {% if filtro_stock_bajo == '1' %}checked{% endif %}
                    onchange="this.form.submit()">
             <span>Stock bajo</span>
         </label>
+        <select name="orden" class="prd-filter-select" onchange="this.form.submit()">
+            <option value="nombre"      {% if orden == 'nombre' %}selected{% endif %}>Nombre (A-Z)</option>
+            <option value="nombre_desc" {% if orden == 'nombre_desc' %}selected{% endif %}>Nombre (Z-A)</option>
+            <option value="precio_asc"  {% if orden == 'precio_asc' %}selected{% endif %}>Precio: menor a mayor</option>
+            <option value="precio_desc" {% if orden == 'precio_desc' %}selected{% endif %}>Precio: mayor a menor</option>
+            <option value="stock_asc"   {% if orden == 'stock_asc' %}selected{% endif %}>Stock: menor a mayor</option>
+            <option value="stock_desc"  {% if orden == 'stock_desc' %}selected{% endif %}>Stock: mayor a menor</option>
+            <option value="reciente"    {% if orden == 'reciente' %}selected{% endif %}>Más recientes primero</option>
+            <option value="antiguo"     {% if orden == 'antiguo' %}selected{% endif %}>Más antiguos primero</option>
+        </select>
         <button type="submit" class="prd-btn prd-btn-filter">Filtrar</button>
-        {% if q or filtro_estado or filtro_categoria or filtro_tipo or filtro_stock_bajo %}
+        {% if q or filtro_estado or filtro_categoria or filtro_tipo or filtro_stock_bajo or filtro_publicado or orden != 'nombre' %}
         <a href="{% url 'productos:gestion_productos' %}" class="prd-btn prd-btn-ghost">Limpiar</a>
         {% endif %}
     </form>
@@ -289,11 +304,11 @@
     {% if productos.has_other_pages %}
     <div class="prd-pagination">
         {% if productos.has_previous %}
-            <a href="?page={{ productos.previous_page_number }}&q={{ q }}&estado={{ filtro_estado }}&categoria={{ filtro_categoria }}&tipo={{ filtro_tipo }}&stock_bajo={{ filtro_stock_bajo }}" class="prd-page-btn">← Anterior</a>
+            <a href="?page={{ productos.previous_page_number }}&q={{ q }}&estado={{ filtro_estado }}&categoria={{ filtro_categoria }}&tipo={{ filtro_tipo }}&stock_bajo={{ filtro_stock_bajo }}&publicado={{ filtro_publicado }}&orden={{ orden }}" class="prd-page-btn">← Anterior</a>
         {% endif %}
         <span class="prd-page-info">Página {{ productos.number }} de {{ productos.paginator.num_pages }}</span>
         {% if productos.has_next %}
-            <a href="?page={{ productos.next_page_number }}&q={{ q }}&estado={{ filtro_estado }}&categoria={{ filtro_categoria }}&tipo={{ filtro_tipo }}&stock_bajo={{ filtro_stock_bajo }}" class="prd-page-btn">Siguiente →</a>
+            <a href="?page={{ productos.next_page_number }}&q={{ q }}&estado={{ filtro_estado }}&categoria={{ filtro_categoria }}&tipo={{ filtro_tipo }}&stock_bajo={{ filtro_stock_bajo }}&publicado={{ filtro_publicado }}&orden={{ orden }}" class="prd-page-btn">Siguiente →</a>
         {% endif %}
     </div>
     {% endif %}

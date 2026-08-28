@@ -10,6 +10,25 @@ document.addEventListener('DOMContentLoaded', function () {
             .trim();
     }
 
+    function establecerModuloColapsado(moduloCard, colapsado) {
+        const boton = moduloCard.querySelector('.modulo-collapse');
+        moduloCard.classList.toggle('is-collapsed', colapsado);
+        if (boton) boton.setAttribute('aria-expanded', colapsado ? 'false' : 'true');
+    }
+
+    document.querySelectorAll('.modulo-card').forEach(function (moduloCard, indice) {
+        const boton = moduloCard.querySelector('.modulo-collapse');
+        boton?.addEventListener('click', function () {
+            establecerModuloColapsado(moduloCard, !moduloCard.classList.contains('is-collapsed'));
+        });
+
+        // En teléfono se deja visible la primera área y se pliegan las demás
+        // para que el usuario pueda llegar rápidamente a cualquier sección.
+        if (window.matchMedia('(max-width: 600px)').matches && indice > 0) {
+            establecerModuloColapsado(moduloCard, true);
+        }
+    });
+
     function actualizarResumen() {
         const editables = Array.from(document.querySelectorAll(
             '#formPermisos .permiso-row input[type="checkbox"]:not(:disabled)'
@@ -38,6 +57,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (visible) visiblesModulo += 1;
             });
             moduloCard.hidden = visiblesModulo === 0;
+            if (visiblesModulo > 0 && (termino || filtroActivo !== 'todos')) {
+                establecerModuloColapsado(moduloCard, false);
+            }
             visiblesTotales += visiblesModulo;
         });
 

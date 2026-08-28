@@ -28,6 +28,18 @@ from core.permisos import chequear_permiso
 #  HELPERS
 # ══════════════════════════════════════════════════════════════════
 
+ORDEN_PRODUCTOS = {
+    'nombre':      ('nombre',),
+    'nombre_desc': ('-nombre',),
+    'precio_asc':  ('precio_venta',),
+    'precio_desc': ('-precio_venta',),
+    'stock_asc':   ('stock_actual',),
+    'stock_desc':  ('-stock_actual',),
+    'reciente':    ('-fecha_alta',),
+    'antiguo':     ('fecha_alta',),
+}
+
+
 def _serializar_producto(p):
     """Serializa un Producto para respuestas JSON — usado para precargar el
     modal de edición. precio_venta manda el precio SIN IVA (p.precio_neto)
@@ -302,6 +314,8 @@ class GestionProductosView(LoginRequiredMixin, TemplateView):
         categoria = self.request.GET.get('categoria', '')
         tipo      = self.request.GET.get('tipo', '')
         stock_bajo = self.request.GET.get('stock_bajo', '')
+        publicado  = self.request.GET.get('publicado', '')
+        orden      = self.request.GET.get('orden', 'nombre')
 
         if estado:
             qs = qs.filter(estado=estado)
@@ -312,8 +326,12 @@ class GestionProductosView(LoginRequiredMixin, TemplateView):
         if stock_bajo == '1':
             from django.db.models import F
             qs = qs.filter(gestiona_stock=True, stock_actual__lte=F('stock_minimo'))
+        if publicado == '1':
+            qs = qs.filter(publicado=True)
+        elif publicado == '0':
+            qs = qs.filter(publicado=False)
 
-        qs = qs.order_by('nombre')
+        qs = qs.order_by(*ORDEN_PRODUCTOS.get(orden, ORDEN_PRODUCTOS['nombre']))
         paginator = Paginator(qs, 20)
         page      = self.request.GET.get('page', 1)
 
@@ -329,6 +347,8 @@ class GestionProductosView(LoginRequiredMixin, TemplateView):
         ctx['filtro_categoria'] = categoria
         ctx['filtro_tipo']      = tipo
         ctx['filtro_stock_bajo'] = stock_bajo
+        ctx['filtro_publicado'] = publicado
+        ctx['orden']             = orden
         return ctx
 
 
