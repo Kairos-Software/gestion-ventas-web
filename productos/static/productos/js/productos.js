@@ -586,6 +586,7 @@ async function togglePublicar(pk, publicadoActual, btn) {
             btn.classList.toggle('prd-action-btn--publicado', nuevoEstado);
             btn.title = nuevoEstado ? 'Despublicar del catálogo' : 'Publicar en catálogo';
             btn.setAttribute('onclick', `togglePublicar(${pk}, ${nuevoEstado}, this)`);
+            actualizarContadoresStats(0, 0, nuevoEstado ? 1 : -1);
             showToast(nuevoEstado ? 'Producto publicado.' : 'Producto despublicado.', 'ok');
         } else {
             showToast('Error al cambiar estado de publicación.', 'error');
@@ -1806,6 +1807,30 @@ function actualizarContadoresStats(deltTotal, deltActivo, deltPublicado) {
     if (elActivos    && deltActivo     !== 0) elActivos.textContent    = (parseInt(elActivos.textContent)    || 0) + deltActivo;
     if (elPublicados && deltPublicado  !== 0) elPublicados.textContent = (parseInt(elPublicados.textContent) || 0) + deltPublicado;
 }
+
+// Tarjetas de estadísticas clicleables: togglean un filtro de la barra de
+// arriba (agregándolo o quitándolo de la URL actual) y recargan la página.
+function prdToggleFiltroStat(param, valor) {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get(param) === valor) {
+        params.delete(param);
+    } else {
+        params.set(param, valor);
+    }
+    params.delete('page');
+    const qs = params.toString();
+    window.location.href = window.location.pathname + (qs ? '?' + qs : '');
+}
+
+// Tarjeta "Total productos": vuelve a ver todo, sin tocar búsqueda/categoría/tipo.
+function prdLimpiarFiltrosStats() {
+    const params = new URLSearchParams(window.location.search);
+    params.delete('estado');
+    params.delete('publicado');
+    params.delete('page');
+    const qs = params.toString();
+    window.location.href = window.location.pathname + (qs ? '?' + qs : '');
+}
 // ════════════════════════════════════════════════════════════════════
 //  UX GENERAL
 // ════════════════════════════════════════════════════════════════════
@@ -2096,14 +2121,18 @@ async function prdAplicarAccionMasiva(accion) {
             showToast(`${data.afectados} producto(s) eliminado(s).`, 'ok');
         } else {
             const publicar = accion === 'publicar';
+            let delta = 0;
             pks.forEach(pk => {
                 const fila = document.querySelector(`tr[data-pk="${pk}"]`);
                 const btn  = fila?.querySelector('.prd-action-btn');
                 if (!btn) return;
+                const yaEstaba = btn.classList.contains('prd-action-btn--publicado');
+                if (yaEstaba !== publicar) delta += publicar ? 1 : -1;
                 btn.classList.toggle('prd-action-btn--publicado', publicar);
                 btn.title = publicar ? 'Despublicar del catálogo' : 'Publicar en catálogo';
                 btn.setAttribute('onclick', `togglePublicar(${pk}, ${publicar}, this)`);
             });
+            actualizarContadoresStats(0, 0, delta);
             showToast(`${data.afectados} producto(s) ${publicar ? 'publicado(s)' : 'despublicado(s)'}.`, 'ok');
         }
         prdActualizarBulkBar();

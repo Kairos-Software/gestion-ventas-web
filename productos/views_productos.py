@@ -317,8 +317,6 @@ class GestionProductosView(LoginRequiredMixin, TemplateView):
         publicado  = self.request.GET.get('publicado', '')
         orden      = self.request.GET.get('orden', 'nombre')
 
-        if estado:
-            qs = qs.filter(estado=estado)
         if categoria:
             qs = qs.filter(categoria__pk=categoria)
         if tipo:
@@ -326,6 +324,15 @@ class GestionProductosView(LoginRequiredMixin, TemplateView):
         if stock_bajo == '1':
             from django.db.models import F
             qs = qs.filter(gestiona_stock=True, stock_actual__lte=F('stock_minimo'))
+
+        # Base para las tarjetas de estadísticas: incluye búsqueda/categoría/tipo/stock
+        # bajo, pero todavía NO los toggles de estado/publicado — así cada tarjeta
+        # muestra "cuántos habría si tocás ese filtro" en vez de congelarse en el total
+        # global o duplicar el propio filtro que representa.
+        qs_stats = qs
+
+        if estado:
+            qs = qs.filter(estado=estado)
         if publicado == '1':
             qs = qs.filter(publicado=True)
         elif publicado == '0':
@@ -337,9 +344,9 @@ class GestionProductosView(LoginRequiredMixin, TemplateView):
 
         ctx['productos']   = paginator.get_page(page)
         ctx['form']        = ProductoForm()
-        ctx['total']       = Producto.objects.count()
-        ctx['activos']     = Producto.objects.filter(estado='activo').count()
-        ctx['publicados']  = Producto.objects.filter(publicado=True).count()
+        ctx['total']       = qs_stats.count()
+        ctx['activos']     = qs_stats.filter(estado='activo').count()
+        ctx['publicados']  = qs_stats.filter(publicado=True).count()
         ctx['categorias']  = CategoriaProducto.objects.filter(activo=True).order_by('orden', 'nombre')
         ctx['tipos']       = TipoProducto.objects.filter(activo=True).order_by('orden', 'nombre')
         ctx['q']           = q

@@ -4,7 +4,7 @@
 {% block title %}Productos{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'productos/css/productos.css' %}?v=4">
+<link rel="stylesheet" href="{% static 'productos/css/productos.css' %}?v=5">
 {% endblock %}
 
 {% block content %}
@@ -50,7 +50,10 @@
 {#  TARJETAS DE ESTADÍSTICAS                                            #}
 {# ═══════════════════════════════════════════════════════════════════ #}
 <div class="prd-stats-row">
-    <div class="prd-stat-card">
+    <button type="button"
+            class="prd-stat-card prd-stat-card--clickable {% if not filtro_estado and not filtro_publicado %}prd-stat-card--active{% endif %}"
+            onclick="prdLimpiarFiltrosStats()"
+            title="Ver todos los productos (quita los filtros de estado y publicación)">
         <div class="prd-stat-icon prd-stat-icon--total">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                 <rect x="2" y="2" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.5"/>
@@ -63,8 +66,11 @@
             <span class="prd-stat-value" id="statTotal">{{ total }}</span>
             <span class="prd-stat-label">Total productos</span>
         </div>
-    </div>
-    <div class="prd-stat-card">
+    </button>
+    <button type="button"
+            class="prd-stat-card prd-stat-card--clickable {% if filtro_estado == 'activo' %}prd-stat-card--active{% endif %}"
+            onclick="prdToggleFiltroStat('estado', 'activo')"
+            title="Filtrar por productos activos">
         <div class="prd-stat-icon prd-stat-icon--activo">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                 <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.5"/>
@@ -75,8 +81,11 @@
             <span class="prd-stat-value" id="statActivos">{{ activos }}</span>
             <span class="prd-stat-label">Activos</span>
         </div>
-    </div>
-    <div class="prd-stat-card">
+    </button>
+    <button type="button"
+            class="prd-stat-card prd-stat-card--clickable {% if filtro_publicado == '1' %}prd-stat-card--active{% endif %}"
+            onclick="prdToggleFiltroStat('publicado', '1')"
+            title="Filtrar por publicados en el catálogo">
         <div class="prd-stat-icon prd-stat-icon--publicado">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                 <path d="M10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18C14.4183 18 18 14.4183 18 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
@@ -87,8 +96,8 @@
             <span class="prd-stat-value" id="statPublicados">{{ publicados }}</span>
             <span class="prd-stat-label">Publicados</span>
         </div>
-    </div>
-    <div class="prd-stat-card">
+    </button>
+    <div class="prd-stat-card" title="Categorías activas en el catálogo">
         <div class="prd-stat-icon prd-stat-icon--categ">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                 <path d="M3 5H17M3 10H17M3 15H11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
@@ -107,57 +116,59 @@
 <div class="prd-filters-bar">
     <form method="get" class="prd-filters-form" id="filtrosForm">
         <div class="prd-search-wrap">
-            <svg class="prd-search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <svg class="prd-search-icon" width="18" height="18" viewBox="0 0 16 16" fill="none">
                 <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.3"/>
                 <path d="M10 10L14 14" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
             </svg>
             <input type="text" name="q" value="{{ q }}"
                    class="prd-search-input" placeholder="Buscar por nombre, código, SKU, marca...">
         </div>
-        <select name="estado" class="prd-filter-select">
-            <option value="">Todos los estados</option>
-            <option value="activo"        {% if filtro_estado == 'activo' %}selected{% endif %}>Activo</option>
-            <option value="inactivo"      {% if filtro_estado == 'inactivo' %}selected{% endif %}>Inactivo</option>
-            <option value="discontinuado" {% if filtro_estado == 'discontinuado' %}selected{% endif %}>Discontinuado</option>
-            <option value="agotado"       {% if filtro_estado == 'agotado' %}selected{% endif %}>Agotado</option>
-        </select>
-        <select name="categoria" id="filtroCategoria" class="prd-filter-select">
-            <option value="">Todas las categorías</option>
-            {% for cat in categorias %}
-            <option value="{{ cat.pk }}" {% if filtro_categoria == cat.pk|stringformat:"s" %}selected{% endif %}>{{ cat.nombre }}</option>
-            {% endfor %}
-        </select>
-        <select name="tipo" id="filtroTipo" class="prd-filter-select">
-            <option value="">Todos los tipos</option>
-            {% for t in tipos %}
-            <option value="{{ t.pk }}" data-categoria="{{ t.categoria_id|default:'' }}" {% if filtro_tipo == t.pk|stringformat:"s" %}selected{% endif %}>{{ t.nombre }}</option>
-            {% endfor %}
-        </select>
-        <select name="publicado" class="prd-filter-select">
-            <option value="">Publicado: todos</option>
-            <option value="1" {% if filtro_publicado == '1' %}selected{% endif %}>Publicado en catálogo</option>
-            <option value="0" {% if filtro_publicado == '0' %}selected{% endif %}>No publicado</option>
-        </select>
-        <label class="prd-filter-check">
-            <input type="checkbox" name="stock_bajo" value="1"
-                   {% if filtro_stock_bajo == '1' %}checked{% endif %}
-                   onchange="this.form.submit()">
-            <span>Stock bajo</span>
-        </label>
-        <select name="orden" class="prd-filter-select" onchange="this.form.submit()">
-            <option value="nombre"      {% if orden == 'nombre' %}selected{% endif %}>Nombre (A-Z)</option>
-            <option value="nombre_desc" {% if orden == 'nombre_desc' %}selected{% endif %}>Nombre (Z-A)</option>
-            <option value="precio_asc"  {% if orden == 'precio_asc' %}selected{% endif %}>Precio: menor a mayor</option>
-            <option value="precio_desc" {% if orden == 'precio_desc' %}selected{% endif %}>Precio: mayor a menor</option>
-            <option value="stock_asc"   {% if orden == 'stock_asc' %}selected{% endif %}>Stock: menor a mayor</option>
-            <option value="stock_desc"  {% if orden == 'stock_desc' %}selected{% endif %}>Stock: mayor a menor</option>
-            <option value="reciente"    {% if orden == 'reciente' %}selected{% endif %}>Más recientes primero</option>
-            <option value="antiguo"     {% if orden == 'antiguo' %}selected{% endif %}>Más antiguos primero</option>
-        </select>
-        <button type="submit" class="prd-btn prd-btn-filter">Filtrar</button>
-        {% if q or filtro_estado or filtro_categoria or filtro_tipo or filtro_stock_bajo or filtro_publicado or orden != 'nombre' %}
-        <a href="{% url 'productos:gestion_productos' %}" class="prd-btn prd-btn-ghost">Limpiar</a>
-        {% endif %}
+        <div class="prd-filters-row">
+            <select name="estado" class="prd-filter-select">
+                <option value="">Todos los estados</option>
+                <option value="activo"        {% if filtro_estado == 'activo' %}selected{% endif %}>Activo</option>
+                <option value="inactivo"      {% if filtro_estado == 'inactivo' %}selected{% endif %}>Inactivo</option>
+                <option value="discontinuado" {% if filtro_estado == 'discontinuado' %}selected{% endif %}>Discontinuado</option>
+                <option value="agotado"       {% if filtro_estado == 'agotado' %}selected{% endif %}>Agotado</option>
+            </select>
+            <select name="categoria" id="filtroCategoria" class="prd-filter-select">
+                <option value="">Todas las categorías</option>
+                {% for cat in categorias %}
+                <option value="{{ cat.pk }}" {% if filtro_categoria == cat.pk|stringformat:"s" %}selected{% endif %}>{{ cat.nombre }}</option>
+                {% endfor %}
+            </select>
+            <select name="tipo" id="filtroTipo" class="prd-filter-select">
+                <option value="">Todos los tipos</option>
+                {% for t in tipos %}
+                <option value="{{ t.pk }}" data-categoria="{{ t.categoria_id|default:'' }}" {% if filtro_tipo == t.pk|stringformat:"s" %}selected{% endif %}>{{ t.nombre }}</option>
+                {% endfor %}
+            </select>
+            <select name="publicado" class="prd-filter-select">
+                <option value="">Publicado: todos</option>
+                <option value="1" {% if filtro_publicado == '1' %}selected{% endif %}>Publicado en catálogo</option>
+                <option value="0" {% if filtro_publicado == '0' %}selected{% endif %}>No publicado</option>
+            </select>
+            <label class="prd-filter-check">
+                <input type="checkbox" name="stock_bajo" value="1"
+                       {% if filtro_stock_bajo == '1' %}checked{% endif %}
+                       onchange="this.form.submit()">
+                <span>Stock bajo</span>
+            </label>
+            <select name="orden" class="prd-filter-select" onchange="this.form.submit()">
+                <option value="nombre"      {% if orden == 'nombre' %}selected{% endif %}>Nombre (A-Z)</option>
+                <option value="nombre_desc" {% if orden == 'nombre_desc' %}selected{% endif %}>Nombre (Z-A)</option>
+                <option value="precio_asc"  {% if orden == 'precio_asc' %}selected{% endif %}>Precio: menor a mayor</option>
+                <option value="precio_desc" {% if orden == 'precio_desc' %}selected{% endif %}>Precio: mayor a menor</option>
+                <option value="stock_asc"   {% if orden == 'stock_asc' %}selected{% endif %}>Stock: menor a mayor</option>
+                <option value="stock_desc"  {% if orden == 'stock_desc' %}selected{% endif %}>Stock: mayor a menor</option>
+                <option value="reciente"    {% if orden == 'reciente' %}selected{% endif %}>Más recientes primero</option>
+                <option value="antiguo"     {% if orden == 'antiguo' %}selected{% endif %}>Más antiguos primero</option>
+            </select>
+            <button type="submit" class="prd-btn prd-btn-filter">Filtrar</button>
+            {% if q or filtro_estado or filtro_categoria or filtro_tipo or filtro_stock_bajo or filtro_publicado or orden != 'nombre' %}
+            <a href="{% url 'productos:gestion_productos' %}" class="prd-btn prd-btn-ghost">Limpiar</a>
+            {% endif %}
+        </div>
     </form>
 </div>
 
@@ -1101,5 +1112,5 @@ const URLS = {
     opcionEliminar    : '{% url "productos:opcion_variante_eliminar" %}',
 };
 </script>
-<script src="{% static 'productos/js/productos.js' %}?v=4"></script>
+<script src="{% static 'productos/js/productos.js' %}?v=5"></script>
 {% endblock %}
