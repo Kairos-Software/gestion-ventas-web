@@ -1,5 +1,8 @@
 from django.urls import path
-from . import views_proveedores, views_productos, views_stock, views_ofertas, views_paquetes
+from . import (
+    views_proveedores, views_productos, views_stock, views_ofertas,
+    views_paquetes, views_export,
+)
 
 app_name = 'productos'
 
@@ -22,6 +25,10 @@ urlpatterns = [
     path('acciones-masivas/',     views_productos.ProductoAccionesMasivasAjax.as_view(), name='producto_acciones_masivas'),
     path('activar-costo/',        views_productos.ProductoActivarCostoAjax.as_view(), name='producto_activar_costo'),
     path('buscar/',               views_productos.ProductoBuscarAjax.as_view(),         name='producto_buscar'),
+
+    # — Exportación a Excel —
+    path('exportar/excel/',       views_export.ProductoExportarExcelView.as_view(),   name='producto_exportar_excel'),
+    path('exportar/conteo/',      views_export.ProductoExportarConteoAjax.as_view(),  name='producto_exportar_conteo'),
 
     # — Imágenes —
     path('imagenes/subir/',       views_productos.ProductoImagenSubirAjax.as_view(),    name='producto_imagen_subir'),

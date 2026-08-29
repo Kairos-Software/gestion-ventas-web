@@ -21,6 +21,7 @@ from .forms import (
     CategoriaProductoForm, TipoProductoForm,
     VarianteForm, OpcionVarianteForm, CombinacionVarianteForm,
 )
+from .export_productos import grupos_para_template, COLUMNAS_RESUMEN
 from core.permisos import chequear_permiso
 
 
@@ -294,6 +295,7 @@ class GestionProductosView(LoginRequiredMixin, TemplateView):
         ctx['puede_eliminar'] = chequear_permiso(self.request.user, 'eliminar_productos')
         ctx['puede_gestionar_categorias'] = chequear_permiso(self.request.user, 'gestionar_categorias')
         ctx['puede_gestionar_listas_descuento'] = chequear_permiso(self.request.user, 'gestionar_listas_descuento')
+        ctx['puede_exportar'] = chequear_permiso(self.request.user, 'ver_productos')
 
         if not chequear_permiso(self.request.user, 'ver_productos'):
             ctx['sin_permiso'] = True
@@ -356,6 +358,8 @@ class GestionProductosView(LoginRequiredMixin, TemplateView):
         ctx['filtro_stock_bajo'] = stock_bajo
         ctx['filtro_publicado'] = publicado
         ctx['orden']             = orden
+        ctx['grupos_export']     = grupos_para_template()
+        ctx['columnas_resumen']  = COLUMNAS_RESUMEN
         return ctx
 
 

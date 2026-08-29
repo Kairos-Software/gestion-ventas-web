@@ -2144,3 +2144,181 @@ async function prdAplicarAccionMasiva(accion) {
 document.getElementById('btnBulkPublicar')?.addEventListener('click', () => prdAplicarAccionMasiva('publicar'));
 document.getElementById('btnBulkDespublicar')?.addEventListener('click', () => prdAplicarAccionMasiva('despublicar'));
 document.getElementById('btnBulkEliminar')?.addEventListener('click', () => prdAplicarAccionMasiva('eliminar'));
+
+// ════════════════════════════════════════════════════════════════════
+//  EXPORTAR A EXCEL
+// ════════════════════════════════════════════════════════════════════
+(function initExport() {
+    const modal = document.getElementById('modalExportar');
+    if (!modal) return;   // sin permiso 'ver_productos' → el modal no se renderiza
+
+    const LS_KEY = 'prd_export_columnas';
+
+    let RESUMEN = [];
+    try {
+        const parsed = JSON.parse(document.getElementById('exportColumnasResumen').textContent);
+        if (Array.isArray(parsed)) RESUMEN = parsed;
+    } catch { /* preset "Resumen" queda igual a "Ninguna" si falla */ }
+
+    const btnAbrir     = document.getElementById('btnExportar');
+    const btnDescargar  = document.getElementById('btnDescargarExcel');
+    const expFiltros    = document.getElementById('expFiltros');
+    const expConteo     = document.getElementById('expConteo');
+    const expError      = document.getElementById('expError');
+    const selCountEl    = document.getElementById('expSelCount');
+    const scopeSelWrap  = document.getElementById('expScopeSeleccionWrap');
+
+    const filtroInputs = ['exp_estado', 'exp_publicado', 'exp_categoria', 'exp_tipo', 'exp_stock']
+        .map(id => document.getElementById(id));
+
+    function scopeActual() {
+        return modal.querySelector('input[name="expScope"]:checked')?.value || 'filtro';
+    }
+
+    function columnasElegidas() {
+        return Array.from(modal.querySelectorAll('.exp-col:checked')).map(c => c.value);
+    }
+
+    function paramsExport() {
+        const p = new URLSearchParams();
+        if (scopeActual() === 'seleccion') {
+            p.set('solo', prdPksSeleccionados().join(','));
+            return p;
+        }
+        const [estado, publicado, categoria, tipo, stock] = filtroInputs.map(i => i.value);
+        if (estado)    p.set('estado', estado);
+        if (publicado) p.set('publicado', publicado);
+        if (categoria) p.set('categoria', categoria);
+        if (tipo)      p.set('tipo', tipo);
+        if (stock)     p.set('stock', stock);
+        return p;
+    }
+
+    let conteoTimer = null;
+    function refrescarConteo() {
+        const scope = scopeActual();
+        expFiltros.classList.toggle('prd-export-filtros--off', scope === 'seleccion');
+        filtroInputs.forEach(i => { i.disabled = scope === 'seleccion'; });
+
+        if (scope === 'seleccion') {
+            const n = prdPksSeleccionados().length;
+            expConteo.textContent = `${n} producto${n !== 1 ? 's' : ''} seleccionado${n !== 1 ? 's' : ''}`;
+            return;
+        }
+
+        expConteo.textContent = 'calculando…';
+        clearTimeout(conteoTimer);
+        conteoTimer = setTimeout(async () => {
+            try {
+                const res  = await fetch(URLS.productoExportarConteo + '?' + paramsExport().toString());
+                const data = await res.json();
+                const n = data.total ?? 0;
+                expConteo.textContent = `${n} producto${n !== 1 ? 's' : ''}`;
+            } catch {
+                expConteo.textContent = '—';
+            }
+        }, 250);
+    }
+
+    function sincronizarGrupo(groupId) {
+        const grupoCb = modal.querySelector(`.exp-col-group[data-group="${groupId}"]`);
+        if (!grupoCb) return;
+        const hijos = Array.from(modal.querySelectorAll(`.exp-col[data-group="${groupId}"]`));
+        const marcados = hijos.filter(h => h.checked).length;
+        grupoCb.checked = marcados === hijos.length && hijos.length > 0;
+        grupoCb.indeterminate = marcados > 0 && marcados < hijos.length;
+    }
+
+    function sincronizarTodosLosGrupos() {
+        new Set(Array.from(modal.querySelectorAll('.exp-col')).map(c => c.dataset.group))
+            .forEach(sincronizarGrupo);
+    }
+
+    function aplicarPreset(preset) {
+        const resumen = new Set(RESUMEN);
+        modal.querySelectorAll('.exp-col').forEach(c => {
+            if (preset === 'completo')      c.checked = true;
+            else if (preset === 'none')     c.checked = false;
+            else if (preset === 'resumen')  c.checked = resumen.has(c.value);
+        });
+        sincronizarTodosLosGrupos();
+        expError.style.display = 'none';
+    }
+
+    function restaurarColumnas() {
+        let guardadas = null;
+        try { guardadas = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch { /* sin storage */ }
+        if (Array.isArray(guardadas) && guardadas.length) {
+            const set = new Set(guardadas);
+            modal.querySelectorAll('.exp-col').forEach(c => { c.checked = set.has(c.value); });
+        } else {
+            modal.querySelectorAll('.exp-col').forEach(c => { c.checked = true; });
+        }
+        sincronizarTodosLosGrupos();
+    }
+
+    function prefillFiltrosDesdePagina() {
+        const form = document.getElementById('filtrosForm');
+        if (!form) return;
+        const get = n => form.querySelector(`[name="${n}"]`);
+        document.getElementById('exp_estado').value    = get('estado')?.value || '';
+        document.getElementById('exp_categoria').value = get('categoria')?.value || '';
+        document.getElementById('exp_tipo').value      = get('tipo')?.value || '';
+        document.getElementById('exp_publicado').value = get('publicado')?.value || '';
+        document.getElementById('exp_stock').value     = get('stock_bajo')?.checked ? 'bajo' : '';
+    }
+
+    function abrir() {
+        const n = prdPksSeleccionados().length;
+        selCountEl.textContent = n;
+        const radioSel = modal.querySelector('input[name="expScope"][value="seleccion"]');
+        radioSel.disabled = n === 0;
+        scopeSelWrap.classList.toggle('prd-check-label--disabled', n === 0);
+        if (n === 0) modal.querySelector('input[name="expScope"][value="filtro"]').checked = true;
+
+        prefillFiltrosDesdePagina();
+        restaurarColumnas();
+        expError.style.display = 'none';
+        refrescarConteo();
+        abrirModal('modalExportar');
+    }
+
+    btnAbrir?.addEventListener('click', abrir);
+
+    modal.querySelectorAll('input[name="expScope"]').forEach(r =>
+        r.addEventListener('change', refrescarConteo));
+    filtroInputs.forEach(i => i.addEventListener('change', refrescarConteo));
+
+    modal.querySelectorAll('.prd-export-presets [data-preset]').forEach(b =>
+        b.addEventListener('click', () => aplicarPreset(b.dataset.preset)));
+
+    modal.querySelectorAll('.exp-col-group').forEach(g =>
+        g.addEventListener('change', () => {
+            modal.querySelectorAll(`.exp-col[data-group="${g.dataset.group}"]`)
+                .forEach(h => { h.checked = g.checked; });
+            g.indeterminate = false;
+            expError.style.display = 'none';
+        }));
+
+    modal.querySelectorAll('.exp-col').forEach(c =>
+        c.addEventListener('change', () => {
+            sincronizarGrupo(c.dataset.group);
+            if (columnasElegidas().length) expError.style.display = 'none';
+        }));
+
+    btnDescargar?.addEventListener('click', () => {
+        const cols = columnasElegidas();
+        if (!cols.length) { expError.style.display = 'block'; return; }
+        expError.style.display = 'none';
+
+        try { localStorage.setItem(LS_KEY, JSON.stringify(cols)); } catch { /* sin storage */ }
+
+        const params = paramsExport();
+        const totalCols = modal.querySelectorAll('.exp-col').length;
+        if (cols.length !== totalCols) params.set('columnas', cols.join(','));
+
+        window.location.href = URLS.productoExportarExcel + '?' + params.toString();
+        cerrarModal('modalExportar');
+        showToast('Generando Excel…', 'ok');
+    });
+})();

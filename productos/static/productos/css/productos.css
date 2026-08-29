@@ -2074,3 +2074,69 @@
     display: block;
     margin-top: 0.15rem;
 }
+
+/* ════════════════════════════════════════════════════════════
+   MODAL — EXPORTAR A EXCEL
+   ════════════════════════════════════════════════════════════ */
+.prd-export-section { margin-bottom: 1.35rem; }
+.prd-export-section:last-child { margin-bottom: 0; }
+
+.prd-export-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+.prd-export-section-title {
+    font-family: var(--font-heading);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+.prd-export-section-head .prd-export-section-title { margin-bottom: 0; }
+
+.prd-check-label--radio { padding: 0.3rem 0; }
+.prd-check-label--disabled { opacity: 0.45; cursor: not-allowed; }
+
+.prd-export-filtros {
+    margin-top: 0.6rem;
+    padding: 0.85rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 0.6rem;
+    transition: opacity 0.15s;
+}
+.prd-export-filtros--off { opacity: 0.4; pointer-events: none; }
+
+.prd-export-conteo { margin: 0.6rem 0 0; }
+.prd-export-conteo strong { color: var(--text-primary); }
+
+.prd-export-presets { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+
+.prd-export-cols {
+    margin-top: 0.5rem;
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 0.6rem;
+    padding: 0.5rem 0.75rem;
+}
+.prd-export-col-group { padding: 0.4rem 0; }
+.prd-export-col-group + .prd-export-col-group { border-top: 1px solid var(--border-color); }
+
+.prd-export-col-grouphead { font-weight: 700; color: var(--text-primary); }
+
+.prd-export-col-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.25rem 1rem;
+    margin: 0.35rem 0 0.15rem 1.4rem;
+}
+@media (max-width: 560px) {
+    .prd-export-col-list { grid-template-columns: 1fr; }
+}
+
+.prd-check-label--sm { font-size: 0.78rem; }
+.prd-check-label--sm input { flex-shrink: 0; }

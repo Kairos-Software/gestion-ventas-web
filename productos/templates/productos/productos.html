@@ -4,7 +4,7 @@
 {% block title %}Productos{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'productos/css/productos.css' %}?v=5">
+<link rel="stylesheet" href="{% static 'productos/css/productos.css' %}?v=6">
 {% endblock %}
 
 {% block content %}
@@ -35,6 +35,15 @@
                 <path d="M2 4H14M2 8H14M2 12H9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
             </svg>
             Listas de descuento
+        </button>
+        {% endif %}
+        {% if puede_exportar %}
+        <button class="prd-btn prd-btn-secondary" id="btnExportar">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M8 2V10M8 10L5 7M8 10L11 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M3 12V13.5H13V12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            Exportar a Excel
         </button>
         {% endif %}
         <button class="prd-btn prd-btn-primary" id="btnNuevoProducto">
@@ -1073,6 +1082,145 @@
     </div>
 </div>
 
+{# ════════════════════════════════════════════════════════════════════ #}
+{#  MODAL — EXPORTAR A EXCEL                                             #}
+{# ════════════════════════════════════════════════════════════════════ #}
+{% if puede_exportar %}
+<div class="prd-modal-overlay" id="modalExportar">
+    <div class="prd-modal prd-modal--md">
+        <div class="prd-modal-header">
+            <div class="prd-modal-title">
+                <div class="prd-page-icon">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                        <path d="M9 2V11M9 11L5.5 7.5M9 11L12.5 7.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M3 13V15H15V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <span>Exportar productos a Excel</span>
+            </div>
+            <button class="prd-modal-close" onclick="cerrarModal('modalExportar')">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                    <path d="M4 4L14 14M14 4L4 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
+
+        <div class="prd-modal-body">
+            {# — QUÉ PRODUCTOS — #}
+            <div class="prd-export-section">
+                <div class="prd-export-section-title">Qué productos</div>
+
+                <label class="prd-check-label prd-check-label--radio">
+                    <input type="radio" name="expScope" value="filtro" checked>
+                    <span>Los que cumplan el filtro de abajo</span>
+                </label>
+                <label class="prd-check-label prd-check-label--radio" id="expScopeSeleccionWrap">
+                    <input type="radio" name="expScope" value="seleccion" disabled>
+                    <span>Solo los seleccionados en la tabla (<strong id="expSelCount">0</strong>)</span>
+                </label>
+
+                <div class="prd-export-filtros" id="expFiltros">
+                    <div class="prd-form-grid prd-form-grid--2">
+                        <div class="prd-field">
+                            <label>Estado</label>
+                            <select id="exp_estado" class="prd-input prd-select">
+                                <option value="">Todos los estados</option>
+                                <option value="activo">Activo</option>
+                                <option value="inactivo">Inactivo</option>
+                                <option value="discontinuado">Discontinuado</option>
+                                <option value="agotado">Agotado</option>
+                            </select>
+                        </div>
+                        <div class="prd-field">
+                            <label>Publicado</label>
+                            <select id="exp_publicado" class="prd-input prd-select">
+                                <option value="">Publicado: todos</option>
+                                <option value="1">Publicado en catálogo</option>
+                                <option value="0">No publicado</option>
+                            </select>
+                        </div>
+                        <div class="prd-field">
+                            <label>Categoría</label>
+                            <select id="exp_categoria" class="prd-input prd-select">
+                                <option value="">Todas las categorías</option>
+                                {% for cat in categorias %}
+                                <option value="{{ cat.pk }}">{{ cat.nombre }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="prd-field">
+                            <label>Tipo</label>
+                            <select id="exp_tipo" class="prd-input prd-select">
+                                <option value="">Todos los tipos</option>
+                                {% for t in tipos %}
+                                <option value="{{ t.pk }}">{{ t.nombre }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="prd-field">
+                            <label>Stock</label>
+                            <select id="exp_stock" class="prd-input prd-select">
+                                <option value="">Stock: todos</option>
+                                <option value="con">Con stock</option>
+                                <option value="sin">Sin stock</option>
+                                <option value="bajo">Stock bajo</option>
+                            </select>
+                        </div>
+                    </div>
+                    <p class="prd-field-hint prd-export-conteo">
+                        Se exportarán <strong id="expConteo">…</strong>
+                    </p>
+                </div>
+            </div>
+
+            {# — COLUMNAS — #}
+            <div class="prd-export-section">
+                <div class="prd-export-section-head">
+                    <div class="prd-export-section-title">Columnas</div>
+                    <div class="prd-export-presets">
+                        <button type="button" class="prd-btn prd-btn-ghost prd-btn--sm" data-preset="completo">Completo</button>
+                        <button type="button" class="prd-btn prd-btn-ghost prd-btn--sm" data-preset="resumen">Resumen</button>
+                        <button type="button" class="prd-btn prd-btn-ghost prd-btn--sm" data-preset="none">Ninguna</button>
+                    </div>
+                </div>
+                <p class="prd-field-hint">Por defecto se exportan todas. Destildá lo que no necesites.</p>
+
+                <div class="prd-export-cols" id="expColumnas">
+                    {% for grupo, items in grupos_export %}
+                    <div class="prd-export-col-group">
+                        <label class="prd-check-label prd-check-label--sm prd-export-col-grouphead">
+                            <input type="checkbox" class="exp-col-group" data-group="g{{ forloop.counter }}" checked>
+                            <span>{{ grupo }}</span>
+                        </label>
+                        <div class="prd-export-col-list">
+                            {% for key, label in items %}
+                            <label class="prd-check-label prd-check-label--sm">
+                                <input type="checkbox" class="exp-col" value="{{ key }}" data-group="g{{ forloop.parentloop.counter }}" checked>
+                                <span>{{ label }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <p class="prd-form-error" id="expError" style="display:none">Elegí al menos una columna para exportar.</p>
+            </div>
+        </div>
+
+        <div class="prd-modal-footer">
+            <button class="prd-btn prd-btn-ghost" onclick="cerrarModal('modalExportar')">Cancelar</button>
+            <button class="prd-btn prd-btn-primary" id="btnDescargarExcel">
+                <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                    <path d="M7.5 1.5V9M7.5 9L4.5 6M7.5 9L10.5 6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M2.5 11V13H12.5V11" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                </svg>
+                Descargar Excel
+            </button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <div class="prd-toast" id="prdToast"></div>
 
 {% endblock %}
@@ -1086,6 +1234,8 @@ const URLS = {
     productoEliminar  : '{% url "productos:producto_eliminar" %}',
     productoAccionesMasivas: '{% url "productos:producto_acciones_masivas" %}',
     productoActivarCosto : '{% url "productos:producto_activar_costo" %}',
+    productoExportarExcel : '{% url "productos:producto_exportar_excel" %}',
+    productoExportarConteo: '{% url "productos:producto_exportar_conteo" %}',
     categoriaLista    : '{% url "productos:categoria_lista" %}',
     categoriaAcciones : '{% url "productos:categoria_acciones" %}',
     categoriaEliminar : '{% url "productos:categoria_eliminar" %}',
@@ -1112,5 +1262,6 @@ const URLS = {
     opcionEliminar    : '{% url "productos:opcion_variante_eliminar" %}',
 };
 </script>
-<script src="{% static 'productos/js/productos.js' %}?v=5"></script>
+{{ columnas_resumen|json_script:"exportColumnasResumen" }}
+<script src="{% static 'productos/js/productos.js' %}?v=6"></script>
 {% endblock %}
