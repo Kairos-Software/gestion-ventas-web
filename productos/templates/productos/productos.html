@@ -4,7 +4,7 @@
 {% block title %}Productos{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'productos/css/productos.css' %}?v=6">
+<link rel="stylesheet" href="{% static 'productos/css/productos.css' %}?v=7">
 {% endblock %}
 
 {% block content %}
@@ -44,6 +44,15 @@
                 <path d="M3 12V13.5H13V12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
             </svg>
             Exportar a Excel
+        </button>
+        {% endif %}
+        {% if puede_importar %}
+        <button class="prd-btn prd-btn-secondary" id="btnImportar">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M8 10V2M8 2L5 5M8 2L11 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M3 12V13.5H13V12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            Importar de Excel
         </button>
         {% endif %}
         <button class="prd-btn prd-btn-primary" id="btnNuevoProducto">
@@ -1221,6 +1230,94 @@
 </div>
 {% endif %}
 
+{# ════════════════════════════════════════════════════════════════════ #}
+{#  MODAL — IMPORTAR DESDE EXCEL                                         #}
+{# ════════════════════════════════════════════════════════════════════ #}
+{% if puede_importar %}
+<div class="prd-modal-overlay" id="modalImportar">
+    <div class="prd-modal prd-modal--md">
+        <div class="prd-modal-header">
+            <div class="prd-modal-title">
+                <div class="prd-page-icon">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                        <path d="M9 11V2M9 11L5.5 7.5M9 11L12.5 7.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" transform="rotate(180 9 6.5)"/>
+                        <path d="M3 13V15H15V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <span>Importar productos desde Excel</span>
+            </div>
+            <button class="prd-modal-close" onclick="cerrarModal('modalImportar')">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                    <path d="M4 4L14 14M14 4L4 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
+
+        <div class="prd-modal-body">
+            {# — PASO 1: elegir archivo — #}
+            <div class="prd-import-step" id="impPaso1">
+                <p class="prd-field-hint">
+                    La columna <strong>Código</strong> decide: si existe, actualiza ese
+                    producto; si está vacía o no existe, crea uno nuevo.
+                    <br><strong>Celda vacía = no se toca ese campo</strong> (se mantiene lo
+                    que ya está cargado). Las columnas que el sistema no reconoce se ignoran.
+                    No se tocan stock ni costo.
+                </p>
+                <a class="prd-import-plantilla" href="{% url 'productos:producto_importar_plantilla' %}">
+                    <svg width="14" height="14" viewBox="0 0 15 15" fill="none">
+                        <path d="M7.5 1.5V9M7.5 9L4.5 6M7.5 9L10.5 6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M2.5 11V13H12.5V11" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                    </svg>
+                    Descargar plantilla vacía
+                </a>
+
+                <label class="prd-import-drop" id="impDrop">
+                    <input type="file" id="impArchivo" accept=".xlsx" hidden>
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                        <path d="M12 15V4M12 4L8 8M12 4L16 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M4 16V19H20V16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                    </svg>
+                    <span id="impDropTexto">Elegí un archivo <strong>.xlsx</strong> o arrastralo acá</span>
+                </label>
+                <p class="prd-form-error" id="impError" hidden></p>
+            </div>
+
+            {# — PASO 2: previsualización — #}
+            <div class="prd-import-step" id="impPaso2" hidden>
+                <div class="prd-import-resumen" id="impResumen"></div>
+
+                <div class="prd-import-aviso" id="impIgnoradas" hidden></div>
+                <div class="prd-import-aviso prd-import-aviso--probl" id="impProblemas" hidden></div>
+
+                <details class="prd-import-detalle" id="impDetalleWrap">
+                    <summary><span id="impDetalleSummary">Ver detalle fila por fila</span></summary>
+                    <div class="prd-import-tabla-wrap">
+                        <table class="prd-import-tabla">
+                            <thead>
+                                <tr><th>Fila</th><th>Acción</th><th>Producto</th><th>Detalle</th></tr>
+                            </thead>
+                            <tbody id="impDetalleBody"></tbody>
+                        </table>
+                    </div>
+                </details>
+            </div>
+
+            {# — PASO 3: resultado — #}
+            <div class="prd-import-step" id="impPaso3" hidden>
+                <div class="prd-import-resultado" id="impResultado"></div>
+            </div>
+        </div>
+
+        <div class="prd-modal-footer">
+            <button class="prd-btn prd-btn-ghost" id="impBtnCancelar" onclick="cerrarModal('modalImportar')">Cancelar</button>
+            <button class="prd-btn prd-btn-secondary" id="impBtnOtro" hidden>Elegir otro archivo</button>
+            <button class="prd-btn prd-btn-primary" id="impBtnAplicar" hidden disabled>Aplicar cambios</button>
+            <button class="prd-btn prd-btn-primary" id="impBtnCerrar" hidden onclick="window.location.reload()">Listo</button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <div class="prd-toast" id="prdToast"></div>
 
 {% endblock %}
@@ -1236,6 +1333,8 @@ const URLS = {
     productoActivarCosto : '{% url "productos:producto_activar_costo" %}',
     productoExportarExcel : '{% url "productos:producto_exportar_excel" %}',
     productoExportarConteo: '{% url "productos:producto_exportar_conteo" %}',
+    productoImportarAnalizar: '{% url "productos:producto_importar_analizar" %}',
+    productoImportarAplicar : '{% url "productos:producto_importar_aplicar" %}',
     categoriaLista    : '{% url "productos:categoria_lista" %}',
     categoriaAcciones : '{% url "productos:categoria_acciones" %}',
     categoriaEliminar : '{% url "productos:categoria_eliminar" %}',
@@ -1263,5 +1362,5 @@ const URLS = {
 };
 </script>
 {{ columnas_resumen|json_script:"exportColumnasResumen" }}
-<script src="{% static 'productos/js/productos.js' %}?v=6"></script>
+<script src="{% static 'productos/js/productos.js' %}?v=7"></script>
 {% endblock %}

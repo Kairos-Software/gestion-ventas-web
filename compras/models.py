@@ -1477,21 +1477,38 @@ def procesar_lotes_vencidos():
     programarlo con el Task Scheduler de Windows.
     """
     hoy = timezone.localtime().date()
-    vencidos = LoteCompra.objects.filter(
-        activo=True, cantidad_actual__gt=0, fecha_vencimiento__lt=hoy,
+    pks = list(
+        LoteCompra.objects
+        .filter(activo=True, cantidad_actual__gt=0, fecha_vencimiento__lt=hoy)
+        .values_list('pk', flat=True)
     )
-    return [
-        registrar_perdida(
-            lote            = lote,
-            cantidad        = lote.cantidad_actual,
-            motivo          = MotivoPerdida.VENCIMIENTO,
-            motivo_detalle  = 'Vencimiento automático',
-            usuario         = None,
-            automatica      = True,
-            fecha           = hoy,
-        )
-        for lote in vencidos
-    ]
+
+    # Se procesa de a un lote, releyéndolo con lock y re-chequeando que
+    # todavía tenga stock: como esto corre "perezosamente" en cada visita
+    # a Inventario, dos visitas casi simultáneas (o dos pestañas) podían
+    # intentar dar de baja el mismo lote y la segunda reventaba con
+    # "no hay suficiente stock".
+    perdidas = []
+    for pk in pks:
+        with transaction.atomic():
+            lote = (
+                LoteCompra.objects
+                .select_for_update()
+                .filter(pk=pk, activo=True, cantidad_actual__gt=0)
+                .first()
+            )
+            if lote is None:
+                continue   # otra visita ya lo procesó
+            perdidas.append(registrar_perdida(
+                lote            = lote,
+                cantidad        = lote.cantidad_actual,
+                motivo          = MotivoPerdida.VENCIMIENTO,
+                motivo_detalle  = 'Vencimiento automático',
+                usuario         = None,
+                automatica      = True,
+                fecha           = hoy,
+            ))
+    return perdidas
 
 
 # ══════════════════════════════════════════════════════════════════

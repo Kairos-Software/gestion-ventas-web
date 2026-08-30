@@ -9,10 +9,11 @@ from django.core.paginator import Paginator
 from django.db.models import Q
 from django.db import transaction
 from django.conf import settings
+from django.utils import timezone
 
 from .models import (
     Cliente, ClienteImagen, ClienteContactoAdicional,
-    ClienteTelefono, GrupoFamiliar
+    ClienteTelefono, GrupoFamiliar, recalcular_scoring_pendientes
 )
 from .forms_clientes import (
     FormularioClienteBase, FormularioClienteImagen,
@@ -43,6 +44,9 @@ def _cliente_a_dict(c):
         'tipo':           c.tipo,
         'estado':         c.estado,
         'scoring':        c.scoring,
+        'scoring_calculado': c.scoring_calculado,
+        'scoring_banda':  c.scoring_banda,
+        'scoring_override': c.scoring_override,
         'nivel_riesgo':   c.nivel_riesgo,
         'nombre_display': c.get_nombre_display(),
         # Persona
@@ -122,6 +126,11 @@ class GestionClientesView(LoginRequiredMixin, View):
         puede_ver = chequear_permiso(request.user, 'ver_clientes')
 
         if puede_ver:
+            # Pone al día, de a tandas, los scorings vencidos antes de
+            # pintar la lista (la mora envejece sola). Ver
+            # recalcular_scoring_pendientes — no depende de nada externo.
+            recalcular_scoring_pendientes()
+
             qs = Cliente.objects.select_related('creado_por', 'referido_por', 'grupo_familiar')
 
             q = request.GET.get('q', '').strip()
@@ -192,16 +201,96 @@ class ClienteDetalleView(LoginRequiredMixin, View):
                 grupo_familiar=cliente.grupo_familiar
             ).exclude(pk=pk)
 
+        # Scoring: recálculo perezoso si está vencido (>24h) o nunca se
+        # calculó — mismo criterio que descartar_borradores_vencidos.
+        vencido = (
+            cliente.scoring_actualizado_el is None
+            or (timezone.now() - cliente.scoring_actualizado_el).total_seconds() > 86400
+        )
+        if vencido:
+            try:
+                cliente.recalcular_scoring(commit=True)
+            except Exception:
+                pass
+
         context = {
             'cliente':        cliente,
             'imagenes':       cliente.imagenes.all(),
             'contactos':      cliente.contactos_adicionales.all(),
             'telefonos':      cliente.telefonos.all(),
             'convivientes':   convivientes,
+            'scoring_desglose': cliente.scoring_desglose or [],
             'puede_editar':   chequear_permiso(request.user, 'editar_clientes'),
             'puede_eliminar': chequear_permiso(request.user, 'eliminar_clientes'),
         }
         return render(request, 'core/detalle_cliente.html', context)
+
+
+class ClienteScoringAjax(LoginRequiredMixin, View):
+    """
+    POST con `accion`:
+      - 'recalcular'  → fuerza el recálculo automático ahora.
+      - 'override'    → fija el puntaje a mano (`puntaje` 0-1000 + `motivo`).
+      - 'quitar'      → saca el override, vuelve al automático.
+    Devuelve el estado nuevo del scoring para refrescar la ficha sin recargar.
+    """
+    def post(self, request, pk):
+        if not chequear_permiso(request.user, 'editar_clientes'):
+            return JsonResponse({'error': 'Sin permiso para editar clientes.'}, status=403)
+
+        cliente = get_object_or_404(Cliente, pk=pk)
+        try:
+            body = json.loads(request.body or '{}')
+        except ValueError:
+            body = {}
+        accion = body.get('accion')
+
+        if accion == 'override':
+            try:
+                puntaje = int(body.get('puntaje'))
+            except (TypeError, ValueError):
+                return JsonResponse({'error': 'Puntaje inválido.'}, status=400)
+            if not (0 <= puntaje <= 1000):
+                return JsonResponse({'error': 'El puntaje va de 0 a 1000.'}, status=400)
+            motivo = (body.get('motivo') or '').strip()
+            if not motivo:
+                return JsonResponse({'error': 'Indicá el motivo del ajuste.'}, status=400)
+            cliente.scoring_override = puntaje
+            cliente.scoring_override_motivo = motivo[:300]
+            cliente.scoring_override_por = request.user
+            cliente.scoring_override_el = timezone.now()
+            cliente.save(update_fields=[
+                'scoring_override', 'scoring_override_motivo',
+                'scoring_override_por', 'scoring_override_el',
+            ])
+        elif accion == 'quitar':
+            cliente.scoring_override = None
+            cliente.scoring_override_motivo = ''
+            cliente.scoring_override_por = None
+            cliente.scoring_override_el = None
+            cliente.save(update_fields=[
+                'scoring_override', 'scoring_override_motivo',
+                'scoring_override_por', 'scoring_override_el',
+            ])
+        elif accion != 'recalcular':
+            return JsonResponse({'error': 'Acción desconocida.'}, status=400)
+
+        cliente.recalcular_scoring(commit=True)
+        return JsonResponse({
+            'ok': True,
+            'scoring': cliente.scoring,
+            'scoring_calculado': cliente.scoring_calculado,
+            'banda': cliente.scoring_banda,
+            'banda_label': cliente.scoring_banda_label,
+            'nivel_riesgo': cliente.nivel_riesgo,
+            'sin_historial': cliente.scoring_sin_historial,
+            'override': cliente.scoring_override,
+            'override_motivo': cliente.scoring_override_motivo,
+            'override_por': cliente.scoring_override_por.get_full_name() or cliente.scoring_override_por.username if cliente.scoring_override_por else '',
+            'override_el': cliente.scoring_override_el.strftime('%d/%m/%Y %H:%M') if cliente.scoring_override_el else '',
+            'actualizado_el': cliente.scoring_actualizado_el.strftime('%d/%m/%Y %H:%M') if cliente.scoring_actualizado_el else '',
+            'desglose': cliente.scoring_desglose or [],
+        })
 
 
 # ── AJAX: Crear / Editar cliente ─────────────────────────────────

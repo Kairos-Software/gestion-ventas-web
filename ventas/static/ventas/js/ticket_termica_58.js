@@ -28,9 +28,13 @@
 /**
  * Genera el HTML completo del ticket para impresora térmica 58mm.
  * @param {object} data
+ * @param {object} [opts]
+ * @param {boolean} [opts.sinAutoImpresion]  No incluir el <script> que
+ *   dispara window.print() al cargar (lo usa ticket_pdf.js).
  * @returns {string}
  */
-function ticketHtmlTermica58(data) {
+function ticketHtmlTermica58(data, opts) {
+    const sinAutoImpresion = !!(opts && opts.sinAutoImpresion);
     const emp     = data.empresa || {};
     const venta   = data.venta   || {};
     const items   = data.items   || [];
@@ -245,7 +249,7 @@ function ticketHtmlTermica58(data) {
     <!-- Pie -->
     <hr class="t58-sep-simple">
     <div class="t58-footer">Gracias por su compra.</div>
-
+${sinAutoImpresion ? '' : `
     <script>
         window.addEventListener('load', function () {
             // La herramienta de impresión del navegador ES la vista previa
@@ -256,7 +260,7 @@ function ticketHtmlTermica58(data) {
         // Cerrar la ventana recién cuando el usuario termina con el
         // diálogo de impresión (imprime o cancela) — nunca antes.
         window.addEventListener('afterprint', function () { window.close(); });
-    <\/script>
+    <\/script>`}
 </body>
 </html>`;
 }

@@ -8,7 +8,65 @@ from django.db.models import Sum, Q
 from django.utils import timezone
 
 from productos.models import Moneda
-from core.models import Cliente
+from core.models import Cliente, recalcular_scoring_cliente
+
+
+# ══════════════════════════════════════════════════════════════════
+#  SCORING — recálculo diferido al commit
+#  El scoring de riesgo de pago del cliente (ver core/scoring.py) se
+#  recalcula cada vez que cambia algo que lo afecta: cobro/rechazo de
+#  una cuota, cheque rebotado, alta/baja de una cuenta por cobrar.
+#  Se difiere con transaction.on_commit para que un problema en el
+#  cálculo nunca rompa la operación real (y para no recalcular si la
+#  transacción termina revirtiéndose).
+# ══════════════════════════════════════════════════════════════════
+
+def _recalcular_scoring_pk(cliente_id):
+    """Programa el recálculo del scoring de un cliente para después del
+    commit de la transacción actual."""
+    if cliente_id:
+        transaction.on_commit(lambda cid=cliente_id: recalcular_scoring_cliente(cid))
+
+
+def _recalcular_scoring_de_cxc(cuenta_por_cobrar_id):
+    """Igual, resolviendo el cliente desde la cuenta por cobrar."""
+    if not cuenta_por_cobrar_id:
+        return
+    cliente_id = (
+        CuentaPorCobrar.objects
+        .filter(pk=cuenta_por_cobrar_id)
+        .values_list('cliente_id', flat=True)
+        .first()
+    )
+    _recalcular_scoring_pk(cliente_id)
+
+
+def _recalcular_scoring_de_cheque(cheque):
+    """Resuelve el cliente de un cheque A_COBRAR (vía la cuota que cobra
+    o la venta que lo originó) y le programa el recálculo. Los cheques
+    A_PAGAR (propios) no tienen cliente — se ignoran."""
+    if cheque.tipo != TipoCheque.A_COBRAR:
+        return
+    cliente_id = None
+    if cheque.cuota_cobro_id:
+        cliente_id = (
+            CuotaCobro.objects
+            .filter(pk=cheque.cuota_cobro_id)
+            .values_list('cuenta_por_cobrar__cliente_id', flat=True)
+            .first()
+        )
+    if not cliente_id and cheque.pago_venta_id:
+        from ventas.models import PagoVenta
+        venta = (
+            PagoVenta.objects
+            .filter(pk=cheque.pago_venta_id)
+            .select_related('venta')
+            .first()
+        )
+        if venta and venta.venta:
+            cli = venta.venta.cliente_unico
+            cliente_id = cli.pk if cli else None
+    _recalcular_scoring_pk(cliente_id)
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -2762,6 +2820,7 @@ class CuentaPorCobrar(models.Model):
                     cheque_historico=ch.get('cheque_historico'),
                 )
 
+        _recalcular_scoring_pk(cuenta_por_cobrar.cliente_id)
         return cuenta_por_cobrar
 
     def _aplicar_pago_historico(self, cuota, *, fecha_pago, usuario, cuenta_pago_historica=None,
@@ -2843,6 +2902,7 @@ class CuentaPorCobrar(models.Model):
         else:
             cuota.confirmar(cuenta_pk, usuario, adelantar=True)
 
+        _recalcular_scoring_pk(self.cliente_id)
         return cuota
 
     @transaction.atomic
@@ -2953,6 +3013,7 @@ class CuentaPorCobrar(models.Model):
         self.estado = EstadoDeuda.ANULADA
         self.save(update_fields=['estado'])
         self.cuotas.filter(estado=EstadoCuota.PENDIENTE).update(estado=EstadoCuota.ANULADA)
+        _recalcular_scoring_pk(self.cliente_id)
 
     def delete(self, *args, _permitir_con_origen=False, **kwargs):
         """
@@ -2973,6 +3034,7 @@ class CuentaPorCobrar(models.Model):
                 'Esta cuenta por cobrar nació de una venta real — no se puede eliminar directamente. '
                 'Si querés deshacerte de ella, eliminá la venta completa desde su historial.'
             )
+        cliente_id = self.cliente_id
         with transaction.atomic():
             cuota_pks = list(self.cuotas.values_list('pk', flat=True))
             movimientos = MovimientoCaja.objects.filter(
@@ -2985,6 +3047,7 @@ class CuentaPorCobrar(models.Model):
                     cheque.rechazar()
                 cheque.delete()
             super().delete(*args, **kwargs)
+            _recalcular_scoring_pk(cliente_id)
 
 
 class CuotaCobro(models.Model):
@@ -3084,6 +3147,7 @@ class CuotaCobro(models.Model):
         self.save(update_fields=['cuenta_cobro', 'estado', 'fecha_confirmacion', 'confirmado_por'])
 
         sincronizar_movimiento_cuota_cobro(self)
+        _recalcular_scoring_de_cxc(self.cuenta_por_cobrar_id)
 
     @transaction.atomic
     def confirmar_con_cheque(self, cheque_data, usuario, adelantar=False):
@@ -3429,6 +3493,7 @@ class Cheque(models.Model):
 
         sincronizar_movimiento_cheque(self)
         _sincronizar_cuota_desde_cheque(self)
+        _recalcular_scoring_de_cheque(self)
 
     @transaction.atomic
     def rechazar(self):
@@ -3441,6 +3506,7 @@ class Cheque(models.Model):
 
         sincronizar_movimiento_cheque(self)
         _sincronizar_cuota_desde_cheque(self)
+        _recalcular_scoring_de_cheque(self)
 
     @transaction.atomic
     def anular(self):
@@ -3449,6 +3515,7 @@ class Cheque(models.Model):
 
         self.estado = EstadoCheque.ANULADO
         self.save(update_fields=['estado'])
+        _recalcular_scoring_de_cheque(self)
 
     def delete(self, *args, _permitir_con_origen=False, **kwargs):
         # Un histórico CONFIRMADO nunca generó movimiento real (ver

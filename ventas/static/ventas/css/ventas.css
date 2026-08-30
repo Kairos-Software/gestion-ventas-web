@@ -195,7 +195,8 @@
 }
 
 .vta-dropdown-item:last-child { border-bottom: none; }
-.vta-dropdown-item:hover { background: var(--brand-orange-light); }
+.vta-dropdown-item:hover,
+.vta-dropdown-item.is-kbd { background: var(--brand-orange-light); }   /* .is-kbd = resaltado con ↑/↓ */
 
 .vta-dropdown-item-top {
     display: flex;
@@ -398,6 +399,209 @@
 .vta-lista-vacia {
     color: var(--text-muted);
     font-size: .8rem;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   CARRITO — lista de tarjetas compactas (nueva_venta.js _renderCarrito)
+   Reemplaza la tabla ancha de 9 columnas: cada ítem es una fila
+   compacta; descuento/lista/oferta se despliegan por ítem.
+════════════════════════════════════════════════════════════════ */
+.vta-cart-count { margin-left: auto; font-size: .78rem; color: var(--text-muted); }
+
+.vta-cart-list { display: flex; flex-direction: column; }
+
+.vta-cart-row {
+    padding: .8rem 1.25rem;
+    border-bottom: 1px solid var(--border-color);
+}
+.vta-cart-row:last-child { border-bottom: none; }
+.vta-cart-row.is-alert { background: rgba(239, 68, 68, .04); }
+/* Ítem "elegido" con el teclado (↑/↓) — para después ajustarlo con + − Supr */
+.vta-cart-row.is-selected {
+    background: var(--brand-orange-light);
+    box-shadow: inset 3px 0 0 var(--brand-orange);
+}
+.vta-cart-row.is-selected.is-alert { background: rgba(239, 68, 68, .08); }
+
+.vta-cart-row-top { display: flex; align-items: flex-start; gap: .6rem; }
+.vta-cart-row-name { flex: 1; min-width: 0; }
+.vta-cart-row-name b {
+    display: block;
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: .875rem;
+    color: var(--text-primary);
+    line-height: 1.3;
+}
+.vta-cart-row-name span { font-size: .72rem; color: var(--text-muted); }
+.vta-cart-row-x {
+    flex-shrink: 0;
+    width: 26px; height: 26px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid rgba(239, 68, 68, .25);
+    background: rgba(239, 68, 68, .1);
+    color: var(--danger, #EF4444);
+    border-radius: .5rem;
+    cursor: pointer;
+    font-size: .8rem;
+    transition: background .15s, border-color .15s;
+}
+.vta-cart-row-x:hover { background: rgba(239, 68, 68, .18); border-color: rgba(239, 68, 68, .4); }
+
+.vta-cart-row-mid {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    margin-top: .55rem;
+    flex-wrap: wrap;
+}
+
+.vta-stepper {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--border-color);
+    border-radius: .5rem;
+    overflow: hidden;
+}
+.vta-stepper button {
+    width: 28px; height: 32px;
+    border: none;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: background .15s, color .15s;
+}
+.vta-stepper button:hover:not(:disabled) { background: var(--brand-orange-light); color: var(--brand-orange-dark); }
+.vta-stepper button:disabled { opacity: .4; cursor: default; }
+.vta-stepper input {
+    width: 54px; height: 32px;
+    border: none;
+    text-align: center;
+    font-family: var(--font-body);
+    font-size: .82rem;
+    background: var(--bg-white);
+    -moz-appearance: textfield;
+}
+.vta-stepper input::-webkit-outer-spin-button,
+.vta-stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.vta-stepper input.vta-input-error { background: rgba(239, 68, 68, .08); color: var(--danger); }
+
+.vta-cart-row-price {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    font-size: .8rem;
+    color: var(--text-muted);
+}
+.vta-cart-row-price input {
+    width: 94px; height: 32px;
+    border: 1px solid var(--border-color);
+    border-radius: .5rem;
+    padding: 0 .5rem;
+    text-align: right;
+    font-family: var(--font-body);
+    font-size: .82rem;
+    background: var(--bg-white);
+}
+.vta-cart-row-price input:focus { outline: none; border-color: var(--brand-orange); }
+
+.vta-cart-row-sub {
+    margin-left: auto;
+    font-family: var(--font-heading);
+    font-weight: 800;
+    font-size: .95rem;
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+.vta-cart-row-sub s { color: var(--text-muted); font-weight: 500; font-size: .78rem; margin-right: .35rem; }
+
+.vta-cart-alert-msg {
+    color: var(--danger, #EF4444);
+    font-size: .74rem;
+    font-weight: 500;
+    margin-top: .4rem;
+}
+
+.vta-cart-row-tags {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    flex-wrap: wrap;
+    margin-top: .5rem;
+}
+.vta-tag-desc {
+    font-size: .72rem;
+    font-weight: 600;
+    color: #0a7d57;
+    background: rgba(16, 185, 129, .12);
+    padding: .12rem .5rem;
+    border-radius: .35rem;
+}
+.vta-cart-row-edit {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--brand-blue, #1E6FA8);
+    font-family: var(--font-body);
+    font-size: .76rem;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.vta-cart-row-adv {
+    display: none;
+    grid-template-columns: 1fr 1fr;
+    gap: .55rem;
+    margin-top: .6rem;
+    padding: .7rem;
+    background: var(--bg-secondary);
+    border-radius: .55rem;
+}
+.vta-cart-row-adv.open { display: grid; }
+.vta-cart-row-adv .full { grid-column: 1 / -1; }
+.vta-cart-row-adv label {
+    display: block;
+    font-size: .68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .02em;
+    color: var(--text-muted);
+    margin-bottom: .25rem;
+}
+.vta-cart-row-adv input,
+.vta-cart-row-adv select {
+    width: 100%;
+    border: 1px solid var(--border-color);
+    border-radius: .45rem;
+    padding: .4rem .5rem;
+    font-family: var(--font-body);
+    font-size: .8rem;
+    background: var(--bg-white);
+    color: var(--text-primary);
+}
+.vta-cart-row-adv input:focus,
+.vta-cart-row-adv select:focus { outline: none; border-color: var(--brand-orange); }
+
+/* Estado vacío del carrito (lista, no tabla) */
+.vta-cart-empty {
+    text-align: center;
+    padding: 3rem 1.5rem;
+    color: var(--text-muted);
+}
+.vta-cart-empty-ic { color: var(--border-strong, #cbd5e1); margin-bottom: .6rem; }
+.vta-cart-empty p { font-size: .85rem; line-height: 1.55; margin: 0; }
+
+/* Pie del carrito: en desktop la columna de cobro ya está a la vista, así
+   que el botón "Ir al cobro" no hace falta. Solo aparece en pantalla
+   angosta (cobro apilado abajo) como ancla de scroll.
+   Selector compuesto para ganarle a `.vta-btn { display: inline-flex }`
+   que está más abajo en el archivo. */
+.vta-cart-footer > .vta-cart-cobrar { display: none; }
+@media (max-width: 1024px) {
+    .vta-cart-footer > .vta-cart-cobrar { display: inline-flex; width: 100%; margin: 0; }
 }
 
 /* Wrapper base del autocomplete de cliente — lo reusan tanto el widget
@@ -915,4 +1119,970 @@ textarea.vta-control {
     font-size: .72rem;
     color: var(--text-muted);
     font-style: italic;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   DETALLE DE VENTA / PANEL DE COBRO — movido desde el <style> inline
+   de detalle_venta.html (lo usan detalle_venta.html y nueva_venta.html)
+═══════════════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════
+   LAYOUT PRINCIPAL: dos columnas
+══════════════════════════════════════════════════════════════ */
+    .cdt-layout {
+        display: grid;
+        grid-template-columns: 1fr 320px;
+        gap: 1rem;
+        align-items: start;
+    }
+
+    /* Sin esto, un grid item no se achica nunca por debajo del ancho
+       mínimo de su contenido (min-width:auto por default) — con una
+       tabla ancha, esa columna "1fr" terminaba forzando TODO el layout
+       más ancho que la pantalla y empujaba la columna lateral fuera
+       de la vista en resoluciones de laptop normales (~1280px). */
+    .cdt-col-main {
+        min-width: 0;
+    }
+
+    @media (max-width: 900px) {
+        .cdt-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .cdt-col-side {
+            order: -1;
+        }
+    }
+
+    /* ══════════════════════════════════════════════════════════════
+   DETALLE DE VENTA — menú horizontal (pestañas) en vez de tener
+   todos los campos apilados: cada pestaña muestra solo su sección,
+   así el panel entra sin necesidad de scrollear la columna.
+══════════════════════════════════════════════════════════════ */
+    .cdt-tabs {
+        display: flex;
+        border-bottom: 1px solid var(--border-color);
+        padding: 0 1.25rem;
+        gap: 1.25rem;
+    }
+
+    .cdt-tab {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: .8rem 0;
+        font-size: .8rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        cursor: pointer;
+        transition: color .15s;
+        white-space: nowrap;
+    }
+
+    .cdt-tab:hover {
+        color: var(--text-secondary);
+    }
+
+    .cdt-tab--active {
+        color: var(--brand-orange);
+        border-bottom-color: var(--brand-orange);
+    }
+
+    .cdt-tab-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--warning, #f59e0b);
+        flex-shrink: 0;
+    }
+
+    .cdt-tab-dot--ok {
+        background: var(--success, #16a34a);
+    }
+
+    .cdt-tab-panel {
+        display: block;
+    }
+
+    /* ══════════════════════════════════════════════════════════════
+   CABECERA
+══════════════════════════════════════════════════════════════ */
+    .cdt-header-actions {
+        display: flex;
+        gap: .5rem;
+        align-items: center;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    /* ══════════════════════════════════════════════════════════════
+   ESTADO BADGES
+══════════════════════════════════════════════════════════════ */
+    .cdt-estado {
+        display: inline-block;
+        padding: .2rem .65rem;
+        border-radius: 20px;
+        font-size: .72rem;
+        font-weight: 700;
+        letter-spacing: .04em;
+        vertical-align: middle;
+        margin-left: .4rem;
+    }
+
+    .cdt-estado--borrador {
+        background: #fef3c7;
+        color: #b45309;
+    }
+
+    .cdt-estado--confirmada {
+        background: #dcfce7;
+        color: #16a34a;
+    }
+
+    .cdt-estado--anulada {
+        background: #fee2e2;
+        color: #dc2626;
+    }
+
+    /* ══════════════════════════════════════════════════════════════
+   TABLA DE ÍTEMS
+══════════════════════════════════════════════════════════════ */
+    .cdt-moneda-chip {
+        display: inline-block;
+        font-size: .68rem;
+        font-weight: 700;
+        padding: .1rem .35rem;
+        background: var(--bg-subtle, #f3f4f6);
+        border-radius: .3rem;
+        color: var(--text-muted);
+        margin-right: .2rem;
+    }
+
+    .cdt-color-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        font-size: .8125rem;
+    }
+
+    .cdt-color-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        border: 1px solid rgba(0, 0, 0, .12);
+        flex-shrink: 0;
+    }
+
+    .cdt-muted {
+        color: var(--text-muted);
+    }
+
+    .cdt-ref {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: .75rem;
+        background: var(--bg-subtle);
+        padding: .1rem .4rem;
+        border-radius: .3rem;
+    }
+
+    .cdt-tfoot-total td {
+        border-top: 2px solid var(--border-color);
+        background: var(--bg-secondary);
+    }
+
+    /* ══════════════════════════════════════════════════════════════
+   COLUMNA DERECHA — sidebar
+══════════════════════════════════════════════════════════════ */
+    .cdt-resumen-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: .5rem 0;
+        border-bottom: 1px solid var(--border-color);
+        font-size: .8125rem;
+        gap: .5rem;
+    }
+
+    .cdt-resumen-row:last-child {
+        border-bottom: none;
+    }
+
+    .cdt-resumen-row span:first-child {
+        color: var(--text-muted);
+    }
+
+    .cdt-resumen-row--total {
+        padding-top: .75rem;
+        margin-top: .25rem;
+        border-top: 2px solid var(--border-color);
+        border-bottom: none;
+    }
+
+    .cdt-total-val {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: var(--brand-orange);
+    }
+
+    /* ══════════════════════════════════════════════════════════════
+   AUDITORÍA — filas pequeñas
+══════════════════════════════════════════════════════════════ */
+    .cdt-audit-row {
+        display: flex;
+        flex-direction: column;
+        padding: .4rem 0;
+        border-bottom: 1px solid var(--border-color);
+        font-size: .75rem;
+        gap: .1rem;
+    }
+
+    .cdt-audit-row:last-child {
+        border-bottom: none;
+    }
+
+    .cdt-audit-label {
+        color: var(--text-muted);
+        font-size: .69rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+    }
+
+    .cdt-audit-val {
+        color: var(--text-secondary);
+        font-weight: 500;
+    }
+
+    .cdt-audit-fecha {
+        color: var(--text-muted);
+        font-size: .7rem;
+    }
+
+    /* Botón "Cancelar venta" — variante roja, mismo lenguaje visual
+       que el botón de eliminar fila del carrito. */
+    .vdt-btn-danger {
+        background: rgba(239, 68, 68, .06);
+        border: 1px solid rgba(239, 68, 68, .3);
+        color: var(--danger, #EF4444);
+    }
+    .vdt-btn-danger:hover {
+        background: rgba(239, 68, 68, .14);
+        border-color: rgba(239, 68, 68, .5);
+    }
+
+    /* ══════════════════════════════════════════════════════════════
+   MEDIOS DE PAGO (sidebar borrador)
+══════════════════════════════════════════════════════════════ */
+    .vdt-pago-title {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-size: .69rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .09em;
+        color: var(--text-muted);
+        margin-bottom: .6rem;
+        margin-top: .25rem;
+    }
+
+    .vdt-pago-lineas {
+        display: flex;
+        flex-direction: column;
+        gap: .5rem;
+        margin-bottom: .75rem;
+    }
+
+    .vdt-pago-linea-wrap {
+        display: flex;
+        flex-direction: column;
+        gap: .3rem;
+        padding-bottom: .4rem;
+        border-bottom: 1px dashed var(--border-color);
+    }
+
+    .vdt-pago-linea-wrap:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+    }
+
+    .vdt-pago-linea {
+        display: grid;
+        grid-template-columns: 1fr 110px 30px;
+        gap: .35rem;
+        align-items: center;
+    }
+
+    .vdt-pago-select,
+    .vdt-pago-monto,
+    .vdt-pago-cuenta,
+    .vdt-pago-cotizacion {
+        padding: .45rem .6rem;
+        border: 1px solid var(--border-color);
+        border-radius: .5rem;
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        font-family: 'DM Sans', sans-serif;
+        font-size: .8125rem;
+        width: 100%;
+        transition: border-color .15s, box-shadow .15s;
+    }
+
+    .vdt-pago-select:focus,
+    .vdt-pago-monto:focus,
+    .vdt-pago-cuenta:focus,
+    .vdt-pago-cotizacion:focus {
+        outline: none;
+        border-color: var(--brand-orange);
+        box-shadow: 0 0 0 3px rgba(242, 106, 27, .1);
+        background: var(--bg-white);
+    }
+
+    .vdt-pago-linea-cuenta {
+        display: flex;
+        align-items: center;
+        gap: .35rem;
+        flex-wrap: wrap;
+    }
+    .vdt-pago-linea-cuenta .vdt-pago-cuenta { flex: 1 1 auto; min-width: 140px; }
+    .vdt-pago-linea-cuenta .vdt-pago-cotizacion { flex: 0 1 160px; }
+    .vdt-pago-equivalente {
+        font-size: .75rem;
+        color: var(--text-muted);
+        white-space: nowrap;
+    }
+
+    .vdt-pago-cuotas-extra {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+        gap: .35rem;
+    }
+    .vdt-pago-cuotas-extra .vdt-pago-cuotas-label {
+        font-size: .68rem;
+        color: var(--text-muted);
+        margin-bottom: .2rem;
+        display: block;
+    }
+
+    .vdt-credito-total-libre strong {
+        display: block;
+        font-size: .85rem;
+        color: var(--text-primary);
+    }
+
+    .vdt-credito-modo-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .5rem;
+        margin-bottom: .35rem;
+    }
+
+    /* Mismo componente que caja/static/caja/css/deudas.css — se duplica
+       acá siguiendo la convención de que cada pantalla tiene su propio CSS. */
+    .toggle-switch { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-track { position: absolute; inset: 0; background: var(--border-strong, #d1d5db); border-radius: 2rem; cursor: pointer; transition: background 0.2s; }
+    .toggle-track::before { content: ''; position: absolute; left: 3px; top: 3px; width: 14px; height: 14px; background: white; border-radius: 50%; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+    .toggle-switch input:checked + .toggle-track { background: var(--accent-primary); }
+    .toggle-switch input:checked + .toggle-track::before { transform: translateX(16px); }
+
+    .vdt-pago-btn-quitar {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        border: 1px solid var(--border-color);
+        border-radius: .5rem;
+        background: transparent;
+        color: var(--text-muted);
+        cursor: pointer;
+        transition: border-color .15s, color .15s, background .15s;
+        flex-shrink: 0;
+    }
+
+    .vdt-pago-btn-quitar:hover {
+        border-color: var(--danger, #ef4444);
+        color: var(--danger, #ef4444);
+        background: rgba(239, 68, 68, .06);
+    }
+
+    .vdt-pago-cheque-extra {
+        display: flex;
+        flex-direction: column;
+        gap: .3rem;
+    }
+    .vdt-cheque-fila {
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+        padding: .4rem .6rem;
+        border: 1px solid var(--border-color);
+        border-radius: .5rem;
+        background: var(--bg-secondary);
+    }
+    .vdt-cheque-fila-info {
+        display: flex;
+        flex-direction: column;
+        gap: .1rem;
+        flex: 1 1 auto;
+        min-width: 0;
+        font-size: .78rem;
+    }
+    .vdt-cheque-fila-info span {
+        color: var(--text-muted);
+        font-size: .72rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .vdt-cheque-btn-editar,
+    .vdt-cheque-btn-quitar {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        border: 1px solid var(--border-color);
+        border-radius: .4rem;
+        background: transparent;
+        color: var(--text-muted);
+        cursor: pointer;
+        flex-shrink: 0;
+    }
+    .vdt-cheque-btn-quitar:hover {
+        border-color: var(--danger, #ef4444);
+        color: var(--danger, #ef4444);
+    }
+    .vdt-cheque-btn-agregar {
+        align-self: flex-start;
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        padding: .35rem .75rem;
+        border: 1px dashed var(--border-color);
+        border-radius: .5rem;
+        background: transparent;
+        color: var(--text-muted);
+        font-size: .78rem;
+        cursor: pointer;
+    }
+    .vdt-cheque-btn-agregar:hover {
+        border-color: var(--brand-orange);
+        color: var(--brand-orange);
+    }
+
+    .vdt-pago-agregar {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        padding: .35rem .75rem;
+        border: 1px dashed var(--border-color);
+        border-radius: .5rem;
+        background: transparent;
+        color: var(--text-muted);
+        font-family: 'DM Sans', sans-serif;
+        font-size: .78rem;
+        cursor: pointer;
+        transition: border-color .15s, color .15s, background .15s;
+        width: 100%;
+        justify-content: center;
+        margin-bottom: .6rem;
+    }
+
+    .vdt-pago-agregar:hover {
+        border-color: var(--brand-orange);
+        color: var(--brand-orange);
+        background: var(--brand-orange-light, rgba(242, 106, 27, .06));
+    }
+
+    .vdt-pago-resumen {
+        padding: .5rem .75rem;
+        border-radius: .5rem;
+        font-size: .78rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .5rem;
+        margin-bottom: .75rem;
+    }
+
+    .vdt-pago-resumen--ok {
+        background: rgba(34, 197, 94, .07);
+        border: 1px solid rgba(34, 197, 94, .2);
+        color: var(--success, #16a34a);
+    }
+
+    .vdt-pago-resumen--pendiente {
+        background: rgba(245, 158, 11, .07);
+        border: 1px solid rgba(245, 158, 11, .2);
+        color: var(--warning, #b45309);
+    }
+
+    .vdt-pago-resumen--exceso {
+        background: rgba(239, 68, 68, .07);
+        border: 1px solid rgba(239, 68, 68, .2);
+        color: var(--danger, #dc2626);
+    }
+
+    .vdt-pago-resumen strong {
+        font-weight: 700;
+    }
+
+    .vdt-pago-resumen--recargo {
+        background: rgba(99, 102, 241, .07);
+        border: 1px solid rgba(99, 102, 241, .2);
+        color: var(--text-secondary);
+    }
+
+    .vdt-pago-recargo-extra {
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        flex-wrap: wrap;
+    }
+    .vdt-pago-recargo-extra .vdt-pago-select { flex: 0 1 170px; }
+
+    .vdt-pago-recargo-check {
+        display: flex;
+        align-items: center;
+        gap: .35rem;
+        font-size: .78rem;
+        color: var(--text-secondary);
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .vdt-pago-recargo-monto {
+        font-size: .75rem;
+        color: var(--text-muted);
+        white-space: nowrap;
+    }
+
+    /* Medio de pago badge (vista confirmada) */
+    .cdt-medio-pago-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        padding: .2rem .6rem;
+        border-radius: .4rem;
+        font-size: .72rem;
+        font-weight: 700;
+        background: var(--brand-orange-light, rgba(242, 106, 27, .1));
+        border: 1px solid var(--brand-orange-mid, rgba(242, 106, 27, .25));
+        color: var(--brand-orange-dark, #c2500a);
+    }
+
+    /* ══════════════════════════════════════════════════════════════
+   TICKET — botones
+══════════════════════════════════════════════════════════════ */
+    .cdt-ticket-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        padding: .45rem .875rem;
+        border: 1px solid var(--border-color);
+        border-radius: .5rem;
+        background: var(--bg-secondary);
+        color: var(--text-secondary);
+        font-family: 'DM Sans', sans-serif;
+        font-size: .8rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: border-color .15s, color .15s, background .15s;
+        text-decoration: none;
+    }
+
+    .cdt-ticket-btn:hover {
+        border-color: var(--brand-orange);
+        color: var(--brand-orange);
+        background: var(--brand-orange-light, rgba(242, 106, 27, .06));
+    }
+
+    .cdt-ticket-actions {
+        display: flex;
+        gap: .5rem;
+        flex-wrap: wrap;
+    }
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   COLUMNA DE COBRO  (nueva_venta.html + panel_cobro.js)
+   Anclada a la derecha del carrito, SIEMPRE visible — no flota, no se
+   arrastra, no se minimiza. En pantalla angosta pasa abajo del carrito.
+═══════════════════════════════════════════════════════════════════ */
+.vta-cobro-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 1rem;
+    align-items: start;
+}
+.vta-cobro-main { min-width: 0; }
+
+.vta-cobro-side {
+    position: sticky;
+    top: 1rem;
+}
+
+.vta-panel-cobro {
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-white, #fff);
+    border: 1px solid var(--border-color);
+    border-radius: 1rem;
+    box-shadow: 0 6px 22px rgba(13, 27, 42, .09), 0 2px 8px rgba(13, 27, 42, .05);
+    max-height: calc(100vh - 2rem);
+    overflow: hidden;
+}
+
+.vta-panel-cobro-handle {
+    display: flex;
+    align-items: baseline;
+    gap: .5rem;
+    padding: .8rem 1.1rem;
+    background: linear-gradient(135deg, #12263a, #0D1B2A);
+    color: #fff;
+    flex-shrink: 0;
+}
+.vta-panel-cobro-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #fff;
+}
+.vta-panel-cobro-hint { font-size: .7rem; color: rgba(255, 255, 255, .5); }
+
+.vta-panel-cobro-body {
+    overflow-y: auto;
+    padding: 1rem;
+    flex: 1;
+    min-height: 0;
+}
+.vta-panel-cobro-body .vta-card {
+    box-shadow: none;
+    border: none;
+    margin: 0;
+}
+.vta-panel-cobro-body .vta-card-header { padding-left: 0; padding-right: 0; }
+.vta-panel-cobro-body .vta-card-body { padding-left: 0; padding-right: 0; }
+
+/* Placeholder mientras el carrito está vacío (antes de montar el fragmento) */
+.vta-cobro-placeholder {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 2.5rem 1rem;
+}
+.vta-cobro-placeholder-ic { color: var(--border-strong, #cbd5e1); margin-bottom: .6rem; }
+.vta-cobro-placeholder p { font-size: .84rem; line-height: 1.5; margin: 0; }
+
+@media (max-width: 1024px) {
+    .vta-cobro-layout { grid-template-columns: 1fr; }
+    .vta-cobro-side { position: static; }
+    .vta-panel-cobro { max-height: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PANEL DE COBRO — contenido aplanado (sin pestañas)
+   Una sola columna: cliente+fecha → total → medios de pago →
+   facturación/notas plegables → acciones ancladas abajo.
+   (ventas/_panel_cobro_borrador.html)
+═══════════════════════════════════════════════════════════════════ */
+.vdt-cobro .vta-card-body { padding-top: .25rem; }
+
+.vdt-cobro-topgrid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: .75rem;
+    margin-bottom: .9rem;
+}
+
+.vdt-cobro-total {
+    background: var(--bg-secondary, #f4f6f9);
+    border-radius: .75rem;
+    padding: .8rem 1rem;
+    text-align: center;
+    margin-bottom: .5rem;
+}
+.vdt-cobro-total-lbl {
+    display: block;
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+.vdt-cobro-total-val {
+    display: block;
+    font-family: var(--font-heading);
+    font-weight: 800;
+    font-size: 1.7rem;
+    line-height: 1.2;
+    color: var(--text-primary);
+    letter-spacing: -.02em;
+}
+.vdt-cobro-total-sub {
+    display: block;
+    font-size: .74rem;
+    color: var(--brand-orange-dark);
+}
+.vdt-cobro-total-sub strong { font-weight: 700; }
+
+.vdt-cobro-desglose {
+    display: flex;
+    justify-content: space-between;
+    font-size: .76rem;
+    color: var(--text-muted);
+    padding: 0 .2rem;
+    margin-bottom: .9rem;
+}
+
+.vdt-cobro-sec {
+    border-top: 1px solid var(--border-color);
+    padding-top: .85rem;
+    margin-bottom: .85rem;
+}
+.vdt-cobro-sec-head {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: .8125rem;
+    color: var(--text-primary);
+    margin-bottom: .6rem;
+}
+
+/* Facturación / Notas — plegables */
+details.vdt-cobro-details > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    cursor: pointer;
+    list-style: none;
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: .8125rem;
+    color: var(--text-primary);
+}
+details.vdt-cobro-details > summary::-webkit-details-marker { display: none; }
+details.vdt-cobro-details > summary::after {
+    content: '▾';
+    color: var(--text-muted);
+    font-size: .75rem;
+    margin-left: auto;
+}
+details.vdt-cobro-details[open] > summary::after { content: '▴'; }
+.vdt-fact-preview {
+    font-size: .72rem;
+    font-weight: 700;
+    color: var(--brand-blue);
+    background: var(--brand-blue-light, #e8f4fd);
+    padding: .12rem .5rem;
+    border-radius: .35rem;
+}
+
+/* Acciones ancladas al pie de la columna (siempre alcanzables aunque
+   el cobro tenga scroll interno). */
+.vdt-cobro-actions {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    position: sticky;
+    bottom: 0;
+    background: var(--bg-white);
+    border-top: 1px solid var(--border-color);
+    margin: .25rem -1rem 0;
+    padding: .8rem 1rem .15rem;
+    box-shadow: 0 -8px 14px -8px rgba(13, 27, 42, .14);
+}
+.vdt-cobro-actions .vta-btn { width: 100%; margin: 0; }
+
+.vdt-kbd {
+    display: inline-block;
+    margin-left: .4rem;
+    padding: .04rem .34rem;
+    font-size: .66rem;
+    font-weight: 700;
+    line-height: 1.4;
+    border-radius: .3rem;
+    background: rgba(255, 255, 255, .22);
+    border: 1px solid rgba(255, 255, 255, .34);
+}
+
+/* En pantalla angosta la columna no tiene scroll propio → las acciones
+   no necesitan quedar pegadas. */
+@media (max-width: 1024px) {
+    .vdt-cobro-actions { position: static; box-shadow: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SCORING DE RIESGO DE PAGO EN LA VENTA (detalle_venta.js)
+   Chip al lado del cliente + aviso en la pestaña de medios de pago.
+   Colores por banda — ver core/scoring.py.
+═══════════════════════════════════════════════════════════════════ */
+.vdt-sco-chip {
+    display: inline-block;
+    margin-top: .4rem;
+    font-size: .72rem;
+    font-weight: 700;
+    padding: .18rem .6rem;
+    border-radius: 999px;
+    border: 1px solid currentColor;
+}
+.vdt-sco-chip--excelente { color: #15803d; background: #f0fdf4; }
+.vdt-sco-chip--bueno     { color: #4d7c0f; background: #f7fee7; }
+.vdt-sco-chip--regular   { color: #b45309; background: #fffbeb; }
+.vdt-sco-chip--riesgo    { color: #c2410c; background: #fff7ed; }
+.vdt-sco-chip--critico   { color: #b91c1c; background: #fef2f2; }
+.vdt-sco-chip--sinhist   { color: var(--text-muted); background: var(--bg-secondary); border-color: var(--border-color); }
+
+/* Pill chico dentro del desplegable de resultados de cliente */
+.vdt-sco-mini {
+    font-size: .62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    padding: .06rem .4rem;
+    border-radius: 999px;
+    margin-left: .4rem;
+}
+.vdt-sco-mini--excelente { color: #15803d; background: #dcfce7; }
+.vdt-sco-mini--bueno     { color: #4d7c0f; background: #ecfccb; }
+.vdt-sco-mini--regular   { color: #b45309; background: #fef3c7; }
+.vdt-sco-mini--riesgo    { color: #c2410c; background: #ffedd5; }
+.vdt-sco-mini--critico   { color: #b91c1c; background: #fee2e2; }
+
+.vdt-sco-aviso {
+    font-size: .8rem;
+    line-height: 1.5;
+    padding: .6rem .75rem;
+    border-radius: .55rem;
+    margin-bottom: .75rem;
+    border: 1px solid;
+}
+.vdt-sco-aviso--regular { background: #fffbeb; border-color: #fcd34d; color: #92400e; }
+.vdt-sco-aviso--riesgo  { background: #fff7ed; border-color: #fdba74; color: #9a3412; }
+.vdt-sco-aviso--critico { background: #fef2f2; border-color: #fca5a5; color: #991b1b; }
+
+.vdt-sco-forzar {
+    display: inline-block;
+    margin-top: .4rem;
+    font-size: .74rem;
+    font-weight: 700;
+    padding: .3rem .7rem;
+    border-radius: .4rem;
+    border: 1px solid currentColor;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+}
+.vdt-sco-forzar:hover { background: rgba(0, 0, 0, .05); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   ATAJOS DE TECLADO (nueva_venta.js) — botón chico en la cabecera del
+   carrito + guía desplegable. Para operar la caja sin mouse.
+═══════════════════════════════════════════════════════════════════ */
+.vta-atajos-btn {
+    margin-left: .6rem;
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .22rem .55rem;
+    font-family: var(--font-body);
+    font-size: .72rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: .45rem;
+    cursor: pointer;
+    transition: background .12s, border-color .12s, color .12s;
+}
+.vta-atajos-btn:hover {
+    color: var(--brand-orange-dark);
+    border-color: var(--brand-orange);
+    background: var(--brand-orange-light);
+}
+.vta-atajos-btn svg { flex-shrink: 0; }
+
+.vta-atajos-panel {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9600;
+    background: rgba(13, 27, 42, .38);
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+.vta-atajos-panel.is-open { display: flex; }
+
+.vta-atajos-card {
+    position: relative;
+    width: 100%;
+    max-width: 440px;
+    background: var(--bg-white);
+    border-radius: 1rem;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, .25);
+    padding: 1.5rem 1.75rem 1.75rem;
+}
+.vta-atajos-card h3 {
+    font-family: var(--font-heading);
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin: 0 0 .25rem;
+}
+.vta-atajos-sub {
+    font-size: .8rem;
+    color: var(--text-muted);
+    line-height: 1.45;
+    margin: 0 0 1rem;
+}
+.vta-atajos-close {
+    position: absolute;
+    top: .9rem;
+    right: 1rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 1.15rem;
+    line-height: 1;
+}
+.vta-atajos-list { margin: 0; display: flex; flex-direction: column; gap: .5rem; }
+.vta-atajos-list > div {
+    display: grid;
+    grid-template-columns: 6.5rem 1fr;
+    align-items: baseline;
+    gap: .75rem;
+}
+.vta-atajos-list dt { display: flex; gap: .25rem; flex-wrap: wrap; }
+.vta-atajos-list dd {
+    margin: 0;
+    font-size: .82rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+.vta-atajos-list kbd {
+    font-family: var(--font-body);
+    font-size: .72rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-bottom-width: 2px;
+    border-radius: .35rem;
+    padding: .1rem .4rem;
+    min-width: 1.4rem;
+    text-align: center;
+}
+
+@media (max-width: 480px) {
+    .vta-atajos-list > div { grid-template-columns: 1fr; gap: .2rem; }
 }

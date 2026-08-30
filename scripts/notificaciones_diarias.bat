@@ -2,8 +2,9 @@
 REM Corre los reportes y alertas de asistencia (mensual, semanal,
 REM vencimientos, deudas por vencer, stock, cheques) y los manda por
 REM mail segun lo configurado en Configuracion, seccion Notificaciones.
-REM Pensado para ejecutarse una vez al dia via el Programador de
-REM tareas de Windows.
+REM Ademas refresca el scoring de riesgo de pago de todos los clientes
+REM (la mora envejece sola). Pensado para ejecutarse una vez al dia via
+REM el Programador de tareas de Windows.
 REM
 REM Asume el mismo layout que en desarrollo: la carpeta del
 REM virtualenv (entorno) como hermana de esta carpeta del proyecto

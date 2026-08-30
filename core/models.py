@@ -810,13 +810,42 @@ class Cliente(models.Model):
     estado = models.CharField(max_length=15, choices=ESTADO_CHOICES, default='activo')
 
     # ── Scoring y riesgo ──────────────────────────────────────────
+    #  Riesgo de PAGO del cliente (¿cumple si le vendo en cuotas / le
+    #  acepto un cheque?). 0–1000, arranca en 1000. Lo calcula solo el
+    #  motor de core/scoring.py — no se edita a mano salvo por
+    #  `scoring_override`. Ver Cliente.recalcular_scoring().
     scoring = models.IntegerField(default=1000,
-                  help_text='Puntuación del cliente. Inicia en 1000.')
+                  help_text='Riesgo de pago (0–1000). Lo calcula el sistema; 1000 = sin historial / excelente.')
+    #  Lo que dio el cálculo automático puro, sin el override manual —
+    #  para poder mostrar "ajustado a mano a X, el cálculo daba Y".
+    scoring_calculado = models.IntegerField(default=1000)
+    scoring_sin_historial = models.BooleanField(default=True,
+                                help_text='El cliente nunca compró en cuotas ni pagó con cheque.')
+    #  Desglose del cálculo (lista de {concepto, detalle, puntos}) para
+    #  la vista "¿por qué tiene este número?".
+    scoring_desglose = models.JSONField(null=True, blank=True, default=None)
+    scoring_actualizado_el = models.DateTimeField(null=True, blank=True)
+
+    #  Override manual: si está seteado, `scoring` lo refleja y el cálculo
+    #  automático queda solo como referencia. Pegajoso hasta que alguien
+    #  lo saque ("volver al automático").
+    scoring_override = models.IntegerField(null=True, blank=True,
+                           help_text='Puntaje fijado a mano. Reemplaza al cálculo automático.')
+    scoring_override_motivo = models.CharField(max_length=300, blank=True)
+    scoring_override_por = models.ForeignKey(
+        Usuario, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='scorings_ajustados',
+    )
+    scoring_override_el = models.DateTimeField(null=True, blank=True)
+
     NIVEL_RIESGO_CHOICES = [
         ('bajo',  'Bajo'),
         ('medio', 'Medio'),
         ('alto',  'Alto'),
     ]
+    #  Derivado del `scoring` efectivo (ver recalcular_scoring). Se deja
+    #  como campo materializado para poder filtrar la lista de clientes
+    #  por banda sin recalcular.
     nivel_riesgo = models.CharField(max_length=10, choices=NIVEL_RIESGO_CHOICES,
                        default='bajo', blank=True)
 
@@ -948,6 +977,152 @@ class Cliente(models.Model):
             with transaction.atomic():
                 self.codigo = _generar_codigo_cliente()
         super().save(*args, **kwargs)
+
+    # ── Scoring ──────────────────────────────────────────────────
+    @property
+    def scoring_efectivo(self):
+        """El puntaje que vale: el override si está seteado, si no el
+        cálculo automático."""
+        return self.scoring_override if self.scoring_override is not None else self.scoring_calculado
+
+    @property
+    def scoring_banda(self):
+        """'excelente' | 'bueno' | 'regular' | 'riesgo' | 'critico'."""
+        from core.scoring import banda_de_score
+        return banda_de_score(self.scoring_efectivo)[0]
+
+    @property
+    def scoring_banda_label(self):
+        from core.scoring import BANDA_LABEL
+        return BANDA_LABEL.get(self.scoring_banda, self.scoring_banda)
+
+    @property
+    def scoring_alerta(self):
+        """Frase corta para avisar en la pantalla de venta cuando el
+        cliente está en una banda de cuidado — '' si no hay nada que avisar."""
+        if self.scoring_banda in ('excelente', 'bueno'):
+            return ''
+        for fila in (self.scoring_desglose or []):
+            if fila.get('concepto') == 'Cuotas vencidas sin pagar':
+                return fila.get('detalle', '')
+        if self.scoring_banda == 'critico':
+            return 'Historial de incumplimientos de pago.'
+        return 'Atrasos recurrentes en los pagos.'
+
+    def recalcular_scoring(self, commit=True):
+        """
+        Recalcula el scoring automático y lo materializa en los campos
+        del cliente. Respeta el override manual: si hay uno, `scoring`
+        (el efectivo) queda fijado en él, pero `scoring_calculado` y el
+        desglose reflejan igual el cálculo real (para poder mostrar
+        "ajustado a mano, el cálculo daba X").
+
+        Devuelve el dict de core.scoring.calcular_scoring().
+        """
+        from core.scoring import calcular_scoring, banda_de_score
+
+        r = calcular_scoring(self)
+        self.scoring_calculado      = r['score']
+        self.scoring_sin_historial  = r['sin_historial']
+        self.scoring_desglose       = r['desglose']
+        self.scoring_actualizado_el = timezone.now()
+
+        efectivo = self.scoring_override if self.scoring_override is not None else r['score']
+        self.scoring       = efectivo
+        self.nivel_riesgo  = banda_de_score(efectivo)[1]
+
+        if commit:
+            self.save(update_fields=[
+                'scoring', 'scoring_calculado', 'scoring_sin_historial',
+                'scoring_desglose', 'scoring_actualizado_el', 'nivel_riesgo',
+            ])
+        return r
+
+
+def recalcular_scoring_cliente(cliente_o_pk):
+    """
+    Helper para llamar desde los hooks de ventas/caja sin importar el
+    modelo Cliente ni preocuparse por errores: el scoring es
+    informativo, nunca debe romper una confirmación de venta o de cobro.
+    Acepta una instancia de Cliente o un pk (o None → no hace nada).
+    """
+    if cliente_o_pk is None:
+        return
+    try:
+        cliente = cliente_o_pk if isinstance(cliente_o_pk, Cliente) else Cliente.objects.filter(pk=cliente_o_pk).first()
+        if cliente is not None:
+            cliente.recalcular_scoring(commit=True)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception('No se pudo recalcular el scoring del cliente %s', cliente_o_pk)
+
+
+_scoring_ultimo_barrido = 0.0
+SCORING_BARRIDO_THROTTLE_SEG = 120
+
+
+def recalcular_scoring_pendientes(limite=25, antiguedad_horas=20):
+    """
+    Recalcula el scoring de los clientes que quedaron "viejos" (calculado
+    hace más de `antiguedad_horas`) o que nunca se calcularon, hasta
+    `limite` por llamada.
+
+    Pensado para invocarse "al pasar" desde vistas de alto tráfico (el
+    inicio, la lista de clientes) — igual que `descartar_borradores_vencidos`.
+    Así la mora, que envejece sola sin que nadie toque la ficha, se
+    refleja sin depender de una tarea programada aparte: con el uso
+    normal del día el padrón entero se pone al día.
+
+    `limite` acota el costo de cada request; si hay muchos vencidos (p.
+    ej. tras varios días sin abrir el sistema) se ponen al día en las
+    siguientes cargas de página. `limite=None` → sin tope (lo usa el pase
+    diario de notificaciones); `antiguedad_horas=None` → todos.
+
+    Cuando se llama con `limite` (modo perezoso desde las vistas) se
+    throttlea a una corrida cada `SCORING_BARRIDO_THROTTLE_SEG` por
+    proceso: no tiene sentido rebarrer en cada request. El pase nocturno
+    (`limite=None`) nunca se throttlea.
+
+    Nunca propaga excepciones: el scoring es informativo.
+
+    Devuelve cuántos clientes recalculó.
+    """
+    global _scoring_ultimo_barrido
+    if limite is not None:
+        import time
+        ahora = time.monotonic()
+        if ahora - _scoring_ultimo_barrido < SCORING_BARRIDO_THROTTLE_SEG:
+            return 0
+        _scoring_ultimo_barrido = ahora
+
+    try:
+        qs = Cliente.objects.all()
+        if antiguedad_horas is not None:
+            corte = timezone.now() - timezone.timedelta(hours=antiguedad_horas)
+            qs = qs.filter(
+                models.Q(scoring_actualizado_el__isnull=True) |
+                models.Q(scoring_actualizado_el__lt=corte)
+            )
+        qs = qs.order_by(models.F('scoring_actualizado_el').asc(nulls_first=True))
+        pks = qs.values_list('pk', flat=True)
+        pks = list(pks[:limite] if limite else pks)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception('No se pudo listar clientes con scoring pendiente')
+        return 0
+
+    hechos = 0
+    for pk in pks:
+        cliente = Cliente.objects.filter(pk=pk).first()
+        if cliente is None:
+            continue
+        try:
+            cliente.recalcular_scoring(commit=True)
+            hechos += 1
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception('No se pudo recalcular el scoring del cliente %s', pk)
+    return hechos
 
 
 # ══════════════════════════════════════════════════════════════════

@@ -84,4 +84,68 @@ document.addEventListener('DOMContentLoaded', function () {
             .addTo(mapa).bindPopup('Ubicación del cliente').openPopup();
     }
 
+    // ══ SCORING DE RIESGO DE PAGO ══
+    (function initScoring() {
+        const card = document.getElementById('scoCard');
+        if (!card) return;
+        const url = card.dataset.url;
+
+        function getCookie(name) {
+            let v = null;
+            document.cookie.split(';').forEach(c => {
+                const [k, val] = c.trim().split('=');
+                if (k === name) v = decodeURIComponent(val);
+            });
+            return v;
+        }
+
+        const form  = document.getElementById('scoOverrideForm');
+        const msgEl = document.getElementById('scoMsg');
+
+        async function enviar(payload) {
+            card.classList.add('sco-cargando');
+            if (msgEl) msgEl.textContent = '';
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                    body: JSON.stringify(payload),
+                });
+                const data = await res.json();
+                if (!res.ok || !data.ok) {
+                    if (msgEl) msgEl.textContent = data.error || 'No se pudo actualizar.';
+                    return;
+                }
+                // Recargamos la ficha: es lo más simple y garantiza que el
+                // aviso de override, los botones y el desglose queden coherentes.
+                window.location.reload();
+            } catch {
+                if (msgEl) msgEl.textContent = 'Error de conexión. Intentá de nuevo.';
+            } finally {
+                card.classList.remove('sco-cargando');
+            }
+        }
+
+        card.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-sco-accion]');
+            if (!btn) return;
+            const accion = btn.dataset.scoAccion;
+
+            if (accion === 'recalcular') {
+                enviar({ accion: 'recalcular' });
+            } else if (accion === 'quitar') {
+                enviar({ accion: 'quitar' });
+            } else if (accion === 'override-abrir') {
+                if (form) form.hidden = false;
+            } else if (accion === 'override-cancelar') {
+                if (form) form.hidden = true;
+            } else if (accion === 'override-guardar') {
+                const valor  = document.getElementById('scoOverrideValor')?.value;
+                const motivo = document.getElementById('scoOverrideMotivo')?.value?.trim();
+                if (!motivo) { if (msgEl) msgEl.textContent = 'Escribí el motivo del ajuste.'; return; }
+                enviar({ accion: 'override', puntaje: valor, motivo });
+            }
+        });
+    })();
+
 });

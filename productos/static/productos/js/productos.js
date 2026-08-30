@@ -2322,3 +2322,278 @@ document.getElementById('btnBulkEliminar')?.addEventListener('click', () => prdA
         showToast('Generando Excel…', 'ok');
     });
 })();
+
+
+// ════════════════════════════════════════════════════════════════════
+//  IMPORTAR DESDE EXCEL
+// ════════════════════════════════════════════════════════════════════
+(function initImport() {
+    const modal = document.getElementById('modalImportar');
+    if (!modal) return;   // sin permiso de crear+editar → el modal no se renderiza
+
+    const $ = id => document.getElementById(id);
+
+    const btnAbrir    = $('btnImportar');
+    const inputFile   = $('impArchivo');
+    const drop        = $('impDrop');
+    const dropTexto   = $('impDropTexto');
+    const errBox      = $('impError');
+    const paso1       = $('impPaso1');
+    const paso2       = $('impPaso2');
+    const paso3       = $('impPaso3');
+    const resumenBox  = $('impResumen');
+    const ignoradas   = $('impIgnoradas');
+    const problemas   = $('impProblemas');
+    const detalleWrap = $('impDetalleWrap');
+    const detalleSum  = $('impDetalleSummary');
+    const detalleBody = $('impDetalleBody');
+    const resultadoBox = $('impResultado');
+    const btnAplicar  = $('impBtnAplicar');
+    const btnOtro     = $('impBtnOtro');
+    const btnCerrar   = $('impBtnCerrar');
+    const btnCancelar = $('impBtnCancelar');
+
+    let archivo = null;
+
+    function esc(s) {
+        const d = document.createElement('div');
+        d.textContent = s == null ? '' : String(s);
+        return d.innerHTML;
+    }
+
+    function verPaso(n) {
+        paso1.hidden = n !== 1;
+        paso2.hidden = n !== 2;
+        paso3.hidden = n !== 3;
+        btnAplicar.hidden = n !== 2;
+        btnOtro.hidden = n === 1 || n === 3;
+        btnCerrar.hidden = n !== 3;
+        btnCancelar.hidden = n === 3;
+    }
+
+    function reset() {
+        archivo = null;
+        inputFile.value = '';
+        errBox.hidden = true;
+        errBox.textContent = '';
+        dropTexto.innerHTML = 'Elegí un archivo <strong>.xlsx</strong> o arrastralo acá';
+        drop.classList.remove('prd-import-drop--cargado');
+        btnAplicar.disabled = true;
+        btnAplicar.textContent = 'Aplicar cambios';
+        verPaso(1);
+    }
+
+    function mostrarError(msg) {
+        errBox.textContent = msg;
+        errBox.hidden = false;
+    }
+
+    async function analizar(file) {
+        if (!file.name.toLowerCase().endsWith('.xlsx')) {
+            mostrarError('El archivo tiene que ser un Excel .xlsx.');
+            return;
+        }
+        errBox.hidden = true;
+        archivo = file;
+        dropTexto.innerHTML = esc(file.name) + ' — analizando…';
+        drop.classList.add('prd-import-drop--cargado');
+
+        const fd = new FormData();
+        fd.append('archivo', file);
+        let data;
+        try {
+            const res = await fetch(URLS.productoImportarAnalizar, {
+                method: 'POST', headers: { 'X-CSRFToken': CSRF }, body: fd,
+            });
+            data = await res.json();
+            if (!res.ok) { mostrarError(data.error || 'No se pudo analizar el archivo.'); reset(); return; }
+        } catch {
+            mostrarError('Error de red al subir el archivo.');
+            reset();
+            return;
+        }
+
+        if (data.error_global) { mostrarError(data.error_global); reset(); return; }
+
+        renderAnalisis(data);
+        verPaso(2);
+    }
+
+    function chip(cls, n, label) {
+        return `<div class="prd-import-chip prd-import-chip--${cls}"><strong>${n}</strong> ${label}</div>`;
+    }
+
+    function renderAnalisis(data) {
+        const r = data.resumen;
+        let chips = chip('nuevo', r.crear, 'nuevos') + chip('upd', r.actualizar, 'a actualizar');
+        if (r.sin_cambios) chips += chip('igual', r.sin_cambios, 'sin cambios');
+        if (r.omitidas)    chips += chip('err', r.omitidas, 'no se pueden crear');
+        resumenBox.innerHTML = chips;
+
+        const notas = [];
+        (data.avisos_archivo || []).forEach(a => notas.push(a));
+        if (!data.tiene_columna_codigo) {
+            notas.push('La planilla no tiene columna "Código": todas las filas se toman como productos NUEVOS.');
+        }
+        if (data.columnas_ignoradas && data.columnas_ignoradas.length) {
+            notas.push('Columnas que no se reconocen y se ignoran: ' + data.columnas_ignoradas.join(', ') + '.');
+        }
+        if (data.columnas_duplicadas && data.columnas_duplicadas.length) {
+            notas.push('Columnas repetidas (se usa solo la primera): ' + data.columnas_duplicadas.join(', ') + '.');
+        }
+        ignoradas.hidden = notas.length === 0;
+        ignoradas.innerHTML = notas.map(esc).join('<br>');
+
+        if (r.con_problemas) {
+            problemas.hidden = false;
+            problemas.textContent = `${r.con_problemas} fila(s) tienen celdas que no se pudieron interpretar — esas celdas se ignoran, el resto de la fila se importa igual. Mirá el detalle.`;
+        } else {
+            problemas.hidden = true;
+        }
+
+        const filas = data.filas || [];
+        const conAlgo = filas.filter(f => f.problemas.length || f.omitida || (f.accion === 'actualizar' && !f.cambios.length));
+        detalleSum.textContent = `Ver detalle de las ${filas.length} fila(s)` +
+            (conAlgo.length ? ` — ${conAlgo.length} con observaciones` : '');
+
+        detalleBody.innerHTML = filas.map(f => {
+            let accion, cls;
+            if (f.omitida) { accion = 'No se importa'; cls = 'err'; }
+            else if (f.accion === 'crear') { accion = 'Nuevo'; cls = 'nuevo'; }
+            else if (f.cambios.length) { accion = 'Actualiza'; cls = 'upd'; }
+            else { accion = 'Sin cambios'; cls = 'igual'; }
+
+            const det = [];
+            if (f.omitida) {
+                det.push(`<span class="prd-import-obs prd-import-obs--err">${esc(f.motivo_omitida)}</span>`);
+            }
+            if (f.codigo_no_encontrado) {
+                det.push(`<span class="prd-import-obs prd-import-obs--aviso">el código "${esc(f.codigo)}" no existe — se crea nuevo</span>`);
+            }
+            if (!f.omitida && f.cambios.length) {
+                det.push(`<span class="prd-import-obs">${f.accion === 'crear' ? 'carga' : 'cambia'}: ${esc(f.cambios.join(', '))}</span>`);
+            }
+            f.problemas.forEach(p => {
+                const c = p.nivel === 'error' ? 'err' : 'aviso';
+                det.push(`<span class="prd-import-obs prd-import-obs--${c}">${esc(p.campo)}: ${esc(p.msg)}</span>`);
+            });
+
+            return `<tr>
+                <td>${f.numero}</td>
+                <td><span class="prd-import-acc prd-import-acc--${cls}">${accion}</span></td>
+                <td>${esc(f.nombre || f.codigo || '—')}</td>
+                <td>${det.join('') || '<span class="prd-import-obs prd-import-obs--ok">ok</span>'}</td>
+            </tr>`;
+        }).join('');
+        detalleWrap.open = conAlgo.length > 0 && filas.length <= 60;
+
+        btnAplicar.disabled = (r.crear + r.actualizar + r.sin_cambios) === 0;
+    }
+
+    async function aplicar() {
+        if (!archivo) return;
+        btnAplicar.disabled = true;
+        btnAplicar.textContent = 'Aplicando…';
+
+        const fd = new FormData();
+        fd.append('archivo', archivo);
+
+        let data;
+        try {
+            const res = await fetch(URLS.productoImportarAplicar, {
+                method: 'POST', headers: { 'X-CSRFToken': CSRF }, body: fd,
+            });
+            data = await res.json();
+        } catch {
+            btnAplicar.disabled = false;
+            btnAplicar.textContent = 'Aplicar cambios';
+            mostrarErrorPaso2('Error de red al aplicar los cambios.');
+            return;
+        }
+
+        btnAplicar.textContent = 'Aplicar cambios';
+        if (!data.ok) {
+            btnAplicar.disabled = false;
+            mostrarErrorPaso2(data.error_global || 'No se pudo importar.');
+            return;
+        }
+
+        renderResultado(data);
+        verPaso(3);
+        showToast('Importación completada', 'ok');
+    }
+
+    function listaBloque(titulo, items, render) {
+        if (!items || !items.length) return '';
+        return `<details class="prd-import-rblock" ${items.length <= 12 ? 'open' : ''}>
+            <summary>${esc(titulo)} (${items.length})</summary>
+            <ul>${items.map(render).join('')}</ul>
+        </details>`;
+    }
+
+    function renderResultado(d) {
+        let html = `<div class="prd-import-ok">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.6"/>
+                <path d="M8 12.5L11 15.5L16.5 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <div><strong>${d.total_creados}</strong> creado(s) · <strong>${d.total_actualizados}</strong> actualizado(s)`;
+        if (d.total_sin_cambios) html += ` · <strong>${d.total_sin_cambios}</strong> sin cambios`;
+        if (d.total_omitidas)    html += ` · <strong>${d.total_omitidas}</strong> no importado(s)`;
+        html += `</div></div>`;
+
+        html += listaBloque('Productos creados', d.creados,
+            c => `<li><span class="prd-import-cod">${esc(c.codigo)}</span> ${esc(c.nombre)}</li>`);
+        html += listaBloque('Productos actualizados', d.actualizados,
+            c => `<li><span class="prd-import-cod">${esc(c.codigo)}</span> ${esc(c.nombre)} — <em>${esc((c.campos || []).join(', '))}</em></li>`);
+        html += listaBloque('Sin cambios (ya estaban igual)', d.sin_cambios,
+            c => `<li><span class="prd-import-cod">${esc(c.codigo)}</span> ${esc(c.nombre)}</li>`);
+        html += listaBloque('Filas no importadas', d.omitidas,
+            o => `<li>Fila ${o.numero}: ${esc(o.motivo)}</li>`);
+        html += listaBloque('Filas con error inesperado', d.fallidas,
+            x => `<li>Fila ${x.numero} — <span class="prd-import-cod">${esc(x.codigo)}</span> ${esc(x.nombre)}: ${esc(x.error)}</li>`);
+        html += listaBloque('Filas con celdas ignoradas', d.con_notas,
+            n => `<li>Fila ${n.numero} — <span class="prd-import-cod">${esc(n.codigo)}</span> ${esc(n.nombre)}<ul>${
+                n.notas.map(x => `<li>${esc(x)}</li>`).join('')}</ul></li>`);
+        const pies = [];
+        (d.avisos_archivo || []).forEach(a => pies.push(a));
+        if (d.columnas_ignoradas && d.columnas_ignoradas.length) {
+            pies.push('Columnas ignoradas: ' + d.columnas_ignoradas.join(', '));
+        }
+        if (pies.length) {
+            html += `<p class="prd-field-hint">${pies.map(esc).join('<br>')}</p>`;
+        }
+
+        resultadoBox.innerHTML = html;
+    }
+
+    function mostrarErrorPaso2(msg) {
+        let box = document.getElementById('impErrorPaso2');
+        if (!box) {
+            box = document.createElement('p');
+            box.id = 'impErrorPaso2';
+            box.className = 'prd-form-error';
+            resumenBox.parentNode.insertBefore(box, resumenBox.nextSibling);
+        }
+        box.textContent = msg;
+        box.hidden = false;
+    }
+
+    // — Eventos —
+    btnAbrir?.addEventListener('click', () => { reset(); abrirModal('modalImportar'); });
+    inputFile.addEventListener('change', () => { if (inputFile.files[0]) analizar(inputFile.files[0]); });
+
+    ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => {
+        e.preventDefault(); drop.classList.add('prd-import-drop--over');
+    }));
+    ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => {
+        e.preventDefault(); drop.classList.remove('prd-import-drop--over');
+    }));
+    drop.addEventListener('drop', e => {
+        const f = e.dataTransfer.files[0];
+        if (f) analizar(f);
+    });
+
+    btnOtro.addEventListener('click', reset);
+    btnAplicar.addEventListener('click', aplicar);
+})();

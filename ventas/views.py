@@ -16,6 +16,7 @@ from .views_nueva_venta import (
     VentaDocumentoSubirAjax,
     VentaDocumentoEliminarAjax,
     DetalleVentaView,
+    CobroFragmentoAjax,
 )
 
 from .views_historial import (
@@ -53,6 +54,8 @@ __all__ = [
     'VentaDocumentoSubirAjax',
     'VentaDocumentoEliminarAjax',
     'DetalleVentaView',
+    'CobroFragmentoAjax',
+    'ActualizarBorradorAjax',
     # Historial
     'HistorialVentasView',
     'ListarVentasAjax',

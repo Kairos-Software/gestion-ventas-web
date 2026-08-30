@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maqueta · Nueva Venta (sin ventanas flotantes)</title>
+<link rel="icon" href="data:,">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body class="pos">
+
+<div class="app">
+
+  <!-- ═══ Barra lateral (solo contexto visual, no funciona) ═══ -->
+  <aside class="nav">
+    <div class="nav-brand">
+      <span class="nav-brand-mark">K</span>
+      <span class="nav-brand-text">Kairos</span>
+    </div>
+    <nav class="nav-list">
+      <span class="nav-item">Dashboard</span>
+      <span class="nav-item">Catálogo</span>
+      <span class="nav-item nav-item--group">Ventas
+        <span class="nav-sub nav-sub--active">Nueva venta</span>
+        <span class="nav-sub">Historial</span>
+        <span class="nav-sub">Balanza</span>
+      </span>
+      <span class="nav-item">Compras</span>
+      <span class="nav-item">Finanzas</span>
+    </nav>
+    <div class="nav-foot">Maqueta de diseño</div>
+  </aside>
+
+  <!-- ═══ Área de trabajo ═══ -->
+  <main class="work">
+
+    <header class="work-head">
+      <div>
+        <div class="work-tag">Módulo · Ventas</div>
+        <h1>Nueva venta</h1>
+      </div>
+      <div class="work-head-right">
+        <button class="demo-toggle" id="demoBtn" title="Opciones de la maqueta">⚙ Demo</button>
+      </div>
+    </header>
+
+    <!-- Panel de demo: alterna estados para probar la interfaz -->
+    <div class="demo-panel" id="demoPanel" hidden>
+      <label><input type="checkbox" id="demoSinTurno"> Mostrar aviso "sin turno de caja"</label>
+      <label><input type="checkbox" id="demoArca" checked> Facturación electrónica (ARCA) habilitada</label>
+      <button id="demoReset" class="demo-reset">Reiniciar venta</button>
+    </div>
+
+    <div class="banner banner--warn" id="bannerTurno" hidden>
+      No hay un turno de caja abierto. Podés cargar el carrito, pero no vas a poder confirmar hasta abrir un turno.
+    </div>
+
+    <div class="pos-grid">
+
+      <!-- ─── Columna izquierda: buscador + carrito ─── -->
+      <section class="cart-col">
+
+        <div class="panel search-panel">
+          <div class="search-wrap">
+            <svg class="search-ic" width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.4"/><path d="M10 10L14 14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            <input id="buscar" class="search-input" type="text" autocomplete="off"
+                   placeholder="Escaneá o buscá un producto por nombre o código…  (probá: LT-2025-0003 · BAL-2025-0007)">
+            <div id="buscarDrop" class="drop"></div>
+          </div>
+        </div>
+
+        <div class="panel cart-panel">
+          <div class="cart-head">
+            <span class="cart-head-title">Carrito</span>
+            <span class="cart-head-count" id="cartCount">0 ítems</span>
+          </div>
+
+          <div class="cart-list" id="carrito"></div>
+
+          <div class="cart-empty" id="carritoVacio">
+            <div class="cart-empty-ic">🛒</div>
+            <p>Escaneá o buscá un producto para empezar.<br>El total y el cobro se arman solos a la derecha.</p>
+          </div>
+
+          <div class="cart-foot" id="cartFoot" hidden>
+            <div class="oferta-global" id="ofertaGlobal" hidden></div>
+            <div class="cart-foot-row">
+              <span id="cartFootItems">0 ítems</span>
+              <span class="cart-foot-total">Total <strong id="cartFootTotal">$ 0,00</strong></span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─── Columna derecha: cobro (SIEMPRE visible, anclada) ─── -->
+      <aside class="cobro-col">
+        <div class="cobro" id="cobro">
+          <div class="cobro-head">
+            <span>Cobro</span>
+            <span class="cobro-head-hint">todo en un lugar · sin ventanas flotantes</span>
+          </div>
+
+          <!-- Estado BORRADOR -->
+          <div class="cobro-body" id="cobroBorrador">
+
+            <div class="field">
+              <label class="lbl" for="clienteInput">Cliente</label>
+              <div class="cli-wrap">
+                <input id="clienteInput" class="ctrl" type="text" autocomplete="off"
+                       placeholder="Consumidor Final — buscá por nombre o documento">
+                <button class="cli-clear" id="clienteClear" hidden>✕</button>
+                <div id="clienteDrop" class="drop drop--cli"></div>
+              </div>
+              <div class="sco-chip" id="scoChip" hidden></div>
+            </div>
+
+            <div class="field field--row">
+              <div>
+                <label class="lbl" for="fechaInput">Fecha</label>
+                <input id="fechaInput" class="ctrl" type="date">
+              </div>
+            </div>
+
+            <div class="cobro-total">
+              <span class="cobro-total-lbl">Total a cobrar</span>
+              <span class="cobro-total-val" id="totalGrande">$ 0,00</span>
+              <span class="cobro-total-sub" id="totalSub" hidden></span>
+            </div>
+
+            <div class="cobro-section">
+              <div class="cobro-section-head">
+                <span>Medios de pago</span>
+                <span class="pago-dot" id="pagoDot"></span>
+              </div>
+
+              <div id="scoAviso" class="sco-aviso" hidden></div>
+
+              <div id="pagoLineas"></div>
+
+              <button class="btn btn-ghost btn-sm" id="btnAgregarPago">＋ Agregar otro medio</button>
+
+              <div class="pago-resumen" id="pagoResumen">
+                <span>Asignado <strong id="pagoAsignado">$ 0,00</strong></span>
+                <span id="pagoPendienteWrap">Pendiente <strong id="pagoPendiente">$ 0,00</strong></span>
+              </div>
+              <div class="pago-resumen pago-resumen--extra" id="pagoExtra" hidden>
+                <span>Recargo / interés <strong id="pagoRecargo">$ 0,00</strong></span>
+                <span>Total final <strong id="pagoTotalFinal">$ 0,00</strong></span>
+              </div>
+            </div>
+
+            <details class="cobro-section cobro-fact" id="factBox">
+              <summary>
+                <span>Facturación electrónica</span>
+                <span class="fact-preview" id="factPreview">Factura C</span>
+              </summary>
+              <label class="fact-check">
+                <input type="checkbox" id="factCheck">
+                Emitir <strong id="factTipo">Factura C</strong> al confirmar
+              </label>
+              <p class="fact-note" id="factNote">
+                Consumidor Final — se emite Factura C. Elegí un cliente para cambiar el tipo de comprobante.
+              </p>
+            </details>
+
+            <details class="cobro-section cobro-fact">
+              <summary><span>Notas de la venta</span></summary>
+              <textarea id="notasInput" class="ctrl" rows="2" placeholder="Observaciones, condiciones…" style="margin-top:.6rem"></textarea>
+            </details>
+
+            <div class="cobro-actions">
+              <button class="btn btn-ghost" id="btnTicket">Ver ticket borrador</button>
+              <button class="btn btn-primary btn-lg" id="btnConfirmar" disabled>
+                Confirmar venta <span class="kbd">F4</span>
+              </button>
+              <button class="btn btn-danger-ghost btn-sm" id="btnCancelar">Cancelar venta</button>
+            </div>
+          </div>
+
+          <!-- Estado CONFIRMADA (se muestra en el mismo lugar, sin recargar) -->
+          <div class="cobro-body cobro-listo" id="cobroListo" hidden>
+            <div class="listo-check">✓</div>
+            <div class="listo-title">Venta confirmada</div>
+            <div class="listo-num" id="listoNum">V-0001-00012</div>
+
+            <div class="listo-rows">
+              <div class="listo-row"><span>Total cobrado</span><strong id="listoTotal">$ 0,00</strong></div>
+              <div class="listo-row"><span>Medios</span><strong id="listoMedios">Efectivo</strong></div>
+              <div class="listo-row" id="listoArcaRow" hidden><span>Comprobante</span><strong id="listoArca">—</strong></div>
+              <div class="listo-row" id="listoCaeRow" hidden><span>CAE</span><strong id="listoCae">—</strong></div>
+            </div>
+
+            <div class="listo-print">
+              <div class="listo-print-lbl">Imprimir / guardar PDF</div>
+              <div class="listo-print-btns">
+                <button class="btn btn-ghost btn-sm" data-formato="a4">A4 / PDF</button>
+                <button class="btn btn-ghost btn-sm" data-formato="t80">Térmica 80mm</button>
+                <button class="btn btn-ghost btn-sm" data-formato="t58">Térmica 58mm</button>
+              </div>
+            </div>
+
+            <button class="btn btn-primary btn-lg" id="btnNuevaVenta">
+              Nueva venta <span class="kbd">F2</span>
+            </button>
+          </div>
+
+        </div>
+      </aside>
+
+    </div>
+  </main>
+</div>
+
+<!-- ═══ Modal: vista previa de ticket ═══ -->
+<div class="modal" id="modalTicket" hidden>
+  <div class="modal-card">
+    <button class="modal-x" data-close>✕</button>
+    <div class="ticket" id="ticketBody"></div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-close>Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Modal: cargar cheque ═══ -->
+<div class="modal" id="modalCheque" hidden>
+  <div class="modal-card">
+    <button class="modal-x" data-close>✕</button>
+    <div class="modal-title" id="chTitulo">Cargar cheque</div>
+    <div class="modal-grid">
+      <div><label class="lbl">N° de cheque</label><input class="ctrl" id="chNumero" placeholder="Opcional"></div>
+      <div><label class="lbl">Monto *</label><input class="ctrl" id="chMonto" type="number" min="0" step="0.01"></div>
+      <div><label class="lbl">Emisión *</label><input class="ctrl" id="chEmision" type="date"></div>
+      <div><label class="lbl">Cobro *</label><input class="ctrl" id="chCobro" type="date"></div>
+      <div><label class="lbl">Emisor</label><input class="ctrl" id="chEmisor" placeholder="Opcional"></div>
+      <div><label class="lbl">Banco</label><input class="ctrl" id="chBanco" placeholder="Ej: Galicia"></div>
+    </div>
+    <p class="modal-err" id="chErr"></p>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-close>Cancelar</button>
+      <button class="btn btn-primary btn-sm" id="chGuardar">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="datos.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

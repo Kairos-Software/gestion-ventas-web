@@ -24,9 +24,13 @@
 /**
  * Genera el HTML completo del ticket para impresora térmica 80mm.
  * @param {object} data
+ * @param {object} [opts]
+ * @param {boolean} [opts.sinAutoImpresion]  No incluir el <script> que
+ *   dispara window.print() al cargar (lo usa ticket_pdf.js).
  * @returns {string}
  */
-function ticketHtmlTermica80(data) {
+function ticketHtmlTermica80(data, opts) {
+    const sinAutoImpresion = !!(opts && opts.sinAutoImpresion);
     const emp     = data.empresa || {};
     const venta   = data.venta   || {};
     const items   = data.items   || [];
@@ -257,6 +261,7 @@ function ticketHtmlTermica80(data) {
         ${emp.email ? _esc(emp.email) : ''}
     </div>
 
+${sinAutoImpresion ? '' : `
     <script>
         window.addEventListener('load', function () {
             // La herramienta de impresión del navegador ES la vista previa
@@ -267,7 +272,7 @@ function ticketHtmlTermica80(data) {
         // Cerrar la ventana recién cuando el usuario termina con el
         // diálogo de impresión (imprime o cancela) — nunca antes.
         window.addEventListener('afterprint', function () { window.close(); });
-    <\/script>
+    <\/script>`}
 </body>
 </html>`;
 }

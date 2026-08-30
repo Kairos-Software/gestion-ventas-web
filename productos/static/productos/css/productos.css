@@ -2140,3 +2140,181 @@
 
 .prd-check-label--sm { font-size: 0.78rem; }
 .prd-check-label--sm input { flex-shrink: 0; }
+
+
+/* ════════════════════════════════════════════════════════════════
+   IMPORTAR DESDE EXCEL
+   ════════════════════════════════════════════════════════════════ */
+.prd-import-step { margin: 0; }
+
+.prd-import-plantilla {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0.6rem 0 1rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--accent);
+    text-decoration: none;
+}
+.prd-import-plantilla:hover { text-decoration: underline; }
+
+.prd-import-drop {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    padding: 1.6rem 1rem;
+    border: 1.5px dashed var(--border-color);
+    border-radius: 0.7rem;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.prd-import-drop:hover,
+.prd-import-drop--over {
+    border-color: var(--accent);
+    color: var(--text-primary);
+}
+.prd-import-drop--cargado {
+    border-style: solid;
+    border-color: var(--accent);
+    color: var(--text-primary);
+}
+.prd-import-drop strong { color: var(--text-primary); }
+
+.prd-import-resumen {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.9rem;
+}
+.prd-import-chip {
+    padding: 0.4rem 0.7rem;
+    border-radius: 0.5rem;
+    font-size: 0.8rem;
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+}
+.prd-import-chip strong { font-size: 0.95rem; }
+.prd-import-chip--nuevo { color: var(--success); border-color: rgba(16,185,129,0.3); background: rgba(16,185,129,0.08); }
+.prd-import-chip--upd   { color: var(--accent);  border-color: rgba(59,130,246,0.3); background: rgba(59,130,246,0.08); }
+.prd-import-chip--igual { color: var(--text-secondary); }
+.prd-import-chip--err   { color: var(--danger);  border-color: rgba(239,68,68,0.3);  background: rgba(239,68,68,0.08); }
+
+.prd-import-aviso {
+    margin-bottom: 0.85rem;
+    padding: 0.6rem 0.8rem;
+    border-radius: 0.5rem;
+    font-size: 0.78rem;
+    color: var(--warning);
+    background: rgba(245,158,11,0.09);
+    border: 1px solid rgba(245,158,11,0.22);
+}
+.prd-import-aviso--probl {
+    color: var(--danger);
+    background: rgba(239,68,68,0.07);
+    border-color: rgba(239,68,68,0.2);
+}
+
+.prd-import-detalle { margin-bottom: 0.85rem; }
+.prd-import-detalle > summary {
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    padding: 0.3rem 0;
+}
+.prd-import-detalle > summary:hover { color: var(--text-primary); }
+
+.prd-import-tabla-wrap {
+    max-height: 320px;
+    overflow: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 0.55rem;
+    margin-top: 0.4rem;
+}
+.prd-import-tabla {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.76rem;
+}
+.prd-import-tabla th,
+.prd-import-tabla td {
+    text-align: left;
+    padding: 0.4rem 0.6rem;
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: top;
+}
+.prd-import-tabla th {
+    position: sticky;
+    top: 0;
+    background: var(--bg-secondary);
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.prd-import-tabla tr:last-child td { border-bottom: none; }
+
+.prd-import-acc {
+    display: inline-block;
+    padding: 0.1rem 0.45rem;
+    border-radius: 0.35rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.prd-import-acc--nuevo { color: var(--success); background: rgba(16,185,129,0.1); }
+.prd-import-acc--upd   { color: var(--accent);  background: rgba(59,130,246,0.1); }
+.prd-import-acc--igual { color: var(--text-secondary); background: var(--bg-secondary); }
+.prd-import-acc--err   { color: var(--danger);  background: rgba(239,68,68,0.1); }
+
+.prd-import-obs {
+    display: block;
+    line-height: 1.35;
+}
+.prd-import-obs--err   { color: var(--danger); }
+.prd-import-obs--aviso { color: var(--warning); }
+.prd-import-obs--ok    { color: var(--text-secondary); opacity: 0.6; }
+
+/* — Resultado (paso 3): bloques desplegables — */
+.prd-import-rblock { margin-top: 0.7rem; font-size: 0.8rem; }
+.prd-import-rblock > summary {
+    cursor: pointer;
+    font-weight: 700;
+    color: var(--text-primary);
+    padding: 0.35rem 0;
+}
+.prd-import-rblock ul {
+    margin: 0.25rem 0 0.4rem;
+    padding-left: 1.1rem;
+    max-height: 260px;
+    overflow-y: auto;
+}
+.prd-import-rblock li { line-height: 1.5; }
+.prd-import-rblock em { color: var(--accent); font-style: normal; }
+.prd-import-cod {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
+    padding: 0.05rem 0.3rem;
+    border-radius: 0.3rem;
+}
+
+.prd-import-ok {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 1.1rem;
+    border-radius: 0.6rem;
+    background: rgba(16,185,129,0.08);
+    border: 1px solid rgba(16,185,129,0.25);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+.prd-import-ok svg { color: var(--success); flex-shrink: 0; }
+.prd-import-ok strong { color: var(--text-primary); }

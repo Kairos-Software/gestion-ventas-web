@@ -4,7 +4,7 @@
 {% block title %}Clientes{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'core/css/gestion_clientes.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/gestion_clientes.css' %}?v=20260830">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 {% endblock %}
 
@@ -114,7 +114,7 @@
                 </td>
                 <td>{{ cliente.localidad|default:'—' }}{% if cliente.provincia %}, {{ cliente.provincia }}{% endif %}</td>
                 <td>
-                    <span class="score-chip score-{% if cliente.scoring >= 900 %}alto{% elif cliente.scoring >= 600 %}medio{% else %}bajo{% endif %}">
+                    <span class="score-chip score-band--{{ cliente.scoring_banda }}" title="{{ cliente.scoring_banda_label }}">
                         {{ cliente.scoring }}
                     </span>
                 </td>
@@ -305,7 +305,7 @@
 
                             <p class="form-section-title mt-4">Estado y clasificación</p>
                             <div class="row g-3">
-                                <div class="col-md-4">
+                                <div class="col-md-6">
                                     <label class="form-label">Estado</label>
                                     <select class="form-select" name="estado" id="id_estado">
                                         <option value="activo">Activo</option>
@@ -314,15 +314,9 @@
                                         <option value="suspendido">Suspendido</option>
                                     </select>
                                 </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">Nivel de riesgo</label>
-                                    <select class="form-select" name="nivel_riesgo" id="id_nivel_riesgo">
-                                        <option value="bajo">Bajo</option>
-                                        <option value="medio">Medio</option>
-                                        <option value="alto">Alto</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-4">
+                                {# El nivel de riesgo ahora lo calcula solo el scoring del cliente
+                                   (ver ficha del cliente → Scoring de riesgo de pago). #}
+                                <div class="col-md-6">
                                     <label class="form-label">Canal preferido</label>
                                     <select class="form-select" name="canal_preferido" id="id_canal_preferido">
                                         <option value="whatsapp">WhatsApp</option>
@@ -634,5 +628,5 @@
     window.clienteBuscarUrl   = "{% url 'core:cliente_buscar' %}";
 </script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="{% static 'core/js/gestion_clientes.js' %}"></script>
+<script src="{% static 'core/js/gestion_clientes.js' %}?v=20260830"></script>
 {% endblock %}

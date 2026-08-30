@@ -369,7 +369,7 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('clientePk').value = c.id;
         const r = document.querySelector(`input[name="tipo"][value="${c.tipo}"]`);
         if (r) { r.checked = true; aplicarTipo(c.tipo); }
-        set('id_estado', c.estado); set('id_nivel_riesgo', c.nivel_riesgo); set('id_canal_preferido', c.canal_preferido);
+        set('id_estado', c.estado); set('id_canal_preferido', c.canal_preferido);
         set('id_nombre', c.nombre); set('id_apellido', c.apellido); set('id_ocupacion', c.ocupacion);
         set('id_dni', c.dni); set('id_cuil', c.cuil); set('id_fecha_nacimiento', c.fecha_nacimiento); set('id_genero', c.genero);
         set('id_razon_social', c.razon_social); set('id_nombre_comercial', c.nombre_comercial);

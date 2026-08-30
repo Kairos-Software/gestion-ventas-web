@@ -887,10 +887,18 @@ class Producto(models.Model):
         Se usa queryset.delete() para los movimientos para evitar que cada
         MovimientoStock.delete() intente revertir stock de un producto que
         ya no existe. Los ProductoColor se eliminan en cascada automáticamente.
+
+        Los lotes de compra (compras.LoteCompra) tienen producto=SET_NULL:
+        no se borran, para no perder la trazabilidad de la Compra que los
+        originó. Pero se DESACTIVAN acá — si no, quedan como stock huérfano
+        "(producto eliminado)" para siempre en Inventario, en los avisos de
+        vencimiento y en el dashboard (todos filtran activo=True). Mismo
+        criterio que al anular una Compra (ver Compra.anular()).
         """
         from django.db import transaction
         with transaction.atomic():
             self.movimientos_stock.all().delete()
+            self.lotes.update(activo=False)
             super().delete(*args, **kwargs)
 
     # — Properties de utilidad —

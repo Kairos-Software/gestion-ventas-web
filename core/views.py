@@ -5,7 +5,7 @@ from django.shortcuts import render
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 
-from .models import DatosEmpresa, ConfiguracionArca, AmbienteArca
+from .models import DatosEmpresa, ConfiguracionArca, AmbienteArca, recalcular_scoring_pendientes
 from .permisos import chequear_permiso
 from .services_estadisticas.ventas import resumen_ganancia
 
@@ -34,6 +34,12 @@ class CustomLogoutView(LogoutView):
 def home(request):
     user = request.user
     hoy = timezone.localtime().date()
+
+    # Scoring de clientes: la mora envejece sola sin que nadie toque la
+    # ficha. Aprovechamos el paso por el inicio para poner al día, de a
+    # tandas, los puntajes vencidos — igual que descartar_borradores_vencidos.
+    # No hace falta una tarea programada aparte.
+    recalcular_scoring_pendientes()
 
     permisos = {
         'ventas':       chequear_permiso(user, 'ver_ventas'),

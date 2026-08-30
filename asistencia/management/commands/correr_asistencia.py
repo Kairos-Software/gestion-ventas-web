@@ -39,6 +39,22 @@ class Command(BaseCommand):
         forzar = options['forzar']
         tipo = options['tipo']
 
+        # Scoring de riesgo de pago: la mora envejece sola. Este pase
+        # diario refresca el padrón entero de una — además del refresco
+        # perezoso que hacen las vistas (inicio / lista de clientes).
+        # Va antes de los chequeos de canal/destino: no depende de que
+        # haya notificaciones configuradas. Nunca frena el resto.
+        if tipo == 'todos':
+            try:
+                from core.models import recalcular_scoring_pendientes
+                # limite=None: sin tope (es un batch nocturno). Con la
+                # antigüedad por defecto: saltea los que un evento ya
+                # recalculó hoy, refresca el resto (la mora envejece sola).
+                n = recalcular_scoring_pendientes(limite=None)
+                self.stdout.write(f'Scoring de clientes: {n} recalculado(s).')
+            except Exception as e:
+                self.stdout.write(self.style.ERROR(f'Scoring de clientes: fallo ({e}).'))
+
         pref = PreferenciaAsistencia.get_solo()
         destino = pref.email_efectivo
         empresa_nombre = DatosEmpresa.get_solo().nombre_comercial

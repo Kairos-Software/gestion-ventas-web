@@ -33,9 +33,14 @@
 /**
  * Genera el HTML completo del ticket en formato A4.
  * @param {object} data  Datos del ticket (ver estructura arriba)
+ * @param {object} [opts]
+ * @param {boolean} [opts.sinAutoImpresion]  No incluir el <script> que
+ *   dispara window.print() al cargar. Lo usa ticket_pdf.js, que
+ *   rasteriza este HTML en un iframe oculto para armar el PDF.
  * @returns {string}     HTML completo listo para abrir en ventana nueva
  */
-function ticketHtmlA4(data) {
+function ticketHtmlA4(data, opts) {
+    const sinAutoImpresion = !!(opts && opts.sinAutoImpresion);
     const emp     = data.empresa || {};
     const venta   = data.venta   || {};
     const items   = data.items   || [];
@@ -312,7 +317,7 @@ function ticketHtmlA4(data) {
 
     <!-- Pie -->
     <div class="a4-footer">Gracias por su compra.</div>
-
+${sinAutoImpresion ? '' : `
     <script>
         window.addEventListener('load', function () {
             // La herramienta de impresión del navegador ES la vista previa
@@ -323,7 +328,7 @@ function ticketHtmlA4(data) {
         // Cerrar la ventana recién cuando el usuario termina con el
         // diálogo de impresión (imprime o cancela) — nunca antes.
         window.addEventListener('afterprint', function () { window.close(); });
-    <\/script>
+    <\/script>`}
 </body>
 </html>`;
 }

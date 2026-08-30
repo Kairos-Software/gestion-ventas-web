@@ -4,7 +4,7 @@
 {% block title %}{{ cliente.get_nombre_display }}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'core/css/detalle_cliente.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/detalle_cliente.css' %}?v=20260830">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 {% endblock %}
 
@@ -31,7 +31,6 @@
             <div class="dc-hero-badges">
                 <span class="tipo-badge tipo-{{ cliente.tipo }}">{% if cliente.tipo == 'empresa' %}Empresa{% else %}Persona{% endif %}</span>
                 <span class="estado-badge estado-{{ cliente.estado }}">{{ cliente.get_estado_display }}</span>
-                <span class="riesgo-badge riesgo-{{ cliente.nivel_riesgo }}">Riesgo {{ cliente.get_nivel_riesgo_display }}</span>
                 {% if cliente.canal_preferido %}<span class="canal-badge">{{ cliente.get_canal_preferido_display }}</span>{% endif %}
             </div>
             <h1 class="dc-hero-nombre">{{ cliente.get_nombre_display }}</h1>
@@ -48,11 +47,11 @@
             {% endif %}
         </div>
 
-        {# Score #}
-        <div class="dc-hero-score">
-            <span class="score-label">SCORING</span>
-            <span class="score-value score-{% if cliente.scoring >= 900 %}alto{% elif cliente.scoring >= 600 %}medio{% else %}bajo{% endif %}">{{ cliente.scoring }}</span>
-            <span class="score-sub">puntos</span>
+        {# Score — riesgo de pago (ver core/scoring.py) #}
+        <div class="dc-hero-score dc-hero-score--{{ cliente.scoring_banda }}">
+            <span class="score-label">Riesgo de pago</span>
+            <span class="score-value score-band--{{ cliente.scoring_banda }}">{{ cliente.scoring }}</span>
+            <span class="score-banda">{{ cliente.scoring_banda_label }}</span>
         </div>
 
     </div>
@@ -155,6 +154,82 @@
                 <span class="fi-label">Notas internas</span>
                 <div class="fi-textarea">{{ cliente.notas|default:'Sin notas registradas.'|linebreaks }}</div>
             </div>
+        </div>
+
+        {# ═══ Scoring de riesgo de pago ═══ #}
+        <div class="dc-card sco-card" id="scoCard" data-url="{% url 'core:cliente_scoring' cliente.pk %}">
+            <div class="dc-card-title-row">
+                <span>Scoring de riesgo de pago</span>
+                <span class="sco-badge sco-badge--{{ cliente.scoring_banda }}" id="scoBadge">{{ cliente.scoring_banda_label }}</span>
+            </div>
+
+            <div class="sco-head">
+                <div class="sco-num score-band--{{ cliente.scoring_banda }}" id="scoNum">{{ cliente.scoring }}</div>
+                <div class="sco-head-info">
+                    <p class="sco-explain">
+                        Mide qué tan probable es que el cliente cumpla si le vendés en cuotas
+                        o le aceptás un cheque. Va de 0 a 1000 — más alto, mejor pagador.
+                    </p>
+                    <p class="sco-meta" id="scoMeta">
+                        {% if cliente.scoring_sin_historial %}
+                            Sin historial de crédito todavía.
+                        {% elif cliente.scoring_actualizado_el %}
+                            Actualizado {{ cliente.scoring_actualizado_el|date:"d/m/Y H:i" }}.
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+
+            {% if cliente.scoring_override is not None %}
+            <div class="sco-override-aviso" id="scoOverrideAviso">
+                <strong>Puntaje ajustado a mano</strong> a {{ cliente.scoring_override }}
+                {% if cliente.scoring_override_por %}por {{ cliente.scoring_override_por.get_full_name|default:cliente.scoring_override_por.username }}{% endif %}.
+                El cálculo automático da <strong>{{ cliente.scoring_calculado }}</strong>.
+                {% if cliente.scoring_override_motivo %}<br><span class="sco-override-motivo">“{{ cliente.scoring_override_motivo }}”</span>{% endif %}
+            </div>
+            {% endif %}
+
+            {% if scoring_desglose %}
+            <details class="sco-desglose" id="scoDesglose">
+                <summary>¿Por qué tiene este número?</summary>
+                <table class="sco-tabla">
+                    <tbody id="scoDesgloseBody">
+                    {% for d in scoring_desglose %}
+                        <tr>
+                            <td class="sco-td-concepto">{{ d.concepto }}<span class="sco-td-detalle">{{ d.detalle }}</span></td>
+                            <td class="sco-td-puntos {% if d.puntos > 0 %}sco-pos{% elif d.puntos < 0 %}sco-neg{% endif %}">
+                                {% if d.puntos > 0 %}+{% endif %}{{ d.puntos }}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </details>
+            {% endif %}
+
+            {% if puede_editar %}
+            <div class="sco-acciones">
+                <button type="button" class="sco-btn" data-sco-accion="recalcular">Recalcular ahora</button>
+                {% if cliente.scoring_override is not None %}
+                <button type="button" class="sco-btn" data-sco-accion="quitar">Volver al automático</button>
+                {% else %}
+                <button type="button" class="sco-btn" data-sco-accion="override-abrir">Ajustar a mano</button>
+                {% endif %}
+            </div>
+            <div class="sco-override-form" id="scoOverrideForm" hidden>
+                <label>Puntaje (0–1000)
+                    <input type="number" id="scoOverrideValor" min="0" max="1000" value="{{ cliente.scoring }}">
+                </label>
+                <label>Motivo
+                    <input type="text" id="scoOverrideMotivo" maxlength="300" placeholder="Ej: cliente de confianza de años, error puntual…">
+                </label>
+                <div class="sco-override-form-btns">
+                    <button type="button" class="sco-btn sco-btn--primary" data-sco-accion="override-guardar">Guardar ajuste</button>
+                    <button type="button" class="sco-btn" data-sco-accion="override-cancelar">Cancelar</button>
+                </div>
+                <p class="sco-msg" id="scoMsg"></p>
+            </div>
+            {% endif %}
         </div>
 
         {# Auditoría #}
@@ -309,5 +384,5 @@
 {% block extra_js %}
 <script>window.clientePk = {{ cliente.pk }};</script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="{% static 'core/js/detalle_cliente.js' %}"></script>
+<script src="{% static 'core/js/detalle_cliente.js' %}?v=20260830"></script>
 {% endblock %}

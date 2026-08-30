@@ -101,7 +101,8 @@ const searchDropdown = document.getElementById('vtaSearchDropdown');
 const cartBody       = document.getElementById('vtaCartBody');
 const cartEmpty      = document.getElementById('vtaCartEmpty');
 const cartFooter     = document.getElementById('vtaCartFooter');
-const btnContinuar   = document.getElementById('vtaBtnContinuar');
+const cartCount      = document.getElementById('vtaCartCount');
+const btnCobrar      = document.getElementById('vtaBtnCobrar');
 const badge          = document.getElementById('vtaBadge');
 const totalItemsEl   = document.getElementById('vtaTotalItems');
 const totalMontoEl   = document.getElementById('vtaTotalMonto');
@@ -228,6 +229,7 @@ function _recalcularOfertaSeleccionada(item) {
    desambiguar un producto con variantes que no vino resuelto)
 ════════════════════════════════════════════════════════════════ */
 function _renderOpciones(filas, { vacioTexto = 'Sin resultados' } = {}) {
+    _navResIdx = -1;   // nueva lista → nada resaltado con el teclado
     if (!filas.length) {
         searchDropdown.innerHTML = `<div class="vta-dropdown-empty">${_esc(vacioTexto)}</div>`;
         searchDropdown.classList.add('open');
@@ -369,14 +371,52 @@ searchInput.addEventListener('input', () => {
 });
 
 searchInput.addEventListener('keydown', e => {
+    // Con la guía de atajos abierta, no interceptar nada acá — que llegue
+    // al handler global (Esc / F1 la cierran).
+    if (document.getElementById('vtaAtajosPanel')?.classList.contains('is-open')) return;
+
+    const abierto = searchDropdown.classList.contains('open');
+    const ops     = _navOpcionesDropdown();
+
+    // Estas teclas las resuelve el buscador por completo — que no lleguen
+    // también al handler global de atajos (si no, ↓ movería la selección
+    // dos veces al pasar del buscador al carrito).
+    if (['Escape', 'ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) e.stopPropagation();
+
     if (e.key === 'Escape') {
-        searchDropdown.classList.remove('open');
-        searchInput.value = '';
+        if (abierto) { searchDropdown.classList.remove('open'); _navResIdx = -1; }
+        else searchInput.value = '';
         return;
     }
+
+    // ↓/↑ con el desplegable abierto → moverse entre resultados.
+    // ↓ con el desplegable cerrado y carrito con ítems → pasar al carrito.
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (abierto && ops.length) {
+            _navResIdx = Math.min(ops.length - 1, _navResIdx + 1);
+            _navPintarDropdown();
+        } else if (carrito.length) {
+            _navEntrarAlCarrito();
+        }
+        return;
+    }
+    if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (abierto && ops.length) {
+            _navResIdx = Math.max(0, _navResIdx - 1);
+            _navPintarDropdown();
+        }
+        return;
+    }
+
     if (e.key === 'Enter') {
         e.preventDefault();
         clearTimeout(searchTimer);
+        if (abierto && _navResIdx >= 0 && ops[_navResIdx]) {
+            ops[_navResIdx].click();   // reusa el handler de click del ítem
+            return;
+        }
         const q = searchInput.value.trim();
         if (q) _ejecutarBusqueda(q, { forzarAgregado: true });
     }
@@ -525,8 +565,117 @@ function _agregarFila(fila) {
 }
 
 function _quitarItem(id) {
+    const quitado = _navSelId === id;
     carrito = carrito.filter(i => i.id !== id);
+    if (quitado) _navSelId = null;
     _renderCarrito();
+}
+
+/* ════════════════════════════════════════════════════════════════
+   NAVEGACIÓN POR TECLADO — para trabajar sin mouse (así trabaja el
+   cajero: una mano en el lector, la otra en el teclado). El buscador
+   queda siempre activo para el lector; con ↓ se pasa al carrito.
+   La guía de atajos está en #vtaAtajosPanel (botón "⌨ Atajos").
+════════════════════════════════════════════════════════════════ */
+let _navSelId = null;   // id del ítem del carrito "elegido" con el teclado
+let _navResIdx = -1;    // índice resaltado en el desplegable del buscador
+
+function _navEnCampo(el) {
+    if (!el) return false;
+    return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA'
+        || el.tagName === 'SELECT' || el.isContentEditable;
+}
+
+function _navFilas() {
+    return Array.from(cartBody.querySelectorAll('.vta-cart-row'));
+}
+
+function _navPintarSeleccion(scroll) {
+    _navFilas().forEach(f => {
+        const sel = parseInt(f.dataset.itemId, 10) === _navSelId;
+        f.classList.toggle('is-selected', sel);
+        if (sel && scroll) f.scrollIntoView({ block: 'nearest' });
+    });
+}
+
+function _navSeleccionar(id, scroll) {
+    _navSelId = id;
+    if (_navEnCampo(document.activeElement)) document.activeElement.blur();
+    _navPintarSeleccion(scroll);
+}
+
+function _navEntrarAlCarrito() {
+    if (!carrito.length) return;
+    if (_navSelId == null || !carrito.some(i => i.id === _navSelId)) {
+        _navSeleccionar(carrito[0].id, true);
+    } else {
+        _navSeleccionar(_navSelId, true);
+    }
+}
+
+function _navMover(delta) {
+    const filas = _navFilas();
+    if (!filas.length) return;
+    let idx = filas.findIndex(f => parseInt(f.dataset.itemId, 10) === _navSelId);
+    if (idx === -1) idx = delta > 0 ? -1 : filas.length;
+    idx = Math.min(filas.length - 1, Math.max(0, idx + delta));
+    _navSeleccionar(parseInt(filas[idx].dataset.itemId, 10), true);
+}
+
+function _navVolverAlBuscador() {
+    _navSelId = null;
+    _navPintarSeleccion(false);
+    searchInput.focus();
+}
+
+function _navAjustarCantidad(delta) {
+    const item = carrito.find(i => i.id === _navSelId);
+    if (!item || item.etiqueta_balanza_pk) return;   // balanza: cantidad fija
+    const nueva = Math.round(((parseFloat(item.cantidad) || 0) + delta) * 1000) / 1000;
+    if (nueva < 0.001) { _quitarItem(item.id); return; }
+    item.cantidad = nueva;
+    _recalcularOfertaSeleccionada(item);
+    _renderCarrito();
+}
+
+function _navQuitarSeleccion() {
+    const filas = _navFilas();
+    const idx = filas.findIndex(f => parseInt(f.dataset.itemId, 10) === _navSelId);
+    if (idx === -1) return;
+    _quitarItem(_navSelId);   // ya deja _navSelId en null
+    const nuevas = _navFilas();
+    if (nuevas.length) {
+        _navSeleccionar(parseInt(nuevas[Math.min(idx, nuevas.length - 1)].dataset.itemId, 10), true);
+    }
+}
+
+function _navToggleAdv() {
+    const item = carrito.find(i => i.id === _navSelId);
+    if (!item || item.etiqueta_balanza_pk) return;
+    item.advOpen = !item.advOpen;
+    _renderCarrito();
+    if (item.advOpen) {
+        const fila = cartBody.querySelector(`.vta-cart-row[data-item-id="${item.id}"]`);
+        fila?.querySelector('[data-campo="descuento"]')?.focus();
+    }
+}
+
+/* ── Desplegable del buscador ── */
+function _navOpcionesDropdown() {
+    return Array.from(searchDropdown.querySelectorAll('.vta-dropdown-item[data-idx]'));
+}
+function _navPintarDropdown() {
+    const ops = _navOpcionesDropdown();
+    ops.forEach((el, i) => el.classList.toggle('is-kbd', i === _navResIdx));
+    if (ops[_navResIdx]) ops[_navResIdx].scrollIntoView({ block: 'nearest' });
+}
+
+/* ── Guía de atajos ── */
+function _navToggleAtajos(forzar) {
+    const panel = document.getElementById('vtaAtajosPanel');
+    if (!panel) return;
+    const abrir = forzar != null ? forzar : !panel.classList.contains('is-open');
+    panel.classList.toggle('is-open', abrir);
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -543,15 +692,44 @@ function _sincronizarClienteEnCarrito() {
     });
 }
 
+// Scoring de riesgo de pago del cliente elegido — solo informativo acá
+// (el carrito no cobra); el aviso/bloqueo real está en el panel de cobro
+// (detalle_venta.js). {banda, label, sinHistorial, scoring} o null.
+let clienteVentaScoring = null;
+
+function _renderClienteScoringChipCarrito() {
+    const chip = document.getElementById('vtaClienteScoringChip');
+    if (!chip) return;
+    if (!clienteVenta.pk || !clienteVentaScoring) {
+        chip.hidden = true;
+        chip.textContent = '';
+        return;
+    }
+    chip.hidden = false;
+    chip.className = 'vdt-sco-chip';
+    if (clienteVentaScoring.sinHistorial) {
+        chip.classList.add('vdt-sco-chip--sinhist');
+        chip.textContent = 'Sin historial de crédito';
+        return;
+    }
+    const banda = clienteVentaScoring.banda || 'excelente';
+    chip.classList.add('vdt-sco-chip--' + banda);
+    chip.textContent = 'Riesgo de pago: ' + (clienteVentaScoring.label || banda) +
+        (clienteVentaScoring.scoring != null ? ' (' + clienteVentaScoring.scoring + ')' : '');
+}
+
 function _bindClienteVentaInput() {
     if (!clienteVentaInput || !clienteVentaDropdown) return;
     clienteVentaInput.value = clienteVenta.nombre;
     clienteVentaClear.style.display = clienteVenta.pk ? 'inline-flex' : 'none';
+    _renderClienteScoringChipCarrito();
 
     clienteVentaInput.addEventListener('input', () => {
         clearTimeout(clienteSearchTimer);
         const q = clienteVentaInput.value.trim();
         clienteVenta = { pk: null, nombre: '' };
+        clienteVentaScoring = null;
+        _renderClienteScoringChipCarrito();
         clienteVentaClear.style.display = 'none';
         _sincronizarClienteEnCarrito();
 
@@ -572,10 +750,13 @@ function _bindClienteVentaInput() {
                 const results = data.results || [];
 
                 clienteVentaDropdown.innerHTML = results.length
-                    ? results.map(c => `
-                        <div class="vta-cli-option" data-pk="${c.pk}" data-nombre="${_esc(c.nombre)}">
+                    ? results.map((c, i) => `
+                        <div class="vta-cli-option" data-idx="${i}" data-nombre="${_esc(c.nombre)}">
                             <div class="vta-cli-option-top">
                                 <span class="vta-cli-option-nombre">${_esc(c.nombre)}</span>
+                                ${c.scoring_banda && !c.scoring_sin_historial
+                                    ? `<span class="vdt-sco-mini vdt-sco-mini--${c.scoring_banda}">${_esc(c.scoring_banda_label || '')}</span>`
+                                    : ''}
                                 ${c.codigo ? `<span class="vta-dropdown-item-codigo">${_esc(c.codigo)}</span>` : ''}
                             </div>
                             ${c.doc ? `
@@ -592,12 +773,20 @@ function _bindClienteVentaInput() {
 
                 clienteVentaDropdown.querySelectorAll('.vta-cli-option').forEach(el => {
                     el.addEventListener('click', () => {
-                        clienteVenta = { pk: parseInt(el.dataset.pk, 10), nombre: el.dataset.nombre };
+                        const c = results[parseInt(el.dataset.idx, 10)];
+                        clienteVenta = { pk: c.pk, nombre: el.dataset.nombre };
+                        clienteVentaScoring = {
+                            scoring:      c.scoring,
+                            banda:        c.scoring_banda,
+                            label:        c.scoring_banda_label,
+                            sinHistorial: c.scoring_sin_historial,
+                        };
                         clienteVentaInput.value = el.dataset.nombre;
                         clienteVentaClear.style.display = 'inline-flex';
                         clienteVentaDropdown.classList.remove('open');
                         clienteVentaDropdown.innerHTML = '';
                         _sincronizarClienteEnCarrito();
+                        _renderClienteScoringChipCarrito();
                     });
                 });
                 clienteVentaDropdown.classList.add('open');
@@ -608,9 +797,11 @@ function _bindClienteVentaInput() {
 
     clienteVentaClear.addEventListener('click', () => {
         clienteVenta = { pk: null, nombre: '' };
+        clienteVentaScoring = null;
         clienteVentaInput.value = '';
         clienteVentaClear.style.display = 'none';
         _sincronizarClienteEnCarrito();
+        _renderClienteScoringChipCarrito();
         clienteVentaInput.focus();
     });
     // El cierre al clickear afuera ya lo maneja el listener global de
@@ -630,52 +821,47 @@ function _chipOrigen(item) {
     return `<span class="vta-origen-chip vta-origen-chip--normal" title="Descuenta del lote más viejo con stock (FIFO)">Más viejo (FIFO)</span>`;
 }
 
-function _opcionesDescuento(item) {
+/* Opciones de los desplegables del panel "Descuento / oferta" de cada
+   fila (se despliega por ítem, no es una columna siempre visible). */
+function _opcionesListaAdv(item) {
     const listas = CFG.listasDescuento || [];
-    if (!listas.length) return null;
-    const opcionesListas = listas.map(l => `
+    return listas.map(l => `
         <option value="lista:${_esc(l.nombre)}" data-pct="${l.porcentaje}" ${item.lista_descuento_nombre === l.nombre ? 'selected' : ''}>
             ${_esc(l.nombre)} (${l.porcentaje}%)
         </option>`).join('');
-    return `<option value="">— Manual —</option>${opcionesListas}`;
 }
-
-function _selectDescuento(item) {
-    const opciones = _opcionesDescuento(item);
-    if (opciones === null) {
-        return `<span class="vta-lista-vacia" title="No hay listas de descuento creadas">—</span>`;
+function _selectListaAdv(item) {
+    if (!(CFG.listasDescuento || []).length) {
+        return `<select data-campo="lista_descuento" disabled><option>— sin listas cargadas —</option></select>`;
     }
-    return `
-        <select class="vta-select-inline w-sm" data-item-id="${item.id}" data-campo="lista_descuento" title="Aplicar % de una lista de descuento">
-            ${opciones}
-        </select>`;
+    return `<select data-campo="lista_descuento"><option value="">— Manual —</option>${_opcionesListaAdv(item)}</select>`;
 }
-
-function _opcionesOferta(item) {
+function _opcionesOfertaAdv(item) {
     const ofertas = _ofertasVigentesParaProducto(item.producto_pk, item.categoria_id);
-    if (!ofertas.length) return null;
-    const opciones = ofertas.map(o => {
+    return ofertas.map(o => {
         const pct = _pctEfectivoOferta(o, item.cantidad);
         const etiqueta = o.tipo === 'nxm'
-            ? `${o.cantidad_lleva}x${o.cantidad_paga} → ${pct.toFixed(2)}%`
-            : `${pct.toFixed(2)}%`;
-        return `
-        <option value="${_esc(o.nombre)}" ${item.oferta_aplicada_nombre === o.nombre ? 'selected' : ''}>
-            ${_esc(o.nombre)} (${etiqueta})
-        </option>`;
+            ? `${o.cantidad_lleva}x${o.cantidad_paga} → ${pct.toFixed(0)}%`
+            : `${pct.toFixed(0)}%`;
+        return `<option value="${_esc(o.nombre)}" ${item.oferta_aplicada_nombre === o.nombre ? 'selected' : ''}>${_esc(o.nombre)} (${etiqueta})</option>`;
     }).join('');
-    return `<option value="">— Ninguna —</option>${opciones}`;
+}
+function _selectOfertaAdv(item) {
+    const ofertas = _ofertasVigentesParaProducto(item.producto_pk, item.categoria_id);
+    if (!ofertas.length) {
+        return `<select data-campo="oferta" disabled><option>— sin ofertas para este producto —</option></select>`;
+    }
+    return `<select data-campo="oferta"><option value="">— Ninguna —</option>${_opcionesOfertaAdv(item)}</select>`;
 }
 
-function _selectOferta(item) {
-    const opciones = _opcionesOferta(item);
-    if (opciones === null) {
-        return `<span class="vta-lista-vacia" title="No hay ofertas vigentes para este producto">—</span>`;
-    }
-    return `
-        <select class="vta-select-inline w-sm" data-item-id="${item.id}" data-campo="oferta" title="Oferta vigente para este producto">
-            ${opciones}
-        </select>`;
+function _tieneDesc(item) {
+    return item.descuento != null && parseFloat(item.descuento) > 0;
+}
+function _txtTagDesc(item) {
+    const pct = parseFloat(item.descuento) || 0;
+    const pctTxt = Number.isInteger(pct) ? String(pct) : String(Math.round(pct * 100) / 100);
+    const fuente = item.oferta_aplicada_nombre || item.lista_descuento_nombre || '';
+    return `−${pctTxt}%${fuente ? ' · ' + fuente : ''}`;
 }
 
 /** Avisa apenas se carga una cantidad mayor al stock disponible, en vez
@@ -693,33 +879,53 @@ function _carritoTieneStockInsuficiente() {
 }
 
 /** Muestra/oculta el aviso de stock insuficiente de una fila ya
- *  renderizada, sin reconstruir el <tr> — se llama en cada tecleo de
- *  cantidad (ver _onCampoCambiado) para no perder el foco del input. */
+ *  renderizada, sin reconstruirla — se llama en cada tecleo de cantidad
+ *  (ver _onCampoCambiado) para no perder el foco del input. */
 function _actualizarAvisoStockFila(fila, item) {
     if (!fila) return;
-    const inputCantidad = fila.querySelector('[data-campo="cantidad"]');
-    let aviso = fila.querySelector('.vta-cant-error');
     const insuficiente = _stockInsuficiente(item);
-
+    fila.classList.toggle('is-alert', insuficiente);
+    const inputCantidad = fila.querySelector('.vta-stepper input');
     if (inputCantidad) inputCantidad.classList.toggle('vta-input-error', insuficiente);
 
+    let aviso = fila.querySelector('.vta-cart-alert-msg');
     if (insuficiente) {
-        if (!aviso && inputCantidad) {
+        if (!aviso) {
             aviso = document.createElement('div');
-            aviso.className = 'vta-cant-error';
-            inputCantidad.insertAdjacentElement('afterend', aviso);
+            aviso.className = 'vta-cart-alert-msg';
+            const mid = fila.querySelector('.vta-cart-row-mid');
+            if (mid) mid.insertAdjacentElement('afterend', aviso);
         }
-        if (aviso) aviso.textContent = `Stock disponible: ${item.stock_actual}`;
+        aviso.textContent = `Stock disponible: ${item.stock_actual}`;
     } else if (aviso) {
         aviso.remove();
+    }
+}
+
+/** Refresca el chip "−X%" colapsado de una fila sin reconstruirla. */
+function _refrescarTagDesc(fila, item) {
+    const cont = fila.querySelector('.vta-cart-row-tags');
+    if (!cont) return;
+    let chip = cont.querySelector('.vta-tag-desc');
+    if (_tieneDesc(item)) {
+        if (!chip) {
+            chip = document.createElement('span');
+            chip.className = 'vta-tag-desc';
+            cont.prepend(chip);
+        }
+        chip.textContent = _txtTagDesc(item);
+    } else if (chip) {
+        chip.remove();
     }
 }
 
 function _renderCarrito() {
     if (!carrito.length) {
         cartBody.innerHTML = '';
-        cartEmpty.style.display  = 'flex';
+        cartEmpty.style.display  = 'block';
         cartFooter.style.display = 'none';
+        if (cartCount) cartCount.textContent = '0 ítems';
+        _navSelId = null;
         _actualizarBtnContinuar();
         return;
     }
@@ -728,89 +934,130 @@ function _renderCarrito() {
 
     cartBody.innerHTML = carrito.map(item => {
         const bloqueado = !!item.etiqueta_balanza_pk;
-        const soloLectura = bloqueado ? 'readonly title="Fijado por la etiqueta de balanza — no se puede editar"' : '';
+        const ro    = bloqueado ? 'readonly' : '';
+        const roStep = bloqueado ? 'disabled' : '';
+        const sub  = _calcSub(item);
+        const base = (parseFloat(item.cantidad) || 0) * (parseFloat(item.precio) || 0);
+        const insuf = _stockInsuficiente(item);
+        const tag  = _tieneDesc(item) ? `<span class="vta-tag-desc">${_esc(_txtTagDesc(item))}</span>` : '';
+
         return `
-        <tr data-item-id="${item.id}">
-            <td>
-                <div class="vta-prod-cell">
-                    <span class="vta-prod-nombre">${_esc(item.nombre)}</span>
-                    <span class="vta-prod-meta">${_esc(item.codigo)}</span>
+        <div class="vta-cart-row${insuf ? ' is-alert' : ''}" data-item-id="${item.id}">
+            <div class="vta-cart-row-top">
+                ${_chipOrigen(item)}
+                <div class="vta-cart-row-name">
+                    <b>${_esc(item.nombre)}</b>
+                    <span>${_esc(item.codigo)}</span>
                 </div>
-            </td>
-            <td>${_chipOrigen(item)}</td>
-            <td><input type="number" min="0.001" step="0.001" class="vta-input-inline w-sm"
-                       data-item-id="${item.id}" data-campo="cantidad" value="${item.cantidad}" ${soloLectura}></td>
-            <td><input type="number" min="0" step="0.01" class="vta-input-inline w-sm"
-                       data-item-id="${item.id}" data-campo="precio" value="${item.precio}" ${soloLectura}></td>
-            <td><input type="number" min="0" max="100" step="0.01" class="vta-input-inline w-xs"
-                       data-item-id="${item.id}" data-campo="descuento" value="${item.descuento}"></td>
-            <td>${_selectDescuento(item)}</td>
-            <td>${_selectOferta(item)}</td>
-            <td class="vta-subtotal-cell">${_fmt(_calcSub(item), item.moneda)}</td>
-            <td><button class="vta-btn-remove" data-item-id="${item.id}" title="Quitar">✕</button></td>
-        </tr>`;
+                <button type="button" class="vta-cart-row-x" data-act="quitar" title="Quitar">✕</button>
+            </div>
+            <div class="vta-cart-row-mid">
+                <div class="vta-stepper">
+                    <button type="button" data-act="menos" ${roStep} aria-label="Menos uno">−</button>
+                    <input type="number" min="0.001" step="0.001" data-campo="cantidad" value="${item.cantidad}" ${ro}${bloqueado ? ' title="Fijado por la etiqueta de balanza"' : ''}>
+                    <button type="button" data-act="mas" ${roStep} aria-label="Más uno">＋</button>
+                </div>
+                <div class="vta-cart-row-price">
+                    <span>×</span>
+                    <input type="number" min="0" step="0.01" data-campo="precio" value="${item.precio}" ${ro}>
+                </div>
+                <div class="vta-cart-row-sub">${_tieneDesc(item) ? `<s>${_fmt(base, item.moneda)}</s>` : ''}${_fmt(sub, item.moneda)}</div>
+            </div>
+            ${insuf ? `<div class="vta-cart-alert-msg">Stock disponible: ${item.stock_actual}</div>` : ''}
+            ${bloqueado
+                ? (tag ? `<div class="vta-cart-row-tags">${tag}</div>` : '')
+                : `
+            <div class="vta-cart-row-tags">
+                ${tag}
+                <button type="button" class="vta-cart-row-edit" data-act="adv">${item.advOpen ? 'Ocultar' : 'Descuento / oferta'}</button>
+            </div>
+            <div class="vta-cart-row-adv${item.advOpen ? ' open' : ''}">
+                <div>
+                    <label>Descuento manual %</label>
+                    <input type="number" min="0" max="100" step="0.01" data-campo="descuento" value="${item.descuento}">
+                </div>
+                <div>
+                    <label>Lista de descuento</label>
+                    ${_selectListaAdv(item)}
+                </div>
+                <div class="full">
+                    <label>Oferta vigente para este producto</label>
+                    ${_selectOfertaAdv(item)}
+                </div>
+            </div>`}
+        </div>`;
     }).join('');
 
-    cartBody.querySelectorAll('.vta-input-inline[data-campo], .vta-select-inline[data-campo]').forEach(el => {
-        const ev = el.tagName === 'SELECT' ? 'change' : 'input';
-        el.addEventListener(ev, () => _onCampoCambiado(el));
-    });
-    cartBody.querySelectorAll('.vta-btn-remove').forEach(el => {
-        el.addEventListener('click', () => _quitarItem(parseInt(el.dataset.itemId, 10)));
+    cartBody.querySelectorAll('.vta-cart-row').forEach(fila => {
+        const id   = parseInt(fila.dataset.itemId, 10);
+        const item = carrito.find(i => i.id === id);
+        if (!item) return;
+
+        // Click en la fila (fuera de un control) → elegirla (para después
+        // ajustarla con el teclado).
+        fila.addEventListener('click', e => {
+            if (!e.target.closest('button, input, select, a')) _navSeleccionar(id, false);
+        });
+
+        fila.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', () => {
+            const act = b.dataset.act;
+            if (act === 'quitar') return _quitarItem(id);
+            if (act === 'adv') { item.advOpen = !item.advOpen; _renderCarrito(); return; }
+            if (act === 'menos') {
+                const nueva = (parseFloat(item.cantidad) || 0) - 1;
+                if (nueva < 0.001) { _quitarItem(id); return; }
+                item.cantidad = nueva;
+                _recalcularOfertaSeleccionada(item);
+                _renderCarrito();
+            }
+            if (act === 'mas') {
+                item.cantidad = (parseFloat(item.cantidad) || 0) + 1;
+                _recalcularOfertaSeleccionada(item);
+                _renderCarrito();
+            }
+        }));
+
+        fila.querySelectorAll('[data-campo]').forEach(el => {
+            const ev = el.tagName === 'SELECT' ? 'change' : 'input';
+            el.addEventListener(ev, () => _onCampoCambiado(el, fila, item));
+        });
     });
 
-    carrito.forEach(item => {
-        const fila = cartBody.querySelector(`tr[data-item-id="${item.id}"]`);
-        _actualizarAvisoStockFila(fila, item);
-    });
+    // El ítem elegido con el teclado pudo haberse quitado → limpiar;
+    // si no, volver a marcarlo (el re-render borró la clase).
+    if (_navSelId != null && !carrito.some(i => i.id === _navSelId)) _navSelId = null;
+    _navPintarSeleccion(false);
 
     _actualizarTotales();
     _actualizarBtnContinuar();
 }
 
-function _onCampoCambiado(el) {
-    const id    = parseInt(el.dataset.itemId, 10);
-    const campo = el.dataset.campo;
-    const item  = carrito.find(i => i.id === id);
+function _onCampoCambiado(el, fila, item) {
     if (!item) return;
+    const campo = el.dataset.campo;
 
-    const fila = cartBody.querySelector(`tr[data-item-id="${id}"]`);
-
+    // Los desplegables (lista / oferta) se confirman al elegir → re-render
+    // completo (el panel "Descuento / oferta" queda abierto igual porque
+    // item.advOpen sigue en true).
     if (campo === 'oferta') {
-        // Elegir una oferta (o "— Ninguna —") reemplaza cualquier lista de
-        // descuento o % manual que hubiera en la línea — una sola fuente
-        // de descuento activa a la vez.
+        // Elegir una oferta reemplaza cualquier lista o % manual — una sola
+        // fuente de descuento activa por línea.
         item.oferta_aplicada_nombre = el.value;
         item.lista_descuento_nombre = '';
-        const selLista = fila?.querySelector('[data-campo="lista_descuento"]');
-        if (selLista) selLista.value = '';
         if (el.value) {
-            // Si es "llevá X, pagá Y" y todavía no hay unidades suficientes
-            // para que aplique, subimos la cantidad sola — elegir un 3x1
-            // con 1 sola unidad en el carrito no serviría de nada.
             const ofertaElegida = (CFG.ofertasVigentes || []).find(o => o.nombre === el.value);
             if (ofertaElegida && ofertaElegida.tipo === 'nxm' && (parseFloat(item.cantidad) || 0) < ofertaElegida.cantidad_lleva) {
                 item.cantidad = ofertaElegida.cantidad_lleva;
-                const inputCantidad = fila?.querySelector('[data-campo="cantidad"]');
-                if (inputCantidad) inputCantidad.value = item.cantidad;
             }
             _recalcularOfertaSeleccionada(item);
         } else {
             item.descuento = 0;
         }
-        const inputDesc = fila?.querySelector('[data-campo="descuento"]');
-        if (inputDesc) inputDesc.value = item.descuento;
-        // La cantidad puede haber cambiado (bump de NXM) — refrescar las
-        // opciones de este mismo desplegable para que sus % reflejen la
-        // cantidad nueva.
-        const opcionesActualizadas = _opcionesOferta(item);
-        if (opcionesActualizadas !== null) el.innerHTML = opcionesActualizadas;
-    } else if (campo === 'lista_descuento') {
-        // El valor viene con prefijo "lista:<nombre>" — reemplaza
-        // cualquier oferta u % manual que hubiera en la línea.
+        _renderCarrito();
+        return;
+    }
+    if (campo === 'lista_descuento') {
         item.oferta_aplicada_nombre = '';
-        const selOferta = fila?.querySelector('[data-campo="oferta"]');
-        if (selOferta) selOferta.value = '';
         const [, ...resto] = el.value.split(':');
         item.lista_descuento_nombre = el.value ? resto.join(':') : '';
         if (el.value) {
@@ -819,38 +1066,44 @@ function _onCampoCambiado(el) {
         } else {
             item.descuento = 0;
         }
-        const inputDesc = fila?.querySelector('[data-campo="descuento"]');
-        if (inputDesc) inputDesc.value = item.descuento;
+        _renderCarrito();
+        return;
+    }
+
+    // cantidad / precio / descuento — actualización en vivo, sin reconstruir
+    // la fila (para no perder el foco mientras se tipea).
+    if (campo === 'cantidad') {
+        item.cantidad = el.value;
+        _recalcularOfertaSeleccionada(item);
+        const inputDesc = fila.querySelector('[data-campo="descuento"]');
+        if (inputDesc && document.activeElement !== inputDesc) inputDesc.value = item.descuento;
+        const selOferta = fila.querySelector('[data-campo="oferta"]');
+        if (selOferta && !selOferta.disabled) {
+            const cur = selOferta.value;
+            selOferta.innerHTML = `<option value="">— Ninguna —</option>${_opcionesOfertaAdv(item)}`;
+            selOferta.value = cur;
+        }
+        _actualizarAvisoStockFila(fila, item);
+    } else if (campo === 'precio') {
+        item.precio = el.value;
     } else if (campo === 'descuento') {
         item.descuento = el.value;
-        if (item.lista_descuento_nombre || item.oferta_aplicada_nombre) {
-            item.lista_descuento_nombre = '';
-            item.oferta_aplicada_nombre = '';
-            const selLista = fila?.querySelector('[data-campo="lista_descuento"]');
-            if (selLista) selLista.value = '';
-            const selOferta = fila?.querySelector('[data-campo="oferta"]');
-            if (selOferta) selOferta.value = '';
-        }
-    } else if (campo === 'cantidad') {
-        item.cantidad = el.value;
-        // Si la línea tiene una oferta seleccionada (sola o a mano),
-        // recalcular acá es lo que hace que un 2x1/3x2 aparezca o se
-        // ajuste solo apenas la cantidad lo amerita.
-        _recalcularOfertaSeleccionada(item);
-        const inputDesc = fila?.querySelector('[data-campo="descuento"]');
-        if (inputDesc) inputDesc.value = item.descuento;
-        const selOferta = fila?.querySelector('[data-campo="oferta"]');
-        const opciones = selOferta ? _opcionesOferta(item) : null;
-        if (selOferta && opciones !== null) selOferta.innerHTML = opciones;
-        _actualizarAvisoStockFila(fila, item);
+        item.lista_descuento_nombre = '';
+        item.oferta_aplicada_nombre = '';
+        const selLista = fila.querySelector('[data-campo="lista_descuento"]');
+        if (selLista) selLista.value = '';
+        const selOferta = fila.querySelector('[data-campo="oferta"]');
+        if (selOferta) selOferta.value = '';
     } else {
         item[campo] = el.value;
     }
 
-    if (fila) {
-        const sub = fila.querySelector('.vta-subtotal-cell');
-        if (sub) sub.textContent = _fmt(_calcSub(item), item.moneda);
+    const subEl = fila.querySelector('.vta-cart-row-sub');
+    if (subEl) {
+        const base = (parseFloat(item.cantidad) || 0) * (parseFloat(item.precio) || 0);
+        subEl.innerHTML = (_tieneDesc(item) ? `<s>${_fmt(base, item.moneda)}</s>` : '') + _fmt(_calcSub(item), item.moneda);
     }
+    _refrescarTagDesc(fila, item);
     _actualizarTotales();
     _actualizarBtnContinuar();
 }
@@ -935,83 +1188,113 @@ function _actualizarTotales() {
     _ofertaGlobalActual = ofertaGlobal ? { nombre: ofertaGlobal.nombre, porcentaje: pctGlobal } : null;
 
     if (totalItemsEl) totalItemsEl.textContent = carrito.length;
+    if (cartCount) cartCount.textContent = carrito.length + (carrito.length === 1 ? ' ítem' : ' ítems');
     if (totalMontoEl) totalMontoEl.textContent = _fmtPeso(totalFinal);
     if (badge) { badge.textContent = carrito.length; badge.style.display = carrito.length ? 'inline-flex' : 'none'; }
 
     _renderOfertaGlobal(totalBruto, totalNeto, ofertaGlobal);
 }
 function _actualizarBtnContinuar() {
-    if (btnContinuar) {
-        btnContinuar.disabled = carrito.length === 0 || _carritoTieneStockInsuficiente();
+    if (btnCobrar) {
+        // "Ir al cobro" es solo un atajo de scroll/foco (la columna de
+        // cobro ya está siempre a la vista) — se deshabilita nada más
+        // cuando el carrito está vacío.
+        btnCobrar.disabled = carrito.length === 0;
     }
+    _notificarCambioCarrito();
 }
 
 /* ════════════════════════════════════════════════════════════════
-   GUARDAR BORRADOR Y NAVEGAR AL DETALLE
+   API DEL CARRITO — la usa el panel flotante de cobro (panel_cobro.js).
+   El carrito ya no navega a otra pantalla: "Cobrar" abre el panel.
 ════════════════════════════════════════════════════════════════ */
-if (btnContinuar) {
-    btnContinuar.addEventListener('click', async () => {
-        if (!carrito.length) return;
-        if (_carritoTieneStockInsuficiente()) {
-            _toast('Stock insuficiente', 'Corregí la cantidad de los productos marcados en rojo antes de continuar.');
-            return;
+function _itemsPayload() {
+    return carrito.map(item => ({
+        producto_pk:     item.producto_pk,
+        cliente_pk:      item.cliente_pk || null,
+        combinacion_pk:  item.combinacion_pk || null,
+        tipo_escaneo:    item.tipo_escaneo,
+        lote_pk:         item.lote_pk || null,
+        etiqueta_balanza_pk: item.etiqueta_balanza_pk || null,
+        cantidad:        item.cantidad,
+        precio_unitario: item.precio,
+        moneda:          item.moneda,
+        descuento_pct:   item.descuento,
+        lista_descuento_nombre: item.lista_descuento_nombre || '',
+        oferta_aplicada_nombre: item.oferta_aplicada_nombre || '',
+        condicion_pago:  item.condicion,
+        referencia:      item.referencia,
+    }));
+}
+
+let _cambioCarritoCbs = [];
+function _notificarCambioCarrito() {
+    _cambioCarritoCbs.forEach(cb => { try { cb(); } catch (e) { console.error(e); } });
+}
+
+window.ventaCarrito = {
+    estaVacio: () => carrito.length === 0,
+    tieneStockInsuficiente: () => _carritoTieneStockInsuficiente(),
+    onChange: (cb) => { if (typeof cb === 'function') _cambioCarritoCbs.push(cb); },
+
+    reset() {
+        carrito = [];
+        nextId = 0;
+        clienteVenta = { pk: null, nombre: '' };
+        clienteVentaScoring = null;
+        ofertaGlobalManualElegida = '';
+        if (clienteVentaInput) clienteVentaInput.value = '';
+        if (clienteVentaClear) clienteVentaClear.style.display = 'none';
+        _renderClienteScoringChipCarrito();
+        _renderCarrito();
+    },
+
+    /**
+     * Espeja al carrito el cliente elegido en el panel flotante de cobro
+     * (pestaña General → Cliente). Mantiene una sola fuente de verdad:
+     * el cliente del carrito, que es el que viaja en cada guardado de
+     * borrador (_itemsPayload). El sentido carrito → panel ya lo cubre
+     * el fragmento que sirve el server (cliente_unico_venta).
+     */
+    setCliente(pk, nombre, scoring) {
+        clienteVenta = { pk: pk || null, nombre: nombre || '' };
+        clienteVentaScoring = pk ? (scoring || null) : null;
+        if (clienteVentaInput) clienteVentaInput.value = clienteVenta.nombre;
+        if (clienteVentaClear) {
+            clienteVentaClear.style.display = clienteVenta.pk ? 'inline-flex' : 'none';
         }
+        _sincronizarClienteEnCarrito();
+        _renderClienteScoringChipCarrito();
+    },
 
-        btnContinuar.disabled  = true;
-        btnContinuar.textContent = 'Guardando…';
-
-        const itemsPayload = carrito.map(item => ({
-            producto_pk:     item.producto_pk,
-            cliente_pk:      item.cliente_pk || null,
-            combinacion_pk:  item.combinacion_pk || null,
-            tipo_escaneo:    item.tipo_escaneo,
-            lote_pk:         item.lote_pk || null,
-            etiqueta_balanza_pk: item.etiqueta_balanza_pk || null,
-            cantidad:        item.cantidad,
-            precio_unitario: item.precio,
-            moneda:          item.moneda,
-            descuento_pct:   item.descuento,
-            lista_descuento_nombre: item.lista_descuento_nombre || '',
-            oferta_aplicada_nombre: item.oferta_aplicada_nombre || '',
-            condicion_pago:  item.condicion,
-            referencia:      item.referencia,
-        }));
-
-        // Modo edición (?editar=<pk>): actualiza el borrador existente
-        // en el mismo lugar (mismo pk/número). Modo normal: crea uno
-        // nuevo. Mismo patrón que nueva_compra.js.
-        const editando = !!CFG.ventaEditarPk;
-        const url      = editando ? CFG.urlActualizarBorrador : CFG.urlGuardarBorrador;
-        const body     = {
-            items: itemsPayload,
+    /**
+     * Guarda/actualiza el borrador de esta venta.
+     *   - `ventaPkExistente` (del panel) o CFG.ventaEditarPk (modo Historial):
+     *     actualiza en el mismo lugar (mismo pk/número).
+     *   - si no hay ninguno: crea uno nuevo.
+     * Devuelve la respuesta del server: { ok, pk, numero, total, error? }
+     */
+    async guardarBorrador(ventaPkExistente) {
+        const pk  = CFG.ventaEditarPk || ventaPkExistente || null;
+        const url = pk ? CFG.urlActualizarBorrador : CFG.urlGuardarBorrador;
+        const body = {
+            items: _itemsPayload(),
             descuento_global_pct: _ofertaGlobalActual ? _ofertaGlobalActual.porcentaje : 0,
             oferta_global_nombre: _ofertaGlobalActual ? _ofertaGlobalActual.nombre : '',
         };
-        if (editando) body.venta_pk = CFG.ventaEditarPk;
+        if (pk) body.venta_pk = pk;
 
-        try {
-            const res  = await fetch(url, {
-                method:  'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CFG.csrfToken },
-                body:    JSON.stringify(body),
-            });
-            const data = await res.json();
+        const res  = await fetch(url, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CFG.csrfToken },
+            body:    JSON.stringify(body),
+        });
+        return res.json();
+    },
+};
 
-            if (data.ok) {
-                const pkDestino = editando ? CFG.ventaEditarPk : data.pk;
-                window.location.href = CFG.urlDetalle + pkDestino + '/';
-            } else {
-                _toast('Error al guardar', data.error || 'No se pudo guardar el borrador.');
-                btnContinuar.disabled  = false;
-                btnContinuar.innerHTML = 'Continuar al detalle';
-            }
-        } catch {
-            _toast('Error de conexión', 'Intentá de nuevo.');
-            btnContinuar.disabled  = false;
-            btnContinuar.innerHTML = 'Continuar al detalle';
-        }
-    });
-}
+// El botón "Ir al cobro" (#vtaBtnCobrar) lo maneja panel_cobro.js: la
+// columna de cobro ya está siempre visible, así que solo hace scroll/foco.
 
 /* ════════════════════════════════════════════════════════════════
    CANCELAR (solo relevante en modo edición — ver ventaEditarPk)
@@ -1035,6 +1318,98 @@ if (btnCancelarCarrito && CFG.ventaEditarPk) {
             // vencidos la revierte sola más tarde (ver descartar_borradores_vencidos).
         }
         window.location.href = CFG.urlHistorial;
+    });
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ATAJOS DE TECLADO — handler global
+   ──────────────────────────────────────────────────────────────
+   F2  buscador · F3  cobro · F4  confirmar (lo maneja panel_cobro.js)
+   Con una fila elegida (y sin tipear en un campo):
+     ↑↓  moverse · + −  cantidad · Supr  quitar · Enter  desc/oferta
+   ?  abre/cierra la guía · Esc  vuelve al buscador
+════════════════════════════════════════════════════════════════ */
+document.addEventListener('keydown', e => {
+    const panelAtajos = document.getElementById('vtaAtajosPanel');
+    const guiaAbierta = panelAtajos && panelAtajos.classList.contains('is-open');
+
+    // Con la guía abierta: Esc/F1/? la cierran; el resto de las teclas de
+    // navegación se ignoran (para no operar el carrito que está detrás).
+    if (guiaAbierta) {
+        if (['Escape', 'F1', '?'].includes(e.key)) { e.preventDefault(); _navToggleAtajos(false); }
+        else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', '+', '-', '=', 'Delete', 'Enter'].includes(e.key)) {
+            e.preventDefault();
+        }
+        return;
+    }
+
+    // F1 → guía de atajos (funciona desde cualquier lado). También "?"
+    // cuando no estás escribiendo en un campo.
+    if (e.key === 'F1' || (e.key === '?' && !_navEnCampo(document.activeElement))) {
+        e.preventDefault();
+        _navToggleAtajos();
+        return;
+    }
+
+    if (e.key === 'F2') {
+        e.preventDefault();
+        _navSelId = null;
+        _navPintarSeleccion(false);
+        searchInput.focus();
+        searchInput.select();
+        return;
+    }
+    if (e.key === 'F3') {
+        e.preventDefault();
+        const btn = document.getElementById('vtaBtnCobrar');
+        if (btn && !btn.disabled) btn.click();
+        return;
+    }
+    // Esc dentro de un campo de la fila (ej. el % de descuento que se abre
+    // con Enter) → salir del campo y quedarse con la fila elegida.
+    if (e.key === 'Escape' && _navEnCampo(document.activeElement)
+        && document.activeElement.closest && document.activeElement.closest('.vta-cart-row')) {
+        e.preventDefault();
+        document.activeElement.blur();
+        _navPintarSeleccion(true);
+        return;
+    }
+
+    // De acá para abajo: solo con una fila elegida y fuera de un campo.
+    if (_navSelId == null || _navEnCampo(document.activeElement)) return;
+
+    switch (e.key) {
+        case 'ArrowDown':  e.preventDefault(); _navMover(1);  return;
+        case 'ArrowUp':    e.preventDefault(); _navMover(-1); return;
+        case '+':
+        case '=':
+        case 'ArrowRight': e.preventDefault(); _navAjustarCantidad(1);  return;
+        case '-':
+        case 'ArrowLeft':  e.preventDefault(); _navAjustarCantidad(-1); return;
+        case 'Delete':     e.preventDefault(); _navQuitarSeleccion();   return;
+        case 'Enter':      e.preventDefault(); _navToggleAdv();         return;
+        case 'Escape':     e.preventDefault(); _navVolverAlBuscador();  return;
+    }
+
+    // Tipear una letra/número con una fila elegida → volver a escanear
+    // sin perder ese primer carácter (típico: el lector dispara con la
+    // fila todavía marcada).
+    if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        e.preventDefault();
+        _navSelId = null;
+        _navPintarSeleccion(false);
+        searchInput.focus();
+        searchInput.value = e.key;
+        searchInput.dispatchEvent(new Event('input'));
+    }
+});
+
+const _atajosBtn   = document.getElementById('vtaAtajosBtn');
+const _atajosPanel = document.getElementById('vtaAtajosPanel');
+if (_atajosBtn)   _atajosBtn.addEventListener('click', () => _navToggleAtajos());
+if (_atajosPanel) {
+    _atajosPanel.addEventListener('click', e => {
+        if (e.target === _atajosPanel || e.target.closest('#vtaAtajosClose')) _navToggleAtajos(false);
     });
 }
 

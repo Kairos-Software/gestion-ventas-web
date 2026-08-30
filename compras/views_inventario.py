@@ -64,11 +64,15 @@ class ListarLotesAjax(LoginRequiredMixin, View):
         # procesar_lotes_vencidos() para el porqué de este approach.
         procesar_lotes_vencidos()
 
+        # producto__isnull=False: un lote sin producto quedó huérfano al
+        # borrarse su producto (SET_NULL). Ya no es stock real — que no
+        # aparezca acá como "(producto eliminado)". Producto.delete() ya
+        # los desactiva; esto cubre cualquiera que se escape.
         qs = (
             LoteCompra.objects
             .select_related('producto', 'producto__categoria', 'combinacion',
                              'item_compra', 'item_compra__proveedor')
-            .filter(activo=True, cantidad_actual__gt=0)
+            .filter(activo=True, cantidad_actual__gt=0, producto__isnull=False)
         )
 
         q = request.GET.get('q', '').strip()

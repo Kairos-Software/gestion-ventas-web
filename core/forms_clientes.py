@@ -8,7 +8,11 @@ class FormularioClienteBase(forms.ModelForm):
         model = Cliente
         fields = [
             # Identidad
-            'tipo', 'estado', 'nivel_riesgo',
+            #  nivel_riesgo NO va acá: ahora lo deriva solo el motor de
+            #  scoring (core/scoring.py) del puntaje del cliente. Para
+            #  forzar un valor está el "Ajustar a mano" del scoring en la
+            #  ficha del cliente, que sí lo recalcula.
+            'tipo', 'estado',
             # Persona
             'nombre', 'apellido', 'dni', 'cuil', 'fecha_nacimiento', 'genero', 'ocupacion',
             # Empresa
@@ -32,7 +36,6 @@ class FormularioClienteBase(forms.ModelForm):
         widgets = {
             'tipo':          forms.Select(attrs={'class': 'form-select'}),
             'estado':        forms.Select(attrs={'class': 'form-select'}),
-            'nivel_riesgo':  forms.Select(attrs={'class': 'form-select'}),
             'canal_preferido': forms.Select(attrs={'class': 'form-select'}),
             'fecha_nacimiento':     forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
             'fecha_fundacion':      forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),

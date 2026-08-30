@@ -1,6 +1,18 @@
 'use strict';
 
-const VDT = window.VDT_CONFIG || {};
+/*
+ * Corre de dos formas:
+ *   1. Pagina completa /ventas/detalle/<pk>/ — VDT_CONFIG viene en el HTML
+ *      y al final del archivo se auto-inicializa.
+ *   2. Panel flotante de cobro sobre /ventas/nueva/ — panel_cobro.js inyecta
+ *      el fragmento y llama window.initDetalleVenta(). Se puede llamar muchas
+ *      veces (una por venta): todo el estado de modulo vive adentro de la
+ *      funcion, asi cada llamada arranca limpio y re-liga los handlers al
+ *      DOM recien inyectado.
+ */
+window.initDetalleVenta = function initDetalleVenta(config) {
+const VDT = config || window.VDT_CONFIG || {};
+window.VDT_CONFIG = VDT;   // ticket_imprimir.js y otros lo leen de window
 
 /* ════════════════════════════════════════════════════════════════
    TOTAL
@@ -19,6 +31,98 @@ const pagoState = {
     total:  _parsearTotal(VDT.ventaTotal),
 };
 
+/* ════════════════════════════════════════════════════════════════
+   SCORING DE RIESGO DE PAGO DEL CLIENTE
+   ──────────────────────────────────────────────────────────────
+   Avisa (o directamente esconde cuotas/cheque) según la banda del
+   cliente. 'critico' esconde cuotas/cheque salvo que el vendedor
+   toque "Habilitar de todos modos" (forzado=true). Ver core/scoring.py.
+════════════════════════════════════════════════════════════════ */
+const scoState = {
+    banda:        VDT.clienteScoringBanda || '',
+    label:        VDT.clienteScoringBandaLabel || '',
+    alerta:       VDT.clienteScoringAlerta || '',
+    sinHistorial: !!VDT.clienteScoringSinHistorial,
+    forzado:      false,
+};
+
+const _SCO_BANDAS_AVISO   = ['regular', 'riesgo', 'critico'];
+const _SCO_BANDA_BLOQUEA  = 'critico';
+
+function _scoAplica() {
+    return !!VDT.clienteUnicoPk && _SCO_BANDAS_AVISO.includes(scoState.banda);
+}
+function _scoBloqueaCuotasCheque() {
+    return VDT.clienteUnicoPk && scoState.banda === _SCO_BANDA_BLOQUEA && !scoState.forzado;
+}
+
+function _setClienteScoring(datos) {
+    scoState.banda        = (datos && datos.banda) || '';
+    scoState.label        = (datos && datos.label) || '';
+    scoState.alerta       = (datos && datos.alerta) || '';
+    scoState.sinHistorial = !!(datos && datos.sinHistorial);
+    scoState.forzado      = false;
+    _renderClienteScoringChip();
+    if (typeof _renderLineas === 'function') _renderLineas();
+}
+
+function _renderClienteScoringChip() {
+    const chip = document.getElementById('vdtClienteScoringChip');
+    if (!chip) return;
+    if (!VDT.clienteUnicoPk) { chip.hidden = true; chip.textContent = ''; return; }
+    chip.hidden = false;
+    chip.className = 'vdt-sco-chip';
+    if (scoState.sinHistorial) {
+        chip.classList.add('vdt-sco-chip--sinhist');
+        chip.textContent = 'Sin historial de crédito';
+        return;
+    }
+    const banda = scoState.banda || 'excelente';
+    chip.classList.add('vdt-sco-chip--' + banda);
+    chip.textContent = 'Riesgo de pago: ' + (scoState.label || banda) +
+        (VDT.clienteScoring != null && !isNaN(VDT.clienteScoring) ? ' (' + VDT.clienteScoring + ')' : '');
+}
+
+function _actualizarScoringAviso() {
+    const box = document.getElementById('vdtScoringAviso');
+    if (!box) return;
+    if (!_scoAplica()) { box.hidden = true; box.innerHTML = ''; return; }
+
+    box.hidden = false;
+    box.className = 'vdt-sco-aviso vdt-sco-aviso--' + scoState.banda;
+    const nombre = clienteVentaDetalle && clienteVentaDetalle.nombre ? clienteVentaDetalle.nombre : 'El cliente';
+    const alerta = scoState.alerta ? ` ${scoState.alerta}` : '';
+
+    if (scoState.banda === 'critico') {
+        if (scoState.forzado) {
+            box.innerHTML =
+                `<strong>${_escVdt(nombre)} — banda Crítico.</strong>${_escVdt(alerta)} ` +
+                `Cuotas y cheque habilitados manualmente para esta venta.`;
+        } else {
+            box.innerHTML =
+                `<strong>${_escVdt(nombre)} — banda Crítico.</strong>${_escVdt(alerta)} ` +
+                `Cuotas y cheque quedan deshabilitados. ` +
+                `<button type="button" id="vdtScoForzar" class="vdt-sco-forzar">Habilitar de todos modos</button>`;
+        }
+    } else if (scoState.banda === 'riesgo') {
+        box.innerHTML =
+            `<strong>${_escVdt(nombre)} — banda Riesgo.</strong>${_escVdt(alerta)} ` +
+            `Se desaconseja venderle en cuotas o aceptarle un cheque.`;
+    } else {
+        box.innerHTML =
+            `<strong>${_escVdt(nombre)} — banda Regular.</strong>${_escVdt(alerta)} ` +
+            `Revisá antes de venderle en cuotas o aceptarle un cheque.`;
+    }
+
+    const btn = document.getElementById('vdtScoForzar');
+    if (btn) {
+        btn.addEventListener('click', () => {
+            scoState.forzado = true;
+            _renderLineas();
+        });
+    }
+}
+
 function _fmtARS(v) {
     return '$ ' + parseFloat(v || 0).toLocaleString('es-AR', {
         minimumFractionDigits: 2,
@@ -33,8 +137,12 @@ function _fmtARS(v) {
  *  ninguna de las dos opciones se ofrece. */
 function _pagoMediosDisponibles() {
     const medios = VDT.mediosPago || [];
-    if (VDT.clienteUnicoPk) return medios;
-    return medios.filter(m => m.value !== 'cuotas' && m.value !== 'cheque');
+    // Sin cliente único, o cliente en banda Crítico sin forzar → no se
+    // ofrecen cuotas ni cheque.
+    if (!VDT.clienteUnicoPk || _scoBloqueaCuotasCheque()) {
+        return medios.filter(m => m.value !== 'cuotas' && m.value !== 'cheque');
+    }
+    return medios;
 }
 
 function _pagoMediosOpts(seleccionado) {
@@ -70,12 +178,24 @@ function _bindClienteVentaDetalle() {
     input.value = clienteVentaDetalle.nombre;
     clear.style.display = clienteVentaDetalle.pk ? 'inline-flex' : 'none';
 
-    function _aplicarCliente(pk, nombre) {
+    function _aplicarCliente(pk, nombre, scoring) {
         clienteVentaDetalle = { pk, nombre };
         VDT.clienteUnicoPk = pk;
-        // Reflejar de una si "Cuotas"/"Cheque" pasan a estar disponibles
-        // (o dejan de estarlo) sin tener que recargar la página.
-        if (typeof _renderLineas === 'function') _renderLineas();
+        VDT.clienteScoring = scoring ? scoring.scoring : null;
+        // Actualiza el chip de banda + el aviso + re-render de líneas
+        // (por si "Cuotas"/"Cheque" pasan a estar disponibles o no).
+        _setClienteScoring(scoring || null);
+        // En el panel flotante: espejar el cliente al carrito de atrás,
+        // así el borrador que se guarda en cada cambio del carrito
+        // (ver panel_cobro.js onCartChange) no lo pisa con vacío.
+        if (window.ventaCarrito && typeof window.ventaCarrito.setCliente === 'function') {
+            window.ventaCarrito.setCliente(pk, nombre, scoring ? {
+                scoring:      scoring.scoring,
+                banda:        scoring.banda,
+                label:        scoring.label,
+                sinHistorial: scoring.sinHistorial,
+            } : null);
+        }
     }
 
     input.addEventListener('input', () => {
@@ -97,10 +217,13 @@ function _bindClienteVentaDetalle() {
                 const results = data.results || [];
 
                 dropdown.innerHTML = results.length
-                    ? results.map(c => `
-                        <div class="vta-cli-option" data-pk="${c.pk}" data-nombre="${_escVdt(c.nombre)}">
+                    ? results.map((c, i) => `
+                        <div class="vta-cli-option" data-idx="${i}" data-nombre="${_escVdt(c.nombre)}">
                             <div class="vta-cli-option-top">
                                 <span class="vta-cli-option-nombre">${_escVdt(c.nombre)}</span>
+                                ${c.scoring_banda && !c.scoring_sin_historial
+                                    ? `<span class="vdt-sco-mini vdt-sco-mini--${c.scoring_banda}">${_escVdt(c.scoring_banda_label || '')}</span>`
+                                    : ''}
                                 ${c.codigo ? `<span class="vta-dropdown-item-codigo">${_escVdt(c.codigo)}</span>` : ''}
                             </div>
                             ${c.doc ? `<div class="vta-cli-option-doc">${_escVdt(c.doc)}</div>` : ''}
@@ -109,13 +232,19 @@ function _bindClienteVentaDetalle() {
 
                 dropdown.querySelectorAll('.vta-cli-option').forEach(el => {
                     el.addEventListener('click', () => {
-                        const pk     = parseInt(el.dataset.pk, 10);
+                        const c      = results[parseInt(el.dataset.idx, 10)];
                         const nombre = el.dataset.nombre;
                         input.value  = nombre;
                         clear.style.display = 'inline-flex';
                         dropdown.classList.remove('open');
                         dropdown.innerHTML = '';
-                        _aplicarCliente(pk, nombre);
+                        _aplicarCliente(c.pk, nombre, {
+                            scoring:      c.scoring,
+                            banda:        c.scoring_banda,
+                            label:        c.scoring_banda_label,
+                            alerta:       c.scoring_alerta,
+                            sinHistorial: c.scoring_sin_historial,
+                        });
                     });
                 });
                 dropdown.classList.add('open');
@@ -137,6 +266,7 @@ function _bindClienteVentaDetalle() {
     });
 }
 _bindClienteVentaDetalle();
+_renderClienteScoringChip();
 
 function _cuentaPorId(pk) {
     return (VDT.cuentas || []).find(c => String(c.pk) === String(pk));
@@ -413,6 +543,19 @@ function _renderLineas() {
     const contenedor = document.getElementById('vdtPagoLineas');
     if (!contenedor) return;
 
+    // Si el cliente pasó a banda Crítico (o se quitó el cliente) y alguna
+    // línea tenía cuotas/cheque, la reseteamos al primer medio disponible
+    // para no confirmar una venta con un medio ya no permitido.
+    const permitidos = _pagoMediosDisponibles().map(m => m.value);
+    pagoState.lineas.forEach(l => {
+        if (!permitidos.includes(l.medio)) {
+            l.medio = permitidos[0] || 'efectivo';
+            l.tarjeta = ''; l.cuenta = ''; l.cheques = []; l.cuotas = null;
+        }
+    });
+
+    _actualizarScoringAviso();
+
     if (!pagoState.lineas.length) {
         contenedor.innerHTML = `
         <p style="font-size:.8125rem;color:var(--text-muted);margin:.25rem 0">
@@ -539,7 +682,7 @@ function _renderLineas() {
             el.addEventListener('input', () => {
                 const id    = parseInt(el.dataset.id, 10);
                 const linea = pagoState.lineas.find(l => l.id === id);
-                if (linea) { linea.monto = parseFloat(el.value) || 0; _actualizarResumen(); }
+                if (linea) { linea.monto = parseFloat(el.value) || 0; linea._editadoManual = true; _actualizarResumen(); }
             });
         }
         if (el.dataset.campo === 'cotizacion') {
@@ -852,15 +995,6 @@ if (VDT.esBorrador) {
 
     const btnAgregar = document.getElementById('vdtBtnAgregarPago');
     if (btnAgregar) btnAgregar.addEventListener('click', _agregarLinea);
-
-    // ── Botón "Ver ticket borrador" ──
-    const btnPreview = document.getElementById('vdtBtnPreviewTicket');
-    if (btnPreview) {
-        btnPreview.addEventListener('click', () => {
-            const modal = document.getElementById('vdtPreviewModal');
-            if (modal) modal.style.display = 'flex';
-        });
-    }
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -947,7 +1081,11 @@ if (VDT.esBorrador) {
                     if (data.factura_error) {
                         sessionStorage.setItem('vdtFacturaError', data.factura_error);
                     }
-                    window.location.href = VDT.urlDetalle + data.pk + '/';
+                    if (typeof window.panelCobroOnConfirmada === 'function') {
+                        window.panelCobroOnConfirmada(data);
+                    } else {
+                        window.location.href = VDT.urlDetalle + data.pk + '/';
+                    }
                 } else {
                     vdtToast('Error al confirmar', data.error || 'No se pudo confirmar la venta.');
                     btnConfirmar.disabled  = false;
@@ -1000,10 +1138,17 @@ if (VDT.esBorrador) {
                 const data = await res.json();
 
                 if (data.ok) {
-                    // Si no se borró (venta real revertida a anulada), va al
-                    // Historial para que se vea de una que sigue ahí — no
-                    // tiene sentido mandarlo al carrito vacío en ese caso.
-                    window.location.href = data.borrado ? VDT.urlNuevaVenta : VDT.urlHistorial;
+                    // En el panel flotante de cobro y borrador puro:
+                    // reseteamos ahí mismo, sin recargar la página. Si era
+                    // una venta real revertida a anulada (edición desde el
+                    // Historial) o no hay panel, navegamos como siempre —
+                    // no tiene sentido mandar al carrito vacío una venta
+                    // que sigue existiendo en el Historial.
+                    if (data.borrado && typeof window.panelCobroOnCancelada === 'function') {
+                        window.panelCobroOnCancelada();
+                    } else {
+                        window.location.href = data.borrado ? VDT.urlNuevaVenta : VDT.urlHistorial;
+                    }
                 } else {
                     vdtToast('Error', data.error || 'No se pudo cancelar la venta.');
                     btnCancelar.disabled  = false;
@@ -1027,7 +1172,14 @@ if (VDT.esBorrador) {
 ════════════════════════════════════════════════════════════════ */
 function vdtToast(titulo, cuerpo, duracionMs) {
     const toast = document.getElementById('vdtToast');
-    if (!toast) return;
+    if (!toast) {
+        // En el panel flotante de cobro (/ventas/nueva/) no existe
+        // #vdtToast — caemos al toast global (notify.js, siempre cargado).
+        if (window.KaiToast && typeof window.KaiToast.show === 'function') {
+            window.KaiToast.show(cuerpo ? `${titulo} — ${cuerpo}` : titulo, 'warning', duracionMs || 4500);
+        }
+        return;
+    }
     document.getElementById('vdtToastTitle').textContent = titulo;
     document.getElementById('vdtToastBody').textContent  = cuerpo || '';
     toast.classList.add('show');
@@ -1067,7 +1219,8 @@ if (btnFacturarAhora) {
             const data = await res.json();
 
             if (data.ok) {
-                window.location.reload();
+                if (typeof window.panelCobroRefrescar === 'function') window.panelCobroRefrescar();
+                else window.location.reload();
             } else {
                 if (msg) { msg.style.color = '#e11d48'; msg.textContent = data.error; }
                 btnFacturarAhora.disabled = false;
@@ -1099,16 +1252,18 @@ function vdtEsc(str) {
 ════════════════════════════════════════════════════════════════ */
 
 /**
- * Abre el selector de formato de impresión.
- * La generación del HTML del ticket y la apertura de la ventana
- * son responsabilidad de ticket_imprimir.js → ticketAbrirSelector().
+ * Abre el selector de formato.
+ * @param {string} [modo]  'imprimir' (default) → window.print();
+ *                         'pdf' → descarga el archivo (ticket_pdf.js).
+ * La generación del HTML y la ventana/descarga son responsabilidad de
+ * ticket_imprimir.js → ticketAbrirSelector().
  */
-function vdtImprimirTicket() {
+function vdtImprimirTicket(modo) {
     if (typeof ticketAbrirSelector !== 'function') {
         console.error('detalle_venta.js: ticketAbrirSelector no disponible. ¿Cargaste ticket_imprimir.js?');
         return;
     }
-    ticketAbrirSelector();
+    ticketAbrirSelector(modo);
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -1238,7 +1393,8 @@ function vdtRecalcularMontoDevolucion() {
             });
             const data = await res.json();
             if (data.ok) {
-                window.location.reload();
+                if (typeof window.panelCobroRefrescar === 'function') window.panelCobroRefrescar();
+                else window.location.reload();
             } else {
                 msg.textContent = data.error || 'No se pudo registrar la devolución.';
                 btnGuardar.disabled = false;
@@ -1251,3 +1407,20 @@ function vdtRecalcularMontoDevolucion() {
         }
     });
 })();
+
+// ── Hooks para el panel flotante de cobro (panel_cobro.js) ──
+window.vdtImprimirTicket = vdtImprimirTicket;
+window.vdtAbrirModalDevolucion = vdtAbrirModalDevolucion;
+window.detalleVentaSetTotal = function (nuevoTotal) {
+    pagoState.total = Number(nuevoTotal) || 0;
+    if (pagoState.lineas.length === 1 && !pagoState.lineas[0]._editadoManual) {
+        pagoState.lineas[0].monto = parseFloat(pagoState.total.toFixed(2));
+    }
+    _renderLineas();
+    _actualizarResumen();
+};
+
+};  // end initDetalleVenta
+
+// Pagina completa: auto-init (en el panel, panel_cobro.js llama a mano)
+if (window.VDT_CONFIG) window.initDetalleVenta();

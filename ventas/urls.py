@@ -15,6 +15,7 @@ urlpatterns = [
     path('historial/',  views_historial.HistorialVentasView.as_view(), name='historial_ventas'),
     path('devoluciones/', views_historial.HistorialDevolucionesView.as_view(), name='historial_devoluciones'),
     path('detalle/<int:pk>/', views.DetalleVentaView.as_view(),        name='detalle_venta'),
+    path('cobro/<int:pk>/',   views.CobroFragmentoAjax.as_view(),      name='cobro_fragmento'),
 
     # ══════════════════════════════════════════════════════════════════
     #  AJAX — Crear venta

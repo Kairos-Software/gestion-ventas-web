@@ -407,6 +407,13 @@ class BuscarClienteAjax(LoginRequiredMixin, View):
                 'nombre': c.get_nombre_display(),
                 'codigo': c.codigo or '',
                 'doc':    c.dni or c.cuit or c.cuil or '',
+                # Scoring de riesgo de pago — el frontend lo usa para
+                # avisar/bloquear cuotas y cheque (ver detalle_venta.js).
+                'scoring':        c.scoring,
+                'scoring_banda':  c.scoring_banda,
+                'scoring_banda_label': c.scoring_banda_label,
+                'scoring_sin_historial': c.scoring_sin_historial,
+                'scoring_alerta': c.scoring_alerta,
             }
             for c in qs[:20]
         ]
@@ -747,8 +754,15 @@ class ActualizarBorradorAjax(LoginRequiredMixin, View):
         venta.aplicar_descuento_global(
             descuento_global_pct, body.get('oferta_global_nombre', ''),
         )
+        venta.refresh_from_db(fields=['total'])
 
-        return JsonResponse({'ok': True, 'pk': venta.pk, 'numero': venta.numero})
+        # `total` lo usa el panel flotante de cobro para re-conciliar los
+        # pagos ya cargados cuando el carrito cambia con el panel abierto
+        # (ver panel_cobro.js / detalleVentaSetTotal).
+        return JsonResponse({
+            'ok': True, 'pk': venta.pk, 'numero': venta.numero,
+            'total': str(venta.total),
+        })
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -1140,7 +1154,173 @@ class VentaDocumentoEliminarAjax(LoginRequiredMixin, View):
 #  VISTA — Detalle de venta
 # ══════════════════════════════════════════════════════════════════
 
+def _venta_detalle_qs():
+    return Venta.objects.prefetch_related(
+        'items__producto', 'items__cliente', 'items__combinacion',
+        'documentos', 'pagos__cuenta', 'pagos__tarjeta',
+    )
+
+
+def construir_contexto_detalle(request, venta):
+    """
+    Contexto completo del detalle de venta. Lo comparten:
+      - DetalleVentaView          → página completa (permalink del Historial)
+      - CobroFragmentoAjax        → fragmento HTML para el panel flotante de
+                                 cobro que vive sobre /ventas/nueva/
+    """
+    from caja.models import asegurar_cuentas_efectivo
+    asegurar_cuentas_efectivo(caja=TipoCaja.GRANDE)
+
+    moneda_venta = venta.items.values_list('moneda', flat=True).first() or 'ARS'
+    # Efectivo se excluye acá: el pago en efectivo resuelve su cuenta solo
+    # (ver PagoVenta), nunca se elige a mano — no tiene sentido ofrecerlo
+    # como destino de un cobro con tarjeta/QR/transferencia.
+    cuentas = (
+        CuentaCaja.objects
+        .filter(caja=TipoCaja.GRANDE, activa=True, es_credito=False)
+        .exclude(tipo=TipoCuenta.EFECTIVO)
+        .order_by('orden', 'nombre')
+    )
+    cuentas_json = json.dumps([
+        {
+            'pk': c.pk, 'nombre': c.nombre, 'moneda': c.moneda, 'titular': c.titular,
+            # Qué medios acepta ESTA CUENTA REAL (a dónde entra la
+            # plata) — ver caja.models.CuentaCaja.acepta_*. No confundir
+            # con TarjetaPago.acepta_* de más abajo (con qué le pagó el
+            # cliente): son dos ejes independientes, ver
+            # ventas.models.TarjetaPago.__doc__.
+            'acepta_debito': c.acepta_debito,
+            'acepta_credito': c.acepta_credito,
+            'acepta_qr': c.acepta_qr,
+            'acepta_transferencia': c.acepta_transferencia,
+        }
+        for c in cuentas
+    ])
+
+    # Tarjetas/billeteras del CLIENTE (Visa, Mercado Pago, Personal
+    # Pay...) — definen el recargo, independiente de a cuál `cuenta`
+    # real entra la plata (ver ventas.models.TarjetaPago.__doc__).
+    from .models import RecargoMedioPago, TarjetaPago
+    tarjetas = TarjetaPago.objects.filter(activa=True).order_by('orden', 'nombre')
+    tarjetas_json = json.dumps([
+        {
+            'pk': t.pk, 'nombre': t.nombre,
+            'acepta_debito': t.acepta_debito,
+            'acepta_credito': t.acepta_credito,
+            'acepta_qr': t.acepta_qr,
+            'acepta_transferencia': t.acepta_transferencia,
+        }
+        for t in tarjetas
+    ])
+
+    # Recargos configurados (ver ventas.models.RecargoMedioPago) para las
+    # tarjetas elegibles de esta venta — el JS arma los selectores de
+    # plan/recargo por línea de pago a partir de esta lista plana.
+    recargos_json = json.dumps([
+        {
+            'tarjeta_pk': r.tarjeta_id,
+            'medio': r.medio,
+            'cantidad_pagos': r.cantidad_pagos,
+            'nombre_plan': r.nombre_plan,
+            'etiqueta_plan': r.etiqueta_plan,
+            'recargo_pct': str(r.recargo_pct),
+        }
+        for r in RecargoMedioPago.objects.filter(tarjeta__in=tarjetas, activo=True)
+    ])
+
+    # El cliente a facturar es el mismo cliente único de la venta (ya
+    # resuelto una sola vez desde el carrito, ver Venta.cliente_unico) —
+    # no se vuelve a preguntar acá. Si la empresa ya tiene ARCA
+    # habilitado, se previsualiza qué tipo de comprobante saldría con
+    # los datos actuales (sin llamar a ARCA), para mostrarlo antes de
+    # que el vendedor confirme.
+    cliente_unico = venta.cliente_unico
+    config_arca = ConfiguracionArca.get_solo()
+    tipo_previsto = None
+    if config_arca.habilitado and config_arca.tiene_certificado():
+        tipo_previsto = facturacion.tipo_comprobante_previsto(cliente_unico)
+
+    pagos_lista = list(venta.pagos.all())
+    total_recargo = sum((p.recargo_monto for p in pagos_lista), Decimal('0'))
+
+    # — Devoluciones (solo tiene sentido sobre una venta ya confirmada) —
+    # cuentas_reembolso_json es igual a cuentas_json pero SIN excluir
+    # Efectivo: ese exclude de arriba es específico del cobro con
+    # tarjeta/QR/transferencia, un reembolso sí puede salir de efectivo.
+    items_lista = list(venta.items.select_related('producto', 'cliente', 'combinacion').all())
+    devoluciones = list(
+        venta.devoluciones.select_related('cuenta').prefetch_related('items').order_by('-fecha_alta')
+    ) if venta.estado == EstadoVenta.CONFIRMADA else []
+
+    # cantidad_devuelta/disponible_devolucion se setean SIEMPRE (no
+    # solo si está confirmada) para que items-devolucion-data en el
+    # template pueda leerlos sin condicionales — en un borrador
+    # nunca hubo devoluciones, así que disponible = cantidad.
+    cantidad_devuelta_por_item = {}
+    for dev in devoluciones:
+        for dev_item in dev.items.all():
+            if dev_item.item_venta_id:
+                cantidad_devuelta_por_item[dev_item.item_venta_id] = (
+                    cantidad_devuelta_por_item.get(dev_item.item_venta_id, Decimal('0')) + dev_item.cantidad
+                )
+    for item in items_lista:
+        item.cantidad_devuelta = cantidad_devuelta_por_item.get(item.pk, Decimal('0'))
+        item.disponible_devolucion = item.cantidad - item.cantidad_devuelta
+
+    cuentas_reembolso_json = '[]'
+    if venta.estado == EstadoVenta.CONFIRMADA:
+        cuentas_reembolso = (
+            CuentaCaja.objects
+            .filter(caja=TipoCaja.GRANDE, activa=True, es_credito=False)
+            .order_by('orden', 'nombre')
+        )
+        cuentas_reembolso_json = json.dumps([
+            {'pk': c.pk, 'nombre': c.nombre, 'moneda': c.moneda, 'tipo': c.tipo, 'titular': c.titular}
+            for c in cuentas_reembolso
+        ])
+
+    from django.urls import reverse
+    return {
+        'venta':      venta,
+        'items':      items_lista,
+        'documentos': venta.documentos.all(),
+        'devoluciones': devoluciones,
+        'cuentas_reembolso_json': cuentas_reembolso_json,
+        'puede_registrar_devoluciones': chequear_permiso(request.user, 'registrar_devoluciones'),
+        'pagos':      pagos_lista,
+        'total_recargo': total_recargo,
+        'total_a_cobrar': venta.total + total_recargo,
+        'es_borrador': venta.estado == EstadoVenta.BORRADOR,
+        'medios_pago': MedioPago.choices,
+        'datos_empresa': DatosEmpresa.get_solo(),
+        'configuracion_arca': config_arca,
+        'comprobante_arca': getattr(venta, 'comprobante_arca', None),
+        'cliente_unico_venta': cliente_unico,
+        'tipo_comprobante_previsto_display': (
+            TipoComprobante(tipo_previsto).label if tipo_previsto else None
+        ),
+        'venta_moneda': moneda_venta,
+        'cuentas_json': cuentas_json,
+        'tarjetas_json': tarjetas_json,
+        'recargos_json': recargos_json,
+        'url_confirmar':         reverse('ventas:confirmar_venta'),
+        'url_eliminar_borrador': reverse('ventas:eliminar_borrador'),
+        'url_nueva_venta':       reverse('ventas:nueva_venta'),
+        'url_historial':         reverse('ventas:historial_ventas'),
+        'url_doc_subir':         reverse('ventas:documento_subir'),
+        'url_doc_eliminar':      reverse('ventas:documento_eliminar'),
+        'url_facturar':          reverse('ventas:venta_facturar', args=[venta.pk]),
+        'url_buscar_cliente':    reverse('ventas:buscar_cliente'),
+        'url_registrar_devolucion': reverse('ventas:registrar_devolucion'),
+        'url_cobro_fragmento': reverse('ventas:cobro_fragmento', args=[0]).replace('/0/', '/'),
+    }
+
+
 class DetalleVentaView(LoginRequiredMixin, View):
+    """Página completa del detalle de venta — permalink del Historial y
+    fallback para abrir un borrador por URL directa. El flujo normal de
+    cobro de un borrador vive en el panel flotante de Nueva Venta (ver
+    CobroFragmentoAjax)."""
     template_name = 'ventas/detalle_venta.html'
 
     def get(self, request, pk):
@@ -1148,156 +1328,46 @@ class DetalleVentaView(LoginRequiredMixin, View):
             from django.shortcuts import redirect
             return redirect('core:dashboard')
 
-        venta = get_object_or_404(
-            Venta.objects.prefetch_related(
-                'items__producto', 'items__cliente', 'items__combinacion',
-                'documentos', 'pagos__cuenta', 'pagos__tarjeta',
-            ),
-            pk=pk
+        venta = get_object_or_404(_venta_detalle_qs(), pk=pk)
+        return _render(request, self.template_name,
+                       construir_contexto_detalle(request, venta))
+
+
+class CobroFragmentoAjax(LoginRequiredMixin, View):
+    """
+    GET ?pk → { ok, html, estado, numero, total }
+
+    `html` es el panel de cobro (borrador o confirmada) + sus modales +
+    los <script> de datos (VDT_CONFIG / TICKET_DATA / data blocks). Lo
+    inyecta panel_cobro.js en el panel flotante sobre /ventas/nueva/ y
+    re-ejecuta sus <script> (innerHTML no los corre solo).
+    """
+
+    def get(self, request, pk):
+        if not chequear_permiso(request.user, 'crear_ventas'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        from django.template.loader import render_to_string
+
+        venta = get_object_or_404(_venta_detalle_qs(), pk=pk)
+        ctx   = construir_contexto_detalle(request, venta)
+
+        panel = ('ventas/_panel_cobro_confirmada.html'
+                 if venta.estado == EstadoVenta.CONFIRMADA
+                 else 'ventas/_panel_cobro_borrador.html')
+
+        html = (
+            render_to_string(panel, ctx, request)
+            + render_to_string('ventas/_detalle_venta_modales.html', ctx, request)
+            + render_to_string('ventas/_detalle_venta_datos.html', ctx, request)
         )
-
-        from caja.models import asegurar_cuentas_efectivo
-        asegurar_cuentas_efectivo(caja=TipoCaja.GRANDE)
-
-        moneda_venta = venta.items.values_list('moneda', flat=True).first() or 'ARS'
-        # Efectivo se excluye acá: el pago en efectivo resuelve su cuenta solo
-        # (ver PagoVenta), nunca se elige a mano — no tiene sentido ofrecerlo
-        # como destino de un cobro con tarjeta/QR/transferencia.
-        cuentas = (
-            CuentaCaja.objects
-            .filter(caja=TipoCaja.GRANDE, activa=True, es_credito=False)
-            .exclude(tipo=TipoCuenta.EFECTIVO)
-            .order_by('orden', 'nombre')
-        )
-        cuentas_json = json.dumps([
-            {
-                'pk': c.pk, 'nombre': c.nombre, 'moneda': c.moneda, 'titular': c.titular,
-                # Qué medios acepta ESTA CUENTA REAL (a dónde entra la
-                # plata) — ver caja.models.CuentaCaja.acepta_*. No confundir
-                # con TarjetaPago.acepta_* de más abajo (con qué le pagó el
-                # cliente): son dos ejes independientes, ver
-                # ventas.models.TarjetaPago.__doc__.
-                'acepta_debito': c.acepta_debito,
-                'acepta_credito': c.acepta_credito,
-                'acepta_qr': c.acepta_qr,
-                'acepta_transferencia': c.acepta_transferencia,
-            }
-            for c in cuentas
-        ])
-
-        # Tarjetas/billeteras del CLIENTE (Visa, Mercado Pago, Personal
-        # Pay...) — definen el recargo, independiente de a cuál `cuenta`
-        # real entra la plata (ver ventas.models.TarjetaPago.__doc__).
-        from .models import RecargoMedioPago, TarjetaPago
-        tarjetas = TarjetaPago.objects.filter(activa=True).order_by('orden', 'nombre')
-        tarjetas_json = json.dumps([
-            {
-                'pk': t.pk, 'nombre': t.nombre,
-                'acepta_debito': t.acepta_debito,
-                'acepta_credito': t.acepta_credito,
-                'acepta_qr': t.acepta_qr,
-                'acepta_transferencia': t.acepta_transferencia,
-            }
-            for t in tarjetas
-        ])
-
-        # Recargos configurados (ver ventas.models.RecargoMedioPago) para las
-        # tarjetas elegibles de esta venta — el JS arma los selectores de
-        # plan/recargo por línea de pago a partir de esta lista plana.
-        recargos_json = json.dumps([
-            {
-                'tarjeta_pk': r.tarjeta_id,
-                'medio': r.medio,
-                'cantidad_pagos': r.cantidad_pagos,
-                'nombre_plan': r.nombre_plan,
-                'etiqueta_plan': r.etiqueta_plan,
-                'recargo_pct': str(r.recargo_pct),
-            }
-            for r in RecargoMedioPago.objects.filter(tarjeta__in=tarjetas, activo=True)
-        ])
-
-        # El cliente a facturar es el mismo cliente único de la venta (ya
-        # resuelto una sola vez desde el carrito, ver Venta.cliente_unico) —
-        # no se vuelve a preguntar acá. Si la empresa ya tiene ARCA
-        # habilitado, se previsualiza qué tipo de comprobante saldría con
-        # los datos actuales (sin llamar a ARCA), para mostrarlo antes de
-        # que el vendedor confirme.
-        cliente_unico = venta.cliente_unico
-        config_arca = ConfiguracionArca.get_solo()
-        tipo_previsto = None
-        if config_arca.habilitado and config_arca.tiene_certificado():
-            tipo_previsto = facturacion.tipo_comprobante_previsto(cliente_unico)
-
-        pagos_lista = list(venta.pagos.all())
-        total_recargo = sum((p.recargo_monto for p in pagos_lista), Decimal('0'))
-
-        # — Devoluciones (solo tiene sentido sobre una venta ya confirmada) —
-        # cuentas_reembolso_json es igual a cuentas_json pero SIN excluir
-        # Efectivo: ese exclude de arriba es específico del cobro con
-        # tarjeta/QR/transferencia, un reembolso sí puede salir de efectivo.
-        items_lista = list(venta.items.select_related('producto', 'cliente', 'combinacion').all())
-        devoluciones = list(
-            venta.devoluciones.select_related('cuenta').prefetch_related('items').order_by('-fecha_alta')
-        ) if venta.estado == EstadoVenta.CONFIRMADA else []
-
-        # cantidad_devuelta/disponible_devolucion se setean SIEMPRE (no
-        # solo si está confirmada) para que items-devolucion-data en el
-        # template pueda leerlos sin condicionales — en un borrador
-        # nunca hubo devoluciones, así que disponible = cantidad.
-        cantidad_devuelta_por_item = {}
-        for dev in devoluciones:
-            for dev_item in dev.items.all():
-                if dev_item.item_venta_id:
-                    cantidad_devuelta_por_item[dev_item.item_venta_id] = (
-                        cantidad_devuelta_por_item.get(dev_item.item_venta_id, Decimal('0')) + dev_item.cantidad
-                    )
-        for item in items_lista:
-            item.cantidad_devuelta = cantidad_devuelta_por_item.get(item.pk, Decimal('0'))
-            item.disponible_devolucion = item.cantidad - item.cantidad_devuelta
-
-        cuentas_reembolso_json = '[]'
-        if venta.estado == EstadoVenta.CONFIRMADA:
-            cuentas_reembolso = (
-                CuentaCaja.objects
-                .filter(caja=TipoCaja.GRANDE, activa=True, es_credito=False)
-                .order_by('orden', 'nombre')
-            )
-            cuentas_reembolso_json = json.dumps([
-                {'pk': c.pk, 'nombre': c.nombre, 'moneda': c.moneda, 'tipo': c.tipo, 'titular': c.titular}
-                for c in cuentas_reembolso
-            ])
-
-        from django.urls import reverse
-        return _render(request, self.template_name, {
-            'venta':      venta,
-            'items':      items_lista,
-            'documentos': venta.documentos.all(),
-            'devoluciones': devoluciones,
-            'cuentas_reembolso_json': cuentas_reembolso_json,
-            'puede_registrar_devoluciones': chequear_permiso(request.user, 'registrar_devoluciones'),
-            'pagos':      pagos_lista,
-            'total_recargo': total_recargo,
-            'total_a_cobrar': venta.total + total_recargo,
-            'es_borrador': venta.estado == EstadoVenta.BORRADOR,
-            'medios_pago': MedioPago.choices,
-            'datos_empresa': DatosEmpresa.get_solo(),
-            'configuracion_arca': config_arca,
-            'comprobante_arca': getattr(venta, 'comprobante_arca', None),
-            'cliente_unico_venta': cliente_unico,
-            'tipo_comprobante_previsto_display': (
-                TipoComprobante(tipo_previsto).label if tipo_previsto else None
-            ),
-            'venta_moneda': moneda_venta,
-            'cuentas_json': cuentas_json,
-            'tarjetas_json': tarjetas_json,
-            'recargos_json': recargos_json,
-            'url_confirmar':         reverse('ventas:confirmar_venta'),
-            'url_eliminar_borrador': reverse('ventas:eliminar_borrador'),
-            'url_nueva_venta':       reverse('ventas:nueva_venta'),
-            'url_historial':         reverse('ventas:historial_ventas'),
-            'url_doc_subir':         reverse('ventas:documento_subir'),
-            'url_doc_eliminar':      reverse('ventas:documento_eliminar'),
-            'url_facturar':          reverse('ventas:venta_facturar', args=[venta.pk]),
-            'url_buscar_cliente':    reverse('ventas:buscar_cliente'),
-            'url_registrar_devolucion': reverse('ventas:registrar_devolucion'),
+        resp = JsonResponse({
+            'ok':     True,
+            'html':   html,
+            'estado': venta.estado,
+            'numero': venta.numero,
+            'total':  str(venta.total),
         })
+        # El fragmento refleja el estado vivo del borrador — nunca cachearlo.
+        resp['Cache-Control'] = 'no-store'
+        return resp

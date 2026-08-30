@@ -1,0 +1,176 @@
+{% load static %}
+<script id="cuentas-data" type="application/json">{{ cuentas_json|safe }}</script>
+<script id="tarjetas-data" type="application/json">{{ tarjetas_json|safe }}</script>
+<script id="recargos-data" type="application/json">{{ recargos_json|safe }}</script>
+<script id="cuentas-reembolso-data" type="application/json">{{ cuentas_reembolso_json|safe }}</script>
+<script id="items-devolucion-data" type="application/json">
+[
+    {% for item in items %}
+    {
+        "pk": {{ item.pk }},
+        "nombre": "{{ item.nombre_producto_display|escapejs }}{% if item.nombre_combinacion_display %} — {{ item.nombre_combinacion_display|escapejs }}{% endif %}",
+        "cantidad": {{ item.cantidad|stringformat:".3f" }},
+        "disponible": {{ item.disponible_devolucion|stringformat:".3f" }},
+        "precio_unitario": {{ item.precio_unitario|stringformat:".2f" }},
+        "descuento_pct": {{ item.descuento_pct|stringformat:".4f" }}
+    }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+]
+</script>
+<script>
+    window.VDT_CONFIG = {
+        ventaPk: {{ venta.pk }},
+        ventaTotal: {{ venta.total|stringformat:".2f" }},
+        ventaMoneda: "{{ venta_moneda }}",
+        esBorrador: {{ es_borrador|yesno:"true,false" }},
+        esEdicionReactivada: {{ venta.fecha_anulacion|yesno:"true,false" }},
+        urlConfirmar: "{{ url_confirmar }}",
+        urlEliminarBorrador: "{{ url_eliminar_borrador }}",
+        urlNuevaVenta: "{{ url_nueva_venta }}",
+        urlHistorial: "{{ url_historial }}",
+        urlDetalle: "{% url 'ventas:detalle_venta' pk=0 %}".replace('/0/', '/'),
+        urlDocSubir: "{{ url_doc_subir }}",
+        urlDocEliminar: "{{ url_doc_eliminar }}",
+        urlFacturar: "{{ url_facturar }}",
+        urlBuscarCliente: "{{ url_buscar_cliente }}",
+        urlRegistrarDevolucion: "{{ url_registrar_devolucion }}",
+        puedeRegistrarDevoluciones: {{ puede_registrar_devoluciones|yesno:"true,false" }},
+        csrfToken: "{{ csrf_token }}",
+        clienteUnicoPk: {{ cliente_unico_venta.pk|default:"null" }},
+        clienteUnicoNombre: "{{ cliente_unico_venta.get_nombre_display|default:'' }}",
+        clienteScoring: {{ cliente_unico_venta.scoring|default:"null" }},
+        clienteScoringBanda: "{{ cliente_unico_venta.scoring_banda|default:'' }}",
+        clienteScoringBandaLabel: "{{ cliente_unico_venta.scoring_banda_label|default:'' }}",
+        clienteScoringSinHistorial: {{ cliente_unico_venta.scoring_sin_historial|yesno:"true,false,false" }},
+        clienteScoringAlerta: "{{ cliente_unico_venta.scoring_alerta|default:''|escapejs }}",
+        hoy: "{% now 'Y-m-d' %}",
+        mediosPago: [
+            {% for val, label in medios_pago %}
+            { value: "{{ val }}", label: "{{ label }}" }{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ],
+        cuentas: JSON.parse(document.getElementById('cuentas-data').textContent),
+        tarjetas: JSON.parse(document.getElementById('tarjetas-data').textContent),
+        recargos: JSON.parse(document.getElementById('recargos-data').textContent),
+        cuentasReembolso: JSON.parse(document.getElementById('cuentas-reembolso-data').textContent),
+        itemsDevolucion: JSON.parse(document.getElementById('items-devolucion-data').textContent),
+    };
+</script>
+<script>
+    /* Pestañas horizontales del panel "Detalle de Venta" — cada
+       botón/panel se busca dentro de la misma .vta-card para no
+       interferir con otros grupos de pestañas que pueda haber en
+       la página. */
+    function vdtSwitchTab(id, btn) {
+        const card = btn.closest('.vta-card');
+        if (!card) return;
+        card.querySelectorAll('.cdt-tab').forEach(t => t.classList.remove('cdt-tab--active'));
+        card.querySelectorAll('.cdt-tab-panel').forEach(p => p.style.display = 'none');
+        btn.classList.add('cdt-tab--active');
+        const panel = card.querySelector('#vdtPanel' + id.charAt(0).toUpperCase() + id.slice(1));
+        if (panel) panel.style.display = '';
+    }
+</script>
+
+<script>
+    window.TICKET_DATA = {
+        empresa: {
+            nombre: "{{ datos_empresa.nombre_comercial|escapejs }}",
+            razon_social: "{{ datos_empresa.razon_social|escapejs }}",
+            domicilio: "{{ datos_empresa.domicilio|escapejs }}",
+            telefono: "{{ datos_empresa.telefono|escapejs }}",
+            email: "{{ datos_empresa.email|escapejs }}",
+            cuit: "{{ datos_empresa.cuit|escapejs }}",
+            condicion_iva: "{{ datos_empresa.get_condicion_iva_display|escapejs }}",
+            logo_url: "{% if datos_empresa.logo %}{{ request.scheme }}://{{ request.get_host }}{{ datos_empresa.logo.url }}{% endif %}",
+        },
+        venta: {
+            numero: "{{ venta.numero|escapejs }}",
+            fecha: "{{ venta.fecha|date:'d/m/Y'|escapejs }}",
+            fecha_hora: "{% if venta.fecha_confirmacion %}{{ venta.fecha_confirmacion|date:'d/m/Y H:i' }}{% else %}{{ venta.fecha_alta|date:'d/m/Y H:i' }}{% endif %}",
+            notas: "{{ venta.notas|escapejs }}",
+            total: "{{ venta.total|stringformat:'.2f' }}",
+            confirmado_por: "{% if venta.confirmado_por %}{{ venta.confirmado_por.get_full_name|default:venta.confirmado_por.username|escapejs }}{% else %}{% endif %}",
+            medio_pago_display: "{{ venta.get_medio_pago_display|escapejs }}",
+        },
+        cliente: {% if cliente_unico_venta %}{
+            nombre: "{{ cliente_unico_venta.get_nombre_display|escapejs }}",
+            documento: "{% if cliente_unico_venta.tipo == 'empresa' %}{% if cliente_unico_venta.cuit %}CUIT: {{ cliente_unico_venta.cuit|escapejs }}{% endif %}{% else %}{% if cliente_unico_venta.dni %}DNI: {{ cliente_unico_venta.dni|escapejs }}{% elif cliente_unico_venta.cuil %}CUIL: {{ cliente_unico_venta.cuil|escapejs }}{% endif %}{% endif %}",
+            telefono: "{{ cliente_unico_venta.telefonos.first.numero|default:''|escapejs }}",
+            direccion: "{{ cliente_unico_venta.get_direccion_completa|escapejs }}",
+        }{% else %}null{% endif %},
+        comprobante_arca: {% if comprobante_arca %}{
+            tipo_display: "{{ comprobante_arca.get_tipo_comprobante_display|escapejs }}",
+            tipo_comprobante: {{ comprobante_arca.tipo_comprobante }},
+            punto_venta: {{ comprobante_arca.punto_venta }},
+            numero: {{ comprobante_arca.numero }},
+            numero_display: "{{ comprobante_arca.punto_venta|stringformat:'04d' }}-{{ comprobante_arca.numero|stringformat:'08d' }}",
+            cae: "{{ comprobante_arca.cae }}",
+            cae_vencimiento: "{{ comprobante_arca.cae_vencimiento|date:'d/m/Y' }}",
+            importe_neto: "{{ comprobante_arca.importe_neto|stringformat:'.2f' }}",
+            importe_iva: "{{ comprobante_arca.importe_iva|stringformat:'.2f' }}",
+            qrDataUrl: "",
+            qrPayload: {
+                ver: 1,
+                fecha: "{{ venta.fecha|date:'Y-m-d' }}",
+                cuit: {{ datos_empresa.cuit|default:'0'|cut:'-' }},
+                ptoVta: {{ comprobante_arca.punto_venta }},
+                tipoCmp: {{ comprobante_arca.tipo_comprobante }},
+                nroCmp: {{ comprobante_arca.numero }},
+                importe: {{ comprobante_arca.importe_total|stringformat:'.2f' }},
+                moneda: "PES",
+                ctz: 1,
+                tipoDocRec: {{ comprobante_arca.doc_tipo }},
+                nroDocRec: {{ comprobante_arca.doc_nro|default:'0' }},
+                tipoCodAut: "E",
+                codAut: {{ comprobante_arca.cae }}
+            }
+        }{% else %}null{% endif %},
+        pagos: [
+            {% for pago in pagos %}
+    {
+        medio_display: "{{ pago.get_medio_display|escapejs }}",
+        tarjeta_nombre: "{{ pago.tarjeta.nombre|default:''|escapejs }}",
+        monto: "{{ pago.monto|stringformat:'.2f' }}",
+        cantidad_pagos: {{ pago.cantidad_pagos }},
+        etiqueta_plan: "{{ pago.etiqueta_plan|escapejs }}",
+        recargo_pct: "{{ pago.recargo_pct|stringformat:'.2f' }}",
+        recargo_monto: "{{ pago.recargo_monto|stringformat:'.2f' }}"
+    } {% if not forloop.last %}, {% endif %}
+    {% endfor %}
+    ],
+    items: [
+        {% for item in items %}
+    {
+        nombre: "{{ item.nombre_ticket_display|escapejs }}",
+            marca: "{% if item.producto %}{{ item.producto.marca|escapejs }}{% endif %}",
+            codigo: "{{ item.producto_codigo|escapejs }}",
+                color: "{{ item.nombre_combinacion_display|escapejs }}",
+                    cliente: "{% if item.nombre_cliente_display != '(sin cliente)' %}{{ item.nombre_cliente_display|escapejs }}{% endif %}",
+                        cantidad: "{{ item.cantidad|floatformat:'-3' }}",
+                            moneda: "{{ item.moneda|escapejs }}",
+                                precio_unitario: "{{ item.precio_unitario|stringformat:'.2f' }}",
+                                    descuento_pct: "{{ item.descuento_pct|stringformat:'.2f' }}",
+                                        subtotal: "{{ item.subtotal|stringformat:'.2f' }}",
+                                            condicion_pago_display: "{{ item.get_condicion_pago_display|escapejs }}",
+        } {% if not forloop.last %}, {% endif %}
+    {% endfor %}
+    ],
+};
+</script>
+{% if comprobante_arca %}
+<script>
+    (function () {
+        var payload = window.TICKET_DATA.comprobante_arca.qrPayload;
+        var texto = 'https://www.arca.gob.ar/fe/qr/?p=' + btoa(JSON.stringify(payload));
+        try {
+            var qr = qrcode(0, 'M');  // 0 = detecta automáticamente el tamaño necesario
+            qr.addData(texto);
+            qr.make();
+            window.TICKET_DATA.comprobante_arca.qrDataUrl = qr.createDataURL(6, 2);
+        } catch (err) {
+            console.error('No se pudo generar el QR del comprobante:', err);
+        }
+    })();
+</script>
+{% endif %}

@@ -296,6 +296,11 @@ class GestionProductosView(LoginRequiredMixin, TemplateView):
         ctx['puede_gestionar_categorias'] = chequear_permiso(self.request.user, 'gestionar_categorias')
         ctx['puede_gestionar_listas_descuento'] = chequear_permiso(self.request.user, 'gestionar_listas_descuento')
         ctx['puede_exportar'] = chequear_permiso(self.request.user, 'ver_productos')
+        # Importar hace altas Y ediciones → exige los dos permisos.
+        ctx['puede_importar'] = (
+            chequear_permiso(self.request.user, 'crear_productos')
+            and chequear_permiso(self.request.user, 'editar_productos')
+        )
 
         if not chequear_permiso(self.request.user, 'ver_productos'):
             ctx['sin_permiso'] = True

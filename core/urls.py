@@ -63,6 +63,7 @@ urlpatterns = [
     path('clientes/eliminar/', views_clientes.ClienteEliminarAjax.as_view(), name='cliente_eliminar'),
     path('clientes/buscar/', views_clientes.ClienteBuscarAjax.as_view(), name='cliente_buscar'),
     path('clientes/<int:pk>/', views_clientes.ClienteDetalleView.as_view(), name='cliente_detalle'),
+    path('clientes/<int:pk>/scoring/', views_clientes.ClienteScoringAjax.as_view(), name='cliente_scoring'),
     path('clientes/<int:pk>/imagenes/', views_clientes.ClienteImagenAjax.as_view(), name='cliente_imagenes'),
     path('clientes/<int:pk>/contactos/', views_clientes.ClienteContactoAjax.as_view(), name='cliente_contactos'),
     path('clientes/<int:pk>/telefonos/', views_clientes.ClienteTelefonoAjax.as_view(), name='cliente_telefonos'),

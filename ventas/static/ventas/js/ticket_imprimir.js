@@ -29,16 +29,31 @@
    SELECTOR DE FORMATO
 ════════════════════════════════════════════════════════════════ */
 
+// 'imprimir' → window.print() (abre la impresora del navegador)
+// 'pdf'      → ticket_pdf.js genera el archivo y lo descarga directo
+let _ticketModo = 'imprimir';
+
 /**
- * Muestra el modal selector de formato de impresión.
- * Es la función que debe llamar el botón "Imprimir" de la página.
+ * Muestra el modal selector de formato.
+ * @param {string} [modo]  'imprimir' (default) | 'pdf'
  */
-function ticketAbrirSelector() {
+function ticketAbrirSelector(modo) {
+    _ticketModo = modo === 'pdf' ? 'pdf' : 'imprimir';
+
     const overlay = document.getElementById('ticketSelectorOverlay');
     if (!overlay) {
         console.error('ticket_imprimir.js: no se encontró #ticketSelectorOverlay en el DOM.');
         return;
     }
+
+    // El mismo modal sirve para imprimir y para guardar PDF — cambia
+    // solo el texto según con qué botón se abrió.
+    const titulo = document.getElementById('ticketSelectorTitulo');
+    const sub    = document.getElementById('ticketSelectorSub');
+    if (titulo) titulo.textContent = _ticketModo === 'pdf' ? 'Elegir formato del PDF' : 'Elegir formato de impresión';
+    if (sub)    sub.textContent    = _ticketModo === 'pdf'
+        ? 'Seleccioná el tamaño de página del archivo.'
+        : 'Seleccioná el tipo de papel/impresora que vas a usar.';
     // El checkbox "imprimir como ticket simple" solo tiene sentido si la
     // venta tiene de verdad un comprobante ARCA — si no, ya imprime como
     // ticket simple por default, no hace falta ofrecer la opción.
@@ -139,27 +154,32 @@ function _abrirVentanaImpresion(html) {
 }
 
 /* ════════════════════════════════════════════════════════════════
-   BIND DE EVENTOS AL CARGAR EL DOM
+   BIND DE EVENTOS — delegado en document
+   ──────────────────────────────────────────────────────────────
+   Delegado (no bind directo en DOMContentLoaded) porque en el panel
+   flotante de cobro (/ventas/nueva/) el #ticketSelectorOverlay se
+   inyecta por AJAX DESPUÉS de que carga la página — un bind directo
+   se lo perdería. En la página completa /ventas/detalle/ el overlay
+   ya está en el DOM y funciona igual.
 ════════════════════════════════════════════════════════════════ */
-document.addEventListener('DOMContentLoaded', () => {
-
+document.addEventListener('click', e => {
     // Cerrar al hacer click en el overlay (fuera del modal)
-    const overlay = document.getElementById('ticketSelectorOverlay');
-    if (overlay) {
-        overlay.addEventListener('click', e => {
-            if (e.target === overlay) _ticketCerrarSelector();
-        });
-    }
+    const overlay = e.target.closest('#ticketSelectorOverlay');
+    if (overlay && e.target === overlay) { _ticketCerrarSelector(); return; }
 
     // Botón cerrar (✕)
-    const btnCerrar = document.getElementById('ticketSelectorCerrar');
-    if (btnCerrar) btnCerrar.addEventListener('click', _ticketCerrarSelector);
+    if (e.target.closest('#ticketSelectorCerrar')) { _ticketCerrarSelector(); return; }
 
     // Botones de formato
-    document.querySelectorAll('[data-ticket-formato]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const chkSoloTicket = document.getElementById('ticketSoloTicket');
-            ticketImprimir(btn.dataset.ticketFormato, !!(chkSoloTicket && chkSoloTicket.checked));
-        });
-    });
+    const btnFormato = e.target.closest('[data-ticket-formato]');
+    if (btnFormato) {
+        const chkSoloTicket = document.getElementById('ticketSoloTicket');
+        const soloTicket = !!(chkSoloTicket && chkSoloTicket.checked);
+        const formato = btnFormato.dataset.ticketFormato;
+        if (_ticketModo === 'pdf' && typeof ticketGuardarPdf === 'function') {
+            ticketGuardarPdf(formato, soloTicket);
+        } else {
+            ticketImprimir(formato, soloTicket);
+        }
+    }
 });

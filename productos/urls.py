@@ -1,7 +1,7 @@
 from django.urls import path
 from . import (
     views_proveedores, views_productos, views_stock, views_ofertas,
-    views_paquetes, views_export,
+    views_paquetes, views_export, views_import,
 )
 
 app_name = 'productos'
@@ -29,6 +29,11 @@ urlpatterns = [
     # — Exportación a Excel —
     path('exportar/excel/',       views_export.ProductoExportarExcelView.as_view(),   name='producto_exportar_excel'),
     path('exportar/conteo/',      views_export.ProductoExportarConteoAjax.as_view(),  name='producto_exportar_conteo'),
+
+    # — Importación desde Excel —
+    path('importar/plantilla/',   views_import.ProductoImportarPlantillaView.as_view(),  name='producto_importar_plantilla'),
+    path('importar/analizar/',    views_import.ProductoImportarAnalizarAjax.as_view(),   name='producto_importar_analizar'),
+    path('importar/aplicar/',     views_import.ProductoImportarAplicarAjax.as_view(),    name='producto_importar_aplicar'),
 
     # — Imágenes —
     path('imagenes/subir/',       views_productos.ProductoImagenSubirAjax.as_view(),    name='producto_imagen_subir'),

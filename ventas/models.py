@@ -8,8 +8,17 @@ from django.db.models import F
 from django.utils import timezone
 
 from productos.models import Producto, Moneda, CondicionPago, CombinacionVariante, AlicuotaIVA
-from core.models import Cliente, AmbienteArca
+from core.models import Cliente, AmbienteArca, recalcular_scoring_cliente
 from compras.models import LoteCompra
+
+
+def _programar_recalculo_scoring(cliente):
+    """Programa el recálculo del scoring del cliente para después del
+    commit (ver core/scoring.py). `cliente` puede ser una instancia o
+    None (venta a Consumidor Final → no hay nada que recalcular)."""
+    cliente_id = getattr(cliente, 'pk', None)
+    if cliente_id:
+        transaction.on_commit(lambda cid=cliente_id: recalcular_scoring_cliente(cid))
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -994,6 +1003,10 @@ class Venta(models.Model):
         from caja.models import sincronizar_movimiento_venta
         sincronizar_movimiento_venta(self)
 
+        # Recalcular el scoring del cliente (frecuencia/vigencia de compra
+        # y, si la venta fue en cuotas o con cheque, el crédito otorgado).
+        _programar_recalculo_scoring(self.cliente_unico)
+
         return avisos
 
     @transaction.atomic
@@ -1030,6 +1043,10 @@ class Venta(models.Model):
         # Sincronizar movimiento de caja grande
         from caja.models import sincronizar_movimiento_venta
         sincronizar_movimiento_venta(self)
+
+        # Anular la venta puede haber liberado crédito / cambiado la
+        # última fecha de compra del cliente → recalcular su scoring.
+        _programar_recalculo_scoring(self.cliente_unico)
 
     @transaction.atomic
     def reactivar(self):
