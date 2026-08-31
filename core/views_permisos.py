@@ -18,6 +18,7 @@ from .permisos import (
 # recorrer. Los códigos y la lógica de autorización no cambian.
 SECCIONES_PERMISOS = (
     ('Administración', {'Usuarios', 'Permisos', 'Empresa', 'Notificaciones'}),
+    ('Estadísticas', {'Estadisticas'}),
     ('Productos e inventario', {'Stock', 'Productos', 'Categorias', 'Descuento', 'Ofertas', 'Paquetes', 'Catalogo'}),
     ('Compras y proveedores', {'Proveedores', 'Compras'}),
     ('Clientes y ventas', {'Clientes', 'Ventas', 'Devoluciones', 'Presupuestos', 'Pedidos', 'Balanza'}),

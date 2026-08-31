@@ -18,16 +18,21 @@
         <p>Administrá las preferencias del sistema y tu cuenta.</p>
     </div>
 
+    {% comment %}
+    Solo se listan las secciones que el usuario puede ver — las de "dueño"
+    (empresa, ARCA, cuentas, notificaciones) desaparecen sin su permiso.
+    {% endcomment %}
     <nav class="config-nav" id="configNav">
-        <a href="#seccion-empresa">Datos de la empresa</a>
-        <a href="#seccion-arca">Facturación Electrónica</a>
-        <a href="#seccion-cuentas">Cuentas de caja</a>
+        {% if puede_editar_empresa %}<a href="#seccion-empresa">Datos de la empresa</a>{% endif %}
+        {% if puede_editar_empresa %}<a href="#seccion-arca">Facturación Electrónica</a>{% endif %}
+        {% if puede_editar_cuentas %}<a href="#seccion-cuentas">Cuentas de caja</a>{% endif %}
         <a href="#seccion-apariencia">Apariencia</a>
-        <a href="#seccion-notificaciones">Notificaciones</a>
+        {% if puede_editar_asistencia %}<a href="#seccion-notificaciones">Notificaciones</a>{% endif %}
         <a href="#seccion-sistema">Sistema</a>
     </nav>
 
-    <!-- ── Datos de la empresa ── -->
+    <!-- ── Datos de la empresa (solo el dueño) ── -->
+    {% if puede_editar_empresa %}
     <div class="config-section" id="seccion-empresa">
         <div class="config-section-header">
             <div class="config-section-icon" style="background:rgba(16,185,129,0.1); color:var(--success);">
@@ -42,7 +47,6 @@
             </div>
         </div>
 
-        {% if puede_editar_empresa %}
         <form id="formEmpresa">
             {% csrf_token %}
             <div class="config-row" style="flex-direction:column; align-items:flex-start; gap:0.6rem;">
@@ -114,17 +118,11 @@
             </div>
             <div id="empresaMsg" class="config-empresa-msg"></div>
         </form>
-        {% else %}
-        <div class="config-row">
-            <div class="config-row-info">
-                <div class="config-row-label">{{ datos_empresa.nombre_comercial|default:"Sin configurar" }}</div>
-                <div class="config-row-desc">Solo el propietario de la cuenta puede modificar estos datos.</div>
-            </div>
-        </div>
-        {% endif %}
     </div>
+    {% endif %}
 
-    <!-- ── Facturación Electrónica (ARCA) ── -->
+    <!-- ── Facturación Electrónica (ARCA) — solo el dueño ── -->
+    {% if puede_editar_empresa %}
     <div class="config-section" id="seccion-arca">
         <div class="config-section-header">
             <div class="config-section-icon" style="background:rgba(30,111,168,0.1); color:var(--brand-blue);">
@@ -139,7 +137,6 @@
             </div>
         </div>
 
-        {% if puede_editar_empresa %}
         <form id="formArca">
             {% csrf_token %}
             <div class="config-row" style="gap:1rem;">
@@ -261,17 +258,11 @@
                 </ol>
             </div>
         </details>
-        {% else %}
-        <div class="config-row">
-            <div class="config-row-info">
-                <div class="config-row-label">{% if configuracion_arca.habilitado %}Habilitada{% else %}Deshabilitada{% endif %} — ambiente {{ configuracion_arca.get_ambiente_display }}</div>
-                <div class="config-row-desc">Solo el propietario de la cuenta puede modificar estos datos.</div>
-            </div>
-        </div>
-        {% endif %}
     </div>
+    {% endif %}
 
-    <!-- ── Cuentas de caja ── -->
+    <!-- ── Cuentas de caja — solo con permiso 'editar_cuentas' ── -->
+    {% if puede_editar_cuentas %}
     <div class="config-section" id="seccion-cuentas">
         <div class="config-section-header">
             <div class="config-section-icon" style="background:rgba(30,111,168,0.1); color:var(--brand-blue);">
@@ -284,9 +275,7 @@
                 <h2>Cuentas de caja</h2>
                 <p>Tarjetas, billeteras y bancos. El efectivo se gestiona solo, no aparece acá.</p>
             </div>
-            {% if puede_editar_cuentas %}
             <button type="button" class="btn btn-sm" style="background:var(--brand-orange); color:white; margin-left:auto;" data-bs-toggle="modal" data-bs-target="#cuentaModal" id="btnNuevaCuenta">+ Nueva cuenta</button>
-            {% endif %}
         </div>
 
         {% for cuenta in cuentas %}
@@ -328,8 +317,9 @@
         </div>
         {% endfor %}
     </div>
+    {% endif %}
 
-    <!-- ── Apariencia ── -->
+    <!-- ── Apariencia (todos) ── -->
     <div class="config-section" id="seccion-apariencia">
         <div class="config-section-header">
             <div class="config-section-icon" style="background:rgba(242,106,27,0.1); color:var(--brand-orange);">
@@ -364,7 +354,8 @@
         </div>
     </div>
 
-    <!-- ── Notificaciones ── -->
+    <!-- ── Notificaciones — solo con permiso 'gestionar_notificaciones' ── -->
+    {% if puede_editar_asistencia %}
     <div class="config-section" id="seccion-notificaciones">
         <div class="config-section-header">
             <div class="config-section-icon" style="background:rgba(30,111,168,0.1); color:var(--brand-blue);">
@@ -379,7 +370,6 @@
             </div>
         </div>
 
-        {% if puede_editar_asistencia %}
         <form id="formAsistencia">
             {% csrf_token %}
 
@@ -542,17 +532,10 @@
             </div>
             <div id="asistenciaMsg" class="config-empresa-msg"></div>
         </form>
-        {% else %}
-        <div class="config-row">
-            <div class="config-row-info">
-                <div class="config-row-label">Configuración restringida</div>
-                <div class="config-row-desc">Solo el dueño de la cuenta puede ver y modificar estas preferencias.</div>
-            </div>
-        </div>
-        {% endif %}
     </div>
+    {% endif %}
 
-    <!-- ── Sistema ── -->
+    <!-- ── Sistema (todos) ── -->
     <div class="config-section" id="seccion-sistema">
         <div class="config-section-header">
             <div class="config-section-icon" style="background:rgba(139,92,246,0.1); color:#8b5cf6;">

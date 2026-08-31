@@ -69,7 +69,13 @@
             </a>
 
             {# ── ESTADÍSTICAS (secciones por tema, no todo en una sola página) ── #}
+            {% comment %}
+            El grupo aparece si el usuario puede ver AL MENOS una de sus páginas.
+            Cada sub-ítem se filtra por su propio permiso — ver perms_kai
+            (core/context_processors.py). El backend igual re-chequea.
+            {% endcomment %}
             {% with en_url=request.resolver_match.url_name %}
+            {% if perms_kai.ver_estadisticas or perms_kai.ver_ventas or perms_kai.ver_compras or perms_kai.ver_productos or perms_kai.ver_clientes or perms_kai.ver_caja %}
             <div class="nav-group {% if 'estadistica' in en_url %}open{% endif %}" id="navGrupoEstadisticas">
                 <button class="nav-group-toggle" onclick="toggleNavGroup('navGrupoEstadisticas')">
                     <div class="nav-group-toggle-left">
@@ -84,6 +90,7 @@
                 </button>
                 <div class="nav-group-items">
                     <div class="nav-group-items-inner">
+                        {% if perms_kai.ver_estadisticas %}
                         <a href="{% url 'core:estadisticas' %}"
                         class="nav-subitem {% if en_url == 'estadisticas' %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -92,6 +99,8 @@
                             </svg>
                             <span>Resumen</span>
                         </a>
+                        {% endif %}
+                        {% if perms_kai.ver_ventas %}
                         <a href="{% url 'core:estadisticas_ventas' %}"
                         class="nav-subitem {% if en_url == 'estadisticas_ventas' %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -99,6 +108,8 @@
                             </svg>
                             <span>Ventas</span>
                         </a>
+                        {% endif %}
+                        {% if perms_kai.ver_compras %}
                         <a href="{% url 'core:estadisticas_compras' %}"
                         class="nav-subitem {% if en_url == 'estadisticas_compras' %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -108,6 +119,8 @@
                             </svg>
                             <span>Compras</span>
                         </a>
+                        {% endif %}
+                        {% if perms_kai.ver_productos %}
                         <a href="{% url 'core:estadisticas_productos' %}"
                         class="nav-subitem {% if en_url == 'estadisticas_productos' %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -118,6 +131,8 @@
                             </svg>
                             <span>Productos y Stock</span>
                         </a>
+                        {% endif %}
+                        {% if perms_kai.ver_clientes %}
                         <a href="{% url 'core:estadisticas_clientes' %}"
                         class="nav-subitem {% if en_url == 'estadisticas_clientes' %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -126,6 +141,8 @@
                             </svg>
                             <span>Clientes</span>
                         </a>
+                        {% endif %}
+                        {% if perms_kai.ver_caja %}
                         <a href="{% url 'core:estadisticas_caja' %}"
                         class="nav-subitem {% if en_url == 'estadisticas_caja' %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -133,12 +150,15 @@
                             </svg>
                             <span>Caja y Finanzas</span>
                         </a>
+                        {% endif %}
                     </div>
                 </div>
             </div>
+            {% endif %}
             {% endwith %}
 
             {# ── OFERTAS ── #}
+            {% if perms_kai.gestionar_ofertas %}
             <a href="{% url 'productos:gestion_ofertas' %}"
             class="nav-item {% if request.resolver_match.url_name == 'gestion_ofertas' %}active{% endif %}">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -147,8 +167,10 @@
                 </svg>
                 <span>Ofertas</span>
             </a>
+            {% endif %}
 
             {# ── CATÁLOGO ONLINE (portada, plantilla y textos del catálogo público — no confundir con "Catálogo" de abajo, que es gestión interna de productos/stock) ── #}
+            {% if perms_kai.editar_catalogo %}
             <a href="{% url 'core:catalogo_online' %}"
             class="nav-item {% if request.resolver_match.url_name == 'catalogo_online' %}active{% endif %}">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -160,9 +182,11 @@
                 </svg>
                 <span>Catálogo online</span>
             </a>
+            {% endif %}
 
             {# ── CATÁLOGO (Productos, Proveedores, Stock, Inventario) ── #}
             {% with en_app=request.resolver_match.app_name en_url=request.resolver_match.url_name %}
+            {% if perms_kai.ver_productos or perms_kai.ver_pedidos or perms_kai.gestionar_paquetes or perms_kai.ver_proveedores or perms_kai.ver_stock or perms_kai.crear_compras %}
             <div class="nav-group {% if en_app == 'productos' or en_url == 'inventario' or en_url == 'pedidos_historial' %}open{% endif %}" id="navGrupoInventario">
                 <button class="nav-group-toggle" onclick="toggleNavGroup('navGrupoInventario')">
                     <div class="nav-group-toggle-left">
@@ -180,6 +204,7 @@
                 </button>
                 <div class="nav-group-items">
                     <div class="nav-group-items-inner">
+                        {% if perms_kai.ver_productos %}
                         <a href="{% url 'productos:gestion_productos' %}"
                         class="nav-subitem {% if 'producto' in en_url %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -190,6 +215,8 @@
                             </svg>
                             <span>Productos</span>
                         </a>
+                        {% endif %}
+                        {% if perms_kai.ver_pedidos %}
                         <a href="{% url 'catalogo:pedidos_historial' %}"
                         class="nav-subitem {% if en_url == 'pedidos_historial' %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -199,6 +226,8 @@
                             </svg>
                             <span>Pedidos</span>
                         </a>
+                        {% endif %}
+                        {% if perms_kai.gestionar_paquetes %}
                         <a href="{% url 'productos:gestion_paquetes' %}"
                         class="nav-subitem {% if 'paquete' in en_url %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -208,6 +237,8 @@
                             </svg>
                             <span>Paquetes</span>
                         </a>
+                        {% endif %}
+                        {% if perms_kai.ver_proveedores %}
                         <a href="{% url 'productos:gestion_proveedores' %}"
                         class="nav-subitem {% if 'proveedor' in en_url %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -216,6 +247,8 @@
                             </svg>
                             <span>Proveedores</span>
                         </a>
+                        {% endif %}
+                        {% if perms_kai.ver_stock %}
                         <a href="{% url 'productos:stock' %}"
                         class="nav-subitem {% if 'stock' in en_url %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -225,6 +258,8 @@
                             </svg>
                             <span>Stock</span>
                         </a>
+                        {% endif %}
+                        {% if perms_kai.crear_compras %}
                         <a href="{% url 'compras:inventario' %}"
                         class="nav-subitem {% if en_url == 'inventario' %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -233,13 +268,16 @@
                             </svg>
                             <span>Inventario</span>
                         </a>
+                        {% endif %}
                     </div>
                 </div>
             </div>
+            {% endif %}
             {% endwith %}
 
             {# ── VENTAS ── #}
             {% with en_ventas=request.resolver_match.app_name %}
+            {% if perms_kai.crear_ventas or perms_kai.ver_ventas or perms_kai.ver_balanza %}
             <div class="nav-group {% if en_ventas == 'ventas' %}open{% endif %}" id="navGrupoVentas">
                 <button class="nav-group-toggle" onclick="toggleNavGroup('navGrupoVentas')">
                     <div class="nav-group-toggle-left">
@@ -256,6 +294,7 @@
                 </button>
                 <div class="nav-group-items">
                     <div class="nav-group-items-inner">
+                        {% if perms_kai.crear_ventas %}
                         <a href="{% url 'ventas:nueva_venta' %}"
                            class="nav-subitem {% if request.resolver_match.url_name == 'nueva_venta' %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -264,6 +303,8 @@
                             </svg>
                             <span>Nueva Venta</span>
                         </a>
+                        {% endif %}
+                        {% if perms_kai.ver_ventas %}
                         <a href="{% url 'ventas:historial_ventas' %}"
                            class="nav-subitem {% if request.resolver_match.url_name == 'historial_ventas' %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -271,6 +312,8 @@
                             </svg>
                             <span>Historial</span>
                         </a>
+                        {% endif %}
+                        {% if perms_kai.ver_balanza %}
                         <a href="{% url 'ventas:balanza' %}"
                            class="nav-subitem {% if request.resolver_match.url_name == 'balanza' %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -279,6 +322,8 @@
                             </svg>
                             <span>Balanza</span>
                         </a>
+                        {% endif %}
+                        {% if perms_kai.ver_ventas %}
                         <a href="{% url 'ventas:historial_devoluciones' %}"
                            class="nav-subitem {% if request.resolver_match.url_name == 'historial_devoluciones' %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -289,13 +334,16 @@
                             </svg>
                             <span>Devoluciones</span>
                         </a>
+                        {% endif %}
                     </div>
                 </div>
             </div>
+            {% endif %}
             {% endwith %}
 
             {# ── PRESUPUESTOS ── #}
             {% with en_presupuestos=request.resolver_match.app_name %}
+            {% if perms_kai.crear_presupuestos or perms_kai.ver_presupuestos %}
             <div class="nav-group {% if en_presupuestos == 'presupuestos' %}open{% endif %}" id="navGrupoPresupuestos">
                 <button class="nav-group-toggle" onclick="toggleNavGroup('navGrupoPresupuestos')">
                     <div class="nav-group-toggle-left">
@@ -311,6 +359,7 @@
                 </button>
                 <div class="nav-group-items">
                     <div class="nav-group-items-inner">
+                        {% if perms_kai.crear_presupuestos %}
                         <a href="{% url 'presupuestos:nuevo' %}"
                            class="nav-subitem {% if request.resolver_match.url_name == 'nuevo' %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -319,6 +368,8 @@
                             </svg>
                             <span>Nuevo Presupuesto</span>
                         </a>
+                        {% endif %}
+                        {% if perms_kai.ver_presupuestos %}
                         <a href="{% url 'presupuestos:historial' %}"
                            class="nav-subitem {% if request.resolver_match.url_name == 'historial' %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -326,13 +377,16 @@
                             </svg>
                             <span>Historial</span>
                         </a>
+                        {% endif %}
                     </div>
                 </div>
             </div>
+            {% endif %}
             {% endwith %}
 
             {# ── COMPRAS ── #}
             {% with en_op=request.resolver_match.app_name %}
+            {% if perms_kai.crear_compras or perms_kai.ver_compras %}
             <div class="nav-group {% if en_op == 'compras' %}open{% endif %}" id="navGrupoCompras">
                 <button class="nav-group-toggle" onclick="toggleNavGroup('navGrupoCompras')">
                     <div class="nav-group-toggle-left">
@@ -350,6 +404,7 @@
                 </button>
                 <div class="nav-group-items">
                     <div class="nav-group-items-inner">
+                        {% if perms_kai.crear_compras %}
                         <a href="{% url 'compras:nueva_compra' %}"
                            class="nav-subitem {% if request.resolver_match.url_name == 'nueva_compra' %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -358,6 +413,8 @@
                             </svg>
                             <span>Nueva Compra</span>
                         </a>
+                        {% endif %}
+                        {% if perms_kai.ver_compras %}
                         <a href="{% url 'compras:historial_compras' %}"
                            class="nav-subitem {% if request.resolver_match.url_name == 'historial_compras' %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -365,13 +422,16 @@
                             </svg>
                             <span>Historial</span>
                         </a>
+                        {% endif %}
                     </div>
                 </div>
             </div>
+            {% endif %}
             {% endwith %}
 
             {# ── FINANZAS (Caja grande, Caja diaria) ── #}
             {% with en_caja=request.resolver_match.app_name %}
+            {% if perms_kai.ver_caja or perms_kai.ver_gastos or perms_kai.ver_transacciones or perms_kai.ver_deudas or perms_kai.ver_cuentas_cobrar or perms_kai.ver_cheques or perms_kai.ver_recargos %}
             <div class="nav-group {% if en_caja == 'caja' %}open{% endif %}" id="navGrupoFinanzas">
                 <button class="nav-group-toggle" onclick="toggleNavGroup('navGrupoFinanzas')">
                     <div class="nav-group-toggle-left">
@@ -388,6 +448,7 @@
                 </button>
                 <div class="nav-group-items">
                     <div class="nav-group-items-inner">
+                        {% if perms_kai.ver_caja %}
                         <a href="{% url 'caja:caja_grande' %}"
                            class="nav-subitem {% if request.resolver_match.url_name == 'caja_grande' %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -404,6 +465,8 @@
                             </svg>
                             <span>Caja diaria</span>
                         </a>
+                        {% endif %}
+                        {% if perms_kai.ver_gastos %}
                         <a href="{% url 'caja:gastos' %}"
                            class="nav-subitem {% if request.resolver_match.url_name == 'gastos' %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -411,6 +474,8 @@
                             </svg>
                             <span>Ingresos y egresos</span>
                         </a>
+                        {% endif %}
+                        {% if perms_kai.ver_transacciones %}
                         <a href="{% url 'caja:transacciones_listar_page' %}"
                            class="nav-subitem {% if request.resolver_match.url_name == 'transacciones_listar_page' %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -422,6 +487,8 @@
                             </svg>
                             <span>Transacciones</span>
                         </a>
+                        {% endif %}
+                        {% if perms_kai.ver_deudas %}
                         <a href="{% url 'caja:deudas' %}"
                            class="nav-subitem {% if request.resolver_match.url_name == 'deudas' %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -431,6 +498,8 @@
                             </svg>
                             <span>Créditos y préstamos</span>
                         </a>
+                        {% endif %}
+                        {% if perms_kai.ver_cuentas_cobrar %}
                         <a href="{% url 'caja:cuentas_cobrar' %}"
                            class="nav-subitem {% if request.resolver_match.url_name == 'cuentas_cobrar' %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -440,6 +509,8 @@
                             </svg>
                             <span>Cuentas por cobrar</span>
                         </a>
+                        {% endif %}
+                        {% if perms_kai.ver_cheques %}
                         <a href="{% url 'caja:cheques' %}"
                            class="nav-subitem {% if request.resolver_match.url_name == 'cheques' %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -448,6 +519,8 @@
                             </svg>
                             <span>Cheques</span>
                         </a>
+                        {% endif %}
+                        {% if perms_kai.ver_recargos %}
                         <a href="{% url 'caja:recargos' %}"
                            class="nav-subitem {% if request.resolver_match.url_name == 'recargos' %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -457,9 +530,11 @@
                             </svg>
                             <span>Recargos</span>
                         </a>
+                        {% endif %}
                     </div>
                 </div>
             </div>
+            {% endif %}
             {% endwith %}
 
             {# ── HERRAMIENTAS RÁPIDAS (no navegan, abren ventanas flotantes) ── #}
@@ -496,6 +571,7 @@
                             <span>Calculadora de vuelto</span>
                             <span class="nav-shortcut-hint">CTRL+ALT+U</span>
                         </button>
+                        {% if perms_kai.ver_notas %}
                         <a href="{% url 'core:notas' %}"
                            class="nav-subitem {% if request.resolver_match.url_name == 'notas' %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -505,12 +581,14 @@
                             </svg>
                             <span>Anotador</span>
                         </a>
+                        {% endif %}
                     </div>
                 </div>
             </div>
 
             {# ── PERSONAS (Clientes, Usuarios) ── #}
             {% with en_admin=request.resolver_match.url_name %}
+            {% if perms_kai.ver_clientes or perms_kai.ver_usuarios %}
             <div class="nav-group {% if 'usuario' in en_admin or 'cliente' in en_admin %}open{% endif %}" id="navGrupoPersonas">
                 <button class="nav-group-toggle" onclick="toggleNavGroup('navGrupoPersonas')">
                     <div class="nav-group-toggle-left">
@@ -530,6 +608,7 @@
                 </button>
                 <div class="nav-group-items">
                     <div class="nav-group-items-inner">
+                        {% if perms_kai.ver_clientes %}
                         <a href="{% url 'core:gestion_clientes' %}"
                            class="nav-subitem {% if 'cliente' in request.resolver_match.url_name %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -538,6 +617,8 @@
                             </svg>
                             <span>Clientes</span>
                         </a>
+                        {% endif %}
+                        {% if perms_kai.ver_usuarios %}
                         <a href="{% url 'core:gestion_usuarios' %}"
                            class="nav-subitem {% if 'usuario' in request.resolver_match.url_name %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -547,9 +628,11 @@
                             </svg>
                             <span>Usuarios del sistema</span>
                         </a>
+                        {% endif %}
                     </div>
                 </div>
             </div>
+            {% endif %}
             {% endwith %}
 
             {# ── MANUAL DE USUARIO (siempre al final del menú) ── #}
@@ -613,7 +696,8 @@
                 </span>
 
                 {% if user.is_authenticated %}
-                <!-- ── Notificaciones de pedidos ── -->
+                {% if perms_kai.ver_pedidos %}
+                <!-- ── Notificaciones de pedidos (solo si el usuario puede ver pedidos del catálogo) ── -->
                 <div class="notif-bell" id="notifBell">
                     <button class="notif-bell-trigger" id="notifBellBtn" aria-expanded="false" aria-haspopup="true" aria-label="Notificaciones de pedidos">
                         <svg width="19" height="19" viewBox="0 0 20 20" fill="none">
@@ -639,6 +723,7 @@
                         venderBase: "{% url 'catalogo:pedido_vender' 0 %}".replace('/0/vender/', '/'),
                     };
                 </script>
+                {% endif %}
 
                 <!-- ── User Dropdown ── -->
                 <div class="user-dropdown" id="userDropdown">

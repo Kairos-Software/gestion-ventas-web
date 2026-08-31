@@ -411,7 +411,7 @@
 .vta-cart-list { display: flex; flex-direction: column; }
 
 .vta-cart-row {
-    padding: .8rem 1.25rem;
+    padding: .55rem 1rem;
     border-bottom: 1px solid var(--border-color);
 }
 .vta-cart-row:last-child { border-bottom: none; }
@@ -429,14 +429,14 @@
     display: block;
     font-family: var(--font-heading);
     font-weight: 700;
-    font-size: .875rem;
+    font-size: .83rem;
     color: var(--text-primary);
-    line-height: 1.3;
+    line-height: 1.25;
 }
-.vta-cart-row-name span { font-size: .72rem; color: var(--text-muted); }
+.vta-cart-row-name span { font-size: .7rem; color: var(--text-muted); }
 .vta-cart-row-x {
     flex-shrink: 0;
-    width: 26px; height: 26px;
+    width: 24px; height: 24px;
     display: inline-flex; align-items: center; justify-content: center;
     border: 1px solid rgba(239, 68, 68, .25);
     background: rgba(239, 68, 68, .1);
@@ -451,8 +451,8 @@
 .vta-cart-row-mid {
     display: flex;
     align-items: center;
-    gap: .6rem;
-    margin-top: .55rem;
+    gap: .5rem;
+    margin-top: .35rem;
     flex-wrap: wrap;
 }
 
@@ -464,7 +464,7 @@
     overflow: hidden;
 }
 .vta-stepper button {
-    width: 28px; height: 32px;
+    width: 26px; height: 28px;
     border: none;
     background: var(--bg-secondary);
     color: var(--text-secondary);
@@ -476,11 +476,11 @@
 .vta-stepper button:hover:not(:disabled) { background: var(--brand-orange-light); color: var(--brand-orange-dark); }
 .vta-stepper button:disabled { opacity: .4; cursor: default; }
 .vta-stepper input {
-    width: 54px; height: 32px;
+    width: 46px; height: 28px;
     border: none;
     text-align: center;
     font-family: var(--font-body);
-    font-size: .82rem;
+    font-size: .8rem;
     background: var(--bg-white);
     -moz-appearance: textfield;
 }
@@ -496,13 +496,13 @@
     color: var(--text-muted);
 }
 .vta-cart-row-price input {
-    width: 94px; height: 32px;
+    width: 82px; height: 28px;
     border: 1px solid var(--border-color);
     border-radius: .5rem;
     padding: 0 .5rem;
     text-align: right;
     font-family: var(--font-body);
-    font-size: .82rem;
+    font-size: .8rem;
     background: var(--bg-white);
 }
 .vta-cart-row-price input:focus { outline: none; border-color: var(--brand-orange); }
@@ -511,17 +511,17 @@
     margin-left: auto;
     font-family: var(--font-heading);
     font-weight: 800;
-    font-size: .95rem;
+    font-size: .92rem;
     color: var(--text-primary);
     white-space: nowrap;
 }
-.vta-cart-row-sub s { color: var(--text-muted); font-weight: 500; font-size: .78rem; margin-right: .35rem; }
+.vta-cart-row-sub s { color: var(--text-muted); font-weight: 500; font-size: .76rem; margin-right: .3rem; }
 
 .vta-cart-alert-msg {
     color: var(--danger, #EF4444);
     font-size: .74rem;
     font-weight: 500;
-    margin-top: .4rem;
+    margin-top: .35rem;
 }
 
 .vta-cart-row-tags {
@@ -529,7 +529,7 @@
     align-items: center;
     gap: .5rem;
     flex-wrap: wrap;
-    margin-top: .5rem;
+    margin-top: .35rem;
 }
 .vta-tag-desc {
     font-size: .72rem;
@@ -545,8 +545,9 @@
     padding: 0;
     color: var(--brand-blue, #1E6FA8);
     font-family: var(--font-body);
-    font-size: .76rem;
+    font-size: .74rem;
     cursor: pointer;
+    white-space: nowrap;
     text-decoration: underline;
     text-underline-offset: 2px;
 }
@@ -554,9 +555,9 @@
 .vta-cart-row-adv {
     display: none;
     grid-template-columns: 1fr 1fr;
-    gap: .55rem;
-    margin-top: .6rem;
-    padding: .7rem;
+    gap: .5rem;
+    margin-top: .5rem;
+    padding: .6rem;
     background: var(--bg-secondary);
     border-radius: .55rem;
 }
@@ -594,15 +595,9 @@
 .vta-cart-empty-ic { color: var(--border-strong, #cbd5e1); margin-bottom: .6rem; }
 .vta-cart-empty p { font-size: .85rem; line-height: 1.55; margin: 0; }
 
-/* Pie del carrito: en desktop la columna de cobro ya está a la vista, así
-   que el botón "Ir al cobro" no hace falta. Solo aparece en pantalla
-   angosta (cobro apilado abajo) como ancla de scroll.
-   Selector compuesto para ganarle a `.vta-btn { display: inline-flex }`
-   que está más abajo en el archivo. */
-.vta-cart-footer > .vta-cart-cobrar { display: none; }
-@media (max-width: 1024px) {
-    .vta-cart-footer > .vta-cart-cobrar { display: inline-flex; width: 100%; margin: 0; }
-}
+/* El pie del carrito (`.vta-cart-footer`) y su visibilidad desktop/mobile
+   se manejan en el <style> inline de nueva_venta.html — el total ya vive
+   en la columna de cobro, así que en desktop no se muestra nada. */
 
 /* Wrapper base del autocomplete de cliente — lo reusan tanto el widget
    de cabecera del carrito (nueva_venta.js) como el de la pestaña
@@ -1411,9 +1406,70 @@ textarea.vta-control {
 
     .vdt-pago-linea {
         display: grid;
-        grid-template-columns: 1fr 110px 30px;
+        grid-template-columns: 1fr 30px;
         gap: .35rem;
         align-items: center;
+    }
+
+    /* Botonera de medios de pago — acceso directo, reemplaza al <select>.
+       Grilla de botones iguales que envuelve; el medio activo resaltado
+       en naranja. Se usa tal cual en la página completa y en el panel
+       flotante de cobro. */
+    .vdt-medio-tabs {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+        gap: .3rem;
+        margin-bottom: .1rem;
+    }
+    .vdt-medio-tab {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: .18rem;
+        padding: .4rem .25rem;
+        border: 1px solid var(--border-color);
+        border-radius: .55rem;
+        background: var(--bg-secondary);
+        color: var(--text-muted);
+        font-family: 'DM Sans', sans-serif;
+        font-size: .64rem;
+        font-weight: 600;
+        line-height: 1.15;
+        text-align: center;
+        cursor: pointer;
+        transition: border-color .15s, color .15s, background .15s, box-shadow .15s;
+    }
+    .vdt-medio-tab svg {
+        width: 18px;
+        height: 18px;
+        flex-shrink: 0;
+    }
+    /* número de atajo (1..N), esquina superior izquierda */
+    .vdt-medio-tab-num {
+        position: absolute;
+        top: 2px;
+        left: 4px;
+        font-size: .56rem;
+        font-weight: 700;
+        line-height: 1;
+        opacity: .55;
+    }
+    .vdt-medio-tab.is-active .vdt-medio-tab-num { opacity: .9; }
+    .vdt-medio-tab:hover {
+        border-color: var(--brand-orange);
+        color: var(--brand-orange-dark, #c2500a);
+    }
+    .vdt-medio-tab.is-active {
+        border-color: var(--brand-orange);
+        background: var(--brand-orange-light, rgba(242, 106, 27, .1));
+        color: var(--brand-orange-dark, #c2500a);
+        box-shadow: inset 0 0 0 1px var(--brand-orange);
+    }
+    .vdt-medio-tab:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(242, 106, 27, .25);
     }
 
     .vdt-pago-select,
@@ -1600,45 +1656,6 @@ textarea.vta-control {
         background: var(--brand-orange-light, rgba(242, 106, 27, .06));
     }
 
-    .vdt-pago-resumen {
-        padding: .5rem .75rem;
-        border-radius: .5rem;
-        font-size: .78rem;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: .5rem;
-        margin-bottom: .75rem;
-    }
-
-    .vdt-pago-resumen--ok {
-        background: rgba(34, 197, 94, .07);
-        border: 1px solid rgba(34, 197, 94, .2);
-        color: var(--success, #16a34a);
-    }
-
-    .vdt-pago-resumen--pendiente {
-        background: rgba(245, 158, 11, .07);
-        border: 1px solid rgba(245, 158, 11, .2);
-        color: var(--warning, #b45309);
-    }
-
-    .vdt-pago-resumen--exceso {
-        background: rgba(239, 68, 68, .07);
-        border: 1px solid rgba(239, 68, 68, .2);
-        color: var(--danger, #dc2626);
-    }
-
-    .vdt-pago-resumen strong {
-        font-weight: 700;
-    }
-
-    .vdt-pago-resumen--recargo {
-        background: rgba(99, 102, 241, .07);
-        border: 1px solid rgba(99, 102, 241, .2);
-        color: var(--text-secondary);
-    }
-
     .vdt-pago-recargo-extra {
         display: flex;
         align-items: center;
@@ -1796,54 +1813,62 @@ textarea.vta-control {
 .vdt-cobro-topgrid {
     display: grid;
     grid-template-columns: 1fr;
-    gap: .75rem;
-    margin-bottom: .9rem;
+    gap: .6rem;
+    margin-bottom: .7rem;
 }
 
-.vdt-cobro-total {
-    background: var(--bg-secondary, #f4f6f9);
-    border-radius: .75rem;
-    padding: .8rem 1rem;
-    text-align: center;
-    margin-bottom: .5rem;
+/* Bloque de cierre del pago — total FIJO + estado + recargo, todo junto.
+   Reemplaza al ex "Total grande" + las 2 cajitas de resumen separadas. */
+.vdt-pago-cierre {
+    border: 1px solid transparent;
+    border-radius: .6rem;
+    padding: .55rem .7rem;
+    margin-bottom: .7rem;
 }
-.vdt-cobro-total-lbl {
-    display: block;
-    font-size: .68rem;
-    font-weight: 700;
-    letter-spacing: .06em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-}
-.vdt-cobro-total-val {
-    display: block;
-    font-family: var(--font-heading);
-    font-weight: 800;
-    font-size: 1.7rem;
-    line-height: 1.2;
-    color: var(--text-primary);
-    letter-spacing: -.02em;
-}
-.vdt-cobro-total-sub {
-    display: block;
-    font-size: .74rem;
-    color: var(--brand-orange-dark);
-}
-.vdt-cobro-total-sub strong { font-weight: 700; }
-
-.vdt-cobro-desglose {
+.vdt-pago-cierre-top {
     display: flex;
+    align-items: baseline;
     justify-content: space-between;
-    font-size: .76rem;
-    color: var(--text-muted);
-    padding: 0 .2rem;
-    margin-bottom: .9rem;
+    gap: .75rem;
 }
+.vdt-pago-cierre-estado {
+    font-size: .8125rem;
+    font-weight: 700;
+}
+.vdt-pago-cierre-total {
+    font-size: .74rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+.vdt-pago-cierre-total strong {
+    font-family: var(--font-heading);
+    font-size: 1.05rem;
+    font-weight: 800;
+    letter-spacing: -.01em;
+    color: var(--text-primary);
+    margin-left: .3rem;
+}
+.vdt-pago-cierre-recargo {
+    margin-top: .4rem;
+    padding-top: .4rem;
+    border-top: 1px dashed var(--border-color);
+    font-size: .72rem;
+    line-height: 1.4;
+    color: var(--text-muted);
+}
+.vdt-pago-cierre-recargo strong { color: var(--text-secondary); font-weight: 700; }
+
+.vdt-pago-cierre--pendiente { background: rgba(245, 158, 11, .08); border-color: rgba(245, 158, 11, .22); }
+.vdt-pago-cierre--pendiente .vdt-pago-cierre-estado { color: var(--warning, #b45309); }
+.vdt-pago-cierre--ok { background: rgba(34, 197, 94, .09); border-color: rgba(34, 197, 94, .24); }
+.vdt-pago-cierre--ok .vdt-pago-cierre-estado { color: var(--success, #16a34a); }
+.vdt-pago-cierre--exceso { background: rgba(239, 68, 68, .08); border-color: rgba(239, 68, 68, .22); }
+.vdt-pago-cierre--exceso .vdt-pago-cierre-estado { color: var(--danger, #dc2626); }
 
 .vdt-cobro-sec {
     border-top: 1px solid var(--border-color);
-    padding-top: .85rem;
-    margin-bottom: .85rem;
+    padding-top: .7rem;
+    margin-bottom: .7rem;
 }
 .vdt-cobro-sec-head {
     display: flex;

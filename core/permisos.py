@@ -76,6 +76,12 @@ def _permisos_efectivos(usuario):
     return resultado
 
 
+# Alias público — lo usa el context processor `perms_kai` (core/context_processors.py)
+# y cualquier vista que necesite chequear varios permisos sin pegarle a la
+# base una vez por código.
+permisos_efectivos = _permisos_efectivos
+
+
 def filtrar_permisos_otorgables(codigos, solicitante):
     """
     Dado un conjunto de códigos de permiso que alguien quiere otorgar

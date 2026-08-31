@@ -32,15 +32,6 @@ vdt* que espera ese script están todos acá.
                     </div>
                 </div>
 
-                {# Total grande — se actualiza en vivo con el carrito y con el recargo/interés #}
-                <div class="vdt-cobro-total">
-                    <span class="vdt-cobro-total-lbl" id="vdtTotalsGrandLabel">Total a cobrar</span>
-                    <span class="vdt-cobro-total-val" id="vdtTotalsGrandValue">${{ venta.total|floatformat:"2" }}</span>
-                    <span class="vdt-cobro-total-sub" id="vdtTotalsRecargoRow" style="display:none">
-                        incluye recargo/interés <strong id="vdtTotalsRecargoValue">$0,00</strong>
-                    </span>
-                </div>
-
                 {# ── Medios de pago ── #}
                 <div class="vdt-cobro-sec">
                     <div class="vdt-cobro-sec-head">
@@ -57,13 +48,21 @@ vdt* que espera ese script están todos acá.
                         </svg>
                         Agregar otro medio
                     </button>
-                    <div class="vdt-pago-resumen vdt-pago-resumen--pendiente" id="vdtPagoResumen">
-                        <span>Asignado: <strong id="vdtPagoAsignado">$0,00</strong></span>
-                        <span>Pendiente: <strong id="vdtPagoPendiente">${{ venta.total|floatformat:"2" }}</strong></span>
-                    </div>
-                    <div class="vdt-pago-resumen vdt-pago-resumen--recargo" id="vdtRecargoResumen" style="display:none">
-                        <span>Recargo/interés: <strong id="vdtRecargoMonto">$0,00</strong></span>
-                        <span>Total a cobrar: <strong id="vdtTotalACobrar">$0,00</strong></span>
+                    {% comment %}
+                    Cierre: "Total" = productos + recargo/interés = lo que paga el
+                    cliente. No se mueve al tipear el importe (el recargo va clavado
+                    a la base de productos). El estado (falta / cubierto / sobra) y
+                    el desglose van en el mismo bloque — ver _actualizarResumen en
+                    detalle_venta.js
+                    {% endcomment %}
+                    <div class="vdt-pago-cierre vdt-pago-cierre--pendiente" id="vdtPagoResumen">
+                        <div class="vdt-pago-cierre-top">
+                            <span class="vdt-pago-cierre-estado" id="vdtPagoEstadoTxt">Falta ${{ venta.total|floatformat:"2" }}</span>
+                            <span class="vdt-pago-cierre-total">Total <strong id="vdtTotalsGrandValue">${{ venta.total|floatformat:"2" }}</strong></span>
+                        </div>
+                        <div class="vdt-pago-cierre-recargo" id="vdtRecargoResumen" hidden>
+                            <strong id="vdtRecargoProductos">$0,00</strong> productos + <strong id="vdtRecargoMonto">$0,00</strong> de recargo/interés
+                        </div>
                     </div>
                 </div>
 

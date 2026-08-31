@@ -4,7 +4,7 @@
 {% block title %}Nueva Venta{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'ventas/css/ventas.css' %}?v=20260903">
+<link rel="stylesheet" href="{% static 'ventas/css/ventas.css' %}?v=20260906">
 <style>
     /* Chip de origen del lote — no existe en ventas.css porque es una
        función nueva (escaneo de lote específico vs. más viejo/FIFO). */
@@ -46,33 +46,22 @@
     }
     .vta-notice--error svg { color: var(--danger, #EF4444); }
 
-    /* Pie de carrito compacto: total chico a la izquierda, botones a
-       la derecha, todo en una sola línea — sin ocupar una columna
-       entera como el sidebar original. */
-    .vta-cart-footer {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 1rem;
-        flex-wrap: wrap;
-        padding: .875rem 1.25rem;
-        border-top: 1px solid var(--border-color);
+    /* Pie del carrito: el total ya vive en la columna de cobro, así que
+       en desktop no se muestra nada. En pantalla angosta (cobro apilado
+       abajo) aparece solo el botón "Ir al cobro" como ancla de scroll. */
+    .vta-cart-footer { display: none; }
+    @media (max-width: 1024px) {
+        .vta-cart-footer.has-items {
+            display: block;
+            padding: .75rem 1rem;
+            border-top: 1px solid var(--border-color);
+        }
+        .vta-cart-footer.has-items .vta-cart-cobrar {
+            display: inline-flex;
+            width: 100%;
+            margin: 0;
+        }
     }
-    .vta-cart-footer-total {
-        font-size: .8125rem;
-        color: var(--text-muted);
-    }
-    .vta-cart-footer-total strong {
-        color: var(--brand-orange);
-        font-family: 'Plus Jakarta Sans', sans-serif;
-        font-size: .95rem;
-    }
-    .vta-cart-footer-actions {
-        display: flex;
-        gap: .6rem;
-        align-items: center;
-    }
-    .vta-cart-footer-actions .vta-btn { width: auto; margin: 0; }
 
     /* Botón de eliminar fila — copiado exacto de la regla que
        reemplaza a .cmp-btn-remove en compras.css, para que ambos
@@ -231,10 +220,8 @@
 
     <div id="vtaOfertaGlobal" class="vta-oferta-global" style="display:none;"></div>
 
-    <div id="vtaCartFooter" class="vta-cart-footer" style="display:none;">
-        <div class="vta-cart-footer-total">
-            <span id="vtaTotalItems">0</span> ítem(s) · Total: <strong id="vtaTotalMonto">$0,00</strong>
-        </div>
+    {# Solo el ancla de scroll "Ir al cobro" para pantalla angosta (oculto en desktop). #}
+    <div id="vtaCartFooter" class="vta-cart-footer">
         <button id="vtaBtnCobrar" class="vta-btn vta-btn-primary vta-cart-cobrar" type="button">
             Ir al cobro
         </button>
@@ -290,6 +277,7 @@
             <div><dt><kbd>Supr</kbd></dt><dd>Quitar el ítem elegido del carrito</dd></div>
             <div><dt><kbd>Enter</kbd></dt><dd>En el carrito: abrir descuento / oferta del ítem</dd></div>
             <div><dt><kbd>F3</kbd></dt><dd>Ir a los medios de pago</dd></div>
+            <div><dt><kbd>1</kbd>…<kbd>7</kbd></dt><dd>Elegir medio de pago (el número que muestra cada botón)</dd></div>
             <div><dt><kbd>F4</kbd></dt><dd>Confirmar la venta</dd></div>
             <div><dt><kbd>Esc</kbd></dt><dd>Volver al buscador</dd></div>
             <div><dt><kbd>F1</kbd></dt><dd>Abrir / cerrar esta guía</dd></div>
@@ -328,7 +316,7 @@ window.VTA_CONFIG = {
     ofertasVigentes:    JSON.parse(document.getElementById('vtaOfertasVigentes').textContent),
 };
 </script>
-<script src="{% static 'ventas/js/nueva_venta.js' %}?v=20260903"></script>
+<script src="{% static 'ventas/js/nueva_venta.js' %}?v=20260906"></script>
 
 {# Panel de cobro anclado — reusa el motor de detalle_venta.js #}
 <script src="{% static 'ventas/js/vendor/qrcode.min.js' %}"></script>
@@ -338,12 +326,12 @@ window.TICKET_VENDOR = {
     html2canvas: "{% static 'ventas/js/vendor/html2canvas.min.js' %}",
 };
 </script>
-<script src="{% static 'ventas/js/ticket_a4.js' %}?v=20260903"></script>
-<script src="{% static 'ventas/js/ticket_termica_80.js' %}?v=20260903"></script>
-<script src="{% static 'ventas/js/ticket_termica_58.js' %}?v=20260903"></script>
-<script src="{% static 'ventas/js/ticket_imprimir.js' %}?v=20260903"></script>
-<script src="{% static 'ventas/js/ticket_pdf.js' %}?v=20260903"></script>
-<script src="{% static 'ventas/js/detalle_venta.js' %}?v=20260903"></script>
-<script src="{% static 'ventas/js/panel_cobro.js' %}?v=20260903"></script>
+<script src="{% static 'ventas/js/ticket_a4.js' %}?v=20260906"></script>
+<script src="{% static 'ventas/js/ticket_termica_80.js' %}?v=20260906"></script>
+<script src="{% static 'ventas/js/ticket_termica_58.js' %}?v=20260906"></script>
+<script src="{% static 'ventas/js/ticket_imprimir.js' %}?v=20260906"></script>
+<script src="{% static 'ventas/js/ticket_pdf.js' %}?v=20260906"></script>
+<script src="{% static 'ventas/js/detalle_venta.js' %}?v=20260906"></script>
+<script src="{% static 'ventas/js/panel_cobro.js' %}?v=20260906"></script>
 {% endif %}
 {% endblock %}

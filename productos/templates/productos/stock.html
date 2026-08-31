@@ -11,6 +11,16 @@
 {% endblock %}
 
 {% block content %}
+{% if sin_permiso %}
+<div style="max-width:460px; margin:4rem auto; text-align:center; color:var(--text-secondary);">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" style="color:var(--text-muted);">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M12 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="12" cy="16.2" r="0.9" fill="currentColor"/>
+    </svg>
+    <p style="margin-top:1rem;">No tenés permiso para ver el stock.</p>
+</div>
+{% else %}
 <div>
 
     <!-- ── KPI Cards ── -->
@@ -393,10 +403,12 @@
         </div>
     </div>
 </div>
+{% endif %}
 
 {% endblock %}
 
 {% block extra_js %}
+{% if not sin_permiso %}
 <script>
 const URLS = {
     ajuste:    "{% url 'productos:stock_ajuste' %}",
@@ -405,4 +417,5 @@ const URLS = {
 const CSRF = "{{ csrf_token }}";
 </script>
 <script src="{% static 'productos/js/stock.js' %}"></script>
+{% endif %}
 {% endblock %}

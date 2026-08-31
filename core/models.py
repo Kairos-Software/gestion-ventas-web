@@ -26,6 +26,13 @@ PERMISOS_CHOICES = [
     # ── Módulo: Notificaciones ──────────────────────────────────────
     ('gestionar_notificaciones', 'Configurar reportes y alertas automáticas (mail/WhatsApp)'),
 
+    # ── Módulo: Estadísticas ──────────────────────────────────────
+    # Solo el panel "Resumen" (ganancia, pérdidas, posición financiera
+    # neta, facturación) — dato sensible del dueño. Las demás páginas de
+    # Estadísticas (Ventas, Compras, etc.) se rigen por el 'ver_' del
+    # módulo correspondiente.
+    ('ver_estadisticas', 'Ver el panel de Estadísticas (Resumen: ganancia, pérdidas, posición financiera)'),
+
     # ── Módulo: Cuentas de caja ───────────────────────────────────
     ('editar_cuentas',     'Cargar y editar cuentas de caja (tarjetas, billeteras, bancos)'),
 

@@ -83,6 +83,9 @@ def _resolver_rango(request, hoy):
 
 @login_required
 def resumen(request):
+    if not chequear_permiso(request.user, 'ver_estadisticas'):
+        return render(request, 'core/estadisticas/resumen.html', {'sin_permiso': True})
+
     hoy = timezone.localtime().date()
     preset, desde, hasta = _resolver_rango(request, hoy)
 

@@ -11,6 +11,17 @@
 
 {% block content %}
 
+{% if sin_permiso %}
+<div class="est-sin-permiso">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M12 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="12" cy="16.2" r="0.9" fill="currentColor"/>
+    </svg>
+    <p>No tenés permiso para ver el panel de Estadísticas.</p>
+</div>
+{% else %}
+
 {% include "core/estadisticas/_filtros.html" %}
 
 <!-- ══════════ POSICIÓN FINANCIERA NETA (tiempo real, no depende del filtro) ══════════ -->
@@ -196,9 +207,12 @@
     </div>
 </div>
 
+{% endif %}
+
 {% endblock %}
 
 {% block extra_js %}
+{% if not sin_permiso %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="{% static 'core/js/estadisticas.js' %}"></script>
 <script>
@@ -210,4 +224,5 @@
         initResumenBars();
     });
 </script>
+{% endif %}
 {% endblock %}

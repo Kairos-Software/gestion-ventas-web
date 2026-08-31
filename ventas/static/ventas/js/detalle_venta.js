@@ -145,10 +145,70 @@ function _pagoMediosDisponibles() {
     return medios;
 }
 
-function _pagoMediosOpts(seleccionado) {
-    return _pagoMediosDisponibles().map(m =>
-        `<option value="${m.value}" ${m.value === seleccionado ? 'selected' : ''}>${m.label}</option>`
-    ).join('');
+/** Íconos de cada medio de pago para los botones de acceso directo
+ *  (reemplazan al viejo <select> — ver _renderLineas). Trazo simple,
+ *  mismo lenguaje que el resto de los SVG inline del proyecto. */
+const _MEDIO_ICONOS = {
+    efectivo:      '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="2" y="5" width="16" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4"/><circle cx="10" cy="10" r="2.2" stroke="currentColor" stroke-width="1.4"/></svg>',
+    transferencia: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 7.5h10M11 4.5l3 3-3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 12.5H6M9 15.5l-3-3 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    debito:        '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="2.5" y="4.5" width="15" height="11" rx="1.8" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 8.5h15" stroke="currentColor" stroke-width="1.4"/></svg>',
+    credito:       '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="2.5" y="4.5" width="15" height="11" rx="1.8" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 8.5h15" stroke="currentColor" stroke-width="1.4"/><path d="M5 12h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+    qr:            '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="3" y="3" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="11" y="3" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="3" y="11" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.4"/><path d="M11 11h3v3M17 11.5V17h-5.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    cuotas:        '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="3" y="4.5" width="14" height="12" rx="1.6" stroke="currentColor" stroke-width="1.4"/><path d="M3 8.5h14M7 3v3M13 3v3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+    cheque:        '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="3" y="3.5" width="14" height="13" rx="1.6" stroke="currentColor" stroke-width="1.4"/><path d="M6 8h8M6 11h8M6 14h5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+};
+
+/** "Transferencia" es larga para el botón — el resto va con su label tal cual. */
+const _MEDIO_LABEL_CORTO = { transferencia: 'Transf.' };
+
+/** Botonera de medios de pago (acceso directo, uno al lado del otro) —
+ *  reemplaza al <select>. El activo queda resaltado; al tocar otro se
+ *  cambia el medio de la línea y se despliegan sus campos propios
+ *  (cuenta / plan de crédito / cuotas / cheque) más abajo en _renderLineas.
+ *  Cada botón lleva su número de atajo (1..N) — ver _vdtMedioKeyHandler. */
+function _pagoMediosBotones(l) {
+    return _pagoMediosDisponibles().map((m, i) => `
+        <button type="button" class="vdt-medio-tab${m.value === l.medio ? ' is-active' : ''}"
+                data-medio-btn="${m.value}" data-id="${l.id}"
+                aria-pressed="${m.value === l.medio ? 'true' : 'false'}" title="${m.label} (tecla ${i + 1})">
+            <span class="vdt-medio-tab-num" aria-hidden="true">${i + 1}</span>
+            ${_MEDIO_ICONOS[m.value] || ''}
+            <span>${_MEDIO_LABEL_CORTO[m.value] || m.label}</span>
+        </button>`).join('');
+}
+
+/** ¿El foco está en un campo donde el usuario está tipeando? — así los
+ *  atajos numéricos de medio de pago no roban dígitos a un monto. */
+function _esCampoEditablePago(el) {
+    if (!el) return false;
+    const t = el.tagName;
+    return t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT' || el.isContentEditable;
+}
+
+/** Cambia el medio de una línea y resetea lo que depende de él
+ *  (tarjeta / cuenta / plan de pagos). Preselecciona la cuenta real si
+ *  hay una sola posible para ese medio. Antes esto vivía en el handler
+ *  del <select data-campo="medio">; ahora lo dispara la botonera. */
+function _aplicarMedioALinea(linea, nuevoMedio) {
+    linea.medio         = nuevoMedio;
+    linea.tarjeta       = '';
+    linea.cuenta        = '';
+    linea.cantidadPagos = 1;
+    linea.aplicaRecargo = true; // se sugiere aplicado; el vendedor lo destilda si no corresponde
+    if (nuevoMedio === 'cuotas') {
+        if (!linea.fechaInicioCobro) linea.fechaInicioCobro = VDT.hoy || '';
+        if (!linea.modoCuotas) linea.modoCuotas = 'fijas';
+    }
+    if (nuevoMedio === 'cheque') {
+        linea.cheques = linea.cheques || [];
+        _recalcularMontoCheque(linea);
+    }
+    // Si solo hay UNA cuenta real posible para este medio (caso común:
+    // un solo banco/Mercado Pago propio), se preselecciona sola — menos
+    // clics para lo que va a elegir siempre igual.
+    const cuentasPosibles = _cuentasDisponiblesParaMedio(nuevoMedio);
+    if (cuentasPosibles.length === 1) linea.cuenta = String(cuentasPosibles[0].pk);
+    _renderLineas();
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -317,26 +377,58 @@ function _lineaAplicaRecargo(l) {
     return !!l.aplicaRecargo;
 }
 
-/** Monto de recargo de esta línea (en la moneda de la cuenta), sumado
- *  ENCIMA de l.monto — ver Venta.confirmar en el backend, que hace lo
- *  mismo: l.monto sigue cubriendo la porción del precio de venta. */
-function _recargoMontoLinea(l) {
-    if (!_lineaAplicaRecargo(l)) return 0;
-    return (l.monto || 0) * _recargoPctPara(l) / 100;
+/** % de recargo (tarjeta) o interés (cuotas) que aplica esta línea. 0 si ninguno. */
+function _extraPctLinea(l) {
+    if (l.medio === 'cuotas') return Math.max(0, l.interesPct || 0);
+    if (_lineaAplicaRecargo(l)) return _recargoPctPara(l);
+    return 0;
 }
 
-/** Plata que el cliente termina pagando de más sobre lo que cubre el
- *  precio de venta, sea cual sea el motivo: recargo de tarjeta/débito/QR/
- *  transferencia (ver _recargoMontoLinea) o interés de un pago financiado
- *  en cuotas (interesPct, ver _cuotasExtraHTML). Une ambos conceptos bajo
- *  un solo "Total a cobrar" — antes solo se contaba el recargo de tarjeta,
- *  así que una venta en cuotas con interés seguía mostrando el total de
- *  productos nomás, sin el interés cargado. */
-function _extraMontoLinea(l) {
-    if (l.medio === 'cuotas') {
-        return (l.monto || 0) * (l.interesPct || 0) / 100;
-    }
-    return _recargoMontoLinea(l);
+/** Porción del TOTAL DE PRODUCTOS (en ARS) que le toca cubrir a esta
+ *  línea: el total menos lo que ya cubren las demás. El recargo/interés
+ *  se calcula sobre ESTO (base fija), NO sobre el importe que se está
+ *  tipeando — así el "Total a cobrar" no salta mientras el cajero escribe
+ *  (para un pago único la base es siempre el total completo). */
+function _baseProductoLinea(l) {
+    const otras = pagoState.lineas.reduce(
+        (s, x) => (x.id === l.id ? s : s + _montoArsLinea(x)), 0
+    );
+    return Math.max(0, pagoState.total - otras);
+}
+
+/** Recargo/interés de la línea, EN LA MONEDA DE LA LÍNEA (0 si no aplica).
+ *  Va ENCIMA de l.monto — l.monto sigue siendo la porción del precio de
+ *  venta que cubre esta línea (contrato con el backend, ver Venta.confirmar).
+ *  Antes se calculaba sobre l.monto (el importe tipeado); ahora sobre la
+ *  base de productos, así el total no se mueve al escribir. */
+function _extraLinea(l) {
+    const pct = _extraPctLinea(l);
+    if (pct <= 0) return 0;
+    const cuenta = _cuentaPorId(l.cuenta);
+    // Cuenta en otra moneda: no hay "base de productos" en esa moneda,
+    // el recargo va sobre el importe de la línea (caso muy poco común).
+    const base = (cuenta && cuenta.moneda !== 'ARS') ? (l.monto || 0) : _baseProductoLinea(l);
+    return Math.round(base * pct) / 100;
+}
+const _recargoMontoLinea = _extraLinea;   // alias: mismo cálculo para el hint de la línea
+
+/** Recargo/interés de la línea convertido a ARS — para sumar en el cierre. */
+function _extraLineaArs(l) {
+    const extra = _extraLinea(l);
+    if (!extra) return 0;
+    const cuenta = _cuentaPorId(l.cuenta);
+    return (cuenta && cuenta.moneda !== 'ARS') ? extra * (l.cotizacion || 0) : extra;
+}
+
+/** Lo que paga el cliente por esta línea = porción de productos + recargo/
+ *  interés (en la moneda de la línea). Es lo que se muestra y se edita en
+ *  el campo "Importe". */
+function _montoPagadoLinea(l) {
+    return (l.monto || 0) + _extraLinea(l);
+}
+/** Inversa: dado lo que paga el cliente, la porción de productos (backend). */
+function _montoDesdePagado(l, pagado) {
+    return Math.max(0, Math.round(((pagado || 0) - _extraLinea(l)) * 100) / 100);
 }
 
 const CAMPO_ACEPTA_POR_MEDIO = {
@@ -448,7 +540,7 @@ function _cuotasExtraHTML(l) {
         ${libre ? `
         <div class="vdt-credito-total-libre">
             <span class="vdt-pago-cuotas-label">Total a cobrar</span>
-            <strong>${_fmtARS((l.monto || 0) * (1 + (l.interesPct || 0) / 100))}</strong>
+            <strong>${_fmtARS(_montoPagadoLinea(l))}</strong>
         </div>` : `
         <div>
             <span class="vdt-pago-cuotas-label">Primera cuota</span>
@@ -567,13 +659,13 @@ function _renderLineas() {
 
     contenedor.innerHTML = pagoState.lineas.map(l => `
     <div class="vdt-pago-linea-wrap" data-linea-id="${l.id}">
+        <div class="vdt-medio-tabs" role="group" aria-label="Medio de pago">
+            ${_pagoMediosBotones(l)}
+        </div>
         <div class="vdt-pago-linea">
-            <select class="vdt-pago-select" data-campo="medio" data-id="${l.id}">
-                ${_pagoMediosOpts(l.medio)}
-            </select>
             <input type="number" class="vdt-pago-monto" min="0" step="0.01"
-                   placeholder="Monto"
-                   value="${l.monto > 0 ? l.monto : ''}"
+                   placeholder="Importe que paga el cliente"
+                   value="${_montoPagadoLinea(l) > 0 ? _montoPagadoLinea(l).toFixed(2) : ''}"
                    ${l.medio === 'cheque' ? 'readonly title="Suma de los cheques cargados"' : ''}
                    data-campo="monto" data-id="${l.id}">
             <button class="vdt-pago-btn-quitar" data-id="${l.id}" title="Quitar">
@@ -607,28 +699,6 @@ function _renderLineas() {
             const linea = pagoState.lineas.find(l => l.id === id);
             if (!linea) return;
 
-            if (campo === 'medio') {
-                linea.medio  = el.value;
-                linea.tarjeta = '';
-                linea.cuenta = '';
-                linea.cantidadPagos = 1;
-                linea.aplicaRecargo = true; // se sugiere aplicado; el vendedor lo destilda si no corresponde
-                if (linea.medio === 'cuotas') {
-                    if (!linea.fechaInicioCobro) linea.fechaInicioCobro = VDT.hoy || '';
-                    if (!linea.modoCuotas) linea.modoCuotas = 'fijas';
-                }
-                if (linea.medio === 'cheque') {
-                    linea.cheques = linea.cheques || [];
-                    _recalcularMontoCheque(linea);
-                }
-                // Si solo hay UNA cuenta real posible para este medio (caso
-                // común: un solo banco/Mercado Pago propio), se preselecciona
-                // sola — menos clics para lo que va a elegir siempre igual.
-                const cuentasPosibles = _cuentasDisponiblesParaMedio(linea.medio);
-                if (cuentasPosibles.length === 1) linea.cuenta = String(cuentasPosibles[0].pk);
-                _renderLineas();
-                return;
-            }
             if (campo === 'tarjeta') {
                 linea.tarjeta = el.value;
                 linea.cantidadPagos = 1;
@@ -675,14 +745,21 @@ function _renderLineas() {
                 else _actualizarResumen();
                 return;
             }
-            linea[campo] = campo === 'monto' ? (parseFloat(el.value) || 0) : el.value;
+            if (campo === 'monto') {
+                // El campo es "lo que paga el cliente" (con recargo). Guardamos
+                // la porción de productos, que es el contrato con el backend.
+                linea.monto = _montoDesdePagado(linea, parseFloat(el.value));
+                linea._editadoManual = true;
+            } else {
+                linea[campo] = el.value;
+            }
             _actualizarResumen();
         });
         if (el.dataset.campo === 'monto') {
             el.addEventListener('input', () => {
                 const id    = parseInt(el.dataset.id, 10);
                 const linea = pagoState.lineas.find(l => l.id === id);
-                if (linea) { linea.monto = parseFloat(el.value) || 0; linea._editadoManual = true; _actualizarResumen(); }
+                if (linea) { linea.monto = _montoDesdePagado(linea, parseFloat(el.value)); linea._editadoManual = true; _actualizarResumen(); }
             });
         }
         if (el.dataset.campo === 'cotizacion') {
@@ -692,6 +769,15 @@ function _renderLineas() {
                 if (linea) { linea.cotizacion = parseFloat(el.value) || 0; _actualizarResumen(); }
             });
         }
+    });
+
+    contenedor.querySelectorAll('.vdt-medio-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const linea = pagoState.lineas.find(l => l.id === parseInt(btn.dataset.id, 10));
+            if (linea && linea.medio !== btn.dataset.medioBtn) {
+                _aplicarMedioALinea(linea, btn.dataset.medioBtn);
+            }
+        });
     });
 
     contenedor.querySelectorAll('.vdt-pago-btn-quitar').forEach(btn => {
@@ -725,78 +811,60 @@ function _renderLineas() {
     _actualizarResumen();
 }
 
+/** Bloque de cierre del pago (#vdtPagoResumen), un solo lugar:
+ *   - "Total" = productos + recargo/interés = lo que paga el cliente.
+ *     NO se mueve al tipear el importe: el recargo va clavado a la base
+ *     de productos (ver _extraLinea), no al importe tipeado.
+ *   - Estado: Falta $X / ✓ Pago cubierto / Sobra $X (color del bloque).
+ *   - Desglose "$X productos + $Y recargo/interés", solo si hay recargo. */
 function _actualizarResumen() {
+    // "asignado" y "pendiente" se miden en porción de productos (l.monto),
+    // que es lo mismo que medirlos en lo-que-paga-el-cliente contra el
+    // total con recargo (el recargo aparece en los dos lados y se cancela).
     const asignado  = pagoState.lineas.reduce((s, l) => s + _montoArsLinea(l), 0);
     const pendiente = pagoState.total - asignado;
     const exceso    = asignado - pagoState.total;
+    const cubierto  = Math.abs(pendiente) < 0.005 && pagoState.lineas.length > 0;
 
-    const resumenEl   = document.getElementById('vdtPagoResumen');
-    const asignadoEl  = document.getElementById('vdtPagoAsignado');
-    const pendienteEl = document.getElementById('vdtPagoPendiente');
+    const box = document.getElementById('vdtPagoResumen');
+    const txt = document.getElementById('vdtPagoEstadoTxt');
 
-    if (asignadoEl)  asignadoEl.textContent  = _fmtARS(asignado);
-    if (pendienteEl) pendienteEl.textContent  =
-        exceso > 0.005 ? `Exceso: ${_fmtARS(exceso)}` : _fmtARS(Math.max(0, pendiente));
-
-    if (resumenEl) {
-        resumenEl.className = 'vdt-pago-resumen ';
-        if (Math.abs(pendiente) < 0.005 && pagoState.lineas.length) {
-            resumenEl.classList.add('vdt-pago-resumen--ok');
-            resumenEl.innerHTML = `
-            <span>
-                <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style="vertical-align:middle;margin-right:4px">
-                    <path d="M2 7L5.5 10.5L12 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                Pago cubierto
-            </span>
-            <span>Total: <strong>${_fmtARS(asignado)}</strong></span>`;
-        } else if (exceso > 0.005) {
-            resumenEl.classList.add('vdt-pago-resumen--exceso');
-            resumenEl.innerHTML = `
-            <span>Asignado: <strong>${_fmtARS(asignado)}</strong></span>
-            <span>Exceso: <strong>${_fmtARS(exceso)}</strong></span>`;
-        } else {
-            resumenEl.classList.add('vdt-pago-resumen--pendiente');
-            resumenEl.innerHTML = `
-            <span>Asignado: <strong>${_fmtARS(asignado)}</strong></span>
-            <span>Pendiente: <strong>${_fmtARS(pendiente)}</strong></span>`;
-        }
+    if (box) {
+        box.className = 'vdt-pago-cierre ' + (
+            cubierto       ? 'vdt-pago-cierre--ok'      :
+            exceso > 0.005 ? 'vdt-pago-cierre--exceso'  :
+                             'vdt-pago-cierre--pendiente'
+        );
+    }
+    if (txt) {
+        txt.textContent =
+            cubierto       ? '✓ Pago cubierto'                :
+            exceso > 0.005 ? 'Sobra ' + _fmtARS(exceso)            :
+                             'Falta ' + _fmtARS(Math.max(0, pendiente));
     }
 
     _actualizarRecargoResumen();
     _actualizarEstadoConfirmar();
 }
 
-/** El recargo se suma ENCIMA del total (no cuenta para "pago cubierto",
- *  ver _montoArsLinea) — se muestra aparte, informativo, para que el
- *  vendedor sepa cuánto termina cobrando el cliente en total. Actualiza
- *  dos lugares: el resumen chico dentro de la pestaña "Medios de pago"
- *  (#vdtRecargoResumen) y el total grande de abajo (#vdtTotalsGrandValue),
- *  visible sin importar qué pestaña esté abierta. */
+/** "Total" = productos + Σ recargo/interés (lo que paga el cliente).
+ *  Estable al tipear porque _extraLinea va sobre la base de productos.
+ *  El desglose "$X productos + $Y recargo" solo aparece si hay recargo. */
 function _actualizarRecargoResumen() {
-    const totalRecargo = pagoState.lineas.reduce((s, l) => s + _extraMontoLinea(l), 0);
-    const hayRecargo = totalRecargo > 0.005;
-    const totalConRecargo = pagoState.total + totalRecargo;
+    const totalRecargo = pagoState.lineas.reduce((s, l) => s + _extraLineaArs(l), 0);
+    const hayRecargo   = totalRecargo > 0.005;
 
-    const el      = document.getElementById('vdtRecargoResumen');
+    const totalEl = document.getElementById('vdtTotalsGrandValue');
+    if (totalEl) totalEl.textContent = _fmtARS(pagoState.total + totalRecargo);
+
+    const recEl   = document.getElementById('vdtRecargoResumen');
+    const prodEl  = document.getElementById('vdtRecargoProductos');
     const montoEl = document.getElementById('vdtRecargoMonto');
-    const totalEl = document.getElementById('vdtTotalACobrar');
-    if (el) {
-        el.style.display = hayRecargo ? '' : 'none';
-        if (hayRecargo) {
-            if (montoEl) montoEl.textContent = _fmtARS(totalRecargo);
-            if (totalEl) totalEl.textContent = _fmtARS(totalConRecargo);
-        }
+    if (recEl) recEl.hidden = !hayRecargo;
+    if (hayRecargo) {
+        if (prodEl)  prodEl.textContent  = _fmtARS(pagoState.total);
+        if (montoEl) montoEl.textContent = _fmtARS(totalRecargo);
     }
-
-    const filaRecargo  = document.getElementById('vdtTotalsRecargoRow');
-    const valorRecargo = document.getElementById('vdtTotalsRecargoValue');
-    const labelGrande   = document.getElementById('vdtTotalsGrandLabel');
-    const valorGrande    = document.getElementById('vdtTotalsGrandValue');
-    if (filaRecargo) filaRecargo.style.display = hayRecargo ? '' : 'none';
-    if (valorRecargo) valorRecargo.textContent = _fmtARS(totalRecargo);
-    if (labelGrande) labelGrande.textContent = hayRecargo ? 'Total a cobrar' : 'Total';
-    if (valorGrande) valorGrande.textContent = _fmtARS(hayRecargo ? totalConRecargo : pagoState.total);
 }
 
 /** Habilita "Confirmar venta" solo cuando ya está todo cargado: fecha,
@@ -995,6 +1063,34 @@ if (VDT.esBorrador) {
 
     const btnAgregar = document.getElementById('vdtBtnAgregarPago');
     if (btnAgregar) btnAgregar.addEventListener('click', _agregarLinea);
+
+    // ── Atajos 1..9: eligen el medio de pago de la línea con foco (o la
+    //    última). No se activan tipeando en un campo, ni si otro handler
+    //    ya consumió la tecla (ej. la navegación por teclado del carrito
+    //    en nueva_venta.js hace preventDefault). initDetalleVenta se
+    //    puede re-llamar (una venta por vez): quitamos el anterior.
+    if (window._vdtMedioKeyHandler) {
+        document.removeEventListener('keydown', window._vdtMedioKeyHandler);
+    }
+    window._vdtMedioKeyHandler = function (e) {
+        if (e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey) return;
+        if (!/^[1-9]$/.test(e.key) || !pagoState.lineas.length) return;
+        const ae = document.activeElement;
+        if (_esCampoEditablePago(ae)) return;
+        if (ae && ae.closest && ae.closest('.vta-cobro-main, .vta-cart-list')) return;
+        const medios = _pagoMediosDisponibles();
+        const idx = parseInt(e.key, 10) - 1;
+        if (idx >= medios.length) return;
+        const wrap  = ae && ae.closest && ae.closest('.vdt-pago-linea-wrap');
+        let   linea = wrap ? pagoState.lineas.find(l => l.id === parseInt(wrap.dataset.lineaId, 10)) : null;
+        if (!linea) linea = pagoState.lineas[pagoState.lineas.length - 1];
+        e.preventDefault();
+        if (linea.medio !== medios[idx].value) _aplicarMedioALinea(linea, medios[idx].value);
+        document.querySelector(
+            `.vdt-pago-linea-wrap[data-linea-id="${linea.id}"] .vdt-medio-tab.is-active`
+        )?.focus();
+    };
+    document.addEventListener('keydown', window._vdtMedioKeyHandler);
 }
 
 /* ════════════════════════════════════════════════════════════════

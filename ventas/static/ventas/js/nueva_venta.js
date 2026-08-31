@@ -104,8 +104,6 @@ const cartFooter     = document.getElementById('vtaCartFooter');
 const cartCount      = document.getElementById('vtaCartCount');
 const btnCobrar      = document.getElementById('vtaBtnCobrar');
 const badge          = document.getElementById('vtaBadge');
-const totalItemsEl   = document.getElementById('vtaTotalItems');
-const totalMontoEl   = document.getElementById('vtaTotalMonto');
 const clienteVentaInput    = document.getElementById('vtaClienteInput');
 const clienteVentaDropdown = document.getElementById('vtaClienteDropdown');
 const clienteVentaClear    = document.getElementById('vtaClienteClear');
@@ -902,20 +900,28 @@ function _actualizarAvisoStockFila(fila, item) {
     }
 }
 
-/** Refresca el chip "−X%" colapsado de una fila sin reconstruirla. */
+/** Refresca el chip "−X%" colapsado de una fila sin reconstruirla. La
+ *  fila `.vta-cart-row-tags` ahora solo existe si hay un descuento activo
+ *  (antes también alojaba el botón "Descuento / oferta") — así que se
+ *  crea/elimina según haga falta. */
 function _refrescarTagDesc(fila, item) {
-    const cont = fila.querySelector('.vta-cart-row-tags');
-    if (!cont) return;
-    let chip = cont.querySelector('.vta-tag-desc');
+    let cont = fila.querySelector('.vta-cart-row-tags');
     if (_tieneDesc(item)) {
+        if (!cont) {
+            cont = document.createElement('div');
+            cont.className = 'vta-cart-row-tags';
+            const ancla = fila.querySelector('.vta-cart-alert-msg') || fila.querySelector('.vta-cart-row-mid');
+            ancla?.insertAdjacentElement('afterend', cont);
+        }
+        let chip = cont.querySelector('.vta-tag-desc');
         if (!chip) {
             chip = document.createElement('span');
             chip.className = 'vta-tag-desc';
             cont.prepend(chip);
         }
         chip.textContent = _txtTagDesc(item);
-    } else if (chip) {
-        chip.remove();
+    } else if (cont) {
+        cont.remove();
     }
 }
 
@@ -923,14 +929,14 @@ function _renderCarrito() {
     if (!carrito.length) {
         cartBody.innerHTML = '';
         cartEmpty.style.display  = 'block';
-        cartFooter.style.display = 'none';
+        if (cartFooter) cartFooter.classList.remove('has-items');
         if (cartCount) cartCount.textContent = '0 ítems';
         _navSelId = null;
         _actualizarBtnContinuar();
         return;
     }
     cartEmpty.style.display  = 'none';
-    cartFooter.style.display = 'flex';
+    if (cartFooter) cartFooter.classList.add('has-items');
 
     cartBody.innerHTML = carrito.map(item => {
         const bloqueado = !!item.etiqueta_balanza_pk;
@@ -961,17 +967,13 @@ function _renderCarrito() {
                     <span>×</span>
                     <input type="number" min="0" step="0.01" data-campo="precio" value="${item.precio}" ${ro}>
                 </div>
+                ${bloqueado ? '' : `<button type="button" class="vta-cart-row-edit" data-act="adv">${item.advOpen ? 'Ocultar' : 'Desc / oferta'}</button>`}
                 <div class="vta-cart-row-sub">${_tieneDesc(item) ? `<s>${_fmt(base, item.moneda)}</s>` : ''}${_fmt(sub, item.moneda)}</div>
             </div>
             ${insuf ? `<div class="vta-cart-alert-msg">Stock disponible: ${item.stock_actual}</div>` : ''}
-            ${bloqueado
-                ? (tag ? `<div class="vta-cart-row-tags">${tag}</div>` : '')
-                : `
-            <div class="vta-cart-row-tags">
-                ${tag}
-                <button type="button" class="vta-cart-row-edit" data-act="adv">${item.advOpen ? 'Ocultar' : 'Descuento / oferta'}</button>
-            </div>
-            <div class="vta-cart-row-adv${item.advOpen ? ' open' : ''}">
+            ${tag ? `<div class="vta-cart-row-tags">${tag}</div>` : ''}
+            ${!bloqueado && item.advOpen ? `
+            <div class="vta-cart-row-adv open">
                 <div>
                     <label>Descuento manual %</label>
                     <input type="number" min="0" max="100" step="0.01" data-campo="descuento" value="${item.descuento}">
@@ -984,7 +986,7 @@ function _renderCarrito() {
                     <label>Oferta vigente para este producto</label>
                     ${_selectOfertaAdv(item)}
                 </div>
-            </div>`}
+            </div>` : ''}
         </div>`;
     }).join('');
 
@@ -1187,9 +1189,7 @@ function _actualizarTotales() {
 
     _ofertaGlobalActual = ofertaGlobal ? { nombre: ofertaGlobal.nombre, porcentaje: pctGlobal } : null;
 
-    if (totalItemsEl) totalItemsEl.textContent = carrito.length;
     if (cartCount) cartCount.textContent = carrito.length + (carrito.length === 1 ? ' ítem' : ' ítems');
-    if (totalMontoEl) totalMontoEl.textContent = _fmtPeso(totalFinal);
     if (badge) { badge.textContent = carrito.length; badge.style.display = carrito.length ? 'inline-flex' : 'none'; }
 
     _renderOfertaGlobal(totalBruto, totalNeto, ofertaGlobal);

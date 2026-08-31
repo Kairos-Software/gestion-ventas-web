@@ -101,7 +101,7 @@
     {% if permisos.ventas or permisos.caja %}
     <div class="section-header">
         <h2>Hoy</h2>
-        {% if permisos.ventas %}<a href="{% url 'core:estadisticas' %}" class="view-all">Ver estadísticas completas →</a>{% endif %}
+        {% if perms_kai.ver_estadisticas %}<a href="{% url 'core:estadisticas' %}" class="view-all">Ver estadísticas completas →</a>{% endif %}
     </div>
     <div class="home-kpi-grid">
         {% if permisos.ventas %}
