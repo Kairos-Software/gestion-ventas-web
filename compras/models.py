@@ -1,3 +1,4 @@
+import re
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -477,6 +478,16 @@ class Compra(models.Model):
     # — Notas —
     notas      = models.TextField(blank=True)
 
+    # — Carga inicial de stock (herramienta "Factura inicial") —
+    # Una compra que SÍ mueve stock y crea lotes, pero NO genera ningún
+    # movimiento de caja ni deuda (se confirma con pagos=None). No aparece
+    # en el historial de Compras ni en Estadísticas — vive en su propio
+    # historial (ver compras/views_factura_inicial.py).
+    es_carga_inicial = models.BooleanField('Carga inicial de stock', default=False)
+    # Datos del comprobante "simulado" para poder reimprimir el PDF idéntico
+    # (emisor inventado, tipo/letra, receptor, y el snapshot del payload).
+    factura_inicial_datos = models.JSONField(null=True, blank=True)
+
     # — Auditoría —
     creado_por         = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
                              null=True, blank=True, related_name='compras_creadas')
@@ -493,7 +504,8 @@ class Compra(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.numero:
-            self.numero = _generar_numero_compra()
+            self.numero = (_generar_numero_factura_inicial() if self.es_carga_inicial
+                           else _generar_numero_compra())
         super().save(*args, **kwargs)
 
     # ── override delete() ────────────────────────────────────────
@@ -1149,16 +1161,37 @@ def descartar_borradores_vencidos(excluir_pk=None):
 #  HELPER — número correlativo
 # ══════════════════════════════════════════════════════════════════
 
+def _proximo_numero_compra(prefijo):
+    """
+    Próximo `numero` libre con formato `<prefijo>-NNNNN`.
+
+    Toma el MÁXIMO real ya usado con ese prefijo (no el del último id, que
+    puede ser de otra serie — CMP vs FIN) y le suma 1, con guarda contra
+    colisión. Mismo criterio que productos._proximo_correlativo().
+    """
+    patron = re.compile(rf'^{re.escape(prefijo)}-(\d+)$')
+    maximo = 0
+    for numero in (Compra.objects
+                   .filter(numero__startswith=f'{prefijo}-')
+                   .values_list('numero', flat=True)):
+        m = patron.match(numero or '')
+        if m:
+            maximo = max(maximo, int(m.group(1)))
+    n = maximo + 1
+    while Compra.objects.filter(numero=f'{prefijo}-{n:05d}').exists():
+        n += 1
+    return f'{prefijo}-{n:05d}'
+
+
 def _generar_numero_compra():
-    ultimo = Compra.objects.order_by('-id').first()
-    if not ultimo or not ultimo.numero:
-        numero = 1
-    else:
-        try:
-            numero = int(ultimo.numero.split('-')[-1]) + 1
-        except (ValueError, IndexError):
-            numero = Compra.objects.count() + 1
-    return f'CMP-{numero:05d}'
+    return _proximo_numero_compra('CMP')
+
+
+def _generar_numero_factura_inicial():
+    """Serie propia (FIN-) para las cargas iniciales de stock — no se
+    mezclan en la numeración de las compras reales (van a un historial
+    aparte, ver views_factura_inicial.py)."""
+    return _proximo_numero_compra('FIN')
 
 
 # ══════════════════════════════════════════════════════════════════

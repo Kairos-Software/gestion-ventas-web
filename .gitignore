@@ -31,6 +31,12 @@ Thumbs.db
 # Otros
 *.pid
 
+# Artefactos de testing / descargas de prueba (no son del proyecto)
+.playwright-mcp/
+/*.pdf
+/*.xlsx
+/*.xls
+
 # Certificados / claves ARCA (nunca al repo)
 secrets/
 *.key

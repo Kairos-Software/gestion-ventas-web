@@ -71,6 +71,7 @@ PERMISOS_CHOICES = [
     ('crear_compras',     'Crear nuevas compras'),
     ('editar_compras',    'Editar compras existentes'),   # ← NUEVO
     ('eliminar_compras',  'Eliminar compras'),            # ← NUEVO
+    ('usar_factura_inicial', 'Usar la herramienta Factura inicial (solo genera un PDF, no toca stock ni caja)'),
 
     # ── Módulo: Ventas ───────────────────────────────────────────────
     ('ver_ventas',        'Ver historial de ventas'),

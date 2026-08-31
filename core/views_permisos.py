@@ -20,7 +20,7 @@ SECCIONES_PERMISOS = (
     ('Administración', {'Usuarios', 'Permisos', 'Empresa', 'Notificaciones'}),
     ('Estadísticas', {'Estadisticas'}),
     ('Productos e inventario', {'Stock', 'Productos', 'Categorias', 'Descuento', 'Ofertas', 'Paquetes', 'Catalogo'}),
-    ('Compras y proveedores', {'Proveedores', 'Compras'}),
+    ('Compras y proveedores', {'Proveedores', 'Compras', 'Inicial'}),
     ('Clientes y ventas', {'Clientes', 'Ventas', 'Devoluciones', 'Presupuestos', 'Pedidos', 'Balanza'}),
     ('Caja y movimientos', {'Cuentas', 'Recargos', 'Caja', 'Turno', 'Transacciones', 'Gastos'}),
     ('Créditos y valores', {'Deudas', 'Deuda', 'Cobrar', 'Cobro', 'Cheques'}),

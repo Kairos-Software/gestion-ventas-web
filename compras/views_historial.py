@@ -33,6 +33,10 @@ class ListarComprasAjax(LoginRequiredMixin, View):
 
         qs = Compra.objects.filter(
             estado__in=[EstadoCompra.CONFIRMADA, EstadoCompra.ANULADA]
+        ).exclude(
+            # Las cargas iniciales de stock viven en su propio historial
+            # (Herramientas → Factura inicial), no acá.
+            es_carga_inicial=True
         ).prefetch_related(
             'items__producto',
             'items__proveedor',

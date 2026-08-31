@@ -106,8 +106,13 @@ class BuscarProductoAjax(LoginRequiredMixin, View):
            puntual, se agrega esa fila igual.
     """
 
+    # Permiso requerido para usar el buscador. Se lee como atributo de clase
+    # para que la herramienta "Factura inicial" (que reusa toda esta lógica
+    # de búsqueda pero es solo-PDF) pueda subclasar cambiando solo esto.
+    permiso_requerido = 'crear_compras'
+
     def get(self, request):
-        if not chequear_permiso(request.user, 'crear_compras'):
+        if not chequear_permiso(request.user, self.permiso_requerido):
             return JsonResponse({'error': 'Sin permiso.'}, status=403)
 
         base_qs = (
@@ -269,8 +274,10 @@ class BuscarProductoAjax(LoginRequiredMixin, View):
 class BuscarProveedorAjax(LoginRequiredMixin, View):
     """GET ?q=texto → lista de proveedores activos."""
 
+    permiso_requerido = 'crear_compras'
+
     def get(self, request):
-        if not chequear_permiso(request.user, 'crear_compras'):
+        if not chequear_permiso(request.user, self.permiso_requerido):
             return JsonResponse({'error': 'Sin permiso.'}, status=403)
 
         q  = request.GET.get('q', '').strip()

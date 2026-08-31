@@ -3,6 +3,7 @@ from . import views
 from . import views_historial
 from . import views_acciones
 from . import views_inventario
+from . import views_factura_inicial
 
 app_name = 'compras'
 
@@ -43,6 +44,19 @@ urlpatterns = [
     # ══════════════════════════════════════════════════════════════════
     path('documentos/subir/',    views.CompraDocumentoSubirAjax.as_view(),    name='documento_subir'),
     path('documentos/eliminar/', views.CompraDocumentoEliminarAjax.as_view(), name='documento_eliminar'),
+
+    # ══════════════════════════════════════════════════════════════════
+    #  HERRAMIENTA — Factura inicial (compra real sin caja, historial propio)
+    # ══════════════════════════════════════════════════════════════════
+    path('factura-inicial/',                    views_factura_inicial.FacturaInicialView.as_view(),               name='factura_inicial'),
+    path('factura-inicial/historial/',          views_factura_inicial.FacturaInicialHistorialView.as_view(),      name='factura_inicial_historial'),
+    path('factura-inicial/buscar/productos/',   views_factura_inicial.FacturaInicialBuscarProductoAjax.as_view(), name='factura_inicial_buscar_producto'),
+    path('factura-inicial/buscar/proveedores/', views_factura_inicial.FacturaInicialBuscarProveedorAjax.as_view(),name='factura_inicial_buscar_proveedor'),
+    path('factura-inicial/crear/',              views_factura_inicial.FacturaInicialCrearAjax.as_view(),          name='factura_inicial_crear'),
+    path('factura-inicial/listar/',             views_factura_inicial.FacturaInicialListarAjax.as_view(),         name='factura_inicial_listar'),
+    path('factura-inicial/reimprimir/',         views_factura_inicial.FacturaInicialReimprimirAjax.as_view(),     name='factura_inicial_reimprimir'),
+    path('factura-inicial/anular/',             views_factura_inicial.FacturaInicialAnularAjax.as_view(),         name='factura_inicial_anular'),
+    path('factura-inicial/eliminar/',           views_factura_inicial.FacturaInicialEliminarAjax.as_view(),       name='factura_inicial_eliminar'),
 
     # ══════════════════════════════════════════════════════════════════
     #  INVENTARIO

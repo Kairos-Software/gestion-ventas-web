@@ -26,10 +26,14 @@ SUBTOTAL_EXPR = ExpressionWrapper(
 )
 
 
+# Las cargas iniciales de stock (herramienta "Factura inicial") NO son
+# compras del período: no salió plata, es un ajuste de apertura. Se
+# excluyen de todas las estadísticas de compras.
 def _items_confirmados(desde, hasta):
     return (
         ItemCompra.objects
         .filter(compra__estado=EstadoCompra.CONFIRMADA, compra__fecha__range=(desde, hasta))
+        .exclude(compra__es_carga_inicial=True)
         .annotate(subtotal_calc=SUBTOTAL_EXPR)
     )
 
@@ -45,7 +49,8 @@ def resumen_compras(desde, hasta):
     return {
         'total_comprado': total_comprado,
         'cantidad_compras': Compra.objects.filter(
-            estado=EstadoCompra.CONFIRMADA, fecha__range=(desde, hasta)).count(),
+            estado=EstadoCompra.CONFIRMADA, fecha__range=(desde, hasta)
+        ).exclude(es_carga_inicial=True).count(),
     }
 
 
@@ -80,6 +85,7 @@ def serie_mensual(hoy, meses=12):
     compras_por_mes = (
         ItemCompra.objects
         .filter(compra__estado=EstadoCompra.CONFIRMADA, compra__fecha__gte=primer_mes)
+        .exclude(compra__es_carga_inicial=True)
         .annotate(subtotal_calc=SUBTOTAL_EXPR, mes=TruncMonth('compra__fecha'))
         .values('mes')
         .annotate(total=Sum('subtotal_calc'))
