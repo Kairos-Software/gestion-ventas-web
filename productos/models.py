@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal
 
 from django.db import models, transaction
@@ -476,31 +477,46 @@ def _producto_imagen_path(instance, filename):
     return f'productos/{carpeta}/{nombre_limpio}'
 
 
+def _proximo_correlativo(prefijo):
+    """
+    Devuelve el próximo código libre con formato `<prefijo>-NNNNN`.
+
+    Toma el número MÁS ALTO ya usado con ese prefijo — NO el del último
+    producto creado. Este último puede tener un código tipeado a mano o
+    importado de otro sistema (ej. este cliente importó cientos de productos
+    con códigos numéricos pelados), y sumarle 1 genera códigos `PRD-` con
+    números arbitrarios que tarde o temprano chocan contra uno ya existente
+    (IntegrityError → 500 → "Error de conexión" en cada alta con código vacío).
+
+    Si el candidato ya existe igual (colisión con un código cargado a mano
+    con este mismo prefijo), sigue subiendo hasta encontrar uno libre.
+    """
+    patron = re.compile(rf'^{re.escape(prefijo)}-(\d+)$')
+    maximo = 0
+    codigos = (Producto.objects
+               .filter(codigo__startswith=f'{prefijo}-')
+               .values_list('codigo', flat=True))
+    for codigo in codigos:
+        m = patron.match(codigo or '')
+        if m:
+            maximo = max(maximo, int(m.group(1)))
+
+    numero = maximo + 1
+    # Blindaje final contra colisión (código idéntico tipeado a mano).
+    while Producto.objects.filter(codigo=f'{prefijo}-{numero:05d}').exists():
+        numero += 1
+    return f'{prefijo}-{numero:05d}'
+
+
 def _generar_codigo_producto():
-    ultimo = Producto.objects.filter(es_paquete=False).order_by('-id').first()
-    if not ultimo or not ultimo.codigo:
-        numero = 1
-    else:
-        try:
-            numero = int(ultimo.codigo.split('-')[-1]) + 1
-        except (ValueError, IndexError):
-            numero = Producto.objects.filter(es_paquete=False).count() + 1
-    return f'PRD-{numero:05d}'
+    return _proximo_correlativo('PRD')
 
 
 def _generar_codigo_paquete():
     """Mismo esquema que _generar_codigo_producto() pero con prefijo
     propio (PCK-) para que un paquete se distinga a simple vista de un
     producto normal (PRD-) en listados, buscadores y reportes."""
-    ultimo = Producto.objects.filter(es_paquete=True).order_by('-id').first()
-    if not ultimo or not ultimo.codigo:
-        numero = 1
-    else:
-        try:
-            numero = int(ultimo.codigo.split('-')[-1]) + 1
-        except (ValueError, IndexError):
-            numero = Producto.objects.filter(es_paquete=True).count() + 1
-    return f'PCK-{numero:05d}'
+    return _proximo_correlativo('PCK')
 
 
 def generar_codigo_barras_paquete():
