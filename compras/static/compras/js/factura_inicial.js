@@ -28,6 +28,15 @@ let provNombre = '';
 let _pagoLineas = [];     // [{ medio, monto, cuotas, interes_pct, banco, numero_cheque, fecha, detalle }]
 let _confirmada = false;
 
+/* Ventana del carrito — en cargas de cientos de ítems no renderizamos
+   todo de una: se muestran los primeros N (el ítem recién agregado entra
+   arriba de todo) y el resto queda detrás de "Mostrar más" o del filtro. */
+const FI_CARRITO_LIMITE = 10;   // filas visibles antes de "Mostrar más"
+const FI_FILTRO_DESDE   = 10;   // a partir de cuántos ítems aparece el filtro
+let _carritoLimite = FI_CARRITO_LIMITE;
+let _carritoVerTodo = false;
+let _carritoFiltro = '';
+
 /* Íconos de cada medio de pago para la botonera — mismo lenguaje que
    detalle_venta.js (Nueva Venta). */
 const FI_MEDIO_ICONOS = {
@@ -86,6 +95,10 @@ const searchDropdown = $('fiSearchDropdown');
 const cartBody = $('fiCartBody');
 const cartEmpty = $('fiCartEmpty');
 const cartCount = $('fiCartCount');
+const cartFilter = $('fiCartFilter');
+const cartFilterInput = $('fiCartFilterInput');
+const cartFilterClear = $('fiCartFilterClear');
+const cartMore = $('fiCartMore');
 const badge = $('fiBadge');
 const btnPdf = $('fiBtnPdf');
 const btnImprimir = $('fiBtnImprimir');
@@ -150,20 +163,45 @@ document.addEventListener('click', e => {
     if (!searchInput.contains(e.target) && !searchDropdown.contains(e.target)) searchDropdown.classList.remove('open');
 });
 
+/* ── Filtro de ítems ya agregados (para cargas largas) ── */
+function _filtroLimpiar() {
+    _carritoFiltro = '';
+    if (cartFilterInput) cartFilterInput.value = '';
+    if (cartFilterClear) cartFilterClear.hidden = true;
+}
+if (cartFilterInput) {
+    cartFilterInput.addEventListener('input', () => {
+        _carritoFiltro = cartFilterInput.value;
+        if (cartFilterClear) cartFilterClear.hidden = !cartFilterInput.value;
+        _render();
+    });
+}
+if (cartFilterClear) {
+    cartFilterClear.addEventListener('click', () => {
+        _filtroLimpiar();
+        _render();
+        if (cartFilterInput) cartFilterInput.focus();
+    });
+}
+
 /* ════════════════════════════════════════════════════════════════
    CARRITO
 ════════════════════════════════════════════════════════════════ */
 function _agregarItem(fila) {
-    const ex = carrito.find(i =>
+    _filtroLimpiar();   // que el ítem que se agrega quede siempre a la vista
+    const idx = carrito.findIndex(i =>
         String(i.producto_pk) === String(fila.producto_pk) &&
         (i.combinacion_pk || null) === (fila.combinacion_pk || null));
-    if (ex) {
+    if (idx !== -1) {
+        const ex = carrito[idx];
         ex.cantidad = _num(ex.cantidad) + 1;
+        carrito.splice(idx, 1);
+        carrito.unshift(ex);          // se mueve arriba de todo
         _render();
         _toast('Cantidad actualizada', fila.nombre);
         return;
     }
-    carrito.push({
+    carrito.unshift({
         id: nextId++,
         producto_pk: fila.producto_pk,
         combinacion_pk: fila.combinacion_pk || null,
@@ -202,6 +240,8 @@ function _render() {
         cartEmpty.style.display = 'block';
         cartCount.textContent = '0 ítems';
         if (badge) badge.style.display = 'none';
+        if (cartFilter) cartFilter.hidden = true;
+        if (cartMore) cartMore.hidden = true;
         btnPdf.disabled = true;
         if (btnImprimir) btnImprimir.disabled = true;
         _recalc();
@@ -213,7 +253,23 @@ function _render() {
     btnPdf.disabled = false;
     if (btnImprimir) btnImprimir.disabled = false;
 
-    cartBody.innerHTML = carrito.map(item => {
+    // ── Ventana visible: filtro / "mostrar más" ──
+    if (cartFilter) cartFilter.hidden = carrito.length < FI_FILTRO_DESDE;
+    const _filtro = _carritoFiltro.trim().toLowerCase();
+    const _hayFiltro = !!_filtro && !!cartFilter && !cartFilter.hidden;
+    let _visibles, _truncado = 0;
+    if (_hayFiltro) {
+        _visibles = carrito.filter(i =>
+            (i.producto_nombre || '').toLowerCase().includes(_filtro) ||
+            (i.codigo || '').toLowerCase().includes(_filtro));
+    } else if (_carritoVerTodo || carrito.length <= _carritoLimite) {
+        _visibles = carrito;
+    } else {
+        _visibles = carrito.slice(0, _carritoLimite);
+        _truncado = carrito.length - _visibles.length;
+    }
+
+    cartBody.innerHTML = _visibles.map(item => {
         const base = _calcBase(item), sub = _calcSub(item);
         const conDesc = item.descuento && sub !== base;
         return `
@@ -272,7 +328,44 @@ function _render() {
     cartBody.querySelectorAll('[data-campo]').forEach(el => {
         el.addEventListener('change', () => _updateField(parseInt(el.dataset.id, 10), el.dataset.campo, el.value));
     });
+    _renderCartMore({ hayFiltro: _hayFiltro, filtro: _filtro, mostrados: _visibles.length, truncado: _truncado });
     _recalc();
+}
+
+function _renderCartMore({ hayFiltro, filtro, mostrados, truncado }) {
+    if (!cartMore) return;
+    if (hayFiltro) {
+        cartMore.hidden = false;
+        cartMore.className = 'fi-cart-more fi-cart-more--filtro';
+        cartMore.innerHTML = mostrados
+            ? `<span><strong>${mostrados}</strong> de ${carrito.length} ítems coinciden</span>
+               <span class="fi-cart-more-btns"><button type="button" data-cart-accion="limpiar-filtro">Quitar filtro</button></span>`
+            : `<span>Ningún ítem coincide con «${_esc(filtro)}»</span>
+               <span class="fi-cart-more-btns"><button type="button" data-cart-accion="limpiar-filtro">Ver todos</button></span>`;
+    } else if (truncado > 0) {
+        const paso = Math.min(FI_CARRITO_LIMITE, truncado);
+        cartMore.hidden = false;
+        cartMore.className = 'fi-cart-more';
+        cartMore.innerHTML = `
+            <span>Mostrando <strong>${mostrados}</strong> de ${carrito.length} ítems</span>
+            <span class="fi-cart-more-btns">
+                <button type="button" data-cart-accion="mas">Mostrar ${paso} más</button>
+                <button type="button" data-cart-accion="todos">Mostrar todos</button>
+            </span>`;
+    } else {
+        cartMore.hidden = true;
+        cartMore.innerHTML = '';
+        return;
+    }
+    cartMore.querySelectorAll('[data-cart-accion]').forEach(b => {
+        b.addEventListener('click', () => {
+            const a = b.dataset.cartAccion;
+            if (a === 'mas') _carritoLimite += FI_CARRITO_LIMITE;
+            else if (a === 'todos') _carritoVerTodo = true;
+            else if (a === 'limpiar-filtro') _filtroLimpiar();
+            _render();
+        });
+    });
 }
 
 function _updateField(id, campo, valor) {
