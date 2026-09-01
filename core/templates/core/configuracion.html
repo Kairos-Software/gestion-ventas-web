@@ -273,7 +273,9 @@
             </div>
             <div>
                 <h2>Cuentas de caja</h2>
-                <p>Tarjetas, billeteras y bancos. El efectivo se gestiona solo, no aparece acá.</p>
+                <p>Tarjetas, billeteras y bancos. El efectivo se gestiona solo, no aparece acá.
+                   La cuenta marcada <strong>★ Principal</strong> viene preseleccionada al cobrar, pagar,
+                   cargar compras, etc. — siempre se puede cambiar en el momento.</p>
             </div>
             <button type="button" class="btn btn-sm" style="background:var(--brand-orange); color:white; margin-left:auto;" data-bs-toggle="modal" data-bs-target="#cuentaModal" id="btnNuevaCuenta">+ Nueva cuenta</button>
         </div>
@@ -293,6 +295,7 @@
             <div class="config-row-info">
                 <div class="config-row-label">
                     {{ cuenta.nombre }}
+                    {% if cuenta.preferida %}<span class="config-badge config-badge-principal">★ Principal</span>{% endif %}
                     {% if cuenta.tipo == 'banco' %}<span class="config-badge">Banco</span>{% endif %}
                     {% if cuenta.es_credito %}<span class="config-badge config-badge-credito">Crédito</span>{% endif %}
                     {% if not cuenta.activa %}<span class="config-badge">Inactiva</span>{% endif %}
@@ -303,6 +306,9 @@
             </div>
             {% if puede_editar_cuentas %}
             <div style="display:flex; gap:0.4rem;">
+                {% if cuenta.activa and not cuenta.es_credito and not cuenta.preferida %}
+                <button type="button" class="btn btn-sm btn-outline-secondary btn-cuenta-principal">Marcar principal</button>
+                {% endif %}
                 <button type="button" class="btn btn-sm btn-outline-secondary btn-editar-cuenta">Editar</button>
                 <button type="button" class="btn btn-sm btn-outline-danger btn-baja-cuenta">{% if cuenta.activa %}Dar de baja{% else %}Reactivar{% endif %}</button>
             </div>
@@ -316,6 +322,42 @@
             </div>
         </div>
         {% endfor %}
+
+        <!-- ── Cuenta por defecto por medio de pago (sugerencia al cobrar) ── -->
+        <div class="config-row" style="flex-direction:column; align-items:stretch; gap:.75rem;">
+            <div class="config-row-info">
+                <div class="config-row-label">Cuenta por defecto por medio de pago</div>
+                <div class="config-row-desc">
+                    Al cobrar una venta, la cuenta que elijas acá ya aparece seleccionada para ese medio de pago.
+                    Es solo una sugerencia: el vendedor siempre puede cambiarla en el momento, y el resto de las
+                    cuentas siguen apareciendo en la lista.
+                </div>
+            </div>
+            {% if cuentas_para_cobro %}
+            <div class="cuentas-predet-grid">
+                {% for m in medios_predeterminables %}
+                <label class="cuentas-predet-item">
+                    <span>{{ m.label }}</span>
+                    <select class="form-select form-select-sm" data-medio="{{ m.valor }}">
+                        <option value="">— Sin predeterminada —</option>
+                        {% for c in cuentas_para_cobro %}
+                        <option value="{{ c.pk }}" {% if c.pk == m.cuenta_pk %}selected{% endif %}>
+                            {{ c.nombre }}{% if c.titular %} · {{ c.titular }}{% endif %} ({{ c.get_moneda_display }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </label>
+                {% endfor %}
+            </div>
+            <div>
+                <button type="button" id="btnGuardarCuentasPredet" class="btn btn-sm"
+                        style="background:var(--brand-orange); color:white;">Guardar predeterminadas</button>
+            </div>
+            <div id="cuentasPredetMsg" class="config-empresa-msg" style="padding:0;"></div>
+            {% else %}
+            <div class="config-row-desc">Cargá al menos una tarjeta, billetera o banco arriba para poder elegir predeterminadas.</div>
+            {% endif %}
+        </div>
     </div>
     {% endif %}
 
@@ -674,10 +716,12 @@
     window.CONFIG_CUENTAS_URLS = {
         guardar: "{% url 'core:cuenta_guardar' %}",
         baja:    "{% url 'core:cuenta_baja' %}",
+        predeterminadas: "{% url 'core:cuentas_predeterminadas_guardar' %}",
+        principal: "{% url 'core:cuenta_principal' %}",
     };
     window.CONFIG_ASISTENCIA_URLS = {
         guardar: "{% url 'asistencia:preferencias_guardar' %}",
     };
 </script>
-<script src="{% static 'core/js/configuracion.js' %}"></script>
+<script src="{% static 'core/js/configuracion.js' %}?v=20260910"></script>
 {% endblock %}

@@ -12,6 +12,14 @@ document.addEventListener('DOMContentLoaded', function () {
         return CUENTAS.filter(c => c.moneda === moneda);
     }
 
+    // pk de la cuenta principal del negocio si está dentro de `lista`
+    // (Configuración → Cuentas de caja). Sirve para preseleccionarla en
+    // los selects sin obligar a elegirla. '' si no aplica.
+    function cuentaPrincipalEn(lista) {
+        const p = (lista || CUENTAS).find(c => c.preferida);
+        return p ? String(p.pk) : '';
+    }
+
     // Depositar un cheque histórico (informativo) solo tiene sentido en una
     // cuenta bancaria real — mismo criterio que en Deudas/Cheques.
     function cuentasBancariasPorMoneda(moneda) {
@@ -247,8 +255,10 @@ document.addEventListener('DOMContentLoaded', function () {
     //    cheque real (crea un Cheque es_historico=True A_COBRAR) u otro (nota) ──
     function opcionesMedioPago() {
         const cuentas = cuentasPorMoneda(cMoneda.value);
-        let html = '<option value="">— Sin especificar —</option>';
-        html += cuentas.map(c => `<option value="cuenta:${c.pk}">${c.nombre}${c.titular ? ' · ' + c.titular : ''}</option>`).join('');
+        const princ = cuentaPrincipalEn(cuentas);
+        const sel = pk => (princ && String(pk) === princ) ? ' selected' : '';
+        let html = `<option value=""${princ ? '' : ' selected'}>— Sin especificar —</option>`;
+        html += cuentas.map(c => `<option value="cuenta:${c.pk}"${sel(c.pk)}>${c.nombre}${c.titular ? ' · ' + c.titular : ''}</option>`).join('');
         html += '<option value="cheque">Cheque</option>';
         html += '<option value="otro">Otro (nota)</option>';
         return html;
@@ -722,12 +732,17 @@ document.addEventListener('DOMContentLoaded', function () {
                 raMonto.max = d.saldo_pendiente;
                 raFecha.value = today;
                 raFecha.max = today;
-                poblarSelect(raCuenta, cuentasPorMoneda(d.moneda));
+                const cuentasAbono = cuentasPorMoneda(d.moneda);
+                poblarSelect(raCuenta, cuentasAbono, cuentaPrincipalEn(cuentasAbono));
                 raMsg.textContent = '';
             }
         }
 
         const cuentasCobro = cuentasPorMoneda(d.moneda);
+        const princCuota = cuentaPrincipalEn(cuentasCobro);
+        const cuentaCuotaOpts = () => cuentasCobro.map(cta =>
+            `<option value="${cta.pk}"${princCuota && String(cta.pk) === princCuota ? ' selected' : ''}>${cta.nombre}${cta.titular ? ' · ' + cta.titular : ''}</option>`
+        ).join('');
 
         cuotasBody.innerHTML = d.cuotas.map(c => {
             let accion = '-';
@@ -750,7 +765,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     <div class="cxc-cuota-confirmar">
                         <select id="cuentaCuota${c.pk}" class="cxc-cuota-select"
                                 onchange="onCuentaCuotaChange(this, ${c.pk}, ${c.monto}, '${d.moneda}', false)">
-                            ${cuentasCobro.map(cta => `<option value="${cta.pk}">${cta.nombre}${cta.titular ? ' · ' + cta.titular : ''}</option>`).join('')}
+                            ${cuentaCuotaOpts()}
                             <option value="__cheque__">— Cobrar con cheque —</option>
                         </select>
                         <button type="button" class="btn btn-primary btn--sm" onclick="confirmarCuotaCobro(${c.pk})">Confirmar</button>
@@ -760,7 +775,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     <div class="cxc-cuota-confirmar">
                         <select id="cuentaCuota${c.pk}" class="cxc-cuota-select"
                                 onchange="onCuentaCuotaChange(this, ${c.pk}, ${c.monto}, '${d.moneda}', true)">
-                            ${cuentasCobro.map(cta => `<option value="${cta.pk}">${cta.nombre}${cta.titular ? ' · ' + cta.titular : ''}</option>`).join('')}
+                            ${cuentaCuotaOpts()}
                             <option value="__cheque__">— Cobrar con cheque —</option>
                         </select>
                         <button type="button" class="btn btn-secondary btn--sm" onclick="confirmarCuotaCobro(${c.pk}, true)">Adelantar cobro</button>

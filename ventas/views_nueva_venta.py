@@ -24,7 +24,9 @@ from .models import (
 from core.permisos import chequear_permiso
 from core.services_arca import facturacion
 from core.services_arca.wsaa import ArcaError
-from caja.models import TurnoCaja, CuentaCaja, TipoCaja, TipoCuenta
+from caja.models import (
+    TurnoCaja, CuentaCaja, TipoCaja, TipoCuenta, CuentaPredeterminadaMedio,
+)
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -1301,6 +1303,15 @@ def construir_contexto_detalle(request, venta):
         ),
         'venta_moneda': moneda_venta,
         'cuentas_json': cuentas_json,
+        # Cuenta sugerida por defecto para cada medio de pago (débito/
+        # crédito/QR/transferencia) — ver caja.models.CuentaPredeterminadaMedio
+        # y detalle_venta.js _aplicarMedioALinea. Solo preselecciona; el
+        # vendedor cambia la cuenta a mano si hace falta.
+        'cuentas_predeterminadas_json': json.dumps(CuentaPredeterminadaMedio.como_dict()),
+        # Cuenta principal del negocio — fallback del panel de cobro
+        # cuando un medio no tiene su CuentaPredeterminadaMedio propia,
+        # y default del <select> de reembolso de devoluciones.
+        'cuenta_principal_pk': CuentaCaja.principal_pk(),
         'tarjetas_json': tarjetas_json,
         'recargos_json': recargos_json,
         'url_confirmar':         reverse('ventas:confirmar_venta'),

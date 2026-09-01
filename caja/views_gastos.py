@@ -90,6 +90,7 @@ class GastosView(LoginRequiredMixin, TemplateView):
                 'moneda': c.moneda,
                 'es_credito': c.es_credito,
                 'titular': c.titular,
+                'preferida': c.preferida,
             }
             for c in cuentas
         ])

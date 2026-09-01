@@ -203,11 +203,21 @@ function _aplicarMedioALinea(linea, nuevoMedio) {
         linea.cheques = linea.cheques || [];
         _recalcularMontoCheque(linea);
     }
-    // Si solo hay UNA cuenta real posible para este medio (caso común:
-    // un solo banco/Mercado Pago propio), se preselecciona sola — menos
-    // clics para lo que va a elegir siempre igual.
+    // Preselección de la cuenta real destino, en orden de prioridad:
+    //  1) cuenta por defecto de ESTE medio (Configuración → Cuentas de caja);
+    //  2) la cuenta principal del negocio (si sirve para este medio);
+    //  3) la única cuenta posible, si hay una sola.
+    // El <select> igual muestra todas y se puede cambiar a mano.
     const cuentasPosibles = _cuentasDisponiblesParaMedio(nuevoMedio);
-    if (cuentasPosibles.length === 1) linea.cuenta = String(cuentasPosibles[0].pk);
+    const enLista = pk => cuentasPosibles.some(c => String(c.pk) === String(pk));
+    const predetPk = (VDT.cuentasPredeterminadas || {})[nuevoMedio];
+    if (predetPk && enLista(predetPk)) {
+        linea.cuenta = String(predetPk);
+    } else if (VDT.cuentaPrincipalPk && enLista(VDT.cuentaPrincipalPk)) {
+        linea.cuenta = String(VDT.cuentaPrincipalPk);
+    } else if (cuentasPosibles.length === 1) {
+        linea.cuenta = String(cuentasPosibles[0].pk);
+    }
     _renderLineas();
 }
 

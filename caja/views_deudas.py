@@ -160,7 +160,7 @@ class DeudasView(LoginRequiredMixin, TemplateView):
         cuentas = CuentaCaja.objects.filter(caja=TipoCaja.GRANDE, activa=True).order_by('orden', 'nombre')
         ctx['cuentas_json'] = json.dumps([
             {'pk': c.pk, 'nombre': c.nombre, 'moneda': c.moneda, 'es_credito': c.es_credito,
-             'tipo': c.tipo, 'titular': c.titular}
+             'tipo': c.tipo, 'titular': c.titular, 'preferida': c.preferida}
             for c in cuentas
         ])
         ctx['today'] = timezone.localtime().date().isoformat()

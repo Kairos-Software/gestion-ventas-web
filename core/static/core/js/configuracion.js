@@ -453,6 +453,26 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         });
 
+        // ── Marcar cuenta principal ──
+        document.querySelectorAll('.btn-cuenta-principal').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const row = btn.closest('.cuenta-row');
+                btn.disabled = true;
+                fetch(urls.principal, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+                    body: JSON.stringify({ pk: row.dataset.pk }),
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) { KaiToast.show(data.error, 'danger'); btn.disabled = false; return; }
+                    if (window.KaiToast) KaiToast.show('Cuenta principal actualizada.', 'success');
+                    window.location.reload();
+                })
+                .catch(() => { KaiToast.show('Error de conexión. Intentá de nuevo.', 'danger'); btn.disabled = false; });
+            });
+        });
+
         formCuenta.addEventListener('submit', function (e) {
             e.preventDefault();
             const msg = document.getElementById('cuentaMsg');
@@ -482,5 +502,39 @@ document.addEventListener('DOMContentLoaded', function () {
                 window.location.reload();
             });
         });
+
+        // ── Cuenta por defecto por medio de pago ──
+        const btnPredet = document.getElementById('btnGuardarCuentasPredet');
+        if (btnPredet && urls.predeterminadas) {
+            const msgPredet = document.getElementById('cuentasPredetMsg');
+            btnPredet.addEventListener('click', function () {
+                const payload = {};
+                document.querySelectorAll('.cuentas-predet-grid select[data-medio]').forEach(function (sel) {
+                    payload[sel.dataset.medio] = sel.value || null;
+                });
+                btnPredet.disabled = true;
+                if (msgPredet) { msgPredet.style.color = ''; msgPredet.textContent = 'Guardando…'; }
+                fetch(urls.predeterminadas, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+                    body: JSON.stringify(payload),
+                })
+                .then(r => r.json())
+                .then(data => {
+                    btnPredet.disabled = false;
+                    if (data.error) {
+                        if (msgPredet) { msgPredet.style.color = '#e11d48'; msgPredet.textContent = data.error; }
+                        if (window.KaiToast) KaiToast.show(data.error, 'danger');
+                        return;
+                    }
+                    if (msgPredet) { msgPredet.style.color = '#16a34a'; msgPredet.textContent = 'Guardado.'; }
+                    if (window.KaiToast) KaiToast.show('Cuentas predeterminadas guardadas.', 'success');
+                })
+                .catch(() => {
+                    btnPredet.disabled = false;
+                    if (msgPredet) { msgPredet.style.color = '#e11d48'; msgPredet.textContent = 'Error de conexión. Intentá de nuevo.'; }
+                });
+            });
+        }
     }
 });

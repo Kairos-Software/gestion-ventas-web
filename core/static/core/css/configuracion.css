@@ -236,6 +236,30 @@ html { scroll-behavior: smooth; }
     border-color: rgba(242,106,27,0.25);
 }
 
+.config-badge-principal {
+    background: rgba(30,111,168,0.1);
+    color: var(--brand-blue);
+    border-color: rgba(30,111,168,0.25);
+}
+
+/* Cuenta por defecto por medio de pago (sección Cuentas de caja) */
+.cuentas-predet-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem 1rem;
+}
+.cuentas-predet-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+@media (max-width: 640px) {
+    .cuentas-predet-grid { grid-template-columns: 1fr; }
+}
+
 /* Badge de estado (Certificado cargado / Habilitada / etc.) */
 .config-status-badge {
     display: inline-flex;

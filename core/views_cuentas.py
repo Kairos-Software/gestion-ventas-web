@@ -13,7 +13,10 @@ from django.views import View
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 
-from caja.models import CuentaCaja, TipoCaja, TipoCuenta, CUENTA_EFECTIVO_DEFAULT_NOMBRE
+from caja.models import (
+    CuentaCaja, TipoCaja, TipoCuenta, CUENTA_EFECTIVO_DEFAULT_NOMBRE,
+    CuentaPredeterminadaMedio,
+)
 from productos.models import Moneda
 from .permisos import chequear_permiso
 
@@ -135,3 +138,73 @@ class CuentaEliminarAjax(LoginRequiredMixin, View):
         cuenta.activa = not cuenta.activa
         cuenta.save(update_fields=['activa'])
         return JsonResponse({'ok': True, 'activa': cuenta.activa})
+
+
+class CuentaPrincipalAjax(LoginRequiredMixin, View):
+    """POST {pk}. Marca esa cuenta como la principal del negocio y
+    desmarca cualquier otra — solo puede haber una. La principal viene
+    preseleccionada en todos los selectores de cuenta del sistema
+    (ver caja.models.CuentaCaja.preferida)."""
+
+    def post(self, request):
+        if not chequear_permiso(request.user, PERMISO):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            pk = json.loads(request.body).get('pk')
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        cuenta = CuentaCaja.objects.filter(
+            pk=pk, caja=TipoCaja.GRANDE, activa=True, es_credito=False,
+        ).first()
+        if not cuenta:
+            return JsonResponse(
+                {'error': 'Esa cuenta no puede ser la principal (tiene que estar activa y no ser tarjeta de crédito).'},
+                status=400,
+            )
+
+        CuentaCaja.objects.filter(preferida=True).exclude(pk=cuenta.pk).update(preferida=False)
+        if not cuenta.preferida:
+            cuenta.preferida = True
+            cuenta.save(update_fields=['preferida'])
+        return JsonResponse({'ok': True, 'pk': cuenta.pk})
+
+
+class CuentasPredeterminadasGuardarAjax(LoginRequiredMixin, View):
+    """POST JSON con la cuenta por defecto de cada medio de pago:
+    {"debito": <pk|null>, "credito": <pk|null>, "qr": ..., "transferencia": ...}
+    Solo es una sugerencia para el panel de cobro de Ventas — no cambia
+    ninguna venta ya hecha. pk vacío/None borra la predeterminada de ese
+    medio. Ver caja.models.CuentaPredeterminadaMedio."""
+
+    def post(self, request):
+        if not chequear_permiso(request.user, PERMISO):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        medios_validos = set(CuentaPredeterminadaMedio.Medio.values)
+
+        for medio, cuenta_pk in body.items():
+            if medio not in medios_validos:
+                continue
+            if not cuenta_pk:
+                CuentaPredeterminadaMedio.objects.filter(medio=medio).delete()
+                continue
+            cuenta = CuentaCaja.objects.filter(
+                pk=cuenta_pk, caja=TipoCaja.GRANDE, activa=True, es_credito=False,
+            ).exclude(tipo=TipoCuenta.EFECTIVO).first()
+            if not cuenta:
+                return JsonResponse(
+                    {'error': f'La cuenta elegida para {medio} no es válida como destino de cobro.'},
+                    status=400,
+                )
+            CuentaPredeterminadaMedio.objects.update_or_create(
+                medio=medio, defaults={'cuenta': cuenta},
+            )
+
+        return JsonResponse({'ok': True})

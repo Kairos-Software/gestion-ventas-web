@@ -9,7 +9,10 @@ from .models import DatosEmpresa, ConfiguracionArca, AmbienteArca, recalcular_sc
 from .permisos import chequear_permiso
 from .services_estadisticas.ventas import resumen_ganancia
 
-from caja.models import CuentaCaja, TipoCaja, CUENTA_EFECTIVO_DEFAULT_NOMBRE, TurnoCaja
+from caja.models import (
+    CuentaCaja, TipoCaja, TipoCuenta, CUENTA_EFECTIVO_DEFAULT_NOMBRE, TurnoCaja,
+    CuentaPredeterminadaMedio,
+)
 from compras.models import LoteCompra
 from productos.models import CategoriaProducto, EstadoProducto, Moneda, Producto
 from asistencia.models import CanalNotificacion, PreferenciaAsistencia
@@ -128,10 +131,21 @@ def configuracion(request):
         .exclude(nombre=CUENTA_EFECTIVO_DEFAULT_NOMBRE)
         .order_by('-activa', 'orden', 'nombre')
     )
+    # Cuentas que pueden ser destino de un cobro (para el selector de
+    # "cuenta por defecto por medio de pago"): activas, no tarjeta de
+    # crédito propia. El efectivo ya quedó afuera por nombre.
+    cuentas_para_cobro = [c for c in cuentas if c.activa and not c.es_credito]
+    _predet = CuentaPredeterminadaMedio.como_dict()
+    medios_predeterminables = [
+        {'valor': v, 'label': l, 'cuenta_pk': _predet.get(v)}
+        for v, l in CuentaPredeterminadaMedio.Medio.choices
+    ]
     return render(request, 'core/configuracion.html', {
         'datos_empresa':        DatosEmpresa.get_solo(),
         'puede_editar_empresa': chequear_permiso(request.user, 'editar_empresa'),
         'cuentas':              cuentas,
+        'cuentas_para_cobro':   cuentas_para_cobro,
+        'medios_predeterminables': medios_predeterminables,
         'puede_editar_cuentas': chequear_permiso(request.user, 'editar_cuentas'),
         'monedas':              Moneda.choices,
         # 'gestionar_notificaciones' está en PERMISOS_RESTRINGIDOS: solo

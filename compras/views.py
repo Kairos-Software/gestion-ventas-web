@@ -990,6 +990,10 @@ class DetalleCompraView(LoginRequiredMixin, View):
             'compra_moneda': moneda_compra,
             'subtotal_items': subtotal_items,
             'cuentas_json': cuentas_json,
+            # Cuenta principal del negocio — la línea de pago arranca con
+            # ésta preseleccionada en vez de "Efectivo". Ver
+            # caja.models.CuentaCaja.preferida y detalle_compra.js.
+            'cuenta_principal_pk': CuentaCaja.principal_pk(),
             'tarjetas_json': tarjetas_json,
             'proveedor_unico_compra': proveedor_unico,
             # — URLs para el JS del template —

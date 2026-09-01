@@ -91,7 +91,8 @@ class ChequesView(LoginRequiredMixin, TemplateView):
 
         cuentas = CuentaCaja.objects.filter(caja=TipoCaja.GRANDE, activa=True, es_credito=False).order_by('orden', 'nombre')
         ctx['cuentas_json'] = json.dumps([
-            {'pk': c.pk, 'nombre': c.nombre, 'moneda': c.moneda, 'tipo': c.tipo, 'titular': c.titular}
+            {'pk': c.pk, 'nombre': c.nombre, 'moneda': c.moneda, 'tipo': c.tipo,
+             'titular': c.titular, 'preferida': c.preferida}
             for c in cuentas
         ])
         ctx['today'] = timezone.localtime().date().isoformat()

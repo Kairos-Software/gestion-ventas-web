@@ -182,6 +182,14 @@ class CuentaCaja(models.Model):
     notas   = models.CharField(max_length=300, blank=True)
     orden   = models.PositiveSmallIntegerField(default=0)
 
+    # "Cuenta principal": la que viene preseleccionada en TODOS los
+    # selectores de cuenta del sistema (cobros, pagos, compras, gastos,
+    # cuotas...). Una sola marcada — lo garantiza el endpoint que la
+    # setea (core.views_cuentas.CuentaPrincipalAjax). Es solo un default:
+    # siempre se puede elegir otra en el momento. En Ventas, además, un
+    # medio de pago con CuentaPredeterminadaMedio propia le gana a esta.
+    preferida = models.BooleanField('Cuenta principal', default=False)
+
     fecha_alta         = models.DateTimeField(auto_now_add=True)
     fecha_modificacion = models.DateTimeField(auto_now=True)
 
@@ -217,6 +225,75 @@ class CuentaCaja(models.Model):
         ingresos = agregados['ingresos'] or 0
         egresos  = agregados['egresos'] or 0
         return ingresos - egresos
+
+    @classmethod
+    def principal(cls):
+        """La 'cuenta principal' marcada por el dueño (o None). Es la que
+        viene preseleccionada en todos los selectores de cuenta. Ver el
+        campo `preferida` y core.views_cuentas.CuentaPrincipalAjax."""
+        return cls.objects.filter(
+            preferida=True, activa=True, caja=TipoCaja.GRANDE, es_credito=False,
+        ).first()
+
+    @classmethod
+    def principal_pk(cls):
+        p = cls.principal()
+        return p.pk if p else None
+
+
+# ══════════════════════════════════════════════════════════════════
+#  CUENTA PREDETERMINADA POR MEDIO DE PAGO (sugerencia al cobrar)
+# ══════════════════════════════════════════════════════════════════
+
+class CuentaPredeterminadaMedio(models.Model):
+    """
+    A cuál de las cuentas reales del negocio va, POR DEFECTO, la plata de
+    cada medio de pago cuando se cobra una venta (débito/crédito/QR/
+    transferencia). Es SOLO una sugerencia para no tener que elegir la
+    misma cuenta en cada venta: el <select> del panel de cobro sigue
+    mostrando todas las cuentas y el vendedor puede cambiarla en el
+    momento (ver ventas/static/ventas/js/detalle_venta.js
+    _aplicarMedioALinea). El dueño la configura en Configuración →
+    Cuentas de caja.
+
+    Una fila por medio (máximo 4). Efectivo resuelve su cuenta solo,
+    cheque no elige "cuenta real" y cuotas es financiación propia: por
+    eso no están acá.
+    """
+
+    class Medio(models.TextChoices):
+        DEBITO        = 'debito',        'Débito'
+        CREDITO       = 'credito',       'Crédito'
+        QR            = 'qr',            'QR'
+        TRANSFERENCIA = 'transferencia', 'Transferencia'
+
+    medio  = models.CharField(max_length=20, choices=Medio.choices, unique=True)
+    cuenta = models.ForeignKey('caja.CuentaCaja', on_delete=models.CASCADE,
+                               related_name='+')
+
+    fecha_modificacion = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name        = 'Cuenta predeterminada por medio de pago'
+        verbose_name_plural = 'Cuentas predeterminadas por medio de pago'
+        ordering            = ['medio']
+
+    def __str__(self):
+        return f'{self.get_medio_display()} → {self.cuenta}'
+
+    @classmethod
+    def como_dict(cls):
+        """{'qr': 5, 'transferencia': 2, ...} — solo con las cuentas que
+        sirven de verdad como destino de un cobro (activa, caja GRANDE,
+        no es una tarjeta de crédito propia, no es Efectivo). Si una
+        cuenta deja de cumplir, su medio simplemente no aparece."""
+        out = {}
+        for r in cls.objects.select_related('cuenta'):
+            c = r.cuenta
+            if (c.activa and c.caja == TipoCaja.GRANDE
+                    and not c.es_credito and c.tipo != TipoCuenta.EFECTIVO):
+                out[r.medio] = c.pk
+        return out
 
 
 # ══════════════════════════════════════════════════════════════════

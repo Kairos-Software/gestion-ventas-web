@@ -1,5 +1,6 @@
 {% load static %}
 <script id="cuentas-data" type="application/json">{{ cuentas_json|safe }}</script>
+<script id="cuentas-predet-data" type="application/json">{{ cuentas_predeterminadas_json|safe }}</script>
 <script id="tarjetas-data" type="application/json">{{ tarjetas_json|safe }}</script>
 <script id="recargos-data" type="application/json">{{ recargos_json|safe }}</script>
 <script id="cuentas-reembolso-data" type="application/json">{{ cuentas_reembolso_json|safe }}</script>
@@ -50,6 +51,8 @@
             {% endfor %}
         ],
         cuentas: JSON.parse(document.getElementById('cuentas-data').textContent),
+        cuentasPredeterminadas: JSON.parse(document.getElementById('cuentas-predet-data').textContent),
+        cuentaPrincipalPk: {{ cuenta_principal_pk|default:"null" }},
         tarjetas: JSON.parse(document.getElementById('tarjetas-data').textContent),
         recargos: JSON.parse(document.getElementById('recargos-data').textContent),
         cuentasReembolso: JSON.parse(document.getElementById('cuentas-reembolso-data').textContent),

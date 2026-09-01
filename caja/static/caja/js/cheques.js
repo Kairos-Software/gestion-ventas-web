@@ -20,6 +20,14 @@ document.addEventListener('DOMContentLoaded', function () {
         return CUENTAS.filter(c => c.moneda === moneda && c.tipo === 'banco');
     }
 
+    // pk (string) de la cuenta principal del negocio si está en `lista`,
+    // para preseleccionarla. '' si no aplica (ej: la principal no es un
+    // banco y la lista pide solo bancos).
+    function cuentaPrincipalEn(lista) {
+        const p = (lista || CUENTAS).find(c => c.preferida);
+        return p ? String(p.pk) : '';
+    }
+
     function poblarSelect(select, opciones, seleccionarPk, placeholder) {
         select.innerHTML = `<option value="">${placeholder || '— Elegí una cuenta —'}</option>` +
             opciones.map(c => `<option value="${c.pk}">${c.nombre}${c.titular ? ' · ' + c.titular : ''}</option>`).join('');
@@ -405,7 +413,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // a_cobrar: pedir la cuenta de destino
         chequeConfirmarActual = pk;
-        poblarSelect(conf_cuenta_destino, cuentasBancariasPorMoneda(cheque.moneda));
+        const bancosDest = cuentasBancariasPorMoneda(cheque.moneda);
+        poblarSelect(conf_cuenta_destino, bancosDest, cuentaPrincipalEn(bancosDest));
         modalConfirmarCheque.hidden = false;
         document.body.style.overflow = 'hidden';
     };

@@ -86,6 +86,8 @@ urlpatterns = [
     # ── Cuentas de caja (tarjetas/billeteras/bancos — Configuración) ──
     path('configuracion/cuentas/guardar/', views_cuentas.CuentaCrearEditarAjax.as_view(), name='cuenta_guardar'),
     path('configuracion/cuentas/baja/', views_cuentas.CuentaEliminarAjax.as_view(), name='cuenta_baja'),
+    path('configuracion/cuentas/predeterminadas/guardar/', views_cuentas.CuentasPredeterminadasGuardarAjax.as_view(), name='cuentas_predeterminadas_guardar'),
+    path('configuracion/cuentas/principal/', views_cuentas.CuentaPrincipalAjax.as_view(), name='cuenta_principal'),
 
     # ── Reinicio de datos (solo superusuarios) ──────────────────────
     path('reiniciar/', views_reiniciar.ReiniciarSistemaAjax.as_view(), name='reiniciar_sistema'),

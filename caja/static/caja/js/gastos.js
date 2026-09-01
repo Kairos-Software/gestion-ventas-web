@@ -10,6 +10,13 @@ document.addEventListener('DOMContentLoaded', function () {
         const disponibles = CUENTAS.filter(c => c.moneda === moneda);
         selectEl.innerHTML = '<option value="">— Elegí una cuenta —</option>' +
             disponibles.map(c => `<option value="${c.pk}">${c.nombre}${c.titular ? ' · ' + c.titular : ''}${c.es_credito ? ' · crédito' : ''}</option>`).join('');
+        // Si no viene una cuenta puntual (caso: carga nueva), se
+        // preselecciona la cuenta principal del negocio si está en la
+        // lista (Configuración → Cuentas de caja).
+        if (!seleccionarPk) {
+            const principal = disponibles.find(c => c.preferida);
+            if (principal) seleccionarPk = principal.pk;
+        }
         if (seleccionarPk) {
             selectEl.value = String(seleccionarPk);
         }

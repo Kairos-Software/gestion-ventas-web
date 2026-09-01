@@ -887,10 +887,11 @@ window.CDT_CONFIG = {
     proveedorActualPk:     {{ proveedor_unico_compra.pk|default:"null" }},
     proveedorActualNombre: "{{ proveedor_unico_compra.nombre|default:'' }}",
     cuentas: JSON.parse(document.getElementById('cuentas-data').textContent),
+    cuentaPrincipalPk: {{ cuenta_principal_pk|default:"null" }},
     tarjetas: JSON.parse(document.getElementById('tarjetas-data').textContent),
 };
 </script>
-<script src="{% static 'compras/js/detalle_compra.js' %}"></script>
+<script src="{% static 'compras/js/detalle_compra.js' %}?v=20260910"></script>
 <script>
 function cdtActualizarBadge() {
     const total = document.getElementById('cdtDocLista')

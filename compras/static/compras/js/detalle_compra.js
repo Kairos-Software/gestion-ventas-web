@@ -147,6 +147,18 @@ function _cdtCuentaEfectivo() {
     return _cdtCuentasDisponibles().find(c => c.nombre === 'Efectivo' && c.moneda === 'ARS');
 }
 
+/** Cuenta con la que arranca una línea de pago nueva: la cuenta
+ *  principal del negocio (Configuración → Cuentas de caja) si está en
+ *  la lista, si no la de Efectivo. Solo un default — se cambia a mano. */
+function _cdtCuentaLineaDefault() {
+    const principalPk = CDT.cuentaPrincipalPk;
+    if (principalPk && _cdtCuentasDisponibles().some(c => String(c.pk) === String(principalPk))) {
+        return String(principalPk);
+    }
+    const efectivo = _cdtCuentaEfectivo();
+    return efectivo ? efectivo.pk : '';
+}
+
 /** Solo una cuenta bancaria real (chequera) puede usarse para pagar con
  *  cheque — no efectivo, no billeteras. Ver caja.cuenta_chequera_valida. */
 function _cdtCuentaEsBanco(cuentaPk) {
@@ -462,11 +474,10 @@ function _cdtActualizarEstadoConfirmar() {
 function _cdtPagoAgregarLinea() {
     const asignado = cdtPagoState.lineas.reduce((s, l) => s + _cdtMontoArsLinea(l), 0);
     const restante = Math.max(0, cdtPagoState.total - asignado);
-    const efectivo = _cdtCuentaEfectivo();
     cdtPagoState.lineas.push({
         id:    cdtPagoState.nextId++,
         monto: parseFloat(restante.toFixed(2)),
-        cuenta: efectivo ? efectivo.pk : '',
+        cuenta: _cdtCuentaLineaDefault(),
     });
     _cdtPagoRenderLineas();
 }
@@ -603,11 +614,10 @@ if (CDT.esBorrador) {
 
         if (reiniciarPago) {
             cdtPagoState.total = total;
-            const efectivo = _cdtCuentaEfectivo();
             cdtPagoState.lineas = [{
                 id:     cdtPagoState.nextId++,
                 monto:  parseFloat(total.toFixed(2)),
-                cuenta: efectivo ? efectivo.pk : '',
+                cuenta: _cdtCuentaLineaDefault(),
             }];
             _cdtPagoRenderLineas();
         }
@@ -619,12 +629,11 @@ if (CDT.esBorrador) {
     if (inputIvaIncluido) inputIvaIncluido.addEventListener('change', () => _cdtActualizarIvaUI(true));
 
     /* ── Widget de pagos: línea inicial con el total completo,
-           precargada en Efectivo si existe ──────────────────────── */
-    const cdtEfectivoInicial = _cdtCuentaEfectivo();
+           precargada en la cuenta principal (o Efectivo) ─────────── */
     cdtPagoState.lineas.push({
         id:    cdtPagoState.nextId++,
         monto: parseFloat(cdtPagoState.total.toFixed(2)),
-        cuenta: cdtEfectivoInicial ? cdtEfectivoInicial.pk : '',
+        cuenta: _cdtCuentaLineaDefault(),
     });
     _cdtPagoRenderLineas();
     _cdtActualizarIvaUI(false);
