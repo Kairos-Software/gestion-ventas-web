@@ -43,6 +43,7 @@ from core.permisos import chequear_permiso
 
 from .models import (
     Compra, ItemCompra, EstadoCompra, TipoDocumentoCompra, MedioPagoCompra,
+    _costo_para_lote,
 )
 from .views import BuscarProductoAjax
 
@@ -518,6 +519,16 @@ class FacturaInicialListarAjax(LoginRequiredMixin, View):
             qs = qs.filter(Q(numero__icontains=q) | Q(numero_comprobante__icontains=q)
                            | Q(notas__icontains=q))
 
+        # Filtro por PRODUCTO: solo las facturas iniciales que lo contienen.
+        prod_q = (request.GET.get('producto') or '').strip()
+        if prod_q:
+            qs = qs.filter(
+                Q(items__producto__nombre__icontains=prod_q)
+                | Q(items__producto__codigo__icontains=prod_q)
+                | Q(items__producto_nombre__icontains=prod_q)
+                | Q(items__producto_codigo__icontains=prod_q)
+            ).distinct()
+
         try:
             page = max(1, int(request.GET.get('page', 1)))
         except ValueError:
@@ -532,6 +543,26 @@ class FacturaInicialListarAjax(LoginRequiredMixin, View):
             if len(prov_ids) == 1:
                 p = c.items.exclude(proveedor__isnull=True).first()
                 prov_nombre = p.proveedor.nombre if p and p.proveedor else ''
+
+            # Si se filtró por producto, adjuntar las líneas que matchean
+            # para mostrarlas directo en la fila (con su cantidad).
+            items_match = []
+            if prod_q:
+                pql = prod_q.lower()
+                for it in c.items.all():
+                    nom = (it.producto.nombre if it.producto
+                           else it.producto_nombre) or ''
+                    cod = (it.producto.codigo if it.producto
+                           else it.producto_codigo) or ''
+                    if pql in nom.lower() or pql in cod.lower():
+                        items_match.append({
+                            'item_pk': it.pk,
+                            'producto': it.nombre_producto_display,
+                            'codigo': cod,
+                            'variante': it.nombre_combinacion_display,
+                            'cantidad': _fmt_dec(it.cantidad),
+                            'costo': str(_q(it.costo_unitario)),
+                        })
 
             datos = c.factura_inicial_datos or {}
             comp_info = datos.get('comprobante') or {}
@@ -552,12 +583,300 @@ class FacturaInicialListarAjax(LoginRequiredMixin, View):
                 'proveedor': prov_nombre,
                 'items': c.items.count(),
                 'total': str(c.total),
+                'items_match': items_match,
             })
 
         return JsonResponse({
             'rows': filas, 'page': page, 'total': total,
             'has_more': off + self.PAGE_SIZE < total,
+            'filtro_producto': prod_q,
         })
+
+
+# ══════════════════════════════════════════════════════════════════
+#  AJAX — ver / corregir los ítems de una factura inicial
+# ══════════════════════════════════════════════════════════════════
+
+def _serializar_item_fi(it, compra):
+    """Una línea de la factura inicial para el detalle desplegable."""
+    lote = it.lotes.filter(activo=True).first()
+    consumido = Decimal('0')
+    if lote is not None:
+        consumido = lote.cantidad_inicial - lote.cantidad_actual
+    prod = it.producto
+    return {
+        'item_pk': it.pk,
+        'producto': it.nombre_producto_display,
+        'codigo': it.producto_codigo or (prod.codigo if prod else ''),
+        'variante': it.nombre_combinacion_display,
+        'unidad': prod.get_unidad_medida_display() if prod else '',
+        'entero': bool(prod and not cantidad_valida_para_unidad(
+            prod.unidad_medida, Decimal('0.5'))),
+        'cantidad': _fmt_dec(it.cantidad),
+        'costo': str(_q(it.costo_unitario)),
+        'subtotal': str(it.subtotal),
+        'consumido': _fmt_dec(consumido) if consumido > 0 else '',
+        'editable': (compra.estado == EstadoCompra.CONFIRMADA
+                     and it.producto_id is not None),
+    }
+
+
+class FacturaInicialItemsAjax(LoginRequiredMixin, View):
+    """GET ?pk= → los ítems de una factura inicial (para el desplegable)."""
+
+    def get(self, request):
+        if not chequear_permiso(request.user, PERMISO):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+        compra = get_object_or_404(
+            Compra.objects.prefetch_related('items__producto', 'items__combinacion',
+                                            'items__lotes'),
+            pk=request.GET.get('pk'), es_carga_inicial=True)
+        items = [_serializar_item_fi(it, compra)
+                 for it in compra.items.all().order_by('id')]
+        return JsonResponse({
+            'ok': True,
+            'estado': compra.estado,
+            'total': str(compra.total),
+            'items': items,
+        })
+
+
+class FacturaInicialCorregirItemAjax(LoginRequiredMixin, View):
+    """
+    POST {item_pk, cantidad, costo}
+
+    Corrige UNA línea de una factura inicial CONFIRMADA sin anular todo
+    el comprobante:
+      - ajusta ItemCompra.cantidad / costo_unitario
+      - ajusta el LoteCompra de esa carga (cantidad + costo), respetando
+        lo que ya se haya consumido/vendido de ese lote
+      - ajusta el stock del producto vía MovimientoStock (queda auditado:
+        quién, cuándo, "Corrección FIN-xxxx: 9000 -> 90")
+      - recalcula el total de la factura y el costo/precio del producto
+      - regenera el PDF (factura_inicial_datos)
+    """
+
+    def post(self, request):
+        if not chequear_permiso(request.user, PERMISO):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        try:
+            with transaction.atomic():
+                item = (ItemCompra.objects
+                        .select_related('compra', 'producto', 'combinacion')
+                        .filter(pk=body.get('item_pk'),
+                                compra__es_carga_inicial=True)
+                        .first())
+                if item is None:
+                    raise ValueError('No se encontró la línea.')
+                # El lock va sobre la Compra (serializa correcciones
+                # concurrentes de la misma factura); no sobre el ítem, que
+                # con select_related de FKs nulables rompe el FOR UPDATE.
+                compra = Compra.objects.select_for_update().get(pk=item.compra_id)
+                if compra.estado != EstadoCompra.CONFIRMADA:
+                    raise ValueError('Solo se corrigen facturas iniciales '
+                                     'confirmadas.')
+                producto = item.producto
+                if producto is None:
+                    raise ValueError('El producto de esta línea fue eliminado.')
+
+                nueva_cant = _d(body.get('cantidad'))
+                nuevo_costo = _d(body.get('costo'))
+                if nueva_cant <= 0:
+                    raise ValueError('La cantidad debe ser mayor a 0. Usá '
+                                     '"Quitar" para eliminar la línea.')
+                if not cantidad_valida_para_unidad(producto.unidad_medida,
+                                                   nueva_cant):
+                    raise ValueError(
+                        f'"{producto.nombre}" se cuenta por '
+                        f'{producto.get_unidad_medida_display()} — la cantidad '
+                        f'tiene que ser entera.')
+                if nuevo_costo < 0:
+                    raise ValueError('El costo no puede ser negativo.')
+
+                vieja_cant = item.cantidad
+                delta = nueva_cant - vieja_cant
+
+                lotes = list(item.lotes.filter(activo=True))
+                if len(lotes) > 1:
+                    raise ValueError('Esta línea tiene más de un lote — '
+                                     'corregila desde Inventario.')
+                consumido = Decimal('0')
+                if lotes:
+                    consumido = lotes[0].cantidad_inicial - lotes[0].cantidad_actual
+                    if nueva_cant < consumido:
+                        raise ValueError(
+                            f'De esta carga ya se usaron/vendieron '
+                            f'{_fmt_dec(consumido)} unidades — no la podés dejar '
+                            f'en menos de eso.')
+
+                # Guarda a nivel stock (mensaje claro antes de MovimientoStock)
+                if delta < 0 and not producto.permite_stock_negativo:
+                    ref = (item.combinacion.stock_actual if item.combinacion_id
+                           else producto.stock_actual)
+                    if ref + delta < 0:
+                        raise ValueError(
+                            f'El stock actual es {_fmt_dec(ref)} — no podés bajar '
+                            f'esta carga en más de eso (ya se movió el resto).')
+
+                # ── aplicar ──
+                item.cantidad = nueva_cant
+                item.costo_unitario = _q(nuevo_costo)
+                item.save(update_fields=['cantidad', 'costo_unitario'])
+
+                if lotes:
+                    lote = lotes[0]
+                    lote.cantidad_inicial = nueva_cant
+                    lote.cantidad_actual = nueva_cant - consumido
+                    lote.costo_unitario = _costo_para_lote(item)
+                    lote.save(update_fields=['cantidad_inicial',
+                                             'cantidad_actual', 'costo_unitario'])
+
+                if producto.gestiona_stock and delta != 0:
+                    from productos.models import MovimientoStock, TipoMovimiento
+                    entrada = delta > 0
+                    mov = MovimientoStock(
+                        producto=producto,
+                        tipo=(TipoMovimiento.AJUSTE_POS if entrada
+                              else TipoMovimiento.AJUSTE_NEG),
+                        cantidad=abs(delta),
+                        motivo=(f'Corrección {compra.numero}: '
+                                f'{_fmt_dec(vieja_cant)} -> {_fmt_dec(nueva_cant)}'),
+                        referencia=compra.numero,
+                        usuario=request.user,
+                    )
+                    mov.save()  # ajusta producto.stock_actual + guarda
+                    if item.combinacion_id:
+                        comb = CombinacionVariante.objects.select_for_update().get(
+                            pk=item.combinacion_id)
+                        comb.stock_actual = comb.stock_actual + delta
+                        comb.save(update_fields=['stock_actual'])
+                        producto.sincronizar_stock_desde_combinaciones()
+
+                compra.calcular_total()
+                producto.actualizar_costo_y_precio()
+        except ValueError as e:
+            return JsonResponse({'error': str(e)}, status=400)
+
+        # Regenerar el payload del PDF con los datos ya corregidos.
+        compra.refresh_from_db()
+        datos = compra.factura_inicial_datos or {}
+        doc = {
+            'tipo_comprobante': ((datos.get('comprobante') or {}).get('tipo')
+                                 or TIPO_COMPROBANTE_DEFECTO),
+            'incluir_leyenda': datos.get('incluir_leyenda', True),
+        }
+        payload = _payload_desde_compra(compra, doc)
+        if datos.get('pago'):
+            payload['pago'] = datos['pago']  # ya normalizado, dejarlo tal cual
+        compra.factura_inicial_datos = payload
+        compra.save(update_fields=['factura_inicial_datos'])
+
+        producto.refresh_from_db()
+        item.refresh_from_db()
+        return JsonResponse({
+            'ok': True,
+            'total': str(compra.total),
+            'stock_actual': str(producto.stock_actual),
+            'item': _serializar_item_fi(item, compra),
+        })
+
+
+class FacturaInicialQuitarItemAjax(LoginRequiredMixin, View):
+    """
+    POST {item_pk} — saca una línea entera de una factura inicial
+    CONFIRMADA (producto cargado por error). Revierte su stock (con
+    MovimientoStock de auditoría), borra su lote y el ítem, y recalcula.
+    No se puede si de esa carga ya se consumió/vendió algo, ni si es la
+    única línea (para eso está Anular / Eliminar la factura entera).
+    """
+
+    def post(self, request):
+        if not chequear_permiso(request.user, PERMISO):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        try:
+            with transaction.atomic():
+                item = (ItemCompra.objects
+                        .select_related('compra', 'producto', 'combinacion')
+                        .filter(pk=body.get('item_pk'),
+                                compra__es_carga_inicial=True)
+                        .first())
+                if item is None:
+                    raise ValueError('No se encontró la línea.')
+                # El lock va sobre la Compra (serializa correcciones
+                # concurrentes de la misma factura); no sobre el ítem, que
+                # con select_related de FKs nulables rompe el FOR UPDATE.
+                compra = Compra.objects.select_for_update().get(pk=item.compra_id)
+                if compra.estado != EstadoCompra.CONFIRMADA:
+                    raise ValueError('Solo se corrigen facturas iniciales '
+                                     'confirmadas.')
+                if compra.items.count() <= 1:
+                    raise ValueError('Es la única línea — usá "Anular" o '
+                                     '"Eliminar" la factura entera.')
+
+                producto = item.producto
+                cant = item.cantidad
+                for lote in item.lotes.filter(activo=True):
+                    if lote.cantidad_actual < lote.cantidad_inicial:
+                        raise ValueError('De esta carga ya se usó/vendió parte '
+                                         '— no se puede quitar la línea.')
+
+                if producto is not None and producto.gestiona_stock and cant > 0:
+                    if not producto.permite_stock_negativo:
+                        ref = (item.combinacion.stock_actual
+                               if item.combinacion_id else producto.stock_actual)
+                        if ref - cant < 0:
+                            raise ValueError(
+                                f'El stock actual es {_fmt_dec(ref)} — no alcanza '
+                                f'para revertir esta carga.')
+                    from productos.models import MovimientoStock, TipoMovimiento
+                    mov = MovimientoStock(
+                        producto=producto,
+                        tipo=TipoMovimiento.AJUSTE_NEG,
+                        cantidad=cant,
+                        motivo=f'Quitado de {compra.numero} (cargado por error)',
+                        referencia=compra.numero,
+                        usuario=request.user,
+                    )
+                    mov.save()
+                    if item.combinacion_id:
+                        comb = CombinacionVariante.objects.select_for_update().get(
+                            pk=item.combinacion_id)
+                        comb.stock_actual = comb.stock_actual - cant
+                        comb.save(update_fields=['stock_actual'])
+                        producto.sincronizar_stock_desde_combinaciones()
+
+                item.delete()  # borra el/los LoteCompra en cascada
+                compra.calcular_total()
+                if producto is not None:
+                    producto.actualizar_costo_y_precio()
+        except ValueError as e:
+            return JsonResponse({'error': str(e)}, status=400)
+
+        compra.refresh_from_db()
+        datos = compra.factura_inicial_datos or {}
+        doc = {
+            'tipo_comprobante': ((datos.get('comprobante') or {}).get('tipo')
+                                 or TIPO_COMPROBANTE_DEFECTO),
+            'incluir_leyenda': datos.get('incluir_leyenda', True),
+        }
+        payload = _payload_desde_compra(compra, doc)
+        if datos.get('pago'):
+            payload['pago'] = datos['pago']
+        compra.factura_inicial_datos = payload
+        compra.save(update_fields=['factura_inicial_datos'])
+
+        return JsonResponse({'ok': True, 'total': str(compra.total),
+                             'items': compra.items.count()})
 
 
 class FacturaInicialReimprimirAjax(LoginRequiredMixin, View):

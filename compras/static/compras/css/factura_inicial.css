@@ -314,3 +314,91 @@ input.fi-req-empty {
     padding: 3rem 1rem;
     font-size: .88rem;
 }
+
+/* ── Historial: dos buscadores ─────────────────────────────────── */
+.fih-buscadores {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .6rem;
+}
+@media (max-width: 720px) {
+    .fih-buscadores { grid-template-columns: 1fr; }
+}
+
+/* ── Historial: fila desplegable ───────────────────────────────── */
+.fih-row { cursor: pointer; }
+.fih-row:hover { background: var(--bg-secondary); }
+.fih-row.is-open { background: var(--brand-orange-light, #FFF0E6); }
+.fih-caret {
+    display: inline-block;
+    margin-right: .4rem;
+    color: var(--text-muted);
+    transition: transform .15s;
+    font-size: .7rem;
+}
+.fih-row.is-open .fih-caret { transform: rotate(90deg); }
+.fih-row-hint {
+    font-weight: 400;
+    font-size: .72rem;
+    color: var(--brand-orange);
+    margin-top: .2rem;
+}
+.fih-row-hint b { font-weight: 700; }
+
+.fih-detail-row > td { padding: 0 !important; background: var(--bg-secondary, #f8fafc); }
+.fih-detail { padding: .6rem 1rem 1rem; }
+.fih-detail-load { padding: 1rem; color: var(--text-muted); font-size: .82rem; }
+
+.fih-items {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .82rem;
+}
+.fih-items thead th {
+    text-align: left;
+    padding: .35rem .5rem;
+    font-size: .64rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-color);
+}
+.fih-items th.r, .fih-items td.r { text-align: right; font-variant-numeric: tabular-nums; }
+.fih-items td {
+    padding: .4rem .5rem;
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: top;
+}
+.fih-items tbody tr:last-child td { border-bottom: none; }
+.fih-items td b { font-size: .82rem; color: var(--text-primary); }
+.fih-item-meta { display: block; font-size: .68rem; color: var(--text-muted); margin-top: .1rem; }
+.fih-items tr.is-match { background: rgba(240, 138, 42, .12); }
+.fih-items tr.is-match td:first-child { box-shadow: inset 3px 0 0 var(--brand-orange); }
+
+.fih-consumido {
+    display: inline-block;
+    margin-top: .2rem;
+    font-size: .64rem;
+    font-weight: 700;
+    color: var(--danger, #EF4444);
+    background: rgba(239, 68, 68, .1);
+    padding: .05rem .35rem;
+    border-radius: .3rem;
+}
+
+.fih-item-actions { white-space: nowrap; text-align: right; }
+.fih-item-actions .fi-hist-btn { margin-left: .3rem; }
+
+.fih-edit-inp {
+    width: 92px;
+    height: 28px;
+    border: 1px solid var(--brand-orange);
+    border-radius: .35rem;
+    padding: 0 .4rem;
+    font-size: .8rem;
+    text-align: right;
+    background: var(--bg-white, #fff);
+    color: var(--text-primary);
+}
+.fih-edit-inp:focus { outline: none; box-shadow: 0 0 0 2px var(--brand-orange-light, #FFF0E6); }
