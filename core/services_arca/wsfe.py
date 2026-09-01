@@ -20,6 +20,7 @@ import requests
 from django.utils import timezone
 
 from core.models import AmbienteArca
+from ._http import sesion_arca
 from .wsaa import obtener_token, ArcaError
 
 WSFE_URLS = {
@@ -40,7 +41,7 @@ def _post(config, metodo, cuerpo_xml):
         '</soapenv:Envelope>'
     )
     try:
-        resp = requests.post(
+        resp = sesion_arca().post(
             url,
             data=envelope.encode('utf-8'),
             headers={

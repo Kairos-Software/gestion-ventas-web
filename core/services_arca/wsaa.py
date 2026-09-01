@@ -25,6 +25,7 @@ from cryptography.hazmat.primitives.serialization import pkcs7
 from django.utils import timezone as dj_timezone
 
 from core.models import AmbienteArca
+from ._http import sesion_arca
 
 TZ_ARG = ZoneInfo('America/Argentina/Buenos_Aires')
 
@@ -109,7 +110,7 @@ def _pedir_login(config):
 
     url = WSAA_URLS[config.ambiente]
     try:
-        resp = requests.post(
+        resp = sesion_arca().post(
             url,
             data=envelope.encode('utf-8'),
             headers={'Content-Type': 'text/xml;charset=UTF-8', 'SOAPAction': '""'},

@@ -305,20 +305,20 @@ document.addEventListener('DOMContentLoaded', function () {
                 method: 'POST',
                 headers: { 'X-CSRFToken': csrf() },
             })
-            .then(r => {
-                if (!r.ok) {
-                    throw new Error(`El servidor respondió ${r.status}. No es un error de ARCA — revisá los logs del servidor.`);
-                }
-                return r.json();
-            })
-            .then(data => {
-                if (data.error) {
+            .then(r => r.json().catch(() => null).then(data => ({ r, data })))
+            .then(({ r, data }) => {
+                // El endpoint devuelve el motivo real de ARCA en `data.error`
+                // TAMBIÉN cuando el status es 400 — mostrarlo, no taparlo.
+                if (data && data.error) {
                     msg.style.color = '#e11d48';
                     msg.textContent = data.error;
-                } else {
-                    msg.style.color = 'var(--success)';
-                    msg.textContent = `Conexión OK (${data.ambiente}) — AppServer: ${data.estado.AppServer}, DbServer: ${data.estado.DbServer}, AuthServer: ${data.estado.AuthServer}`;
+                    return;
                 }
+                if (!r.ok || !data) {
+                    throw new Error(`El servidor respondió ${r.status}. Revisá los logs del servidor.`);
+                }
+                msg.style.color = 'var(--success)';
+                msg.textContent = `Conexión OK (${data.ambiente}) — AppServer: ${data.estado.AppServer}, DbServer: ${data.estado.DbServer}, AuthServer: ${data.estado.AuthServer}`;
             })
             .catch((err) => {
                 msg.style.color = '#e11d48';
