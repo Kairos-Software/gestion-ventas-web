@@ -23,18 +23,28 @@ apenas se confirma la venta, sin recargar la página (ver panel_cobro.js).
                 {% for pago in pagos %}
                 <span class="cdt-medio-pago-badge">
                     {{ pago.get_medio_display }}{% if pago.tarjeta %} · {{ pago.tarjeta.nombre }}{% endif %}:
-                    ${{ pago.monto_base|floatformat:"2" }}{% if pago.recargo_monto %} + ${{ pago.recargo_monto|floatformat:"2" }}{% endif %}
+                    {% if pago.monto_base or not pago.redondeo_monto %}${{ pago.monto_base|floatformat:"2" }}{% if pago.recargo_monto %} + ${{ pago.recargo_monto|floatformat:"2" }} rec.{% endif %}{% if pago.redondeo_monto %} + ${{ pago.redondeo_monto|floatformat:"2" }} redondeo{% endif %}{% else %}${{ pago.redondeo_monto|floatformat:"2" }} redondeo a favor{% endif %}
                 </span>
                 {% endfor %}
             </div>
         </div>
         {% endif %}
+        {% if total_recargo or total_redondeo %}
         {% if total_recargo %}
         <div class="cdt-resumen-row"><span>Recargo/interés</span><strong>${{ total_recargo|floatformat:"2" }}</strong></div>
+        {% endif %}
+        {% if total_redondeo %}
+        <div class="cdt-resumen-row"><span>Redondeo a favor</span><strong>${{ total_redondeo|floatformat:"2" }}</strong></div>
+        {% endif %}
         <div class="cdt-resumen-row cdt-resumen-row--total">
             <span>Total cobrado</span>
             <strong class="cdt-total-val">${{ total_a_cobrar|floatformat:"2" }}</strong>
         </div>
+        {% if total_redondeo %}
+        <div class="cdt-resumen-row" style="font-size:.75rem;color:var(--text-muted)">
+            <span>Se factura (ARCA)</span><span>${{ venta.total|floatformat:"2" }}</span>
+        </div>
+        {% endif %}
         {% else %}
         <div class="cdt-resumen-row cdt-resumen-row--total">
             <span>Total</span>

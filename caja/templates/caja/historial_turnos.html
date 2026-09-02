@@ -106,6 +106,18 @@ Historial de Turnos
                     <span class="hd-resumen-label">Ganancia del turno</span>
                     <span class="hd-resumen-value">${{ turno.ganancia_turno|floatformat:"2" }}</span>
                 </div>
+                {% if turno.redondeos_efectivo %}
+                <div class="hd-resumen-row">
+                    <span class="hd-resumen-label">Redondeos a favor (efectivo)</span>
+                    <span class="hd-resumen-value">${{ turno.redondeos_efectivo|floatformat:"2" }}</span>
+                </div>
+                {% endif %}
+                {% if turno.redondeos_otros_medios %}
+                <div class="hd-resumen-row">
+                    <span class="hd-resumen-label">Redondeos a favor (otros medios)</span>
+                    <span class="hd-resumen-value">${{ turno.redondeos_otros_medios|floatformat:"2" }}</span>
+                </div>
+                {% endif %}
                 <div class="hd-resumen-row hd-resumen-row--destacado">
                     <span class="hd-resumen-label">Efectivo en caja</span>
                     <span class="hd-resumen-value">${{ turno.efectivo_total|floatformat:"2" }}</span>
@@ -191,9 +203,15 @@ Historial de Turnos
                         <span class="hd-medio-value">${{ turno.monto_inicial_efectivo|floatformat:"2" }}</span>
                     </div>
                     <div class="hd-medio-row">
-                        <span class="hd-medio-label">Efectivo ventas</span>
+                        <span class="hd-medio-label">Efectivo ventas{% if turno.redondeos_efectivo %} (incl. redondeos){% endif %}</span>
                         <span class="hd-medio-value">${{ turno.efectivo_ventas|floatformat:"2" }}</span>
                     </div>
+                    {% if turno.redondeos_efectivo %}
+                    <div class="hd-medio-row">
+                        <span class="hd-medio-label">· de los cuales, redondeos a favor</span>
+                        <span class="hd-medio-value">${{ turno.redondeos_efectivo|floatformat:"2" }}</span>
+                    </div>
+                    {% endif %}
                     {% if turno.efectivo_cuotas_cobradas %}
                     <div class="hd-medio-row">
                         <span class="hd-medio-label">Cobrado (cuentas por cobrar viejas)</span>

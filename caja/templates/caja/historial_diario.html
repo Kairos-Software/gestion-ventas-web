@@ -114,6 +114,12 @@ Historial Diario
                 <span class="hd-resumen-label">Monto final total</span>
                 <span class="hd-resumen-value">${{ dia.total_monto_final|floatformat:"2" }}</span>
             </div>
+            {% if dia.total_redondeos %}
+            <div class="hd-resumen-row">
+                <span class="hd-resumen-label">Redondeos a favor</span>
+                <span class="hd-resumen-value">${{ dia.total_redondeos|floatformat:"2" }}</span>
+            </div>
+            {% endif %}
             <div class="hd-resumen-row hd-resumen-row--destacado{% if dia.hay_alerta %} hd-resumen-alert{% endif %}">
                 <span class="hd-resumen-label">Diferencia total del día</span>
                 <span class="hd-resumen-value">${{ dia.total_diferencia|floatformat:"2" }}</span>

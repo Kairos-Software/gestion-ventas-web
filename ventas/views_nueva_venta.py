@@ -855,7 +855,7 @@ class ConfirmarVentaAjax(LoginRequiredMixin, View):
             pagos_normalizados = None
             if pagos_raw:
                 pagos_normalizados = []
-                suma_ars = Decimal('0')
+                suma_ars = Decimal('0')          # solo la porción que cubre venta.total
                 for p in pagos_raw:
                     medio_p = p.get('medio', '').strip()
                     if medio_p not in valores_validos:
@@ -864,7 +864,21 @@ class ConfirmarVentaAjax(LoginRequiredMixin, View):
                         monto_p = Decimal(str(p.get('monto', 0)))
                     except Exception:
                         return JsonResponse({'error': 'Monto de pago inválido.'}, status=400)
-                    if monto_p <= 0:
+
+                    # Redondeo a favor: lo que el cliente pagó por encima del
+                    # precio de los productos. Viene EXPLÍCITO desde el panel
+                    # (control "+ Redondeo a favor") en su propia línea con
+                    # monto 0 — no se infiere. Siempre en pesos.
+                    try:
+                        redondeo_p = Decimal(str(p.get('redondeo', 0) or 0))
+                    except Exception:
+                        return JsonResponse({'error': 'Monto de redondeo inválido.'}, status=400)
+                    if redondeo_p < 0:
+                        return JsonResponse({'error': 'El redondeo a favor no puede ser negativo.'}, status=400)
+
+                    # Se descarta la línea solo si no aporta nada (ni a la
+                    # venta ni como redondeo).
+                    if monto_p <= 0 and redondeo_p <= 0:
                         continue
 
                     cotizacion_p = None
@@ -872,6 +886,10 @@ class ConfirmarVentaAjax(LoginRequiredMixin, View):
                     if medio_p != MedioPago.EFECTIVO:
                         cuenta = CuentaCaja.objects.filter(pk=p.get('cuenta_pk'), caja=TipoCaja.GRANDE, activa=True).first()
                         if cuenta and cuenta.moneda != 'ARS':
+                            if redondeo_p > 0:
+                                return JsonResponse({
+                                    'error': 'El redondeo a favor solo se puede registrar en pesos.'
+                                }, status=400)
                             try:
                                 cotizacion_p = Decimal(str(p.get('cotizacion', 0)))
                             except Exception:
@@ -886,6 +904,10 @@ class ConfirmarVentaAjax(LoginRequiredMixin, View):
                     pagos_normalizados.append({
                         'medio': medio_p,
                         'monto': monto_p,
+                        # Excedente explícito de esta línea (en pesos). Venta.confirmar
+                        # lo guarda en PagoVenta.redondeo_monto y lo fuerza a 0 para
+                        # cuotas/cheque.
+                        'redondeo': redondeo_p,
                         'cuenta_pk': p.get('cuenta_pk'),
                         'cotizacion': cotizacion_p,
                         # Solo se usan si medio_p == 'cuotas' (ver Venta.confirmar) —
@@ -914,12 +936,25 @@ class ConfirmarVentaAjax(LoginRequiredMixin, View):
                     return JsonResponse({'error': 'Agregá al menos un medio de pago con monto.'}, status=400)
 
                 # El total recién se recalcula en confirmar(); usamos el total actual del borrador
-                total_actual = venta.calcular_total() or venta.total
+                venta.calcular_total()
                 venta.refresh_from_db(fields=['total'])
-                diferencia = abs(suma_ars - venta.total)
-                if diferencia > Decimal('0.01'):
+
+                # La porción que cubre la venta tiene que dar EXACTO
+                # venta.total. Cobrar de MENOS: bloqueado (un cero de menos
+                # sin mirar es grave). Cobrar de MÁS: no se tipea un importe
+                # mayor acá — se carga con el control "+ Redondeo a favor".
+                if suma_ars < venta.total - Decimal('0.01'):
+                    falta = (venta.total - suma_ars).quantize(Decimal('0.01'))
                     return JsonResponse({
-                        'error': f'La suma de los pagos (${suma_ars}) no coincide con el total (${venta.total}).'
+                        'error': f'Los pagos cubren ${suma_ars} y el total es ${venta.total} — falta cubrir ${falta}.'
+                    }, status=400)
+                if suma_ars > venta.total + Decimal('0.01'):
+                    sobra = (suma_ars - venta.total).quantize(Decimal('0.01'))
+                    return JsonResponse({
+                        'error': (
+                            f'Los pagos superan el total en ${sobra}. Si el cliente pagó de más '
+                            f'para redondear, cargá ese excedente como "redondeo a favor".'
+                        )
                     }, status=400)
 
             # El cliente se puede corregir/cargar acá también (no solo desde
@@ -1244,6 +1279,10 @@ def construir_contexto_detalle(request, venta):
 
     pagos_lista = list(venta.pagos.all())
     total_recargo = sum((p.recargo_monto for p in pagos_lista), Decimal('0'))
+    # Redondeo a favor: lo que el/los cliente/s pagaron por encima del
+    # precio de los productos. A ARCA/factura le llega venta.total; nunca
+    # aparece en el ticket.
+    total_redondeo = sum((p.redondeo_monto for p in pagos_lista), Decimal('0'))
 
     # — Devoluciones (solo tiene sentido sobre una venta ya confirmada) —
     # cuentas_reembolso_json es igual a cuentas_json pero SIN excluir
@@ -1291,7 +1330,8 @@ def construir_contexto_detalle(request, venta):
         'puede_registrar_devoluciones': chequear_permiso(request.user, 'registrar_devoluciones'),
         'pagos':      pagos_lista,
         'total_recargo': total_recargo,
-        'total_a_cobrar': venta.total + total_recargo,
+        'total_redondeo': total_redondeo,
+        'total_a_cobrar': venta.total + total_recargo + total_redondeo,
         'es_borrador': venta.estado == EstadoVenta.BORRADOR,
         'medios_pago': MedioPago.choices,
         'datos_empresa': DatosEmpresa.get_solo(),

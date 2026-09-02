@@ -7,7 +7,7 @@
 {% block breadcrumb %}<strong>Configuración</strong>{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'core/css/configuracion.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/configuracion.css' %}?v=20260902.1">
 {% endblock %}
 
 {% block content %}
@@ -51,7 +51,7 @@
             {% csrf_token %}
             <div class="config-row" style="flex-direction:column; align-items:flex-start; gap:0.6rem;">
                 <span class="config-row-label">Logo</span>
-                <div style="display:flex; align-items:center; gap:1rem;">
+                <div class="config-logo-controls">
                     <div class="config-logo-box" id="logoPreviewBox">
                         {% if datos_empresa.logo %}
                             <img src="{{ datos_empresa.logo.url }}" alt="Logo">
@@ -80,12 +80,12 @@
                 <input class="form-control" id="idRazonSocial" value="{{ datos_empresa.razon_social }}">
             </div>
 
-            <div class="config-row" style="gap:1rem;">
-                <div style="flex:1;">
+            <div class="config-row config-form-pair">
+                <div class="config-field">
                     <label class="config-row-label" for="idCuit">CUIT</label>
                     <input class="form-control" id="idCuit" value="{{ datos_empresa.cuit }}">
                 </div>
-                <div style="flex:1;">
+                <div class="config-field">
                     <label class="config-row-label" for="idCondicionIva">Condición frente al IVA</label>
                     <select class="form-select" id="idCondicionIva">
                         <option value="">— Sin especificar —</option>
@@ -102,18 +102,18 @@
                 <input class="form-control" id="idDomicilio" value="{{ datos_empresa.domicilio }}">
             </div>
 
-            <div class="config-row" style="gap:1rem;">
-                <div style="flex:1;">
+            <div class="config-row config-form-pair">
+                <div class="config-field">
                     <label class="config-row-label" for="idTelefono">Teléfono</label>
                     <input class="form-control" id="idTelefono" value="{{ datos_empresa.telefono }}">
                 </div>
-                <div style="flex:1;">
+                <div class="config-field">
                     <label class="config-row-label" for="idEmail">Email</label>
                     <input type="email" class="form-control" id="idEmail" value="{{ datos_empresa.email }}">
                 </div>
             </div>
 
-            <div class="config-row" style="justify-content:flex-end;">
+            <div class="config-row config-form-actions">
                 <button type="submit" class="btn btn-sm" style="background:var(--brand-orange); color:white;">Guardar cambios</button>
             </div>
             <div id="empresaMsg" class="config-empresa-msg"></div>
@@ -139,8 +139,8 @@
 
         <form id="formArca">
             {% csrf_token %}
-            <div class="config-row" style="gap:1rem;">
-                <div style="flex:1;">
+            <div class="config-row config-form-pair">
+                <div class="config-field">
                     <label class="config-row-label" for="idArcaAmbiente">Ambiente</label>
                     <select class="form-select" id="idArcaAmbiente">
                         {% for valor, etiqueta in ambientes_arca %}
@@ -148,7 +148,7 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div style="flex:1;">
+                <div class="config-field">
                     <label class="config-row-label" for="idArcaPuntoVenta">Punto de venta</label>
                     <input type="number" min="1" class="form-control" id="idArcaPuntoVenta" value="{{ configuracion_arca.punto_venta }}">
                 </div>
@@ -173,7 +173,7 @@
             </div>
 
             <div class="config-callout">
-                <div style="display:flex; justify-content:space-between; align-items:center; width:100%; gap:1rem;">
+                <div class="config-callout-main">
                     <div>
                         <div class="config-row-label" style="color:var(--brand-blue);">① Generar clave y CSR — recomendado, sin terminal</div>
                         <div class="config-row-desc" id="arcaCsrEstado">
@@ -188,7 +188,7 @@
                 </div>
                 <div id="arcaCsrBox" style="width:100%; margin-top:0.6rem; {% if not configuracion_arca.csr_pendiente %}display:none;{% endif %}">
                     <textarea class="form-control" id="idArcaCsrTexto" rows="4" readonly style="font-size:0.75rem;">{{ configuracion_arca.csr_pendiente }}</textarea>
-                    <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+                    <div class="config-button-row">
                         <button type="button" id="btnArcaDescargarCsr" class="btn btn-sm btn-outline-secondary" style="background:white;">Descargar archivo .csr</button>
                         <button type="button" id="btnArcaCopiarCsr" class="btn btn-sm btn-outline-secondary" style="background:white;">Copiar</button>
                     </div>
@@ -204,7 +204,7 @@
                         Si más adelante generás otra (o la de otro cliente), esta se pierde para siempre. Descargá la copia de respaldo de abajo y guardala en un lugar seguro (ej. un gestor de contraseñas) — trae la solicitud y la clave juntas, así nunca te falta una de las dos. Si nunca la vas a necesitar de nuevo, podés ignorar esto sin problema.
                     </div>
                     <textarea class="form-control" id="idArcaClavePrivadaTexto" rows="4" readonly style="font-size:0.75rem;"></textarea>
-                    <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+                    <div class="config-button-row">
                         <button type="button" id="btnArcaDescargarBackup" class="btn btn-sm" style="background:#EA580C; color:white; border:none;">Descargar copia de respaldo (CSR + clave)</button>
                         <button type="button" id="btnArcaCopiarClave" class="btn btn-sm btn-outline-secondary" style="background:white;">Copiar solo la clave</button>
                     </div>
@@ -222,7 +222,7 @@
                 <span class="config-row-desc">Si generaste el CSR con el botón de arriba, dejá esto vacío — la clave ya quedó guardada. Este campo es solo para cargar una clave generada por fuera del sistema.</span>
             </div>
 
-            <div class="config-row" style="justify-content:flex-end; gap:0.6rem;">
+            <div class="config-row config-form-actions">
                 <button type="button" id="btnArcaProbar" class="btn btn-sm btn-outline-secondary">Probar conexión</button>
                 <button type="submit" class="btn btn-sm" style="background:var(--brand-orange); color:white;">Guardar cambios</button>
             </div>
@@ -264,7 +264,7 @@
     <!-- ── Cuentas de caja — solo con permiso 'editar_cuentas' ── -->
     {% if puede_editar_cuentas %}
     <div class="config-section" id="seccion-cuentas">
-        <div class="config-section-header">
+        <div class="config-section-header config-section-header--with-action">
             <div class="config-section-icon" style="background:rgba(30,111,168,0.1); color:var(--brand-blue);">
                 <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
                     <rect x="2" y="5" width="16" height="11" rx="2" stroke="currentColor" stroke-width="1.4"/>
@@ -277,7 +277,7 @@
                    La cuenta marcada <strong>★ Principal</strong> viene preseleccionada al cobrar, pagar,
                    cargar compras, etc. — siempre se puede cambiar en el momento.</p>
             </div>
-            <button type="button" class="btn btn-sm" style="background:var(--brand-orange); color:white; margin-left:auto;" data-bs-toggle="modal" data-bs-target="#cuentaModal" id="btnNuevaCuenta">+ Nueva cuenta</button>
+            <button type="button" class="btn btn-sm config-primary-btn config-add-account-btn" data-bs-toggle="modal" data-bs-target="#cuentaModal" id="btnNuevaCuenta">+ Nueva cuenta</button>
         </div>
 
         {% for cuenta in cuentas %}
@@ -305,7 +305,7 @@
                 </div>
             </div>
             {% if puede_editar_cuentas %}
-            <div style="display:flex; gap:0.4rem;">
+            <div class="cuenta-actions">
                 {% if cuenta.activa and not cuenta.es_credito and not cuenta.preferida %}
                 <button type="button" class="btn btn-sm btn-outline-secondary btn-cuenta-principal">Marcar principal</button>
                 {% endif %}
@@ -324,7 +324,7 @@
         {% endfor %}
 
         <!-- ── Cuenta por defecto por medio de pago (sugerencia al cobrar) ── -->
-        <div class="config-row" style="flex-direction:column; align-items:stretch; gap:.75rem;">
+        <div class="config-row config-predet-row">
             <div class="config-row-info">
                 <div class="config-row-label">Cuenta por defecto por medio de pago</div>
                 <div class="config-row-desc">
@@ -350,8 +350,7 @@
                 {% endfor %}
             </div>
             <div>
-                <button type="button" id="btnGuardarCuentasPredet" class="btn btn-sm"
-                        style="background:var(--brand-orange); color:white;">Guardar predeterminadas</button>
+                <button type="button" id="btnGuardarCuentasPredet" class="btn btn-sm config-primary-btn">Guardar predeterminadas</button>
             </div>
             <div id="cuentasPredetMsg" class="config-empresa-msg" style="padding:0;"></div>
             {% else %}
@@ -415,8 +414,8 @@
         <form id="formAsistencia">
             {% csrf_token %}
 
-            <div class="config-row" style="gap:1rem;">
-                <div style="flex:1;">
+            <div class="config-row config-form-pair">
+                <div class="config-field">
                     <label class="config-row-label" for="idCanal">Canal de envío</label>
                     <select class="form-select" id="idCanal">
                         {% for valor, etiqueta in canales_notificacion %}
@@ -424,7 +423,7 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div style="flex:1;">
+                <div class="config-field">
                     <label class="config-row-label" for="idEmailDestino">Email para recibir estos reportes</label>
                     <input type="email" class="form-control" id="idEmailDestino" value="{{ preferencia_asistencia.email_destino }}" placeholder="Obligatorio para recibir por email">
                 </div>
@@ -442,7 +441,7 @@
             <hr style="border-color:var(--border-color); margin:1.1rem 0;">
 
             <!-- Reporte mensual -->
-            <div class="config-row">
+            <div class="config-row config-setting-row">
                 <div class="config-row-info">
                     <div class="config-row-label">Reporte mensual</div>
                     <div class="config-row-desc">Resumen de ventas, ganancias y caja del mes</div>
@@ -459,7 +458,7 @@
             </div>
 
             <!-- Reporte semanal -->
-            <div class="config-row">
+            <div class="config-row config-setting-row">
                 <div class="config-row-info">
                     <div class="config-row-label">Reporte semanal</div>
                     <div class="config-row-desc">Mismo resumen, cada semana</div>
@@ -483,7 +482,7 @@
             </div>
 
             <!-- Alerta de vencimiento -->
-            <div class="config-row">
+            <div class="config-row config-setting-row">
                 <div class="config-row-info">
                     <div class="config-row-label">Productos por vencer</div>
                     <div class="config-row-desc">Recomienda liquidar u ofertar antes de la fecha de vencimiento</div>
@@ -500,7 +499,7 @@
             </div>
 
             <!-- Alerta de deuda -->
-            <div class="config-row">
+            <div class="config-row config-setting-row">
                 <div class="config-row-info">
                     <div class="config-row-label">Deudas por pagar</div>
                     <div class="config-row-desc">Cuotas de tarjeta/préstamo pendientes de pago (esta ventana de días también se usa para los cheques, más abajo)</div>
@@ -541,7 +540,7 @@
             </div>
 
             <!-- Stock estancado -->
-            <div class="config-row">
+            <div class="config-row config-setting-row">
                 <div class="config-row-info">
                     <div class="config-row-label">Stock sin movimiento</div>
                     <div class="config-row-desc">Productos con stock cargado pero sin ventas — sugerencia de liquidar/rotar</div>
@@ -569,7 +568,7 @@
                 </label>
             </div>
 
-            <div class="config-row" style="justify-content:flex-end;">
+            <div class="config-row config-form-actions">
                 <button type="submit" class="btn btn-sm" style="background:var(--brand-orange); color:white;">Guardar cambios</button>
             </div>
             <div id="asistenciaMsg" class="config-empresa-msg"></div>
@@ -611,7 +610,7 @@
 
     {% if puede_editar_cuentas %}
     <div class="modal fade" id="cuentaModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable config-account-modal">
             <div class="modal-content">
                 <div class="modal-header">
                     <div>
@@ -628,8 +627,8 @@
                             <label class="config-row-label" for="cuentaNombre">Nombre *</label>
                             <input class="form-control" id="cuentaNombre" placeholder="Ej: Mercado Pago, Naranja X, Banco Galicia" required>
                         </div>
-                        <div class="config-row" style="gap:1rem; padding:0 0 0.85rem;">
-                            <div style="flex:1;">
+                        <div class="config-row config-form-pair config-modal-row">
+                            <div class="config-field">
                                 <label class="config-row-label" for="cuentaMoneda">Moneda *</label>
                                 <select class="form-select" id="cuentaMoneda" required>
                                     {% for valor, etiqueta in monedas %}
@@ -637,7 +636,7 @@
                                     {% endfor %}
                                 </select>
                             </div>
-                            <div style="flex:1;">
+                            <div class="config-field">
                                 <label class="config-row-label" for="cuentaTitular">Titular *</label>
                                 <input class="form-control" id="cuentaTitular" placeholder="Ej: Juan Pérez" required>
                             </div>
@@ -655,12 +654,12 @@
                         <div class="kai-help-popover" id="ayuda_cuenta_tipo" style="margin:-0.4rem 0 0.85rem;">
                             Marcá "Cuenta bancaria" solo si es una cuenta de banco con chequera propia — es la que vas a poder elegir como origen al emitir un cheque. Una tarjeta de crédito, aunque te la haya dado tu banco, NO va acá: cargala como "Billetera / tarjeta" y después tildá "Es tarjeta de crédito propia" más abajo — la tarjeta no tiene chequera, es una cuenta de deuda, no de fondos disponibles.
                         </div>
-                        <div class="config-row" style="gap:1rem; padding:0 0 0.85rem;">
-                            <div style="flex:1;">
+                        <div class="config-row config-form-pair config-modal-row">
+                            <div class="config-field">
                                 <label class="config-row-label" for="cuentaTerminadaEn">Terminada en</label>
                                 <input class="form-control" id="cuentaTerminadaEn" placeholder="Últimos 4 dígitos o alias">
                             </div>
-                            <div style="flex:1; display:flex; align-items:flex-end; padding-bottom:0.5rem;">
+                            <div class="config-field config-credit-check">
                                 <div class="form-check kai-label-help">
                                     <input class="form-check-input" type="checkbox" id="cuentaEsCredito">
                                     <label class="form-check-label" for="cuentaEsCredito">Es tarjeta de crédito propia (compras)</label>
@@ -672,12 +671,12 @@
                             Esto NO es para las cuentas que te pagan los clientes (Mercado Pago, Naranja X, el Posnet del banco) — esas se cargan igual, sin tildar esto. Es solo si usás esta tarjeta para comprarle a tus proveedores.
                             Los recargos que le cobrás al cliente se configuran aparte, en Finanzas → Recargos.
                         </div>
-                        <div class="config-row" id="cuentaCreditoFields" style="gap:1rem; padding:0 0 0.85rem; display:none;">
-                            <div style="flex:1;">
+                        <div class="config-row config-form-pair config-modal-row" id="cuentaCreditoFields" style="display:none;">
+                            <div class="config-field">
                                 <label class="config-row-label" for="cuentaDiaCierre">Día de cierre</label>
                                 <input type="number" min="1" max="31" class="form-control" id="cuentaDiaCierre">
                             </div>
-                            <div style="flex:1;">
+                            <div class="config-field">
                                 <label class="config-row-label" for="cuentaDiaVencimiento">Día de vencimiento</label>
                                 <input type="number" min="1" max="31" class="form-control" id="cuentaDiaVencimiento">
                             </div>

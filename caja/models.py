@@ -439,6 +439,7 @@ class MovimientoCaja(models.Model):
 CONCEPTO_VENTA_NOMBRE  = 'Venta'
 CONCEPTO_COMPRA_NOMBRE = 'Compra'
 CONCEPTO_DEVOLUCION_VENTA_NOMBRE = 'Devolución de venta'
+CONCEPTO_REDONDEO_VENTA_NOMBRE = 'Redondeo a favor (venta)'
 CUENTA_EFECTIVO_DEFAULT_NOMBRE = 'Efectivo'
 
 
@@ -550,6 +551,7 @@ def sincronizar_movimiento_venta(venta):
         return []
 
     concepto = _concepto_default(CONCEPTO_VENTA_NOMBRE, TipoMovimientoCaja.INGRESO)
+    concepto_redondeo = _concepto_default(CONCEPTO_REDONDEO_VENTA_NOMBRE, TipoMovimientoCaja.INGRESO)
 
     turno = TurnoCaja.turno_que_contiene(venta.fecha_alta)
     turno_va_a_conciliarla = turno is not None and turno.estado == EstadoTurno.ABIERTO
@@ -560,21 +562,45 @@ def sincronizar_movimiento_venta(venta):
 
     movimientos = []
     for pago in pagos_a_sincronizar:
-        movimientos.append(MovimientoCaja.objects.create(
-            caja        = TipoCaja.GRANDE,
-            cuenta      = pago.cuenta,
-            concepto    = concepto,
-            tipo        = TipoMovimientoCaja.INGRESO,
-            monto       = pago.monto,
-            moneda      = pago.cuenta.moneda,
-            fecha       = venta.fecha,
-            descripcion = f'Venta {venta.numero} ({pago.get_medio_display()})',
-            referencia  = venta.numero,
-            origen      = OrigenMovimiento.VENTA,
-            origen_app  = 'ventas',
-            origen_id   = venta.pk,
-            creado_por  = venta.confirmado_por,
-        ))
+        excedente = pago.redondeo_monto or Decimal('0')
+        # El redondeo a favor (lo que el cliente pagó por encima del precio
+        # de los productos) va en un movimiento APARTE, con concepto propio
+        # — así en Caja Grande queda claro por qué la cuenta tiene unos
+        # pesos más que el total de la venta, y se puede sumar/filtrar
+        # solo. A ARCA le llega venta.total (nunca el excedente).
+        monto_venta = pago.monto - excedente
+        if monto_venta > 0:
+            movimientos.append(MovimientoCaja.objects.create(
+                caja        = TipoCaja.GRANDE,
+                cuenta      = pago.cuenta,
+                concepto    = concepto,
+                tipo        = TipoMovimientoCaja.INGRESO,
+                monto       = monto_venta,
+                moneda      = pago.cuenta.moneda,
+                fecha       = venta.fecha,
+                descripcion = f'Venta {venta.numero} ({pago.get_medio_display()})',
+                referencia  = venta.numero,
+                origen      = OrigenMovimiento.VENTA,
+                origen_app  = 'ventas',
+                origen_id   = venta.pk,
+                creado_por  = venta.confirmado_por,
+            ))
+        if excedente > 0:
+            movimientos.append(MovimientoCaja.objects.create(
+                caja        = TipoCaja.GRANDE,
+                cuenta      = pago.cuenta,
+                concepto    = concepto_redondeo,
+                tipo        = TipoMovimientoCaja.INGRESO,
+                monto       = excedente,
+                moneda      = pago.cuenta.moneda,
+                fecha       = venta.fecha,
+                descripcion = f'Redondeo a favor — Venta {venta.numero} ({pago.get_medio_display()})',
+                referencia  = venta.numero,
+                origen      = OrigenMovimiento.VENTA,
+                origen_app  = 'ventas',
+                origen_id   = venta.pk,
+                creado_por  = venta.confirmado_por,
+            ))
     return movimientos
 
 
@@ -880,7 +906,42 @@ class TurnoCaja(models.Model):
 
     @property
     def efectivo_ventas(self):
+        """Total cobrado en efectivo en ventas de este turno — INCLUYE el
+        redondeo a favor (está dentro de PagoVenta.monto). Para el efectivo
+        físico esperado tiene que ser así; el desglose está en
+        efectivo_ventas_sin_redondeo + redondeos_efectivo."""
         return self.totales_medio_pago.get('efectivo', 0)
+
+    @property
+    def redondeos_turno(self):
+        """Suma de TODO el redondeo a favor de ventas de este turno (lo que
+        los clientes pagaron por encima del precio de los productos — en
+        efectivo y en otros medios). Plata real que entró pero que NO es
+        precio de venta: se deja afuera de la Ganancia y se muestra aparte.
+        Congelado en el snapshot si el turno ya cerró."""
+        if self.estado == EstadoTurno.CERRADO and self.totales_cierre:
+            return Decimal(self.totales_cierre.get('redondeos_turno', '0'))
+        return self.calcular_redondeos_en_turno()
+
+    @property
+    def redondeos_efectivo(self):
+        """Redondeo a favor que entró en EFECTIVO — al cajón físico, así
+        que afecta el arqueo. Congelado si el turno ya cerró."""
+        if self.estado == EstadoTurno.CERRADO and self.totales_cierre:
+            return Decimal(self.totales_cierre.get('redondeos_efectivo', '0'))
+        return self.calcular_redondeos_en_turno(solo_efectivo=True)
+
+    @property
+    def redondeos_otros_medios(self):
+        """Redondeo a favor que entró por un medio que no es efectivo
+        (transferencia, QR...). Ya se acreditó en la cuenta bancaria al
+        confirmar la venta, no toca el arqueo del cajón."""
+        return self.redondeos_turno - self.redondeos_efectivo
+
+    @property
+    def efectivo_ventas_sin_redondeo(self):
+        """efectivo_ventas menos el redondeo — el precio de venta puro."""
+        return self.efectivo_ventas - self.redondeos_efectivo
 
     @property
     def efectivo_cuotas_cobradas(self):
@@ -920,7 +981,12 @@ class TurnoCaja(models.Model):
 
     @property
     def ganancia_turno(self):
-        return self.total_recaudado - (self.monto_inicial_efectivo or 0)
+        """Recaudación del turno por VENTAS, sin el redondeo a favor: el
+        redondeo es plata que entró pero no es precio de venta, así que se
+        deja afuera para que el número sea comparable día a día (se muestra
+        aparte, ver redondeos_turno). El margen real por producto no vive
+        acá — sale de ItemVenta/ConsumoLoteVenta, congelados por venta."""
+        return self.total_recaudado - self.redondeos_turno - (self.monto_inicial_efectivo or 0)
 
     @property
     def alerta_diferencia(self):
@@ -1127,7 +1193,8 @@ class TurnoCaja(models.Model):
         turno sigue abierto) como por cerrar() — un solo lugar con la
         fórmula, para que nunca queden desincronizados.
         """
-        efectivo_ventas = self.efectivo_ventas
+        efectivo_ventas = self.efectivo_ventas  # incluye el redondeo a favor
+        efectivo_redondeos = self.calcular_redondeos_en_turno(solo_efectivo=True)
         efectivo_devuelto = self.calcular_efectivo_devuelto_en_turno()
         efectivo_cuotas_cobradas = self.calcular_efectivo_cuotas_cobradas_en_turno()
         efectivo_cuotas_pagadas = self.calcular_efectivo_cuotas_pagadas_en_turno()
@@ -1137,6 +1204,8 @@ class TurnoCaja(models.Model):
         )
         return {
             'efectivo_ventas': efectivo_ventas,
+            'efectivo_ventas_sin_redondeo': efectivo_ventas - efectivo_redondeos,
+            'efectivo_redondeos': efectivo_redondeos,
             'efectivo_devuelto': efectivo_devuelto,
             'efectivo_cuotas_cobradas': efectivo_cuotas_cobradas,
             'efectivo_cuotas_pagadas': efectivo_cuotas_pagadas,
@@ -1161,7 +1230,21 @@ class TurnoCaja(models.Model):
             )['total'] or 0
 
         return totales
-    
+
+    def calcular_redondeos_en_turno(self, solo_efectivo=False):
+        """
+        Suma de PagoVenta.redondeo_monto de las ventas de este turno —
+        lo que los clientes pagaron de más por redondeo. Con
+        solo_efectivo=True, únicamente las líneas cobradas en efectivo
+        (las que afectan el conteo físico del cajón).
+        """
+        from ventas.models import MedioPago, PagoVenta
+
+        qs = PagoVenta.objects.filter(venta__in=self._ventas_en_turno())
+        if solo_efectivo:
+            qs = qs.filter(medio=MedioPago.EFECTIVO)
+        return qs.aggregate(total=Sum('redondeo_monto'))['total'] or Decimal('0')
+
     def cerrar(self, cajas, usuario, notas=''):
         """
         Cierra el turno. Es el momento en que el EFECTIVO de un turno
@@ -1238,6 +1321,8 @@ class TurnoCaja(models.Model):
             efectivo_cuotas_cobradas = componentes['efectivo_cuotas_cobradas']
             efectivo_cuotas_pagadas = componentes['efectivo_cuotas_pagadas']
             esperado = componentes['esperado']
+            redondeos_turno = self.calcular_redondeos_en_turno()
+            redondeos_efectivo = componentes['efectivo_redondeos']
 
             # ── Congelar estado del turno ───────────────────────────
             self.monto_final_efectivo = monto_final_efectivo
@@ -1250,7 +1335,9 @@ class TurnoCaja(models.Model):
                 'totales_medio_pago': {k: str(v) for k, v in totales.items()},
                 'total_recaudado': str(total_recaudado),
                 'total_financiado_pendiente': str(total_financiado_pendiente),
-                'ganancia_turno': str(total_recaudado - (self.monto_inicial_efectivo or 0)),
+                'redondeos_turno': str(redondeos_turno),
+                'redondeos_efectivo': str(redondeos_efectivo),
+                'ganancia_turno': str(total_recaudado - redondeos_turno - (self.monto_inicial_efectivo or 0)),
                 'esperado_efectivo': str(esperado),
                 'declarado_efectivo': str(monto_final_efectivo),
                 'efectivo_devuelto': str(efectivo_devuelto),

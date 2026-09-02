@@ -73,6 +73,7 @@ function buildPagoExtraHTML(p) {
     if (p.tarjeta) partes.push(_esc(p.tarjeta));
     if (p.etiqueta_plan) partes.push(_esc(p.etiqueta_plan));
     if (parseFloat(p.recargo_monto) > 0) partes.push(`recargo ${formatMoney(p.recargo_monto)}`);
+    if (parseFloat(p.redondeo_monto) > 0) partes.push(`${_esc(p.excedente_label || 'redondeo a favor')} ${formatMoney(p.redondeo_monto)}`);
     if (p.cuenta_por_cobrar) {
         const cxc = p.cuenta_por_cobrar;
         const cuotasTxt = cxc.modo_cuotas === 'libre' ? 'cuotas libres' : `${cxc.cantidad_cuotas} cuotas`;
@@ -366,8 +367,8 @@ function buildVentaHTML(c) {
                         : ''}
                     <span style="font-size:0.875rem;color:var(--text-muted);">Total:</span>
                     <strong>${formatMoney(c.total_cobrado)}</strong>
-                    ${parseFloat(c.total_recargos) > 0
-                        ? `<span style="font-size:0.78rem;color:var(--text-muted);">(precio ${formatMoney(c.total)} + recargo ${formatMoney(c.total_recargos)})</span>`
+                    ${(parseFloat(c.total_recargos) > 0 || parseFloat(c.total_redondeos) > 0)
+                        ? `<span style="font-size:0.78rem;color:var(--text-muted);">(se factura ${formatMoney(c.total)}${parseFloat(c.total_recargos) > 0 ? ` + recargo ${formatMoney(c.total_recargos)}` : ''}${parseFloat(c.total_redondeos) > 0 ? ` + redondeo ${formatMoney(c.total_redondeos)}` : ''})</span>`
                         : ''}
                 </div>
             </div>

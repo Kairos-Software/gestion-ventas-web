@@ -1,4 +1,5 @@
 let cdEfectivoEsperado = 0;
+let cdRedondeoEfectivo = 0;
 let cdFilaIdx = { abrir: 0, cerrar: 0 };
 
 // ══════════════════════════════════════════════════════════════════
@@ -130,6 +131,7 @@ async function cdCerrarTurno() {
 
         if (data.hay_turno) {
             cdEfectivoEsperado = parseFloat(data.turno.efectivo_total) || 0;
+            cdRedondeoEfectivo = parseFloat(data.turno.redondeos_efectivo) || 0;
 
             // Pre-cargar una fila por cada caja declarada en la apertura
             document.getElementById('cd-cajas-cerrar-list').innerHTML = '';
@@ -171,6 +173,16 @@ function cdActualizarComparacion() {
 
     document.getElementById('cd-comp-esperado').textContent = `$${esperado.toFixed(2)}`;
     document.getElementById('cd-comp-declarado').textContent = `$${declarado.toFixed(2)}`;
+
+    const redondeoRow = document.getElementById('cd-comp-redondeo-row');
+    if (redondeoRow) {
+        if (cdRedondeoEfectivo > 0.005) {
+            redondeoRow.style.display = '';
+            document.getElementById('cd-comp-redondeo').textContent = `$${cdRedondeoEfectivo.toFixed(2)}`;
+        } else {
+            redondeoRow.style.display = 'none';
+        }
+    }
 
     const diffEl = document.getElementById('cd-comp-diferencia');
     const labelEl = document.getElementById('cd-comp-estado-lbl');

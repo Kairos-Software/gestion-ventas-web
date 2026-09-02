@@ -98,6 +98,59 @@ html { scroll-behavior: smooth; }
     margin: 0;
 }
 
+.config-section-header > div:not(.config-section-icon) {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.config-primary-btn {
+    background: var(--brand-orange);
+    border-color: var(--brand-orange);
+    color: #fff;
+}
+
+.config-primary-btn:hover,
+.config-primary-btn:focus-visible {
+    background: var(--brand-orange-dark, #c84f0a);
+    border-color: var(--brand-orange-dark, #c84f0a);
+    color: #fff;
+}
+
+/* base.css se carga después de Bootstrap y neutraliza sus bordes outline.
+   La pantalla de Configuración los restituye para que las acciones secundarias
+   no parezcan texto suelto, sobre todo cuando se apilan en móvil. */
+.config-page .btn-outline-secondary {
+    background: var(--bg-white);
+    border-color: var(--border-strong);
+    color: var(--text-secondary);
+}
+
+.config-page .btn-outline-secondary:hover,
+.config-page .btn-outline-secondary:focus-visible {
+    background: var(--bg-primary);
+    border-color: var(--text-muted);
+    color: var(--text-primary);
+}
+
+.config-page .btn-outline-danger {
+    background: var(--bg-white);
+    border-color: rgba(239, 68, 68, 0.45);
+    color: var(--danger);
+}
+
+.config-page .btn-outline-danger:hover,
+.config-page .btn-outline-danger:focus-visible {
+    background: rgba(239, 68, 68, 0.08);
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
+.config-add-account-btn {
+    flex: 0 0 auto;
+    margin-left: auto;
+    white-space: nowrap;
+}
+
 .config-row {
     display: flex;
     align-items: center;
@@ -124,6 +177,44 @@ html { scroll-behavior: smooth; }
 .config-row-desc {
     font-size: 0.75rem;
     color: var(--text-muted);
+}
+
+.config-form-pair {
+    gap: 1rem;
+}
+
+.config-field {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.config-form-actions {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+}
+
+.config-logo-controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    width: 100%;
+}
+
+.config-callout-main {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    gap: 1rem;
+}
+
+.config-button-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
 }
 
 /* Campo numérico/select con texto a los costados explicando qué es
@@ -242,6 +333,27 @@ html { scroll-behavior: smooth; }
     border-color: rgba(30,111,168,0.25);
 }
 
+.cuenta-row {
+    align-items: flex-start;
+}
+
+.cuenta-row .config-row-label,
+.cuenta-row .config-row-desc {
+    overflow-wrap: anywhere;
+}
+
+.cuenta-actions {
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.4rem;
+}
+
+.cuenta-actions .btn {
+    white-space: nowrap;
+}
+
 /* Cuenta por defecto por medio de pago (sección Cuentas de caja) */
 .cuentas-predet-grid {
     display: grid;
@@ -255,6 +367,12 @@ html { scroll-behavior: smooth; }
     font-size: 0.8rem;
     font-weight: 600;
     color: var(--text-secondary);
+}
+
+.config-predet-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
 }
 @media (max-width: 640px) {
     .cuentas-predet-grid { grid-template-columns: 1fr; }
@@ -326,6 +444,86 @@ html { scroll-behavior: smooth; }
 
 .config-logo-box img { width: 100%; height: 100%; object-fit: contain; }
 
+/* Modal de cuentas */
+#cuentaModal .modal-content {
+    border: 0;
+    border-radius: 0.9rem;
+    background: var(--bg-white, #fff);
+    box-shadow: 0 1.25rem 3rem rgba(15, 23, 42, 0.2);
+    overflow: hidden;
+}
+
+#cuentaModal .modal-content > form {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+}
+
+#cuentaModal .modal-header,
+#cuentaModal .modal-footer {
+    padding: 1rem 1.25rem;
+}
+
+#cuentaModal .modal-header > div {
+    min-width: 0;
+}
+
+#cuentaModal .modal-subtitle {
+    margin: 0.15rem 0 0;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+}
+
+#cuentaModal .modal-body {
+    min-height: 0;
+    padding: 1rem 1.25rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+#cuentaModal .modal-footer {
+    flex: 0 0 auto;
+    background: var(--bg-white, #fff);
+}
+
+#cuentaModal .config-modal-row {
+    padding: 0 0 0.85rem;
+}
+
+#cuentaModal .config-modal-row:hover {
+    background: transparent;
+}
+
+#cuentaModal .config-credit-check {
+    display: flex;
+    align-items: flex-end;
+    padding-bottom: 0.5rem;
+}
+
+#cuentaModal .form-check {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    gap: 0.5rem;
+    padding-left: 0;
+}
+
+#cuentaModal .form-check-input {
+    flex: 0 0 auto;
+    width: 1.2rem;
+    height: 1.2rem;
+    margin: 0;
+}
+
+#cuentaModal .form-check-label {
+    flex: 1 1 auto;
+}
+
+#cuentaModal .form-check .kai-help-btn {
+    flex: 0 0 auto;
+}
+
 /* ═══════════════════════════════════════════
    CATÁLOGO — VISTA PREVIA EN VIVO
    ═══════════════════════════════════════════ */
@@ -368,10 +566,147 @@ html { scroll-behavior: smooth; }
 /* ═══════════════════════════════════════════
    RESPONSIVE
    ═══════════════════════════════════════════ */
-@media (max-width: 767px) {
-    .config-section-header { padding: 0.875rem 1rem; }
+@media (max-width: 900px) {
+    .config-page-header { margin-bottom: 1rem; }
+
+    .config-nav {
+        top: var(--header-height, 52px);
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overscroll-behavior-inline: contain;
+        scrollbar-width: thin;
+        -webkit-overflow-scrolling: touch;
+        padding: 0.3rem;
+        margin-bottom: 1rem;
+    }
+
+    .config-nav a {
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px;
+        padding: 0.55rem 0.8rem;
+    }
+
+    .config-section { border-radius: 0.8rem; }
+
+    .config-section-header {
+        align-items: flex-start;
+        padding: 0.875rem 1rem;
+    }
+
+    .config-section-header--with-action {
+        display: grid;
+        grid-template-columns: 34px minmax(0, 1fr);
+    }
+
+    .config-section-header--with-action .config-add-account-btn {
+        grid-column: 1 / -1;
+        width: 100%;
+        margin: 0.15rem 0 0;
+        justify-content: center;
+    }
+
     .config-row { padding: 0.875rem 1rem; }
     .config-empresa-msg { padding: 0 1rem 0.875rem; }
+
+    .cuenta-row {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .cuenta-row .config-row-info,
+    .cuenta-actions {
+        width: 100%;
+    }
+
+    .cuenta-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .cuenta-actions .btn {
+        width: 100%;
+        min-height: 44px;
+    }
+
+    .btn-cuenta-principal {
+        grid-column: 1 / -1;
+    }
+
+    .config-callout,
+    .config-guide {
+        margin-right: 1rem;
+        margin-left: 1rem;
+        padding: 0.85rem;
+    }
+
+    .config-callout-main {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .config-callout-main > .btn {
+        width: 100%;
+    }
+
+    .config-inline-field {
+        min-width: 0;
+        margin-right: 0;
+        white-space: normal;
+    }
+
+    .config-form-actions .btn {
+        min-height: 44px;
+    }
+}
+
+@media (max-width: 640px) {
+    .config-form-pair {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 0.85rem;
+    }
+
+    .config-form-pair > .config-field {
+        width: 100%;
+    }
+
+    .config-setting-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 0.7rem;
+    }
+
+    .config-setting-row .config-row-info {
+        grid-column: 1 / -1;
+        width: 100%;
+    }
+
+    .config-setting-row .config-inline-field {
+        width: 100%;
+    }
+
+    #cuentaModal .modal-dialog {
+        margin: 0.5rem;
+    }
+
+    #cuentaModal .modal-content {
+        max-width: calc(100vw - 1rem);
+        max-height: calc(100dvh - 1rem);
+    }
+
+    #cuentaModal .modal-header,
+    #cuentaModal .modal-body,
+    #cuentaModal .modal-footer {
+        padding-right: 1rem;
+        padding-left: 1rem;
+    }
+
+    #cuentaModal .config-credit-check {
+        align-items: flex-start;
+        padding-bottom: 0;
+    }
 }
 
 @media (max-width: 479px) {
@@ -380,4 +715,42 @@ html { scroll-behavior: smooth; }
         align-items: flex-start;
     }
     .config-row-info { flex-basis: 100%; }
+
+    .config-page-header h1 { font-size: 1.35rem; }
+
+    .config-section-header p { margin-top: 0.2rem; }
+
+    .config-predet-row { align-items: stretch; }
+
+    .config-form-actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .config-form-actions .btn,
+    .config-button-row .btn,
+    #btnGuardarCuentasPredet {
+        width: 100%;
+    }
+
+    .config-button-row {
+        flex-direction: column;
+    }
+
+    #cuentaModal .modal-footer > .btn {
+        flex: 1 1 100%;
+        width: 100%;
+        min-height: 44px;
+    }
+}
+
+@media (pointer: coarse) {
+    .toggle-switch {
+        width: 44px;
+        height: 44px;
+    }
+
+    .toggle-switch .toggle-track {
+        inset: 11px 2px;
+    }
 }

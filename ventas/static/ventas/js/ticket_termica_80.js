@@ -362,14 +362,20 @@ function _t80PagoDetalle(p) {
     return partes.length ? ` (${partes.join(', ')})` : '';
 }
 
+/** Monto de la línea de pago EN EL TICKET del cliente = base + recargo,
+ *  sin el redondeo/diferencia (eso solo se ve en el detalle interno). */
+function _t80MontoPago(p) {
+    return parseFloat(p.monto || 0) - parseFloat(p.redondeo_monto || 0);
+}
+
 function _t80Pagos(pagos, venta) {
     if (pagos && pagos.length) {
-        return pagos.map(p => {
+        return pagos.filter(p => _t80MontoPago(p) > 0.005).map(p => {
             const tarjeta = p.tarjeta_nombre ? ` · ${_esc(p.tarjeta_nombre)}` : '';
             return `
         <div class="t80-pago-row">
             <span>${_esc(p.medio_display)}${tarjeta}${_t80PagoDetalle(p)}</span>
-            <span>$${_fmtNum(p.monto)}</span>
+            <span>$${_fmtNum(_t80MontoPago(p))}</span>
         </div>`;
         }).join('');
     }

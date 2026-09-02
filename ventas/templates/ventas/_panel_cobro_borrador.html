@@ -50,9 +50,9 @@ vdt* que espera ese script están todos acá.
                     </button>
                     {% comment %}
                     Cierre: "Total" = productos + recargo/interés = lo que paga el
-                    cliente. No se mueve al tipear el importe (el recargo va clavado
-                    a la base de productos). El estado (falta / cubierto / sobra) y
-                    el desglose van en el mismo bloque — ver _actualizarResumen en
+                    cliente. Las líneas de pago tienen que sumar EXACTO ese total —
+                    cobrar de más se carga aparte con "+ Redondeo a favor" (abajo),
+                    no tipeando un importe mayor. Ver _actualizarResumen en
                     detalle_venta.js
                     {% endcomment %}
                     <div class="vdt-pago-cierre vdt-pago-cierre--pendiente" id="vdtPagoResumen">
@@ -62,6 +62,61 @@ vdt* que espera ese script están todos acá.
                         </div>
                         <div class="vdt-pago-cierre-recargo" id="vdtRecargoResumen" hidden>
                             <strong id="vdtRecargoProductos">$0,00</strong> productos + <strong id="vdtRecargoMonto">$0,00</strong> de recargo/interés
+                        </div>
+                        <div class="vdt-pago-cierre-recargo vdt-pago-cierre-redondeo" id="vdtRedondeoResumen" hidden></div>
+                        <button type="button" class="vdt-pago-cierre-sobra-btn" id="vdtSobraCargarRedondeo" hidden></button>
+                    </div>
+
+                    {% comment %}
+                    Redondeo a favor — lo que el cliente pagó de MÁS para redondear
+                    ($98,65 → paga $100). Es explícito: el cajero elige el importe
+                    y en qué medio entró. NO va al ticket ni a la factura (a ARCA
+                    siempre le llega venta.total). Ver pagoState.redondeo en
+                    detalle_venta.js.
+                    {% endcomment %}
+                    <div class="vdt-redondeo" id="vdtRedondeoWrap">
+                        <button type="button" class="vdt-redondeo-toggle" id="vdtRedondeoToggle">
+                            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                                <path d="M7 2V12M2 7H12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                            </svg>
+                            Redondeo a favor
+                        </button>
+                        <div class="vdt-redondeo-box" id="vdtRedondeoBox" hidden>
+                            <div class="vdt-redondeo-box-head">
+                                <span>Redondeo a favor</span>
+                                <button type="button" class="vdt-redondeo-quitar" id="vdtRedondeoQuitar" title="Quitar redondeo">
+                                    <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                                        <path d="M2 2L10 10M10 2L2 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            <p class="vdt-redondeo-hint">
+                                Lo que el cliente pagó de más para redondear. No aparece en el ticket ni en la factura.
+                            </p>
+                            <div class="vdt-redondeo-grid">
+                                <label class="vdt-redondeo-field">
+                                    <span>Importe</span>
+                                    <input type="number" min="0" step="0.01" id="vdtRedondeoMonto" class="vta-control" placeholder="0,00">
+                                </label>
+                                <label class="vdt-redondeo-field">
+                                    <span>o redondear a</span>
+                                    <input type="number" min="0" step="0.01" id="vdtRedondeoHasta" class="vta-control" placeholder="ej. 100">
+                                </label>
+                                <label class="vdt-redondeo-field">
+                                    <span>¿En qué medio entró?</span>
+                                    <select id="vdtRedondeoMedio" class="vta-control">
+                                        <option value="efectivo">Efectivo</option>
+                                        <option value="transferencia">Transferencia</option>
+                                        <option value="debito">Débito</option>
+                                        <option value="credito">Crédito</option>
+                                        <option value="qr">QR</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <div class="vdt-redondeo-cuenta" id="vdtRedondeoCuentaWrap" hidden>
+                                <select id="vdtRedondeoCuenta" class="vta-control"></select>
+                            </div>
+                            <p class="vdt-redondeo-nota" id="vdtRedondeoNota"></p>
                         </div>
                     </div>
                 </div>

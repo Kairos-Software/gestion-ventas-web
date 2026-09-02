@@ -403,13 +403,21 @@ function _a4PagoDetalle(p) {
     return partes.length ? ` (${partes.join(' — ')})` : '';
 }
 
+/** Lo que se muestra en la forma de pago del ticket = lo que cubre la venta
+ *  (base + recargo), SIN el redondeo/diferencia — eso no va en el
+ *  comprobante del cliente, solo en el detalle interno. */
+function _a4MontoPago(p) {
+    return parseFloat(p.monto || 0) - parseFloat(p.redondeo_monto || 0);
+}
+
 function _a4Pagos(pagos, venta) {
     if (pagos && pagos.length) {
-        const badges = pagos.map(p => {
+        const visibles = pagos.filter(p => _a4MontoPago(p) > 0.005);
+        const badges = visibles.map(p => {
             const tarjeta = p.tarjeta_nombre ? ` · ${_esc(p.tarjeta_nombre)}` : '';
-            return `<span class="a4-pago-badge">${_esc(p.medio_display)}${tarjeta}${_a4PagoDetalle(p)}: $${_fmtNum(p.monto)}</span>`;
+            return `<span class="a4-pago-badge">${_esc(p.medio_display)}${tarjeta}${_a4PagoDetalle(p)}: $${_fmtNum(_a4MontoPago(p))}</span>`;
         }).join('');
-        return `<div class="a4-pago-box">
+        if (badges) return `<div class="a4-pago-box">
             <div class="a4-info-label">Forma de pago</div>
             <div class="a4-pagos">${badges}</div>
         </div>`;

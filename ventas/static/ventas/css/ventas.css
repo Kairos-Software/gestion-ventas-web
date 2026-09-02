@@ -1857,13 +1857,104 @@ textarea.vta-control {
     color: var(--text-muted);
 }
 .vdt-pago-cierre-recargo strong { color: var(--text-secondary); font-weight: 700; }
+.vdt-pago-cierre-redondeo strong { color: var(--text-primary); }
 
 .vdt-pago-cierre--pendiente { background: rgba(245, 158, 11, .08); border-color: rgba(245, 158, 11, .22); }
 .vdt-pago-cierre--pendiente .vdt-pago-cierre-estado { color: var(--warning, #b45309); }
 .vdt-pago-cierre--ok { background: rgba(34, 197, 94, .09); border-color: rgba(34, 197, 94, .24); }
 .vdt-pago-cierre--ok .vdt-pago-cierre-estado { color: var(--success, #16a34a); }
+/* Las líneas de pago suman de más: no se puede confirmar hasta corregir
+   o pasar el excedente a "redondeo a favor" (ver #vdtSobraCargarRedondeo). */
 .vdt-pago-cierre--exceso { background: rgba(239, 68, 68, .08); border-color: rgba(239, 68, 68, .22); }
 .vdt-pago-cierre--exceso .vdt-pago-cierre-estado { color: var(--danger, #dc2626); }
+
+/* Botón "el pago supera el total — cargar como redondeo a favor" */
+.vdt-pago-cierre-sobra-btn {
+    display: block;
+    width: 100%;
+    margin-top: .45rem;
+    padding: .4rem .55rem;
+    font-size: .72rem;
+    font-weight: 600;
+    text-align: left;
+    line-height: 1.35;
+    color: var(--info, #2563eb);
+    background: rgba(59, 130, 246, .09);
+    border: 1px solid rgba(59, 130, 246, .28);
+    border-radius: .45rem;
+    cursor: pointer;
+}
+.vdt-pago-cierre-sobra-btn:hover { background: rgba(59, 130, 246, .16); }
+
+/* ── Redondeo a favor: control explícito ── */
+.vdt-redondeo { margin-bottom: .7rem; }
+.vdt-redondeo-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .3rem .5rem;
+    font-size: .78rem;
+    font-weight: 600;
+    color: var(--info, #2563eb);
+    background: none;
+    border: 1px dashed rgba(59, 130, 246, .4);
+    border-radius: .4rem;
+    cursor: pointer;
+}
+.vdt-redondeo-toggle:hover { background: rgba(59, 130, 246, .08); }
+.vdt-redondeo-box {
+    border: 1px solid rgba(59, 130, 246, .28);
+    background: rgba(59, 130, 246, .05);
+    border-radius: .55rem;
+    padding: .6rem .7rem;
+}
+.vdt-redondeo-box-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: .8rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.vdt-redondeo-quitar {
+    display: inline-flex;
+    padding: .2rem;
+    color: var(--text-muted);
+    background: none;
+    border: none;
+    cursor: pointer;
+    border-radius: .3rem;
+}
+.vdt-redondeo-quitar:hover { color: var(--danger, #dc2626); background: rgba(239, 68, 68, .1); }
+.vdt-redondeo-hint {
+    margin: .25rem 0 .5rem;
+    font-size: .72rem;
+    line-height: 1.4;
+    color: var(--text-muted);
+}
+.vdt-redondeo-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .5rem;
+}
+.vdt-redondeo-field {
+    display: flex;
+    flex-direction: column;
+    gap: .2rem;
+    font-size: .7rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+.vdt-redondeo-field:last-child { grid-column: 1 / -1; }
+.vdt-redondeo-field .vta-control { font-size: .8rem; padding: .35rem .5rem; }
+.vdt-redondeo-cuenta { margin-top: .5rem; }
+.vdt-redondeo-cuenta .vta-control { width: 100%; font-size: .8rem; padding: .35rem .5rem; }
+.vdt-redondeo-nota {
+    margin: .5rem 0 0;
+    font-size: .7rem;
+    line-height: 1.4;
+    color: var(--info, #2563eb);
+}
 
 .vdt-cobro-sec {
     border-top: 1px solid var(--border-color);

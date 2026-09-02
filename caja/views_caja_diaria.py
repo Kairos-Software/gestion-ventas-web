@@ -38,6 +38,10 @@ class CajaDiariaView(LoginRequiredMixin, TemplateView):
             ctx['total_financiado_pendiente'] = turno_actual.total_financiado_pendiente
             ctx['monto_inicial'] = turno_actual.monto_inicial_efectivo
             ctx['efectivo_ventas'] = turno_actual.efectivo_ventas
+            ctx['efectivo_ventas_sin_redondeo'] = turno_actual.efectivo_ventas_sin_redondeo
+            ctx['redondeos_turno'] = turno_actual.redondeos_turno
+            ctx['redondeos_efectivo'] = turno_actual.redondeos_efectivo
+            ctx['redondeos_otros_medios'] = turno_actual.redondeos_otros_medios
             ctx['efectivo_cuotas_cobradas'] = turno_actual.efectivo_cuotas_cobradas
             ctx['efectivo_cuotas_pagadas'] = turno_actual.efectivo_cuotas_pagadas
             ctx['efectivo_total'] = turno_actual.efectivo_total
@@ -267,7 +271,11 @@ class EstadoCajaDiariaAjax(LoginRequiredMixin, View):
                 'total_recaudado': str(turno.total_recaudado),
                 'total_financiado_pendiente': str(turno.total_financiado_pendiente),
                 'ganancia_turno': str(turno.ganancia_turno),
+                'redondeos_turno': str(turno.redondeos_turno),
+                'redondeos_efectivo': str(turno.redondeos_efectivo),
+                'redondeos_otros_medios': str(turno.redondeos_otros_medios),
                 'efectivo_ventas': str(turno.efectivo_ventas),
+                'efectivo_ventas_sin_redondeo': str(turno.efectivo_ventas_sin_redondeo),
                 'efectivo_cuotas_cobradas': str(turno.efectivo_cuotas_cobradas),
                 'efectivo_cuotas_pagadas': str(turno.efectivo_cuotas_pagadas),
                 # Desglose declarado en la apertura — el frontend lo usa
@@ -311,7 +319,11 @@ class HistorialTurnosAjax(LoginRequiredMixin, View):
                 'cerrado_por': turno.cerrado_por.get_full_name() if turno.cerrado_por else None,
                 'total_recaudado': str(turno.total_recaudado),
                 'total_financiado_pendiente': str(turno.total_financiado_pendiente),
+                'redondeos_turno': str(turno.redondeos_turno),
+                'redondeos_efectivo': str(turno.redondeos_efectivo),
+                'redondeos_otros_medios': str(turno.redondeos_otros_medios),
                 'efectivo_ventas': str(turno.efectivo_ventas),
+                'efectivo_ventas_sin_redondeo': str(turno.efectivo_ventas_sin_redondeo),
                 'efectivo_cuotas_cobradas': str(turno.efectivo_cuotas_cobradas),
                 'efectivo_cuotas_pagadas': str(turno.efectivo_cuotas_pagadas),
                 'efectivo_total': str(turno.efectivo_total),
@@ -403,6 +415,7 @@ class HistorialDiarioView(LoginRequiredMixin, TemplateView):
             totales_medio_pago = {}
             total_recaudado_dia = Decimal('0')
             total_financiado_pendiente_dia = Decimal('0')
+            total_redondeos_dia = Decimal('0')
             hay_alerta = False
             for turno in turnos_fecha:
                 totales = turno.totales_medio_pago
@@ -410,6 +423,7 @@ class HistorialDiarioView(LoginRequiredMixin, TemplateView):
                     totales_medio_pago[medio] = totales_medio_pago.get(medio, 0) + monto
                 total_recaudado_dia += turno.total_recaudado
                 total_financiado_pendiente_dia += turno.total_financiado_pendiente
+                total_redondeos_dia += turno.redondeos_turno
                 if turno.alerta_diferencia:
                     hay_alerta = True
 
@@ -428,6 +442,7 @@ class HistorialDiarioView(LoginRequiredMixin, TemplateView):
                 'total_diferencia': entry['total_diferencia'] or 0,
                 'total_recaudado': total_recaudado_dia,
                 'total_financiado_pendiente': total_financiado_pendiente_dia,
+                'total_redondeos': total_redondeos_dia,
                 'totales_medio_pago': totales_medio_pago_inmediato,
                 'totales_medio_pago_pendiente': totales_medio_pago_pendiente,
                 'turnos': turnos_fecha,

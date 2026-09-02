@@ -193,6 +193,8 @@ class ListarVentasAjax(LoginRequiredMixin, View):
                     'cotizacion':    str(p.cotizacion) if p.cotizacion else None,
                     'recargo_pct':   str(p.recargo_pct),
                     'recargo_monto': str(p.recargo_monto),
+                    'redondeo_monto': str(p.redondeo_monto),
+                    'excedente_label': p.etiqueta_excedente,
                     'cantidad_pagos': p.cantidad_pagos,
                     'nombre_plan':   p.nombre_plan,
                     'etiqueta_plan': p.etiqueta_plan if p.cantidad_pagos > 1 or p.nombre_plan else None,
@@ -227,7 +229,8 @@ class ListarVentasAjax(LoginRequiredMixin, View):
             # pagó de verdad). total_cobrado es lo que realmente entró:
             # precio + recargos de todas las líneas de pago.
             total_recargos = sum((p.recargo_monto for p in v.pagos.all()), Decimal('0'))
-            total_cobrado = v.total + total_recargos
+            total_redondeos = sum((p.redondeo_monto for p in v.pagos.all()), Decimal('0'))
+            total_cobrado = v.total + total_recargos + total_redondeos
 
             data.append({
                 'pk':                      v.pk,
@@ -238,6 +241,7 @@ class ListarVentasAjax(LoginRequiredMixin, View):
                 'estado_label':            v.get_estado_display(),
                 'total':                   str(v.total),
                 'total_recargos':          str(total_recargos),
+                'total_redondeos':         str(total_redondeos),
                 'total_cobrado':           str(total_cobrado),
                 'descuento_global_pct':    str(v.descuento_global_pct),
                 'oferta_global_nombre':    v.oferta_global_nombre,

@@ -176,6 +176,162 @@
     }
 }
 
+/*
+ * Densidad compacta para monitores antiguos, netbooks y pantallas con poca
+ * altura. Se activa solo en escritorio: los teléfonos conservan sus controles
+ * táctiles grandes y las pantallas modernas mantienen el diseño espacioso.
+ */
+@media (min-width: 768px) and (max-width: 1199px),
+       (min-width: 768px) and (max-height: 768px) {
+    .kai-internal-app .main-container {
+        padding: 0.875rem;
+    }
+
+    .kai-internal-app :where(
+        .page-header, .vta-page-header, .cmp-page-header, .prd-page-header,
+        .nx-page-header, .trx-page-header, .historial-header, .cg-header,
+        .chq-header, .cxc-header, .deudas-header, .gastos-header, .rec-header,
+        .config-page-header, .manual-page-header, .perfil-header
+    ) {
+        gap: 0.55rem;
+        margin-bottom: 0.9rem;
+    }
+
+    .kai-internal-app :where(
+        .vta-page-title, .cmp-page-title, .prd-page-title, .nx-page-title,
+        .trx-page-title, .historial-title, .cg-title-wrap
+    ) {
+        gap: 0.65rem;
+    }
+
+    .kai-internal-app :where(
+        .vta-page-icon, .cmp-page-icon, .prd-page-icon, .nx-page-icon,
+        .trx-page-icon, .historial-icon
+    ) {
+        width: 38px;
+        height: 38px;
+        border-radius: 0.7rem;
+    }
+
+    .kai-internal-app :where(
+        h1, .vta-page-title h1, .cmp-page-title h1, .prd-page-title h1,
+        .nx-page-title h1, .trx-page-title h1, .historial-title h1,
+        .cg-header h1
+    ) {
+        font-size: 1.4rem;
+    }
+
+    .kai-internal-app :where(
+        .vta-layout, .cmp-layout, .cdt-layout, .stock-layout,
+        .prd-stats-row, .home-kpi-grid, .est-kpi-grid, .inv-stats,
+        .kpi-grid, .cg-cuentas-grid, .rec-grid
+    ) {
+        gap: 0.75rem;
+    }
+
+    .kai-internal-app :where(
+        .prd-stats-row, .home-kpi-grid, .est-kpi-grid, .inv-stats,
+        .kpi-grid, .cg-cuentas-grid
+    ) {
+        margin-bottom: 1rem;
+    }
+
+    .kai-internal-app :where(
+        .prd-stat-card, .home-kpi-card, .est-kpi-card,
+        .inv-stat-card, .kpi-card, .cg-cuenta-card
+    ) {
+        gap: 0.65rem;
+        padding: 0.75rem 0.9rem;
+        border-radius: 0.75rem;
+    }
+
+    .kai-internal-app :where(
+        .prd-stat-icon, .home-kpi-icon, .est-kpi-icon,
+        .inv-stat-icon, .kpi-icon
+    ) {
+        width: 36px;
+        height: 36px;
+    }
+
+    .kai-internal-app :where(
+        .prd-stat-value, .home-kpi-value, .est-kpi-value,
+        .inv-stat-value, .kpi-value
+    ) {
+        font-size: 1.45rem;
+    }
+
+    .kai-internal-app :where(
+        .card-header, .vta-card-header, .cmp-card-header,
+        .prd-card-header, .nx-card-header, .cg-card-header
+    ) {
+        padding: 0.65rem 0.9rem;
+    }
+
+    .kai-internal-app :where(
+        .card-body, .vta-card-body, .cmp-card-body,
+        .prd-card-body, .nx-card-body, .cg-card-body
+    ) {
+        padding: 0.85rem 0.9rem;
+    }
+
+    .kai-internal-app :where(
+        .card-footer, .vta-card-footer, .cmp-card-footer,
+        .prd-card-footer, .nx-card-footer
+    ) {
+        padding: 0.65rem 0.9rem;
+    }
+
+    .kai-internal-app :where(
+        .filtros-bar, .filter-bar, .bal-filtros, .inventario-filtros,
+        .trx-filtros, .gastos-filtros, .deudas-filtros, .cxc-filtros,
+        .chq-filtros, .est-filtros, .prd-toolbar
+    ) {
+        gap: 0.55rem;
+        padding: 0.7rem 0.8rem;
+    }
+
+    .kai-internal-app :where(
+        .table, .vta-table, .cmp-table, .prd-table, .nx-table,
+        .inventario-tabla, .chq-tabla, .cxc-tabla, .deudas-tabla,
+        .gastos-tabla, .trx-table, .rec-tabla, .stock-table
+    ) :where(th, td) {
+        padding: 0.5rem 0.65rem !important;
+    }
+
+    .kai-internal-app :where(.empty-state, .vta-empty, .cmp-empty, .prd-empty) {
+        padding: 1.5rem 1rem !important;
+    }
+
+    .kai-internal-app :where(.config-section-header, .config-row) {
+        padding-top: 0.7rem;
+        padding-bottom: 0.7rem;
+    }
+
+    .kai-internal-app :where(.modal-header, .modal-footer, .modal-footer-custom) {
+        padding: 0.7rem 0.9rem;
+    }
+
+    .kai-internal-app :where(.modal-body, .prd-modal-body, .nx-modal-body, .cd-modal-body) {
+        padding: 0.75rem 0.9rem;
+    }
+}
+
+/* En una PC antigua con mouse se pueden compactar los controles sin reducir
+   las áreas táctiles de tablets o equipos convertibles. */
+@media (min-width: 768px) and (pointer: fine) and (max-width: 1199px),
+       (min-width: 768px) and (pointer: fine) and (max-height: 768px) {
+    .kai-internal-app :where(
+        .btn, button, .prd-btn, .nx-btn, .vta-btn, .cmp-btn,
+        .btn-accion, .pag-btn
+    ) {
+        min-height: 34px;
+    }
+
+    .kai-internal-app :where(input, select, textarea, .form-control, .form-select) {
+        min-height: 36px;
+    }
+}
+
 /* Configuración contiene algunas filas inline definidas en el template. */
 @media (max-width: 900px) {
     .kai-internal-app .config-section-header,

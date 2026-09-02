@@ -138,7 +138,9 @@
         cantidad_pagos: {{ pago.cantidad_pagos }},
         etiqueta_plan: "{{ pago.etiqueta_plan|escapejs }}",
         recargo_pct: "{{ pago.recargo_pct|stringformat:'.2f' }}",
-        recargo_monto: "{{ pago.recargo_monto|stringformat:'.2f' }}"
+        recargo_monto: "{{ pago.recargo_monto|stringformat:'.2f' }}",
+        redondeo_monto: "{{ pago.redondeo_monto|stringformat:'.2f' }}",
+        excedente_label: "{{ pago.etiqueta_excedente|escapejs }}"
     } {% if not forloop.last %}, {% endif %}
     {% endfor %}
     ],

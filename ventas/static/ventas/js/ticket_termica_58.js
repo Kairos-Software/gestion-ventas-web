@@ -357,14 +357,19 @@ function _t58PagoDetalle(p) {
     return partes.length ? ` (${partes.join(', ')})` : '';
 }
 
+/** Monto de la línea en el ticket del cliente = sin el redondeo/diferencia. */
+function _t58MontoPago(p) {
+    return parseFloat(p.monto || 0) - parseFloat(p.redondeo_monto || 0);
+}
+
 function _t58Pagos(pagos, venta) {
     if (pagos && pagos.length) {
-        return pagos.map(p => {
+        return pagos.filter(p => _t58MontoPago(p) > 0.005).map(p => {
             const tarjeta = p.tarjeta_nombre ? ` · ${_esc(p.tarjeta_nombre)}` : '';
             return `
         <div class="t58-pago-row">
             <span>${_esc(p.medio_display)}${tarjeta}${_t58PagoDetalle(p)}</span>
-            <span>$${_fmtNum(p.monto)}</span>
+            <span>$${_fmtNum(_t58MontoPago(p))}</span>
         </div>`;
         }).join('');
     }

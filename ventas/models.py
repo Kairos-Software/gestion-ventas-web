@@ -1,5 +1,5 @@
 from datetime import date, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.db import models
 from django.conf import settings
@@ -732,10 +732,26 @@ class Venta(models.Model):
 
             pagos_resueltos = []
             for p in pagos:
-                monto = p.get('monto')
-                if not monto or float(monto) <= 0:
-                    continue
+                monto = p.get('monto') or 0
                 medio = p.get('medio', MedioPago.EFECTIVO)
+
+                # Excedente pagado por encima del precio de los productos en
+                # esta línea (redondeo en efectivo / diferencia en otro medio).
+                # `monto` es la porción que cubre venta.total — quien llama
+                # (la vista de confirmar) ya separó base de excedente.
+                try:
+                    redondeo_monto = Decimal(str(p.get('redondeo', 0) or 0))
+                except (InvalidOperation, TypeError, ValueError):
+                    raise ValueError('Monto de redondeo inválido.')
+                if redondeo_monto < 0:
+                    raise ValueError('El excedente pagado no puede ser negativo.')
+
+                # Se saltea solo si la línea no aporta NADA (ni a la venta ni
+                # como excedente). Una línea con monto 0 y excedente > 0 sí
+                # cuenta: es plata real que entró (ej: el resto en efectivo
+                # para redondear una transferencia).
+                if float(monto) <= 0 and redondeo_monto <= 0:
+                    continue
 
                 cuotas_info = None
                 cheques_info = None
@@ -903,6 +919,13 @@ class Venta(models.Model):
                         nombre_plan = str(p.get('nombre_plan', '') or '').strip()[:60]
                     recargo_monto = (Decimal(str(monto)) * recargo_pct / 100).quantize(Decimal('0.01'))
 
+                # El redondeo a favor solo tiene sentido en pagos que
+                # entran como plata al toque (efectivo o cuenta real). En
+                # cuotas (financiación) y cheque (monto exacto del papel)
+                # se ignora.
+                if medio in (MedioPago.CUOTAS, MedioPago.CHEQUE):
+                    redondeo_monto = Decimal('0')
+
                 pagos_resueltos.append({
                     'medio': medio, 'monto': monto, 'cuenta': cuenta, 'tarjeta': tarjeta,
                     'cotizacion': cotizacion,
@@ -910,6 +933,7 @@ class Venta(models.Model):
                     'recargo_pct': recargo_pct,
                     'cantidad_pagos': cantidad_pagos, 'nombre_plan': nombre_plan,
                     'recargo_monto': recargo_monto,
+                    'redondeo_monto': redondeo_monto,
                 })
 
         # Validar las etiquetas de balanza ANTES de tocar stock: si
@@ -955,7 +979,7 @@ class Venta(models.Model):
                 pago = PagoVenta.objects.create(
                     venta          = self,
                     medio          = p['medio'],
-                    monto          = Decimal(str(p['monto'])) + p['recargo_monto'],
+                    monto          = Decimal(str(p['monto'])) + p['recargo_monto'] + p['redondeo_monto'],
                     cuenta         = p['cuenta'],
                     tarjeta        = p['tarjeta'],
                     cotizacion     = p['cotizacion'],
@@ -963,6 +987,7 @@ class Venta(models.Model):
                     nombre_plan    = p['nombre_plan'],
                     recargo_pct    = p['recargo_pct'],
                     recargo_monto  = p['recargo_monto'],
+                    redondeo_monto = p['redondeo_monto'],
                 )
                 if p['cuotas_info'] is not None:
                     from caja.models import CuentaPorCobrar
@@ -1830,6 +1855,29 @@ class PagoVenta(models.Model):
         help_text='Monto de recargo (en la moneda de `cuenta`), ya incluido en `monto`.',
     )
 
+    # ── Redondeo a favor: lo que el cliente pagó por encima del precio ──
+    # `monto` = monto_base + recargo_monto + redondeo_monto. `monto_base`
+    # es la porción que cubre venta.total (la suma de todos los monto_base
+    # en pesos SIEMPRE iguala venta.total). Solo puede ser >= 0 (nunca se
+    # cobra de menos). Sin tope — es responsabilidad de quien cobra.
+    #
+    # Es SIEMPRE explícito: el cajero elige el importe y en qué medio entró
+    # (control "+ Redondeo a favor" en el panel de cobro) — nunca se infiere
+    # de tipear un importe mayor. Se registra solo en pesos.
+    #
+    # `es_redondeo` (= medio efectivo) solo distingue si el excedente entró
+    # al cajón físico (afecta el arqueo) o a una cuenta bancaria — no es un
+    # error ni una categoría aparte, es todo "redondeo a favor".
+    #
+    # A ARCA/factura le llega SIEMPRE venta.total (el precio de los
+    # productos), nunca este excedente. Se muestra aparte en la caja
+    # diaria (ver TurnoCaja.redondeos_efectivo / redondeos_turno) y nunca
+    # aparece en el ticket del cliente.
+    redondeo_monto = models.DecimalField(
+        'Redondeo a favor', max_digits=14, decimal_places=2, default=Decimal('0'),
+        help_text='Lo que el cliente pagó por encima del precio de los productos (en pesos), ya incluido en `monto`.',
+    )
+
     class Meta:
         verbose_name        = 'Pago de venta'
         verbose_name_plural = 'Pagos de venta'
@@ -1840,8 +1888,21 @@ class PagoVenta(models.Model):
 
     @property
     def monto_base(self):
-        """Porción de `monto` que corresponde al precio de venta, sin el recargo."""
-        return self.monto - self.recargo_monto
+        """Porción de `monto` que corresponde al precio de venta, sin el
+        recargo por medio de pago ni el excedente pagado (redondeo/diferencia)."""
+        return self.monto - self.recargo_monto - self.redondeo_monto
+
+    @property
+    def es_redondeo(self):
+        """El redondeo a favor de esta línea entró en efectivo (al cajón
+        físico — afecta el arqueo). En cualquier otro medio entró a una
+        cuenta bancaria. No cambia qué es: es todo "redondeo a favor"."""
+        return self.medio == MedioPago.EFECTIVO
+
+    @property
+    def etiqueta_excedente(self):
+        """Cómo llamar al `redondeo_monto` de esta línea en pantalla."""
+        return 'redondeo a favor'
 
     @property
     def etiqueta_plan(self):

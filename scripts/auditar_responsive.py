@@ -39,6 +39,8 @@ PORT = 8765
 BASE_URL = f"http://{HOST}:{PORT}"
 
 VIEWPORTS = {
+    "monitor_antiguo_800x600": (800, 600),
+    "monitor_bajo_1024x600": (1024, 600),
     "telefono": (360, 800),
     "tablet_vertical": (768, 1024),
     "monitor_4_3": (1024, 768),

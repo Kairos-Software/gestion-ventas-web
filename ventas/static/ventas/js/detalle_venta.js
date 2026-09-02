@@ -29,6 +29,11 @@ const pagoState = {
     lineas: [],
     nextId: 0,
     total:  _parsearTotal(VDT.ventaTotal),
+    // Redondeo a favor: lo que el cliente pagó de MÁS para redondear.
+    // Explícito (control "+ Redondeo a favor"), NO se infiere de tipear
+    // un importe mayor. `monto` en pesos; `hasta` = "redondear a $X"
+    // (recalcula `monto` en vivo). Nunca va al ticket ni a ARCA.
+    redondeo: { activo: false, monto: 0, hasta: 0, medio: 'efectivo', cuenta: '' },
 };
 
 /* ════════════════════════════════════════════════════════════════
@@ -826,6 +831,9 @@ function _renderLineas() {
  *     NO se mueve al tipear el importe: el recargo va clavado a la base
  *     de productos (ver _extraLinea), no al importe tipeado.
  *   - Estado: Falta $X / ✓ Pago cubierto / Sobra $X (color del bloque).
+ *     Las líneas tienen que sumar EXACTO el total — el excedente ("el
+ *     cliente pagó de más para redondear") se carga aparte, ver
+ *     pagoState.redondeo y _renderRedondeoBox.
  *   - Desglose "$X productos + $Y recargo/interés", solo si hay recargo. */
 function _actualizarResumen() {
     // "asignado" y "pendiente" se miden en porción de productos (l.monto),
@@ -835,26 +843,216 @@ function _actualizarResumen() {
     const pendiente = pagoState.total - asignado;
     const exceso    = asignado - pagoState.total;
     const cubierto  = Math.abs(pendiente) < 0.005 && pagoState.lineas.length > 0;
+    const haySobra  = exceso > 0.005;
 
     const box = document.getElementById('vdtPagoResumen');
     const txt = document.getElementById('vdtPagoEstadoTxt');
 
     if (box) {
         box.className = 'vdt-pago-cierre ' + (
-            cubierto       ? 'vdt-pago-cierre--ok'      :
-            exceso > 0.005 ? 'vdt-pago-cierre--exceso'  :
-                             'vdt-pago-cierre--pendiente'
+            haySobra ? 'vdt-pago-cierre--exceso'    :
+            cubierto ? 'vdt-pago-cierre--ok'        :
+                       'vdt-pago-cierre--pendiente'
         );
     }
     if (txt) {
         txt.textContent =
-            cubierto       ? '✓ Pago cubierto'                :
-            exceso > 0.005 ? 'Sobra ' + _fmtARS(exceso)            :
-                             'Falta ' + _fmtARS(Math.max(0, pendiente));
+            haySobra ? 'Sobra ' + _fmtARS(exceso)                  :
+            cubierto ? '✓ Pago cubierto'                           :
+                       'Falta ' + _fmtARS(Math.max(0, pendiente));
+    }
+
+    // Cuando las líneas suman de más, ofrecemos pasar ese excedente a
+    // "redondeo a favor" de un toque (solo si hay una única línea en un
+    // medio que redondea en pesos — con varias, o con financiación, es
+    // ambiguo: ahí se usa el control manual).
+    const sobraBtn = document.getElementById('vdtSobraCargarRedondeo');
+    if (sobraBtn) {
+        const l0 = pagoState.lineas.length === 1 ? pagoState.lineas[0] : null;
+        const cuenta0 = l0 && l0.medio !== 'efectivo' ? _cuentaPorId(l0.cuenta) : null;
+        const redondeable = l0 && l0.medio !== 'cuotas' && l0.medio !== 'cheque'
+            && (l0.medio === 'efectivo' || (cuenta0 && cuenta0.moneda === 'ARS'));
+        if (haySobra && redondeable && !pagoState.redondeo.activo) {
+            sobraBtn.hidden = false;
+            sobraBtn.textContent = 'El pago supera el total en ' + _fmtARS(exceso) + ' — cargar como redondeo a favor';
+        } else {
+            sobraBtn.hidden = true;
+        }
     }
 
     _actualizarRecargoResumen();
+    _renderRedondeoBox();
+    _actualizarRedondeoResumen();
     _actualizarEstadoConfirmar();
+}
+
+/** Un toque: saca el excedente de la única línea de pago y lo pasa a
+ *  pagoState.redondeo (mismo medio/cuenta que esa línea). */
+function _cargarSobraComoRedondeo() {
+    if (pagoState.lineas.length !== 1) return;
+    const l = pagoState.lineas[0];
+    const asignadoArs = _montoArsLinea(l);
+    const sobraArs = asignadoArs - pagoState.total;
+    if (sobraArs <= 0.005) return;
+    // La línea vuelve a cubrir exactamente su base; el resto es redondeo.
+    // (el excedente se toma siempre en pesos — ver restricción ARS abajo)
+    l.monto = Math.max(0, Math.round((l.monto - sobraArs) * 100) / 100);
+    l._editadoManual = true;
+    pagoState.redondeo = {
+        activo: true,
+        monto:  Math.round(sobraArs * 100) / 100,
+        hasta:  0,
+        medio:  l.medio === 'cuotas' || l.medio === 'cheque' ? 'efectivo' : l.medio,
+        cuenta: l.medio === 'efectivo' ? '' : (l.cuenta || ''),
+    };
+    _renderLineas();
+}
+
+/** Nota bajo el estado del pago: qué paga el cliente en total y qué le
+ *  llega a la factura (siempre venta.total, nunca el redondeo). */
+function _actualizarRedondeoResumen() {
+    const box = document.getElementById('vdtRedondeoResumen');
+    if (!box) return;
+    const r = pagoState.redondeo;
+    if (!r.activo || !(r.monto > 0.005)) { box.hidden = true; return; }
+
+    const totalRecargo = pagoState.lineas.reduce((s, l) => s + _extraLineaArs(l), 0);
+    const paga = pagoState.total + totalRecargo + r.monto;
+    box.hidden = false;
+    box.innerHTML =
+        'El cliente paga <strong>' + _fmtARS(paga) + '</strong> — ' +
+        'incluye <strong>' + _fmtARS(r.monto) + '</strong> de redondeo a favor. ' +
+        'A la factura le llega <strong>' + _fmtARS(pagoState.total) + '</strong>.';
+}
+
+/* ────────────────────────────────────────────────────────────────
+   REDONDEO A FAVOR — control explícito (pagoState.redondeo)
+   Importe (o "redondear a $X") + en qué medio entró. Solo en pesos.
+──────────────────────────────────────────────────────────────── */
+
+/** Cuentas reales en PESOS que aceptan `medio` — destino del redondeo
+ *  cuando no es efectivo (el redondeo nunca se registra en otra moneda). */
+function _cuentasRedondeoParaMedio(medio) {
+    return _cuentasDisponiblesParaMedio(medio).filter(c => (c.moneda || 'ARS') === 'ARS');
+}
+
+/** "Redondear a $X": el excedente = X − (productos + recargo). */
+function _redondeoRecalcularDesdeHasta() {
+    const r = pagoState.redondeo;
+    if (!(r.hasta > 0)) return;
+    const totalRecargo = pagoState.lineas.reduce((s, l) => s + _extraLineaArs(l), 0);
+    const exc = r.hasta - (pagoState.total + totalRecargo);
+    r.monto = exc > 0.005 ? Math.round(exc * 100) / 100 : 0;
+}
+
+/** Muestra/oculta el toggle y la caja; sincroniza los campos con el
+ *  estado. No pisa el valor de un input mientras se está tipeando. */
+function _renderRedondeoBox() {
+    const wrap = document.getElementById('vdtRedondeoWrap');
+    if (!wrap) return;
+    const r = pagoState.redondeo;
+    const toggle = document.getElementById('vdtRedondeoToggle');
+    const box    = document.getElementById('vdtRedondeoBox');
+    if (toggle) toggle.hidden = r.activo;
+    if (box)    box.hidden    = !r.activo;
+    if (!r.activo) return;
+
+    const _syncInput = (id, val) => {
+        const el = document.getElementById(id);
+        if (el && document.activeElement !== el) {
+            el.value = (val > 0) ? val : '';
+        }
+    };
+    _syncInput('vdtRedondeoMonto', r.monto);
+    _syncInput('vdtRedondeoHasta', r.hasta);
+
+    const selMedio = document.getElementById('vdtRedondeoMedio');
+    if (selMedio && selMedio.value !== r.medio) selMedio.value = r.medio;
+
+    const cuentaWrap = document.getElementById('vdtRedondeoCuentaWrap');
+    const selCuenta  = document.getElementById('vdtRedondeoCuenta');
+    const necesitaCuenta = r.medio !== 'efectivo';
+    if (cuentaWrap) cuentaWrap.hidden = !necesitaCuenta;
+    if (selCuenta && necesitaCuenta) {
+        const disponibles = _cuentasRedondeoParaMedio(r.medio);
+        if (!disponibles.some(c => String(c.pk) === String(r.cuenta))) r.cuenta = '';
+        // No reconstruir mientras el usuario tiene el <select> abierto/enfocado.
+        if (document.activeElement !== selCuenta) {
+            selCuenta.innerHTML = '<option value="">— Elegí la cuenta —</option>' + disponibles.map(c =>
+                `<option value="${c.pk}" ${String(c.pk) === String(r.cuenta) ? 'selected' : ''}>${_escVdt(c.nombre)}${c.titular ? ' · ' + _escVdt(c.titular) : ''}</option>`
+            ).join('');
+        }
+    }
+
+    const nota = document.getElementById('vdtRedondeoNota');
+    if (nota) {
+        nota.textContent = r.medio === 'efectivo'
+            ? 'Entra a la caja como efectivo. No aparece en el ticket ni en la factura.'
+            : 'Entra a la cuenta elegida. No aparece en el ticket ni en la factura — a ARCA se declara el total de los productos (' + _fmtARS(pagoState.total) + ').';
+    }
+}
+
+/** Liga los eventos de la caja de redondeo (se llama una vez en el init).
+ *  OJO: `pagoState.redondeo` se REASIGNA (quitar / cargar sobra), así que
+ *  cada handler lo lee fresco, nunca una referencia capturada. */
+function _bindRedondeo() {
+    const toggle = document.getElementById('vdtRedondeoToggle');
+    if (toggle) toggle.addEventListener('click', () => {
+        const r = pagoState.redondeo;
+        r.activo = true;
+        if (!r.medio) r.medio = 'efectivo';
+        _renderRedondeoBox();
+        _actualizarResumen();
+        document.getElementById('vdtRedondeoMonto')?.focus();
+    });
+
+    const quitar = document.getElementById('vdtRedondeoQuitar');
+    if (quitar) quitar.addEventListener('click', () => {
+        pagoState.redondeo = { activo: false, monto: 0, hasta: 0, medio: 'efectivo', cuenta: '' };
+        _renderRedondeoBox();
+        _actualizarResumen();
+    });
+
+    const sobraBtn = document.getElementById('vdtSobraCargarRedondeo');
+    if (sobraBtn) sobraBtn.addEventListener('click', () => {
+        _cargarSobraComoRedondeo();
+        _actualizarResumen();
+    });
+
+    const inMonto = document.getElementById('vdtRedondeoMonto');
+    if (inMonto) inMonto.addEventListener('input', () => {
+        const r = pagoState.redondeo;
+        r.monto = Math.max(0, parseFloat(inMonto.value) || 0);
+        r.hasta = 0;
+        const inHasta = document.getElementById('vdtRedondeoHasta');
+        if (inHasta && document.activeElement !== inHasta) inHasta.value = '';
+        _actualizarResumen();
+    });
+
+    const inHasta = document.getElementById('vdtRedondeoHasta');
+    if (inHasta) inHasta.addEventListener('input', () => {
+        const r = pagoState.redondeo;
+        r.hasta = Math.max(0, parseFloat(inHasta.value) || 0);
+        _redondeoRecalcularDesdeHasta();
+        const im = document.getElementById('vdtRedondeoMonto');
+        if (im && document.activeElement !== im) im.value = r.monto > 0 ? r.monto.toFixed(2) : '';
+        _actualizarResumen();
+    });
+
+    const selMedio = document.getElementById('vdtRedondeoMedio');
+    if (selMedio) selMedio.addEventListener('change', () => {
+        const r = pagoState.redondeo;
+        r.medio  = selMedio.value;
+        r.cuenta = '';
+        _renderRedondeoBox();
+        _actualizarResumen();
+    });
+
+    const selCuenta = document.getElementById('vdtRedondeoCuenta');
+    if (selCuenta) selCuenta.addEventListener('change', () => {
+        pagoState.redondeo.cuenta = selCuenta.value;
+        _actualizarResumen();
+    });
 }
 
 /** "Total" = productos + Σ recargo/interés (lo que paga el cliente).
@@ -907,14 +1105,21 @@ function _agregarLinea() {
 }
 
 function _pagoEsCubierto() {
+    // Las líneas de pago tienen que sumar EXACTO el total de productos.
+    // Cobrar de menos: bloqueado. Cobrar de más: no se tipea acá, se carga
+    // con el control "+ Redondeo a favor" (pagoState.redondeo), que no
+    // cuenta para esta validación.
     const asignado = pagoState.lineas.reduce((s, l) => s + _montoArsLinea(l), 0);
-    return Math.abs(pagoState.total - asignado) < 0.005 && pagoState.lineas.length > 0;
+    return Math.abs(asignado - pagoState.total) < 0.005 && pagoState.lineas.length > 0;
 }
 
 /** Toda línea que no sea efectivo ni cuotas necesita una cuenta
  *  elegida (cuotas no acredita nada todavía), y si esa cuenta no es
- *  en pesos, también la cotización usada. */
+ *  en pesos, también la cotización usada. Ídem el redondeo a favor si
+ *  entró por un medio que no sea efectivo. */
 function _pagoFaltanCuentas() {
+    const r = pagoState.redondeo;
+    if (r.activo && r.monto > 0.005 && r.medio !== 'efectivo' && !r.cuenta) return true;
     return pagoState.lineas.some(l => {
         if (l.medio === 'efectivo' || l.medio === 'cuotas' || l.medio === 'cheque') return false;
         if (!l.cuenta) return true;
@@ -983,7 +1188,28 @@ function _getPagoPayload() {
             nombre_plan:    l.medio === 'credito' ? _nombrePlanPara(l) : '',
         };
     });
-    const principal = pagos.length ? pagos[0].medio : 'efectivo';
+
+    // Redondeo a favor: línea propia con monto 0 (no cubre venta.total) y
+    // el excedente en `redondeo`. El backend crea un PagoVenta por esto.
+    // Siempre en pesos (por eso no lleva cotización).
+    const r = pagoState.redondeo;
+    if (r.activo && r.monto > 0.005) {
+        pagos.push({
+            medio:      r.medio,
+            monto:      0,
+            redondeo:   Math.round(r.monto * 100) / 100,
+            cuenta_pk:  r.medio === 'efectivo' ? null : (r.cuenta || null),
+            tarjeta_pk: null,
+            cotizacion: null,
+            recargo_pct: 0,
+            cantidad_pagos: 1,
+            nombre_plan: '',
+        });
+    }
+
+    // El "principal" es el primer medio que cubre la venta, no el redondeo.
+    const principalLinea = pagos.find(p => (p.monto || 0) > 0) || pagos[0];
+    const principal = principalLinea ? principalLinea.medio : 'efectivo';
     return { medio_pago: principal, pagos };
 }
 
@@ -1070,6 +1296,7 @@ if (VDT.esBorrador) {
         monto: parseFloat((pagoState.total).toFixed(2)),
     });
     _renderLineas();
+    _bindRedondeo();
 
     const btnAgregar = document.getElementById('vdtBtnAgregarPago');
     if (btnAgregar) btnAgregar.addEventListener('click', _agregarLinea);
@@ -1137,11 +1364,13 @@ if (VDT.esBorrador) {
 
             if (!_pagoEsCubierto()) {
                 const asignado  = pagoState.lineas.reduce((s, l) => s + _montoArsLinea(l), 0);
-                const pendiente = pagoState.total - asignado;
+                const dif       = pagoState.total - asignado;
                 if (!pagoState.lineas.length) {
                     vdtToast('Medio de pago requerido', 'Agregá al menos un medio de pago.');
+                } else if (dif > 0) {
+                    vdtToast('Pago incompleto', `Falta cubrir ${_fmtARS(dif)}.`);
                 } else {
-                    vdtToast('Pago incompleto', `Falta cubrir ${_fmtARS(pendiente)}.`);
+                    vdtToast('El pago supera el total', `Sobra ${_fmtARS(-dif)}. Si el cliente pagó de más para redondear, cargalo con "Redondeo a favor".`);
                 }
                 return;
             }
@@ -1521,6 +1750,11 @@ window.detalleVentaSetTotal = function (nuevoTotal) {
     pagoState.total = Number(nuevoTotal) || 0;
     if (pagoState.lineas.length === 1 && !pagoState.lineas[0]._editadoManual) {
         pagoState.lineas[0].monto = parseFloat(pagoState.total.toFixed(2));
+    }
+    // Si el redondeo se cargó como "redondear a $X", el excedente cambia
+    // cuando cambia el total del carrito.
+    if (pagoState.redondeo.activo && pagoState.redondeo.hasta > 0) {
+        _redondeoRecalcularDesdeHasta();
     }
     _renderLineas();
     _actualizarResumen();
