@@ -5,7 +5,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'ventas/css/ventas.css' %}?v=20260906">
-<link rel="stylesheet" href="{% static 'compras/css/factura_inicial.css' %}?v=20260913">
+<link rel="stylesheet" href="{% static 'compras/css/factura_inicial.css' %}?v=20260916">
 {% endblock %}
 
 {% block content %}
@@ -89,6 +89,72 @@
     <div class="vta-toast-body" id="fihToastBody"></div>
 </div>
 
+{# ══ MODAL "Editar datos" de una factura inicial confirmada ══ #}
+<div id="fihEditModal" class="fih-modal" hidden>
+    <div class="fih-modal-card">
+        <button type="button" class="fih-modal-x" id="fihEditCerrar" title="Cerrar">✕</button>
+        <h3 class="fih-modal-title">Editar datos — <span id="fihEditNum"></span></h3>
+        <p class="fih-modal-sub">Corrige lo que se cargó mal. No cambia las cantidades de stock.</p>
+
+        <div class="fih-modal-grid">
+            <div class="vta-field">
+                <label class="vta-label" for="fihEditProvInput">Proveedor</label>
+                <div class="vta-cli-wrap" style="width:100%">
+                    <input type="text" id="fihEditProvInput" class="vta-control vta-cli-input"
+                           style="padding-right:1.75rem;"
+                           placeholder="Buscá el proveedor por nombre" autocomplete="off">
+                    <div id="fihEditProvDropdown" class="vta-cli-dropdown"></div>
+                    <button type="button" id="fihEditProvClear" class="vta-cliente-venta-clear"
+                            title="Quitar proveedor" style="display:none;">✕</button>
+                </div>
+            </div>
+            <div class="vta-field">
+                <label class="vta-label" for="fihEditFecha">Fecha del comprobante</label>
+                <input type="date" id="fihEditFecha" class="vta-control">
+            </div>
+            <div class="vta-field">
+                <label class="vta-label" for="fihEditTipo">Tipo de comprobante</label>
+                <select id="fihEditTipo" class="vta-control">
+                    {% for t in tipos_comprobante %}
+                    <option value="{{ t.valor }}" data-modo-iva="{{ t.modo_iva }}">{{ t.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="vta-field">
+                <label class="vta-label" for="fihEditNumero">N° de comprobante</label>
+                <input type="text" id="fihEditNumero" class="vta-control" placeholder="Opcional">
+            </div>
+            <div class="vta-field" id="fihEditIvaSection">
+                <label class="vta-label" for="fihEditAlicuota">Alícuota de IVA</label>
+                <select id="fihEditAlicuota" class="vta-control">
+                    {% for a in alicuotas_iva %}
+                    <option value="{{ a.valor }}">{{ a.label }}</option>
+                    {% endfor %}
+                </select>
+                <label class="fi-doc-check" for="fihEditIvaIncluido" id="fihEditIvaIncluidoWrap" style="margin-top:.4rem">
+                    <input type="checkbox" id="fihEditIvaIncluido">
+                    <span>Los costos ya incluyen IVA</span>
+                </label>
+            </div>
+            <div class="vta-field fih-modal-full">
+                <label class="vta-label" for="fihEditNotas">Notas</label>
+                <textarea id="fihEditNotas" class="vta-control" rows="2" placeholder="Observaciones (opcional)"></textarea>
+            </div>
+        </div>
+
+        <p class="fih-modal-warn">
+            Cambiar la fecha también mueve la fecha de estos lotes en Inventario y su orden de
+            salida (FIFO) para ventas futuras. Lo que ya se vendió no cambia. Si cambiás el tipo
+            de comprobante o la alícuota, se recalcula el costo del producto.
+        </p>
+
+        <div class="fih-modal-actions">
+            <button type="button" class="fi-hist-btn" id="fihEditCancelar">Cancelar</button>
+            <button type="button" class="fi-hist-btn primary" id="fihEditGuardar">Guardar cambios</button>
+        </div>
+    </div>
+</div>
+
 {% endif %}
 {% endblock %}
 
@@ -96,14 +162,16 @@
 {% if not sin_permiso %}
 <script>
 window.FIH_CONFIG = {
-    urlListar:      "{% url 'compras:factura_inicial_listar' %}",
-    urlItems:       "{% url 'compras:factura_inicial_items' %}",
-    urlCorregir:    "{% url 'compras:factura_inicial_corregir_item' %}",
-    urlQuitarItem:  "{% url 'compras:factura_inicial_quitar_item' %}",
-    urlReimprimir:  "{% url 'compras:factura_inicial_reimprimir' %}",
-    urlAnular:      "{% url 'compras:factura_inicial_anular' %}",
-    urlEliminar:    "{% url 'compras:factura_inicial_eliminar' %}",
-    csrfToken:      "{{ csrf_token }}",
+    urlListar:        "{% url 'compras:factura_inicial_listar' %}",
+    urlItems:         "{% url 'compras:factura_inicial_items' %}",
+    urlCorregir:      "{% url 'compras:factura_inicial_corregir_item' %}",
+    urlQuitarItem:    "{% url 'compras:factura_inicial_quitar_item' %}",
+    urlEditarCabecera:"{% url 'compras:factura_inicial_editar_cabecera' %}",
+    urlBuscarProv:    "{% url 'compras:factura_inicial_buscar_proveedor' %}",
+    urlReimprimir:    "{% url 'compras:factura_inicial_reimprimir' %}",
+    urlAnular:        "{% url 'compras:factura_inicial_anular' %}",
+    urlEliminar:      "{% url 'compras:factura_inicial_eliminar' %}",
+    csrfToken:        "{{ csrf_token }}",
 };
 window.FI_VENDOR = {
     jspdf:       "{% static 'ventas/js/vendor/jspdf.umd.min.js' %}",
@@ -112,6 +180,6 @@ window.FI_VENDOR = {
 </script>
 <script src="{% static 'compras/js/factura_inicial_a4.js' %}?v=20260909"></script>
 <script src="{% static 'compras/js/factura_inicial_pdf.js' %}?v=20260909"></script>
-<script src="{% static 'compras/js/factura_inicial_historial.js' %}?v=20260913"></script>
+<script src="{% static 'compras/js/factura_inicial_historial.js' %}?v=20260916"></script>
 {% endif %}
 {% endblock %}

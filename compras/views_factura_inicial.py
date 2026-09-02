@@ -106,6 +106,32 @@ def _info_comprobante(tipo_key):
     return TIPOS_COMPROBANTE.get(tipo_key, TIPOS_COMPROBANTE[TIPO_COMPROBANTE_DEFECTO])
 
 
+def _tipo_key_de_compra(compra):
+    """Clave de TIPOS_COMPROBANTE guardada al crear/editar la factura
+    inicial (en factura_inicial_datos). Fallback razonable si falta."""
+    datos = compra.factura_inicial_datos or {}
+    tipo = (datos.get('comprobante') or {}).get('tipo')
+    if tipo in TIPOS_COMPROBANTE:
+        return tipo
+    # Sin dato guardado: reconstruir lo mejor posible desde los campos.
+    if compra.tipo_documento == TipoDocumentoCompra.REMITO:
+        return 'remito'
+    if compra.alicuota_iva and not compra.iva_incluido:
+        return 'factura_a'
+    return TIPO_COMPROBANTE_DEFECTO
+
+
+def _comprobante_label(compra):
+    """"Factura A · 0001-00012345" para las filas del historial."""
+    datos = compra.factura_inicial_datos or {}
+    comp_info = datos.get('comprobante') or {}
+    titulo = comp_info.get('titulo') or compra.get_tipo_documento_display()
+    letra = comp_info.get('letra') or ''
+    txt = f'{titulo} {letra}'.strip() if letra not in ('', 'R', 'X') else titulo
+    num = comp_info.get('numero') or compra.numero_comprobante
+    return f'{txt} · {num}' if num else txt
+
+
 def _compra_fields_comprobante(tipo_key, alic_str, iva_incluido):
     """Traduce el tipo de comprobante de la herramienta a los campos que
     entiende `Compra` (para que Compra.total / neto / monto_iva calculen
@@ -250,6 +276,15 @@ class FacturaInicialHistorialView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx['sin_permiso'] = not chequear_permiso(self.request.user, PERMISO)
+        if not ctx['sin_permiso']:
+            # Para el modal "Editar datos" de una factura ya confirmada.
+            ctx['tipos_comprobante'] = [
+                {'valor': k, 'label': v['label'], 'modo_iva': v['iva']}
+                for k, v in TIPOS_COMPROBANTE.items()
+            ]
+            ctx['alicuotas_iva'] = [
+                {'valor': v, 'label': lbl} for v, lbl in AlicuotaIVA.choices
+            ]
         return ctx
 
 
@@ -540,9 +575,12 @@ class FacturaInicialListarAjax(LoginRequiredMixin, View):
         for c in qs[off:off + self.PAGE_SIZE]:
             prov_ids = {i.proveedor_id for i in c.items.all() if i.proveedor_id}
             prov_nombre = ''
+            prov_pk = ''
             if len(prov_ids) == 1:
                 p = c.items.exclude(proveedor__isnull=True).first()
-                prov_nombre = p.proveedor.nombre if p and p.proveedor else ''
+                if p and p.proveedor:
+                    prov_nombre = p.proveedor.nombre
+                    prov_pk = p.proveedor_id
 
             # Si se filtró por producto, adjuntar las líneas que matchean
             # para mostrarlas directo en la fila (con su cantidad).
@@ -564,26 +602,28 @@ class FacturaInicialListarAjax(LoginRequiredMixin, View):
                             'costo': str(_q(it.costo_unitario)),
                         })
 
-            datos = c.factura_inicial_datos or {}
-            comp_info = datos.get('comprobante') or {}
-            titulo = comp_info.get('titulo') or c.get_tipo_documento_display()
-            letra = comp_info.get('letra') or ''
-            comp = f'{titulo} {letra}'.strip() if letra not in ('', 'R', 'X') else titulo
-            num_comp = comp_info.get('numero') or c.numero_comprobante
-            if num_comp:
-                comp = f'{comp} · {num_comp}'
-
             filas.append({
                 'pk': c.pk,
                 'numero': c.numero,
                 'fecha': c.fecha.strftime('%d/%m/%Y'),
                 'estado': c.estado,
                 'estado_label': c.get_estado_display(),
-                'comprobante': comp,
+                'comprobante': _comprobante_label(c),
                 'proveedor': prov_nombre,
                 'items': c.items.count(),
                 'total': str(c.total),
                 'items_match': items_match,
+                # Valores para pre-cargar el modal "Editar datos".
+                'cabecera': {
+                    'fecha': c.fecha.isoformat(),
+                    'proveedor_pk': str(prov_pk or ''),
+                    'proveedor_nombre': prov_nombre,
+                    'tipo_comprobante': _tipo_key_de_compra(c),
+                    'numero_comprobante': c.numero_comprobante or '',
+                    'alicuota_iva': c.alicuota_iva or '21',
+                    'iva_incluido': bool(c.iva_incluido),
+                    'observaciones': c.notas or '',
+                },
             })
 
         return JsonResponse({
@@ -877,6 +917,118 @@ class FacturaInicialQuitarItemAjax(LoginRequiredMixin, View):
 
         return JsonResponse({'ok': True, 'total': str(compra.total),
                              'items': compra.items.count()})
+
+
+class FacturaInicialEditarCabeceraAjax(LoginRequiredMixin, View):
+    """
+    POST {pk, fecha, proveedor_pk, tipo_comprobante, numero_comprobante,
+          alicuota_iva, iva_incluido, observaciones}
+
+    Corrige los DATOS de una factura inicial CONFIRMADA (se cargó mal el
+    proveedor, la fecha, el tipo de comprobante...) sin anular ni tocar
+    cantidades de stock. Cuida los efectos colaterales:
+
+      - `fecha` se propaga a `LoteCompra.fecha_compra` de cada lote de la
+        carga → cambia la fecha que se ve en Inventario y el orden de
+        salida (FIFO) para ventas FUTURAS. Lo ya vendido no se toca
+        (queda congelado en ConsumoLoteVenta).
+      - `proveedor` se aplica a todos los ItemCompra (uno por factura) y
+        a su snapshot de nombre.
+      - cambiar tipo de comprobante / alícuota / "IVA incluido" cambia
+        cómo se deriva el costo del lote (ver _costo_para_lote): se
+        recalcula `LoteCompra.costo_unitario` y el costo/precio del
+        producto. Los márgenes de ventas ya hechas no cambian.
+      - se recalcula el total y se regenera el PDF (factura_inicial_datos).
+    """
+
+    def post(self, request):
+        if not chequear_permiso(request.user, PERMISO):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        tipo_key = body.get('tipo_comprobante', TIPO_COMPROBANTE_DEFECTO)
+        if tipo_key not in TIPOS_COMPROBANTE:
+            return JsonResponse({'error': f'Tipo de comprobante inválido: {tipo_key}'}, status=400)
+        modo_iva = _info_comprobante(tipo_key)['iva']
+
+        alic_validas = {v for v, _ in AlicuotaIVA.choices}
+        alic_str = str(body.get('alicuota_iva', '21'))
+        if modo_iva != 'sin' and alic_str not in alic_validas:
+            return JsonResponse({'error': f'Alícuota de IVA inválida: {alic_str}'}, status=400)
+
+        fecha_raw = (body.get('fecha') or '').strip()
+        try:
+            fecha = datetime.strptime(fecha_raw, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            return JsonResponse({'error': 'Fecha inválida.'}, status=400)
+        if fecha > timezone.localtime().date():
+            return JsonResponse({'error': 'La fecha no puede ser futura.'}, status=400)
+
+        proveedor = None
+        if body.get('proveedor_pk'):
+            proveedor = Proveedor.objects.filter(pk=body['proveedor_pk']).first()
+            if proveedor is None:
+                return JsonResponse({'error': 'El proveedor elegido ya no existe.'}, status=400)
+
+        iva_incluido = bool(body.get('iva_incluido', True))
+        campos_comp = _compra_fields_comprobante(tipo_key, alic_str, iva_incluido)
+
+        try:
+            with transaction.atomic():
+                compra = get_object_or_404(
+                    Compra.objects.select_for_update(),
+                    pk=body.get('pk'), es_carga_inicial=True)
+                if compra.estado != EstadoCompra.CONFIRMADA:
+                    raise ValueError('Solo se pueden editar facturas iniciales confirmadas.')
+
+                compra.fecha = fecha
+                compra.numero_comprobante = (body.get('numero_comprobante') or '').strip()
+                compra.notas = (body.get('observaciones') or '').strip()
+                compra.tipo_documento = campos_comp['tipo_documento']
+                compra.alicuota_iva = campos_comp['alicuota_iva']
+                compra.iva_incluido = campos_comp['iva_incluido']
+                compra.save(update_fields=['fecha', 'numero_comprobante', 'notas',
+                                           'tipo_documento', 'alicuota_iva', 'iva_incluido'])
+
+                productos_afectados = {}
+                for item in compra.items.select_related('producto').all():
+                    item.compra = compra  # que _costo_para_lote vea los campos nuevos
+                    item.proveedor = proveedor
+                    item.proveedor_nombre = proveedor.nombre if proveedor else ''
+                    item.save(update_fields=['proveedor', 'proveedor_nombre'])
+                    if item.producto_id:
+                        productos_afectados[item.producto_id] = item.producto
+                    for lote in item.lotes.filter(activo=True):
+                        lote.fecha_compra = fecha
+                        lote.costo_unitario = _costo_para_lote(item)
+                        lote.save(update_fields=['fecha_compra', 'costo_unitario'])
+
+                compra.calcular_total()
+                for prod in productos_afectados.values():
+                    prod.actualizar_costo_y_precio()
+        except ValueError as e:
+            return JsonResponse({'error': str(e)}, status=400)
+
+        compra.refresh_from_db()
+        datos = compra.factura_inicial_datos or {}
+        doc = {'tipo_comprobante': tipo_key,
+               'incluir_leyenda': datos.get('incluir_leyenda', True)}
+        payload = _payload_desde_compra(compra, doc)
+        if datos.get('pago'):
+            payload['pago'] = datos['pago']
+        compra.factura_inicial_datos = payload
+        compra.save(update_fields=['factura_inicial_datos'])
+
+        return JsonResponse({
+            'ok': True,
+            'fecha': compra.fecha.strftime('%d/%m/%Y'),
+            'comprobante': _comprobante_label(compra),
+            'proveedor': proveedor.nombre if proveedor else '',
+            'total': str(compra.total),
+        })
 
 
 class FacturaInicialReimprimirAjax(LoginRequiredMixin, View):

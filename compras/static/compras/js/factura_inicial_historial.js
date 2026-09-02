@@ -92,19 +92,21 @@ function _fila(r) {
         ? `<div class="fih-row-hint">contiene: ${r.items_match.map(m =>
               `${_esc(m.producto)} <b>×${_esc(m.cantidad)}</b>`).join(' · ')}</div>`
         : '';
+    const cabJson = _esc(JSON.stringify(r.cabecera || {}));
     return `<tr class="fih-row" data-pk="${r.pk}">
         <td class="fi-hist-num">
             <span class="fih-caret" aria-hidden="true">▸</span>${_esc(r.numero)}
             ${hint}
         </td>
-        <td>${_esc(r.fecha)}</td>
-        <td>${_esc(r.comprobante)}</td>
-        <td>${_esc(r.proveedor)}</td>
+        <td data-fecha>${_esc(r.fecha)}</td>
+        <td data-comprobante>${_esc(r.comprobante)}</td>
+        <td data-proveedor>${_esc(r.proveedor)}</td>
         <td data-items>${r.items}</td>
         <td class="fi-hist-total" data-total>${_fmt(r.total)}</td>
         <td><span class="fi-badge-estado ${anulada ? 'anulada' : 'confirmada'}">${_esc(r.estado_label)}</span></td>
         <td>
             <div class="fi-hist-actions">
+                ${anulada ? '' : `<button class="fi-hist-btn" data-act="editar" data-pk="${r.pk}" data-cab="${cabJson}" data-num="${_esc(r.numero)}">Editar</button>`}
                 <button class="fi-hist-btn" data-act="imprimir" data-pk="${r.pk}">Imprimir</button>
                 <button class="fi-hist-btn" data-act="pdf" data-pk="${r.pk}">PDF</button>
                 ${anulada ? '' : `<button class="fi-hist-btn danger" data-act="anular" data-pk="${r.pk}">Anular</button>`}
@@ -134,7 +136,15 @@ function _bind() {
     $h('fihBody').querySelectorAll('[data-act]').forEach(b => {
         if (b._bound) return;
         b._bound = true;
-        b.addEventListener('click', () => _accion(b.dataset.act, b.dataset.pk, b));
+        b.addEventListener('click', () => {
+            if (b.dataset.act === 'editar') {
+                let cab = {};
+                try { cab = JSON.parse(b.dataset.cab || '{}'); } catch { cab = {}; }
+                _abrirEditModal(b.dataset.pk, b.dataset.num, cab);
+                return;
+            }
+            _accion(b.dataset.act, b.dataset.pk, b);
+        });
     });
 }
 
@@ -358,6 +368,163 @@ async function _accion(act, pk, btn) {
         btn.disabled = false;
     }
 }
+
+/* ═══════════════ MODAL "EDITAR DATOS" (cabecera) ═══════════════ */
+
+let _editPk = null;
+let _editProvPk = '';
+
+function _editModal() { return $h('fihEditModal'); }
+
+function _toggleIvaSection() {
+    const opt = $h('fihEditTipo').selectedOptions[0];
+    const modo = opt ? opt.dataset.modoIva : 'discriminado';
+    // Remito no lleva IVA; Factura B/C llevan alícuota pero el IVA
+    // siempre va incluido (no se muestra el check).
+    $h('fihEditIvaSection').style.display = (modo === 'sin') ? 'none' : '';
+    $h('fihEditIvaIncluidoWrap').style.display = (modo === 'discriminado') ? '' : 'none';
+}
+
+function _cerrarEditModal() {
+    _editModal().hidden = true;
+    _editPk = null;
+    $h('fihEditProvDropdown').classList.remove('open');
+    $h('fihEditProvDropdown').innerHTML = '';
+}
+
+function _abrirEditModal(pk, numero, cab) {
+    _editPk = pk;
+    _editProvPk = cab.proveedor_pk || '';
+    $h('fihEditNum').textContent = numero || '';
+    $h('fihEditFecha').value = cab.fecha || '';
+    $h('fihEditProvInput').value = cab.proveedor_nombre || '';
+    $h('fihEditProvClear').style.display = _editProvPk ? 'inline-flex' : 'none';
+    $h('fihEditTipo').value = cab.tipo_comprobante || 'factura_a';
+    $h('fihEditNumero').value = cab.numero_comprobante || '';
+    $h('fihEditAlicuota').value = cab.alicuota_iva || '21';
+    $h('fihEditIvaIncluido').checked = cab.iva_incluido !== false;
+    $h('fihEditNotas').value = cab.observaciones || '';
+    _toggleIvaSection();
+    _editModal().hidden = false;
+}
+
+/* proveedor: mismo widget que el carrito de la herramienta */
+(() => {
+    const input = $h('fihEditProvInput');
+    const dd = $h('fihEditProvDropdown');
+    const clear = $h('fihEditProvClear');
+    if (!input) return;
+    let timer, res = [];
+
+    input.addEventListener('input', () => {
+        clearTimeout(timer);
+        const q = input.value.trim();
+        _editProvPk = '';
+        clear.style.display = 'none';
+        if (!q) { dd.classList.remove('open'); dd.innerHTML = ''; return; }
+        timer = setTimeout(async () => {
+            try {
+                const r = await fetch(`${FIH.urlBuscarProv}?q=${encodeURIComponent(q)}`);
+                const data = await r.json();
+                if (input.value.trim() !== q) return;
+                res = data.results || [];
+                dd.innerHTML = res.length
+                    ? res.map((p, i) => `<div class="vta-cli-option" data-idx="${i}">
+                        <div class="vta-cli-option-top"><span>${_esc(p.nombre)}</span>
+                        ${p.cuit ? `<span class="vta-dropdown-item-codigo">${_esc(p.cuit)}</span>` : ''}</div>
+                       </div>`).join('')
+                    : '<div class="vta-dropdown-empty">Sin resultados</div>';
+                dd.querySelectorAll('.vta-cli-option[data-idx]').forEach(el => {
+                    el.addEventListener('mousedown', e => {
+                        e.preventDefault();
+                        const p = res[parseInt(el.dataset.idx, 10)];
+                        if (!p) return;
+                        _editProvPk = String(p.pk);
+                        input.value = p.nombre;
+                        clear.style.display = 'inline-flex';
+                        dd.classList.remove('open'); dd.innerHTML = '';
+                    });
+                });
+                dd.classList.add('open');
+            } catch { /* silencioso */ }
+        }, 260);
+    });
+    clear.addEventListener('click', () => {
+        _editProvPk = ''; input.value = '';
+        clear.style.display = 'none'; input.focus();
+    });
+    document.addEventListener('mousedown', e => {
+        if (!dd.contains(e.target) && e.target !== input) dd.classList.remove('open');
+    });
+})();
+
+$h('fihEditTipo').addEventListener('change', _toggleIvaSection);
+$h('fihEditCerrar').addEventListener('click', _cerrarEditModal);
+$h('fihEditCancelar').addEventListener('click', _cerrarEditModal);
+_editModal().addEventListener('click', e => {
+    if (e.target === _editModal()) _cerrarEditModal();
+});
+
+$h('fihEditGuardar').addEventListener('click', async () => {
+    if (!_editPk) return;
+    const btn = $h('fihEditGuardar');
+    btn.disabled = true; btn.textContent = 'Guardando…';
+    try {
+        const res = await fetch(FIH.urlEditarCabecera, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': FIH.csrfToken },
+            body: JSON.stringify({
+                pk: _editPk,
+                fecha: $h('fihEditFecha').value,
+                proveedor_pk: _editProvPk || null,
+                tipo_comprobante: $h('fihEditTipo').value,
+                numero_comprobante: $h('fihEditNumero').value.trim(),
+                alicuota_iva: $h('fihEditAlicuota').value,
+                iva_incluido: $h('fihEditIvaIncluido').checked,
+                observaciones: $h('fihEditNotas').value.trim(),
+            }),
+        });
+        const data = await res.json();
+        if (!data.ok) {
+            _toast('No se pudo guardar', data.error || '');
+            btn.disabled = false; btn.textContent = 'Guardar cambios';
+            return;
+        }
+        // Actualizar las celdas de la fila en el lugar
+        const fr = _filaRow(_editPk);
+        if (fr) {
+            const set = (sel, v) => { const c = fr.querySelector(sel); if (c) c.textContent = v; };
+            set('[data-fecha]', data.fecha);
+            set('[data-comprobante]', data.comprobante);
+            set('[data-proveedor]', data.proveedor);
+            const t = fr.querySelector('[data-total]');
+            if (t && data.total != null) t.textContent = _fmt(data.total);
+            // Refrescar el data-cab del botón "Editar" para que reabrir
+            // el modal muestre lo recién guardado (sin recargar la lista).
+            const eb = fr.querySelector('[data-act="editar"]');
+            if (eb) eb.dataset.cab = JSON.stringify({
+                fecha: $h('fihEditFecha').value,
+                proveedor_pk: _editProvPk || '',
+                proveedor_nombre: $h('fihEditProvInput').value.trim(),
+                tipo_comprobante: $h('fihEditTipo').value,
+                numero_comprobante: $h('fihEditNumero').value.trim(),
+                alicuota_iva: $h('fihEditAlicuota').value,
+                iva_incluido: $h('fihEditIvaIncluido').checked,
+                observaciones: $h('fihEditNotas').value.trim(),
+            });
+        }
+        // El detalle desplegable (costos de lote) puede haber cambiado
+        const dr = _detalleRow(_editPk);
+        if (dr && dr._cargado) { dr._cargado = false; if (!dr.hidden) _abrirDetalle(_editPk, {}); }
+        _cerrarEditModal();
+        _toast('Datos actualizados', 'Se recalcularon lotes, costo y PDF.');
+    } catch {
+        _toast('Error de conexión', 'Intentá de nuevo.');
+        btn.disabled = false; btn.textContent = 'Guardar cambios';
+    } finally {
+        btn.disabled = false; btn.textContent = 'Guardar cambios';
+    }
+});
 
 /* ── eventos ── */
 let _searchTimer;

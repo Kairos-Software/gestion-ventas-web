@@ -57,6 +57,7 @@ urlpatterns = [
     path('factura-inicial/items/',              views_factura_inicial.FacturaInicialItemsAjax.as_view(),          name='factura_inicial_items'),
     path('factura-inicial/corregir-item/',      views_factura_inicial.FacturaInicialCorregirItemAjax.as_view(),   name='factura_inicial_corregir_item'),
     path('factura-inicial/quitar-item/',        views_factura_inicial.FacturaInicialQuitarItemAjax.as_view(),     name='factura_inicial_quitar_item'),
+    path('factura-inicial/editar-cabecera/',    views_factura_inicial.FacturaInicialEditarCabeceraAjax.as_view(), name='factura_inicial_editar_cabecera'),
     path('factura-inicial/reimprimir/',         views_factura_inicial.FacturaInicialReimprimirAjax.as_view(),     name='factura_inicial_reimprimir'),
     path('factura-inicial/anular/',             views_factura_inicial.FacturaInicialAnularAjax.as_view(),         name='factura_inicial_anular'),
     path('factura-inicial/eliminar/',           views_factura_inicial.FacturaInicialEliminarAjax.as_view(),       name='factura_inicial_eliminar'),
