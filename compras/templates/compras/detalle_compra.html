@@ -1,12 +1,13 @@
 {% extends 'core/base.html' %}
 {% load static %}
+{% load kai_formato %}
 
 {% block title %}
     {% if es_borrador %}Borrador — {{ compra.numero }}{% else %}Compra {{ compra.numero }}{% endif %}
 {% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'compras/css/compras.css' %}">
+<link rel="stylesheet" href="{% static 'compras/css/compras.css' %}?v=20260919">
 <style>
 /* ══════════════════════════════════════════════════════════════
    MEDIOS DE PAGO (sidebar borrador) — mismo patrón que Ventas
@@ -437,13 +438,13 @@
                             </td>
                             <td style="text-align:right">
                                 <span class="cdt-moneda-chip">{{ item.moneda }}</span>
-                                {{ item.costo_unitario|floatformat:"2" }}
+                                {{ item.costo_unitario|pesos }}
                                 {% if item.descuento_pct %}
                                     <span style="font-size:.72rem;color:var(--success)">-{{ item.descuento_pct }}%</span>
                                 {% endif %}
                             </td>
                             <td style="text-align:right;font-weight:700">
-                                {{ item.moneda }} {{ item.subtotal|floatformat:"2" }}
+                                {{ item.moneda }} {{ item.subtotal|pesos }}
                             </td>
                         </tr>
                         {% empty %}
@@ -454,7 +455,7 @@
                         <tr class="cdt-tfoot-total">
                             <td colspan="3" style="text-align:right;font-weight:700;padding:.875rem">Total</td>
                             <td style="text-align:right;font-family:'Plus Jakarta Sans',sans-serif;font-size:1.05rem;font-weight:800;color:var(--brand-orange);padding:.875rem">
-                                ${{ compra.total|floatformat:"2" }}
+                                ${{ compra.total|pesos }}
                             </td>
                         </tr>
                     </tfoot>
@@ -501,7 +502,7 @@
                             </td>
                             <td>{{ item.nombre_proveedor_display }}</td>
                             <td>{{ item.cantidad|floatformat:"-3" }}</td>
-                            <td>{{ item.costo_unitario|floatformat:"2" }}</td>
+                            <td>{{ item.costo_unitario|pesos }}</td>
                             <td>
                                 {% if item.descuento_pct %}{{ item.descuento_pct }}%
                                 {% else %}<span class="cdt-muted">—</span>{% endif %}
@@ -512,7 +513,7 @@
                                 {% else %}<span class="cdt-muted">—</span>{% endif %}
                             </td>
                             <td style="text-align:right;font-weight:700">
-                                {{ item.moneda }} {{ item.subtotal|floatformat:"2" }}
+                                {{ item.moneda }} {{ item.subtotal|pesos }}
                             </td>
                         </tr>
                         {% empty %}
@@ -523,7 +524,7 @@
                         <tr class="cdt-tfoot-total">
                             <td colspan="8" style="text-align:right;font-weight:700;padding:.875rem">Total</td>
                             <td style="text-align:right;font-family:'Plus Jakarta Sans',sans-serif;font-size:1.05rem;font-weight:800;color:var(--brand-orange);padding:.875rem">
-                                ${{ compra.total|floatformat:"2" }}
+                                ${{ compra.total|pesos }}
                             </td>
                         </tr>
                     </tfoot>
@@ -719,7 +720,7 @@
                         </button>
                         <div class="vdt-pago-resumen vdt-pago-resumen--pendiente" id="cdtPagoResumen">
                             <span>Asignado: <strong id="cdtPagoAsignado">$0,00</strong></span>
-                            <span>Pendiente: <strong id="cdtPagoPendiente">${{ compra.total|floatformat:"2" }}</strong></span>
+                            <span>Pendiente: <strong id="cdtPagoPendiente">${{ compra.total|pesos }}</strong></span>
                         </div>
                         <div class="vdt-pago-resumen vdt-pago-resumen--recargo" id="cdtInteresResumen" style="display:none">
                             <span>Interés: <strong id="cdtInteresMonto">$0,00</strong></span>
@@ -740,7 +741,7 @@
                     </div>
                     <div class="cmp-totals-grand">
                         <span class="cmp-totals-grand-label" id="cdtTotalsGrandLabel">Total</span>
-                        <span class="cmp-totals-grand-value" id="cdtTotalsGrandValue">${{ compra.total|floatformat:"2" }}</span>
+                        <span class="cmp-totals-grand-value" id="cdtTotalsGrandValue">${{ compra.total|pesos }}</span>
                     </div>
                 </div>
 
@@ -809,7 +810,7 @@
                     <div style="display:flex;flex-direction:column;gap:.3rem;align-items:flex-end">
                         {% for pago in pagos %}
                         <span class="cmp-medio-pago-badge">
-                            {% if pago.medio == 'efectivo' %}Efectivo{% elif pago.medio == 'credito' %}{{ pago.cuenta.nombre }} (crédito){% else %}{{ pago.cuenta.nombre|default:pago.get_medio_display }}{% endif %}: ${{ pago.monto|floatformat:"2" }}
+                            {% if pago.medio == 'efectivo' %}Efectivo{% elif pago.medio == 'credito' %}{{ pago.cuenta.nombre }} (crédito){% else %}{{ pago.cuenta.nombre|default:pago.get_medio_display }}{% endif %}: ${{ pago.monto|pesos }}
                         </span>
                         {% endfor %}
                     </div>
@@ -822,16 +823,16 @@
                 {% if compra.neto is not None %}
                 <div class="cdt-resumen-row">
                     <span>Neto</span>
-                    <strong>${{ compra.neto|floatformat:"2" }}</strong>
+                    <strong>${{ compra.neto|pesos }}</strong>
                 </div>
                 <div class="cdt-resumen-row">
                     <span>IVA ({{ compra.alicuota_iva }}%)</span>
-                    <strong>${{ compra.monto_iva|floatformat:"2" }}</strong>
+                    <strong>${{ compra.monto_iva|pesos }}</strong>
                 </div>
                 {% endif %}
                 <div class="cdt-resumen-row cdt-resumen-row--total">
                     <span>Total</span>
-                    <strong class="cdt-total-val">${{ compra.total|floatformat:"2" }}</strong>
+                    <strong class="cdt-total-val">${{ compra.total|pesos }}</strong>
                 </div>
             </div>
         </div>

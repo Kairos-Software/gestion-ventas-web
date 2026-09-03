@@ -10,10 +10,12 @@ let currentFilters = {};
 let lastData       = null;
 window._currentPage = currentPage;
 
-// ── Filtro por turno/día vía querystring (?turno=<pk> o ?dia=<YYYY-MM-DD>) ──
-// Llega acá desde el botón "Ver ventas de este turno/día" del historial de
-// caja. Se aplica como filtro implícito hasta que el usuario busque a mano
-// o lo saque con "Ver todas las ventas".
+// ── Filtro por turno/día ──
+// - turno: <select> del filtro (id filtroTurno). También puede llegar por
+//   querystring (?turno=<pk>) desde el botón "Ver ventas de este turno" del
+//   historial de caja — en ese caso se preselecciona el <select>.
+// - día (?dia=<YYYY-MM-DD>): solo por querystring (botón "Ver ventas del día"),
+//   no tiene <select> propio — se muestra en la barra de contexto.
 const _paramsIniciales = new URLSearchParams(window.location.search);
 let filtroTurnoActivo  = _paramsIniciales.get('turno') || null;
 let filtroDiaActivo    = filtroTurnoActivo ? null : (_paramsIniciales.get('dia') || null);
@@ -22,10 +24,9 @@ const filtroContextoBar   = document.getElementById('filtroContextoBar');
 const filtroContextoTexto = document.getElementById('filtroContextoTexto');
 
 function renderFiltroContexto() {
-    if (filtroTurnoActivo) {
-        filtroContextoTexto.innerHTML = `Mostrando solo las ventas del <strong>turno #${_esc(filtroTurnoActivo)}</strong>.`;
-        filtroContextoBar.style.display = 'flex';
-    } else if (filtroDiaActivo) {
+    // El turno ya se ve en su <select>; la barra de contexto queda solo
+    // para el "ver ventas del día" (que no tiene <select>).
+    if (filtroDiaActivo) {
         const [y, m, d] = filtroDiaActivo.split('-');
         filtroContextoTexto.innerHTML = `Mostrando solo las ventas del <strong>${d}/${m}/${y}</strong>.`;
         filtroContextoBar.style.display = 'flex';
@@ -45,10 +46,14 @@ const resumenPag     = document.getElementById('resumenPag');
 const filtroQ        = document.getElementById('filtroQ');
 const filtroEstado   = document.getElementById('filtroEstado');
 const filtroMedioPago= document.getElementById('filtroMedioPago');
+const filtroTurno    = document.getElementById('filtroTurno');
 const filtroDesde    = document.getElementById('filtroDesde');
 const filtroHasta    = document.getElementById('filtroHasta');
 const btnFiltrar     = document.getElementById('btnFiltrar');
 const btnLimpiar     = document.getElementById('btnLimpiar');
+
+// Si se llegó con ?turno=<pk>, preseleccionar ese turno en el <select>.
+if (filtroTurno && filtroTurnoActivo) filtroTurno.value = filtroTurnoActivo;
 
 /* ════════════════════════════════════════════════════════════════
    MEDIO DE PAGO
@@ -242,10 +247,23 @@ function buildItemsHTML(items) {
 function buildAuditoriaHTML(c) {
     const filas = [];
 
+    // Confirmada HOY + tiene fecha de anulación = se anuló y se volvió a
+    // confirmar. Si NO hay editado_por (se editó desde el carrito, no desde
+    // el editor de historial) el par "Confirmado + Anulado" se lee como si
+    // estuviera anulada — este aviso lo aclara.
+    const fueReconfirmada = c.estado === 'confirmada' && !!c.anulado_por;
+    if (fueReconfirmada && !c.editado_por) {
+        filas.push(`
+        <div class="hist-audit-aviso">
+            &#9998; Esta venta fue <strong>anulada y vuelta a confirmar</strong> (editada)${c.fecha_anulacion ? ` el ${_esc(c.fecha_anulacion)}` : ''}.
+            No queda registro de qué cambió respecto de la versión original.
+        </div>`);
+    }
+
     if (c.confirmado_por) {
         filas.push(`
         <div class="hist-audit-row">
-            <span class="hist-audit-label">Confirmado por</span>
+            <span class="hist-audit-label">${fueReconfirmada ? 'Re-confirmado por' : 'Confirmado por'}</span>
             <span class="hist-audit-val">${_esc(c.confirmado_por)}</span>
             ${c.fecha_confirmacion ? `<span class="hist-audit-fecha">${_esc(c.fecha_confirmacion)}</span>` : ''}
         </div>`);
@@ -336,21 +354,33 @@ function buildVentaHTML(c) {
         ? `<span class="venta-por-usuario">por ${_esc(c.confirmado_por)}</span>`
         : '';
 
+    // Venta que HOY está confirmada pero tiene fecha de anulación: en algún
+    // momento se anuló y se volvió a confirmar (edición). El backend deja
+    // anulado_por/fecha_anulacion seteados aunque después re-confirme —
+    // así se puede distinguir de una venta confirmada "limpia".
+    const fueReconfirmada = c.estado === 'confirmada' && !!c.fecha_anulacion;
+    const badgeReconf = fueReconfirmada
+        ? `<span class="badge-estado badge-estado--reconf" title="Anulada el ${_esc(c.fecha_anulacion)} y vuelta a confirmar${c.anulado_por && c.anulado_por !== '—' ? ' · por ' + _esc(c.anulado_por) : ''}">&#9998; re-confirmada</span>`
+        : '';
+
     return `
-    <div class="venta-row" data-pk="${c.pk}">
+    <div class="venta-row${fueReconfirmada ? ' venta-row--reconf' : ''}" data-pk="${c.pk}">
         <div class="venta-cabecera">
             <span class="venta-numero">${_esc(c.numero)}</span>
             <span class="venta-fecha">${_esc(c.fecha)}</span>
-            ${c.cliente_display ? `<span class="venta-cliente">${_esc(c.cliente_display)}</span>` : ''}
-            <span class="venta-notas">${_esc(c.notas || '')}</span>
-            ${porUsuario}
-            ${medioBadgeCabecera}
-            <span class="venta-total"${c.oferta_global_nombre ? ` title="Incluye oferta &quot;${_esc(c.oferta_global_nombre)}&quot;: -${c.descuento_global_pct}% sobre el total"` : ''}>${formatMoney(c.total_cobrado)}</span>
-            ${c.oferta_global_nombre ? `<span class="descuento-tag" title="Oferta: ${_esc(c.oferta_global_nombre)} (-${c.descuento_global_pct}% sobre el total)">Oferta</span>` : ''}
-            <span class="badge-estado ${c.estado}">${_esc(c.estado_label)}</span>
-            <svg class="venta-toggle" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
+            <span class="venta-cliente">${c.cliente_display ? _esc(c.cliente_display) : ''}</span>
+            <div class="venta-cab-meta">
+                ${c.notas ? `<span class="venta-notas">${_esc(c.notas)}</span>` : ''}
+                ${porUsuario}
+                ${medioBadgeCabecera}
+                <span class="venta-total"${c.oferta_global_nombre ? ` title="Incluye oferta &quot;${_esc(c.oferta_global_nombre)}&quot;: -${c.descuento_global_pct}% sobre el total"` : ''}>${formatMoney(c.total_cobrado)}</span>
+                ${c.oferta_global_nombre ? `<span class="descuento-tag" title="Oferta: ${_esc(c.oferta_global_nombre)} (-${c.descuento_global_pct}% sobre el total)">Oferta</span>` : ''}
+                <span class="badge-estado ${c.estado}">${_esc(c.estado_label)}</span>
+                ${badgeReconf}
+                <svg class="venta-toggle" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
         </div>
         <div class="venta-detalle">
             <p class="detalle-titulo">${c.items_count} ítem${c.items_count !== 1 ? 's' : ''}</p>
@@ -470,8 +500,9 @@ function fetchVentas(page) {
    FILTROS
 ════════════════════════════════════════════════════════════════ */
 function aplicarFiltros() {
-    // Una búsqueda manual reemplaza el filtro implícito de turno/día.
-    filtroTurnoActivo = null;
+    // El turno sale del <select>; el "día" (solo querystring) lo pisa
+    // cualquier acción manual de filtro.
+    filtroTurnoActivo = (filtroTurno && filtroTurno.value) ? filtroTurno.value : null;
     filtroDiaActivo   = null;
     renderFiltroContexto();
 
@@ -487,10 +518,12 @@ function aplicarFiltros() {
 
 btnFiltrar.addEventListener('click', aplicarFiltros);
 filtroQ.addEventListener('keydown', e => { if (e.key === 'Enter') aplicarFiltros(); });
+if (filtroTurno) filtroTurno.addEventListener('change', aplicarFiltros);
 btnLimpiar.addEventListener('click', () => {
     if (filtroQ)          filtroQ.value          = '';
     if (filtroEstado)     filtroEstado.value      = '';
     if (filtroMedioPago)  filtroMedioPago.value   = '';
+    if (filtroTurno)      filtroTurno.value       = '';
     if (filtroDesde)      filtroDesde.value       = '';
     if (filtroHasta)      filtroHasta.value       = '';
     filtroTurnoActivo = null;

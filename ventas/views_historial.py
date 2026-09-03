@@ -23,7 +23,25 @@ class HistorialVentasView(LoginRequiredMixin, TemplateView):
         ctx['puede_eliminar'] = chequear_permiso(self.request.user, 'eliminar_ventas')
         ctx['estados']        = EstadoVenta.choices
         ctx['medios_pago']    = MedioPago.choices
+        ctx['turnos']         = self._turnos_para_filtro()
         return ctx
+
+    @staticmethod
+    def _turnos_para_filtro(limite=180):
+        """Turnos para el <select> del filtro — nº + rango horario legible.
+        El filtro en sí lo resuelve ListarVentasAjax (?turno=<pk>), por
+        fecha_alta dentro de la ventana del turno, igual que el botón
+        'Ver ventas de este turno' del historial de caja."""
+        from caja.models import TurnoCaja
+        opciones = []
+        for t in TurnoCaja.objects.order_by('-fecha_apertura')[:limite]:
+            rango = t.fecha_apertura.strftime('%d/%m/%y %H:%M')
+            if t.fecha_cierre:
+                rango += t.fecha_cierre.strftime(' → %d/%m %H:%M')
+            else:
+                rango += ' → (abierto)'
+            opciones.append({'pk': t.pk, 'label': f'#{t.numero} · {rango}'})
+        return opciones
 
 
 class ListarVentasAjax(LoginRequiredMixin, View):

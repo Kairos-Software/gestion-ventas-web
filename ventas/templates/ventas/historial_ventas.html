@@ -8,7 +8,7 @@
 {% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'ventas/css/historial_ventas.css' %}">
+<link rel="stylesheet" href="{% static 'ventas/css/historial_ventas.css' %}?v=20260920">
 <style>
 /* Resalte temporal de la venta recién confirmada (llegada desde Nueva Venta) */
 .venta-row--recien-confirmada .venta-cabecera {
@@ -104,6 +104,15 @@
                 {% if val != 'borrador' %}
                     <option value="{{ val }}">{{ label }}</option>
                 {% endif %}
+            {% endfor %}
+        </select>
+    </div>
+    <div class="filtro-group" style="max-width:260px;">
+        <label>Turno</label>
+        <select id="filtroTurno">
+            <option value="">Todos</option>
+            {% for t in turnos %}
+                <option value="{{ t.pk }}">{{ t.label }}</option>
             {% endfor %}
         </select>
     </div>
@@ -208,7 +217,7 @@
 </script>
 <script src="{% static 'ventas/js/historial_utils.js' %}"></script>
 <script src="{% static 'ventas/js/historial_docs.js' %}"></script>
-<script src="{% static 'ventas/js/historial_ventas.js' %}?v=20260916"></script>
+<script src="{% static 'ventas/js/historial_ventas.js' %}?v=20260920"></script>
 <script>
 // Resaltar la venta recién confirmada al llegar desde Nueva Venta
 (function() {

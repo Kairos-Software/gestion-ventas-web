@@ -254,14 +254,16 @@ function buildCompraHTML(c) {
         <div class="compra-cabecera">
             <span class="compra-numero">${_esc(c.numero)}</span>
             <span class="compra-fecha">${_esc(c.fecha)}</span>
-            ${c.numero_comprobante ? `<span class="compra-comprobante">Comprobante: ${_esc(c.numero_comprobante)}</span>` : ''}
-            <span class="compra-notas">${_esc(c.notas || '')}</span>
-            <span class="compra-total">${formatMoney(c.total)}</span>
-            <span class="badge-estado ${c.estado}">${_esc(c.estado_label)}</span>
-            <svg class="compra-toggle" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="1.5"
-                      stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
+            <span class="compra-comprobante">${c.numero_comprobante ? 'Comprobante: ' + _esc(c.numero_comprobante) : ''}</span>
+            <div class="compra-cab-meta">
+                ${c.notas ? `<span class="compra-notas">${_esc(c.notas)}</span>` : ''}
+                <span class="compra-total">${formatMoney(c.total)}</span>
+                <span class="badge-estado ${c.estado}">${_esc(c.estado_label)}</span>
+                <svg class="compra-toggle" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="1.5"
+                          stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
         </div>
         <div class="compra-detalle">
             <p class="detalle-titulo">

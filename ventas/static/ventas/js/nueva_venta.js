@@ -6,6 +6,10 @@
  * vende, así que simplemente suma cantidad — como pasar mercadería por
  * el lector en una caja de supermercado.
  *
+ * El ítem recién agregado (o re-escaneado) entra arriba de todo, así el
+ * cajero ve al toque lo último que pasó por el lector — mismo criterio
+ * que el carrito de Factura inicial.
+ *
  * Origen del stock:
  *   - tipo_escaneo NORMAL          → se resuelve el lote más VIEJO con
  *     stock (FIFO) recién al confirmar la venta.
@@ -478,7 +482,7 @@ function _agregarFila(fila) {
             _toast('Etiqueta ya agregada', `La etiqueta ${fila.etiqueta_balanza_codigo} ya está en el carrito.`);
             return;
         }
-        carrito.push({
+        carrito.unshift({
             id:              nextId++,
             producto_pk:     fila.pk,
             categoria_id:    fila.categoria_id ?? null,
@@ -505,7 +509,7 @@ function _agregarFila(fila) {
         return;
     }
 
-    const existente = carrito.find(i =>
+    const idxExistente = carrito.findIndex(i =>
         i.producto_pk === fila.pk &&
         i.combinacion_pk === (fila.combinacion_pk || null) &&
         i.tipo_escaneo === (fila.tipo_escaneo || 'normal') &&
@@ -513,9 +517,15 @@ function _agregarFila(fila) {
         !i.etiqueta_balanza_pk
     );
 
-    if (existente) {
+    if (idxExistente !== -1) {
+        const existente = carrito[idxExistente];
         existente.cantidad = (parseFloat(existente.cantidad) || 0) + 1;
         _recalcularOfertaSeleccionada(existente);
+        // Re-escaneado → sube arriba de todo (mismo criterio que el alta nueva).
+        if (idxExistente > 0) {
+            carrito.splice(idxExistente, 1);
+            carrito.unshift(existente);
+        }
         _renderCarrito();
         return;
     }
@@ -558,7 +568,7 @@ function _agregarFila(fila) {
     };
     _recalcularOfertaSeleccionada(nuevoItem);
 
-    carrito.push(nuevoItem);
+    carrito.unshift(nuevoItem);
     _renderCarrito();
 }
 

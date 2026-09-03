@@ -164,15 +164,30 @@
 }
 
 /* ── Cabecera de cada fila ── */
+/* Flex (no grid): la cantidad de chips varía (comprobante, notas…) y con
+   grid de N columnas fijas los últimos ítems —incluida la flechita— se
+   caían a una segunda fila. */
 .compra-cabecera {
-    display: grid;
-    grid-template-columns: 140px 110px 1fr auto auto auto;
+    display: flex;
     align-items: center;
     gap: 1rem;
     padding: 1rem 1.25rem;
     cursor: pointer;
     user-select: none;
     transition: background 0.15s;
+}
+
+.compra-numero { flex: 0 0 130px; }
+.compra-fecha  { flex: 0 0 90px; }
+.compra-comprobante { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* Bloque derecho: total · estado · flecha. Nunca se parte. */
+.compra-cab-meta {
+    flex: 0 0 auto;
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
 }
 
 .compra-cabecera:hover { background: var(--bg-surface-hover); }
@@ -196,6 +211,8 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    max-width: 20ch;
+    flex: 0 1 auto;
 }
 
 .compra-comprobante {
@@ -693,12 +710,19 @@
    RESPONSIVE
 ══════════════════════════════════════════════════════ */
 @media (max-width: 900px) {
-    .compra-cabecera { grid-template-columns: 1fr auto auto auto; }
+    .compra-cabecera { flex-wrap: wrap; }
     .compra-notas    { display: none; }
+    /* El bloque derecho baja a su propia línea y sus chips fluyen. */
+    .compra-cab-meta {
+        margin-left: 0;
+        width: 100%;
+        flex-wrap: wrap;
+        row-gap: 0.45rem;
+    }
+    .compra-cab-meta .compra-toggle { margin-left: auto; }
 }
 
 @media (max-width: 600px) {
-    .compra-cabecera { grid-template-columns: 1fr auto auto; }
     .compra-fecha    { display: none; }
 
     .items-table th:nth-child(n+5),

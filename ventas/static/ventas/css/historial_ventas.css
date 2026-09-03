@@ -164,15 +164,30 @@
 }
 
 /* ── Cabecera de cada fila ── */
+/* Flex (no grid): la cantidad de chips varía (cliente, "por usuario",
+   "Oferta"…) y con grid de N columnas fijas los últimos ítems —incluida
+   la flechita— se caían a una segunda fila. */
 .venta-cabecera {
-    display: grid;
-    grid-template-columns: 140px 110px 1fr auto auto auto;
+    display: flex;
     align-items: center;
     gap: 1rem;
     padding: 1rem 1.25rem;
     cursor: pointer;
     user-select: none;
     transition: background 0.15s;
+}
+
+.venta-numero { flex: 0 0 130px; }
+.venta-fecha  { flex: 0 0 90px; }
+.venta-cliente { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* Bloque derecho: usuario · medio · total · estado · flecha. Nunca se parte. */
+.venta-cab-meta {
+    flex: 0 0 auto;
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
 }
 
 .venta-cabecera:hover { background: var(--bg-surface-hover); }
@@ -196,6 +211,8 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    max-width: 20ch;
+    flex: 0 1 auto;
 }
 
 .venta-cliente {
@@ -234,6 +251,14 @@
 .badge-estado.borrador   { background: rgba(245,158,11,0.1);  color: var(--warning); }
 .badge-estado.confirmada { background: rgba(16,185,129,0.1);  color: var(--success); }
 .badge-estado.anulada    { background: rgba(239,68,68,0.1);   color: var(--danger);  }
+
+/* Confirmada hoy pero anulada en algún momento (editada / re-confirmada) */
+.badge-estado--reconf {
+    background: rgba(217, 119, 6, 0.12);
+    color: #b45309;
+    cursor: help;
+}
+.venta-row--reconf { border-left: 3px solid rgba(217, 119, 6, 0.55); }
 
 /* ── Ícono toggle ── */
 .venta-toggle {
@@ -330,6 +355,15 @@
     font-size: 0.72rem;
     color: var(--success);
     font-weight: 700;
+}
+
+/* En la cabecera va entre chips-pastilla ("Efectivo", "Confirmada"): que
+   acompañe ese estilo en vez de quedar como texto suelto. */
+.venta-cab-meta .descuento-tag {
+    padding: 0.25rem 0.6rem;
+    border-radius: 20px;
+    background: rgba(16, 185, 129, 0.1);
+    white-space: nowrap;
 }
 
 /* ── Footer del detalle ── */
@@ -673,12 +707,19 @@
    RESPONSIVE
 ══════════════════════════════════════════════════════ */
 @media (max-width: 900px) {
-    .venta-cabecera { grid-template-columns: 1fr auto auto auto; }
+    .venta-cabecera { flex-wrap: wrap; }
     .venta-notas    { display: none; }
+    /* El bloque derecho baja a su propia línea y sus chips fluyen. */
+    .venta-cab-meta {
+        margin-left: 0;
+        width: 100%;
+        flex-wrap: wrap;
+        row-gap: 0.45rem;
+    }
+    .venta-cab-meta .venta-toggle { margin-left: auto; }
 }
 
 @media (max-width: 600px) {
-    .venta-cabecera { grid-template-columns: 1fr auto auto; }
     .venta-fecha    { display: none; }
 
     .items-table th:nth-child(n+5),
@@ -1520,9 +1561,6 @@
 /* ══════════════════════════════════════════════════════
    USUARIO EN CABECERA DE VENTA
 ══════════════════════════════════════════════════════ */
-.venta-cabecera {
-    grid-template-columns: 140px 110px 1fr auto auto auto auto auto;
-}
 .venta-por-usuario {
     font-size: 0.78rem;
     color: var(--text-muted);
@@ -1551,6 +1589,16 @@
     color: var(--text-muted);
     margin-bottom: 0.25rem;
     font-family: var(--font-heading);
+}
+.hist-audit-aviso {
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: #92400e;
+    background: rgba(217, 119, 6, 0.1);
+    border: 1px solid rgba(217, 119, 6, 0.25);
+    border-radius: 8px;
+    padding: 0.5rem 0.7rem;
+    margin-bottom: 0.15rem;
 }
 .hist-audit-row {
     display: flex;

@@ -1,3 +1,4 @@
+{% load kai_formato %}
 {% comment %}
 PANEL DE COBRO — estado CONFIRMADA. Se muestra en el panel flotante
 apenas se confirma la venta, sin recargar la página (ver panel_cobro.js).
@@ -23,7 +24,7 @@ apenas se confirma la venta, sin recargar la página (ver panel_cobro.js).
                 {% for pago in pagos %}
                 <span class="cdt-medio-pago-badge">
                     {{ pago.get_medio_display }}{% if pago.tarjeta %} · {{ pago.tarjeta.nombre }}{% endif %}:
-                    {% if pago.monto_base or not pago.redondeo_monto %}${{ pago.monto_base|floatformat:"2" }}{% if pago.recargo_monto %} + ${{ pago.recargo_monto|floatformat:"2" }} rec.{% endif %}{% if pago.redondeo_monto %} + ${{ pago.redondeo_monto|floatformat:"2" }} redondeo{% endif %}{% else %}${{ pago.redondeo_monto|floatformat:"2" }} redondeo a favor{% endif %}
+                    {% if pago.monto_base or not pago.redondeo_monto %}${{ pago.monto_base|pesos }}{% if pago.recargo_monto %} + ${{ pago.recargo_monto|pesos }} rec.{% endif %}{% if pago.redondeo_monto %} + ${{ pago.redondeo_monto|pesos }} redondeo{% endif %}{% else %}${{ pago.redondeo_monto|pesos }} redondeo a favor{% endif %}
                 </span>
                 {% endfor %}
             </div>
@@ -31,24 +32,24 @@ apenas se confirma la venta, sin recargar la página (ver panel_cobro.js).
         {% endif %}
         {% if total_recargo or total_redondeo %}
         {% if total_recargo %}
-        <div class="cdt-resumen-row"><span>Recargo/interés</span><strong>${{ total_recargo|floatformat:"2" }}</strong></div>
+        <div class="cdt-resumen-row"><span>Recargo/interés</span><strong>${{ total_recargo|pesos }}</strong></div>
         {% endif %}
         {% if total_redondeo %}
-        <div class="cdt-resumen-row"><span>Redondeo a favor</span><strong>${{ total_redondeo|floatformat:"2" }}</strong></div>
+        <div class="cdt-resumen-row"><span>Redondeo a favor</span><strong>${{ total_redondeo|pesos }}</strong></div>
         {% endif %}
         <div class="cdt-resumen-row cdt-resumen-row--total">
             <span>Total cobrado</span>
-            <strong class="cdt-total-val">${{ total_a_cobrar|floatformat:"2" }}</strong>
+            <strong class="cdt-total-val">${{ total_a_cobrar|pesos }}</strong>
         </div>
         {% if total_redondeo %}
         <div class="cdt-resumen-row" style="font-size:.75rem;color:var(--text-muted)">
-            <span>Se factura (ARCA)</span><span>${{ venta.total|floatformat:"2" }}</span>
+            <span>Se factura (ARCA)</span><span>${{ venta.total|pesos }}</span>
         </div>
         {% endif %}
         {% else %}
         <div class="cdt-resumen-row cdt-resumen-row--total">
             <span>Total</span>
-            <strong class="cdt-total-val">${{ venta.total|floatformat:"2" }}</strong>
+            <strong class="cdt-total-val">${{ venta.total|pesos }}</strong>
         </div>
         {% endif %}
 

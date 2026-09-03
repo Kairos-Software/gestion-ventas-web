@@ -44,8 +44,39 @@ class NuevaCompraView(LoginRequiredMixin, TemplateView):
             for l in ListaDescuento.objects.filter(activa=True).order_by('orden', 'nombre')
         ]
 
+        # ── Panel de compra (proveedor + comprobante + IVA + pago), en la
+        #    misma pantalla que el carrito (mismo diseño que Nueva Venta /
+        #    Factura inicial). Confirmar dispara guardar-borrador + confirmar.
+        from django.urls import reverse
+        from caja.models import asegurar_cuentas_efectivo
+        asegurar_cuentas_efectivo(caja=TipoCaja.GRANDE)
+        cuentas = (
+            CuentaCaja.objects
+            .filter(caja=TipoCaja.GRANDE, activa=True, es_credito=False)
+            .order_by('orden', 'nombre')
+        )
+        ctx['cuentas_data'] = [
+            {'pk': c.pk, 'nombre': c.nombre, 'moneda': c.moneda, 'tipo': c.tipo, 'titular': c.titular}
+            for c in cuentas
+        ]
+        tarjetas = (
+            CuentaCaja.objects
+            .filter(caja=TipoCaja.GRANDE, activa=True, es_credito=True)
+            .order_by('orden', 'nombre')
+        )
+        ctx['tarjetas_data'] = [
+            {'pk': t.pk, 'nombre': t.nombre, 'moneda': t.moneda, 'terminada_en': t.terminada_en, 'titular': t.titular}
+            for t in tarjetas
+        ]
+        ctx['cuenta_principal_pk'] = CuentaCaja.principal_pk()
+        ctx['url_confirmar']        = reverse('compras:confirmar_compra')
+        ctx['url_eliminar_borrador'] = reverse('compras:eliminar_borrador')
+        ctx['url_historial']       = reverse('compras:historial_compras')
+        ctx['url_deudas']          = reverse('caja:deudas')
+
         ctx['editing_pk'] = None
         ctx['items_json'] = []
+        ctx['edit_prefill'] = None
 
         editar_pk = self.request.GET.get('editar', '').strip()
         descartar_borradores_vencidos(excluir_pk=editar_pk or None)
@@ -56,12 +87,16 @@ class NuevaCompraView(LoginRequiredMixin, TemplateView):
                 ctx['editing_pk'] = compra.pk
                 items_bootstrap = []
                 for item in compra.items.select_related('producto', 'proveedor', 'combinacion').all():
+                    # Nombre "limpio" (sin el prefijo "[COD] " que agrega
+                    # Producto.__str__) para que la tarjeta del carrito muestre
+                    # el código aparte, igual que un ítem recién buscado.
+                    nombre_limpio = item.producto.nombre if item.producto else item.nombre_producto_display
                     items_bootstrap.append({
                         'producto_pk':      item.producto_id,
                         'combinacion_pk':   item.combinacion_id or None,
-                        'nombre':           (f'{item.nombre_producto_display} — {item.nombre_combinacion_display}'
-                                             if item.nombre_combinacion_display else item.nombre_producto_display),
-                        'producto_nombre':  item.nombre_producto_display,
+                        'nombre':           (f'{nombre_limpio} — {item.nombre_combinacion_display}'
+                                             if item.nombre_combinacion_display else nombre_limpio),
+                        'producto_nombre':  nombre_limpio,
                         'variante_desc':    item.nombre_combinacion_display or '',
                         'codigo':           item.producto_codigo or (item.producto.codigo if item.producto else ''),
                         'proveedor_pk':     item.proveedor_id or '',
@@ -77,6 +112,22 @@ class NuevaCompraView(LoginRequiredMixin, TemplateView):
                         'es_perecedero':    bool(item.producto.es_perecedero) if item.producto else bool(item.fecha_vencimiento),
                     })
                 ctx['items_json'] = items_bootstrap
+
+                # Prefill del panel al editar un borrador: proveedor único
+                # (mismo criterio que Compra en el detalle), fecha y datos
+                # del comprobante ya cargados.
+                prov_ids = {i.proveedor_id for i in compra.items.all() if i.proveedor_id}
+                prov = compra.items.all()[0].proveedor if len(prov_ids) == 1 else None
+                ctx['edit_prefill'] = {
+                    'proveedor_pk':      str(prov.pk) if prov else '',
+                    'proveedor_nombre':  prov.nombre if prov else '',
+                    'fecha':             compra.fecha.isoformat() if compra.fecha else '',
+                    'tipo_documento':    compra.tipo_documento or 'factura',
+                    'alicuota_iva':      compra.alicuota_iva or '21',
+                    'iva_incluido':      bool(compra.iva_incluido),
+                    'numero_comprobante': compra.numero_comprobante or '',
+                    'notas':             compra.notas or '',
+                }
         return ctx
 
 
