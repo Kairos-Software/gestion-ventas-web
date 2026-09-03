@@ -8,7 +8,9 @@ from django.db.models import F
 from django.utils import timezone
 
 from productos.models import Producto, Moneda, CondicionPago, CombinacionVariante, AlicuotaIVA
-from core.models import Cliente, AmbienteArca, recalcular_scoring_cliente
+from core.models import (
+    Cliente, AmbienteArca, recalcular_scoring_cliente, permite_venta_sin_stock,
+)
 from compras.models import LoteCompra
 
 
@@ -94,6 +96,14 @@ def _lotes_candidatos(producto, combinacion):
     return list(qs.order_by('fecha_compra', 'fecha_alta'))
 
 
+def _aviso_venta_sin_stock(nombre_desc, cantidad):
+    return (
+        f'"{nombre_desc}": se vendieron {cantidad} unidad(es) SIN STOCK '
+        f'(el stock queda en negativo). Cargá la mercadería que falta '
+        f'(una compra o un ajuste de stock) antes de cerrar el turno.'
+    )
+
+
 def _resolver_y_consumir_lotes(item, producto=None, combinacion=None, cantidad=None, nombre_desc=None):
     """
     Determina de qué lote(s) sale el descuento y los consume. Por
@@ -113,7 +123,12 @@ def _resolver_y_consumir_lotes(item, producto=None, combinacion=None, cantidad=N
     un aviso legible para mostrarle al vendedor.
 
     Devuelve (lista_de_ConsumoLoteVenta_creados, lista_de_avisos:str).
-    Lanza ValueError si no hay stock suficiente en ningún lote.
+    Lanza ValueError si no hay stock suficiente en ningún lote — SALVO que
+    Configuración → Ventas tenga "Permitir vender sin stock" activado y sea
+    el flujo normal de venta (no un componente de paquete): en ese caso la
+    porción no cubierta se registra como un ConsumoLoteVenta sin lote
+    (costo de referencia si el producto lo tiene) y el stock queda en
+    negativo — ver ConfiguracionVentas / _aviso_venta_sin_stock.
     """
     es_llamada_normal = producto is None
     if es_llamada_normal:
@@ -129,6 +144,25 @@ def _resolver_y_consumir_lotes(item, producto=None, combinacion=None, cantidad=N
         if item.combinacion_descripcion:
             nombre_desc = f'{nombre_desc} [{item.combinacion_descripcion}]'
 
+    # ¿Se puede vender aunque no alcancen los lotes? Solo en el flujo
+    # normal de venta (nunca para un componente de paquete, que sigue con
+    # bloqueo duro) y solo si está activado globalmente. La porción no
+    # cubierta se registra igual como ConsumoLoteVenta sin lote.
+    permitir_sin_stock = es_llamada_normal and permite_venta_sin_stock()
+
+    def _consumo_sin_stock(faltante):
+        return ConsumoLoteVenta.objects.create(
+            item_venta              = item,
+            lote                    = None,
+            cantidad                = faltante,
+            lote_codigo_snapshot    = 'SIN STOCK',
+            # Mismo criterio que un lote sin compra real: si el producto
+            # tiene costo de referencia cargado, se usa para no ver 100%
+            # de margen en los reportes; si no, queda NULL (riesgo asumido,
+            # ver ConfiguracionVentas.permitir_venta_sin_stock).
+            costo_unitario_snapshot = producto.costo,
+        )
+
     lotes = _lotes_candidatos(producto, combinacion)
 
     if es_llamada_normal and item.tipo_escaneo == TipoResolucionLote.LOTE_ESPECIFICO and item.lote_escaneado_id:
@@ -143,6 +177,11 @@ def _resolver_y_consumir_lotes(item, producto=None, combinacion=None, cantidad=N
         lotes = [prioritario] + [l for l in lotes if l.pk != prioritario.pk]
 
     if not lotes:
+        if permitir_sin_stock:
+            return (
+                [_consumo_sin_stock(cantidad)],
+                [_aviso_venta_sin_stock(nombre_desc, cantidad)],
+            )
         raise ValueError(f'No hay lotes con stock disponible para "{nombre_desc}".')
 
     restante   = cantidad
@@ -150,7 +189,7 @@ def _resolver_y_consumir_lotes(item, producto=None, combinacion=None, cantidad=N
     avisos     = []
     es_primero = True
 
-    for lote in lotes:
+    for idx, lote in enumerate(lotes):
         if restante <= 0:
             break
         disponible = lote.cantidad_actual
@@ -159,7 +198,8 @@ def _resolver_y_consumir_lotes(item, producto=None, combinacion=None, cantidad=N
 
         tomar = min(restante, disponible)
 
-        if es_primero and tomar < restante:
+        hay_mas_lotes = any(l.cantidad_actual > 0 for l in lotes[idx + 1:])
+        if es_primero and tomar < restante and hay_mas_lotes:
             avisos.append(
                 f'"{nombre_desc}": el lote {lote.codigo} solo tenía {disponible} unidad(es) disponibles; '
                 f'se completó la cantidad descontando del siguiente lote.'
@@ -188,6 +228,10 @@ def _resolver_y_consumir_lotes(item, producto=None, combinacion=None, cantidad=N
         restante -= tomar
 
     if restante > 0:
+        if permitir_sin_stock:
+            consumos.append(_consumo_sin_stock(restante))
+            avisos.append(_aviso_venta_sin_stock(nombre_desc, restante))
+            return consumos, avisos
         raise ValueError(
             f'Stock insuficiente en todos los lotes disponibles para "{nombre_desc}". '
             f'Faltan {restante} unidad(es) para completar la venta.'
@@ -199,7 +243,9 @@ def _resolver_y_consumir_lotes(item, producto=None, combinacion=None, cantidad=N
 def _descontar_stock_directo(producto, combinacion, cantidad, nombre_desc):
     """
     Resta `cantidad` del stock cacheado de producto/combinación (después
-    de ya haber consumido los lotes), respetando permite_stock_negativo.
+    de ya haber consumido los lotes). Deja el stock en negativo solo si
+    Configuración → Ventas lo permite (ver ConfiguracionVentas); si no,
+    lanza ValueError.
 
     Vuelve a leer la fila con select_for_update() antes de restar: los
     objetos `producto`/`combinacion` recibidos pueden venir de una
@@ -208,10 +254,11 @@ def _descontar_stock_directo(producto, combinacion, cantidad, nombre_desc):
     ambas verían el mismo stock_actual "viejo" y una de las dos
     resta se perdería (lost update) sin este refresh bloqueado.
     """
+    permitir_negativo = permite_venta_sin_stock()
     if producto.gestiona_variantes and combinacion is not None:
         combinacion = CombinacionVariante.objects.select_for_update().get(pk=combinacion.pk)
         nuevo_stock = combinacion.stock_actual - cantidad
-        if nuevo_stock < 0 and not producto.permite_stock_negativo:
+        if nuevo_stock < 0 and not permitir_negativo:
             raise ValueError(f'Stock resultaría negativo para "{nombre_desc}": {nuevo_stock}')
         combinacion.stock_actual = nuevo_stock
         combinacion.save(update_fields=['stock_actual'])
@@ -219,7 +266,7 @@ def _descontar_stock_directo(producto, combinacion, cantidad, nombre_desc):
     else:
         producto = Producto.objects.select_for_update().get(pk=producto.pk)
         nuevo_stock = producto.stock_actual - cantidad
-        if nuevo_stock < 0 and not producto.permite_stock_negativo:
+        if nuevo_stock < 0 and not permitir_negativo:
             raise ValueError(f'Stock resultaría negativo para "{nombre_desc}": {nuevo_stock}')
         producto.stock_actual = nuevo_stock
         producto.save(update_fields=['stock_actual'])
@@ -295,6 +342,12 @@ def _revertir_stock_venta_item(item):
     totales = {}  # (producto_id, combinacion_id) -> cantidad a devolver
     for consumo in item.consumos.select_related('lote'):
         if consumo.lote is None:
+            # Porción vendida SIN stock (no salió de ningún lote real):
+            # al anular la venta solo hay que recomponer el stock cacheado
+            # del producto/combinación del propio item (nunca es un
+            # componente de paquete — esos siguen con bloqueo duro).
+            clave = (item.producto_id, item.combinacion_id)
+            totales[clave] = totales.get(clave, 0) + consumo.cantidad
             continue
         consumo.lote.agregar_stock(consumo.cantidad)
         clave = (consumo.lote.producto_id, consumo.lote.combinacion_id)
@@ -1587,8 +1640,6 @@ def registrar_devolucion(venta, items_data, descripcion, usuario=None,
         for consumo in item_venta.consumos.select_for_update().order_by('id'):
             if restante <= 0:
                 break
-            if consumo.lote is None:
-                continue
 
             ya_devuelto = consumo.devoluciones.aggregate(total=models.Sum('cantidad'))['total'] or Decimal('0')
             disponible = consumo.cantidad - ya_devuelto
@@ -1596,6 +1647,21 @@ def registrar_devolucion(venta, items_data, descripcion, usuario=None,
                 continue
 
             tomar = min(restante, disponible)
+
+            if consumo.lote is None:
+                # Porción vendida SIN stock: no salió de ningún lote, así
+                # que al devolverla solo se recompone el stock cacheado.
+                # No puede marcarse como pérdida (no hay lote/costo real
+                # que valorizar) — se repone y listo.
+                clave = (item_venta.producto_id, item_venta.combinacion_id)
+                totales[clave] = totales.get(clave, Decimal('0')) + tomar
+                DevolucionVentaConsumo.objects.create(
+                    devolucion_item=dev_item, consumo_origen=consumo, lote=None,
+                    lote_codigo_snapshot='SIN STOCK', cantidad=tomar,
+                    fue_perdida=False, perdida=None,
+                )
+                restante -= tomar
+                continue
 
             consumo.lote.agregar_stock(tomar)
             clave = (consumo.lote.producto_id, consumo.lote.combinacion_id)

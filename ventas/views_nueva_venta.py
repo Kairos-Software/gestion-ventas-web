@@ -14,7 +14,7 @@ from productos.models import (
     Producto, CombinacionVariante, ListaDescuento, cantidad_valida_para_unidad,
     ofertas_vigentes_hoy,
 )
-from core.models import Cliente, DatosEmpresa, ConfiguracionArca
+from core.models import Cliente, DatosEmpresa, ConfiguracionArca, permite_venta_sin_stock
 from compras.models import LoteCompra
 from .models import (
     Venta, ItemVenta, EstadoVenta, MedioPago, TipoResolucionLote,
@@ -83,6 +83,11 @@ class NuevaVentaView(LoginRequiredMixin, TemplateView):
         turno_actual = TurnoCaja.turno_actual()
         if not turno_actual:
             ctx['sin_turno'] = True
+
+        # ¿Se puede vender sin stock? (Configuración → Ventas). El JS lo
+        # usa para pedir confirmación antes de confirmar una venta que
+        # dejaría stock negativo — ver detalle_venta.js.
+        ctx['permitir_venta_sin_stock'] = permite_venta_sin_stock()
 
         # ── Precarga desde un borrador existente ("Editar carrito") ──
         ctx['venta_editar_pk'] = None

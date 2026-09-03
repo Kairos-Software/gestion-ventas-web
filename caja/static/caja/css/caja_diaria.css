@@ -895,6 +895,151 @@
     color: var(--danger);
 }
 
+/* Cierre bloqueado por ventas sin stock */
+.cd-cerrar-bloqueo {
+    margin-top: 1rem;
+    padding: 0.9rem 1rem;
+    border-radius: var(--radius-md);
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    color: var(--danger);
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+
+.cd-cerrar-bloqueo p {
+    margin: 0 0 0.4rem;
+    font-weight: 600;
+}
+
+.cd-cerrar-bloqueo ul {
+    margin: 0;
+    padding-left: 1.2rem;
+}
+
+.cd-cerrar-bloqueo li {
+    margin: 0.15rem 0;
+}
+
+/* ── Ingresos/egresos de caja diaria (movimientos manuales del turno) ── */
+.cd-mm-card {
+    margin-top: 1.25rem;
+}
+
+.cd-mm-add-btn {
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.cd-mm-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.cd-mm-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.65rem 0.85rem;
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-left: 3px solid var(--border-strong);
+}
+
+.cd-mm-row--ingreso { border-left-color: var(--success, #16a34a); }
+.cd-mm-row--egreso  { border-left-color: var(--danger, #e11d48); }
+
+.cd-mm-row-desc {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+    flex: 1;
+}
+
+.cd-mm-row-desc strong {
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    word-break: break-word;
+}
+
+.cd-mm-row-meta {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
+.cd-mm-row-monto {
+    font-weight: 700;
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+.cd-mm-row--ingreso .cd-mm-row-monto { color: var(--success, #16a34a); }
+.cd-mm-row--egreso  .cd-mm-row-monto { color: var(--danger, #e11d48); }
+
+.cd-mm-row-del {
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.9rem;
+    line-height: 1;
+    padding: 0.25rem 0.4rem;
+    border-radius: 6px;
+    flex-shrink: 0;
+}
+
+.cd-mm-row-del:hover {
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--danger);
+}
+
+.cd-mm-totales {
+    display: flex;
+    gap: 1rem;
+    margin-top: 0.85rem;
+    padding-top: 0.75rem;
+    border-top: 1px dashed var(--border-color);
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.cd-mm-total--in  { color: var(--success, #16a34a); }
+.cd-mm-total--out { color: var(--danger, #e11d48); }
+
+/* Toggle ingreso/egreso dentro del modal */
+.cd-mm-tipo-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+}
+
+.cd-mm-tipo {
+    padding: 0.6rem 0.5rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.cd-mm-tipo.is-active[data-tipo="egreso"] {
+    border-color: var(--danger, #e11d48);
+    background: rgba(239, 68, 68, 0.08);
+    color: var(--danger, #e11d48);
+}
+
+.cd-mm-tipo.is-active[data-tipo="ingreso"] {
+    border-color: var(--success, #16a34a);
+    background: rgba(22, 163, 74, 0.08);
+    color: var(--success, #16a34a);
+}
+
 /* ══════════════════════════════════════════════════════════════════
    CAJA DIARIA — REDISEÑO v2
    Balance financiero prominente arriba, layout single-column
@@ -994,6 +1139,17 @@
 .cd-resumen-card--primary .cd-resumen-card-value {
     color: #fff;
     font-size: 1.7rem;
+}
+
+.cd-resumen-card-hint {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    line-height: 1.25;
+    margin-top: 0.1rem;
+}
+
+.cd-resumen-card--primary .cd-resumen-card-hint {
+    color: rgba(255, 255, 255, 0.8);
 }
 
 /* Estado del turno: layout horizontal compacto */

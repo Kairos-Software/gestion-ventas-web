@@ -296,19 +296,34 @@ def caja(request):
     hoy = timezone.localtime().date()
     preset, desde, hasta = _resolver_rango(request, hoy)
 
-    gastos_categoria = stats_caja.gastos_por_categoria(desde, hasta)
-    gastos_categoria_json = json.dumps([
-        {'categoria': g['descripcion'], 'total': float(g['total'] or 0)}
-        for g in gastos_categoria
+    mov_concepto = stats_caja.movimientos_por_concepto(desde, hasta)
+    serie_conceptos = stats_caja.serie_mensual_conceptos(hoy, meses=6)
+
+    egresos_concepto_json = json.dumps([
+        {'categoria': e['concepto'], 'total': float(e['total'])}
+        for e in mov_concepto['egresos'][:10]
     ], cls=DjangoJSONEncoder)
+    ingresos_concepto_json = json.dumps([
+        {'categoria': i['concepto'], 'total': float(i['total'])}
+        for i in mov_concepto['ingresos'][:10]
+    ], cls=DjangoJSONEncoder)
+    serie_conceptos_json = json.dumps({
+        'meses': [m.strftime('%b %Y') for m in serie_conceptos['meses']],
+        'series': [
+            {'concepto': s['concepto'], 'valores': [float(v) for v in s['valores']]}
+            for s in serie_conceptos['series']
+        ],
+    }, cls=DjangoJSONEncoder)
 
     contexto = {
         'desde': desde,
         'hasta': hasta,
         'preset': preset,
         'situacion_financiera': stats_caja.situacion_financiera(),
-        'gastos_categoria': gastos_categoria,
-        'gastos_categoria_json': gastos_categoria_json,
+        'mov_concepto': mov_concepto,
+        'egresos_concepto_json': egresos_concepto_json,
+        'ingresos_concepto_json': ingresos_concepto_json,
+        'serie_conceptos_json': serie_conceptos_json,
         'historial_arqueos': stats_caja.historial_arqueos(desde, hasta),
     }
     return render(request, 'core/estadisticas/caja.html', contexto)

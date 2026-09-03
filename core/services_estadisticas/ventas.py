@@ -64,11 +64,28 @@ def _costo_de_items(items_qs):
 #  RESUMEN DE GANANCIA (bruta y neta) + COMPARACIÓN DE PERÍODO
 # ══════════════════════════════════════════════════════════════════
 
+def _cobrado_de_mas(desde, hasta):
+    """Lo que los clientes pagaron por encima del precio de lista en el
+    período: redondeo a favor + recargo por medio de pago (ver
+    PagoVenta). Es plata que entró y no tiene costo asociado, así que
+    cuenta como ganancia — mismo criterio que TurnoCaja.ganancia_turno,
+    para que la ganancia de un turno, un día y un período sean el mismo
+    número si abarcan lo mismo."""
+    agg = (
+        PagoVenta.objects
+        .filter(venta__estado=EstadoVenta.CONFIRMADA, venta__fecha__range=(desde, hasta))
+        .aggregate(r=Sum('recargo_monto'), d=Sum('redondeo_monto'))
+    )
+    return (agg['r'] or Decimal('0')) + (agg['d'] or Decimal('0'))
+
+
 def resumen_ganancia(desde, hasta):
     items = _items_confirmados(desde, hasta)
     ingresos = items.aggregate(total=Sum('subtotal_calc'))['total'] or Decimal('0')
     costo_mercaderia = _costo_de_items(items)
-    ganancia_bruta = ingresos - costo_mercaderia
+    margen_mercaderia = ingresos - costo_mercaderia
+    cobrado_de_mas = _cobrado_de_mas(desde, hasta)
+    ganancia_bruta = margen_mercaderia + cobrado_de_mas
 
     # Gasto también registra ingresos manuales (tipo=INGRESO, ver
     # caja.models.Gasto) — acá solo interesan los egresos, si no un
@@ -79,11 +96,16 @@ def resumen_ganancia(desde, hasta):
     ).aggregate(total=Sum('monto'))['total'] or Decimal('0')
     ganancia_neta = ganancia_bruta - gastos
 
-    margen_pct = (ganancia_bruta / ingresos * 100) if ingresos else Decimal('0')
+    # El margen % se mide sobre la mercadería (de cada $100 vendidos,
+    # cuánto es ganancia) — el redondeo/recargo no viene de "vender más
+    # caro", así que se deja afuera de este ratio.
+    margen_pct = (margen_mercaderia / ingresos * 100) if ingresos else Decimal('0')
 
     return {
         'ingresos': ingresos,
         'costo_mercaderia': costo_mercaderia,
+        'margen_mercaderia': margen_mercaderia,
+        'cobrado_de_mas': cobrado_de_mas,
         'ganancia_bruta': ganancia_bruta,
         'gastos': gastos,
         'ganancia_neta': ganancia_neta,
@@ -148,6 +170,20 @@ def serie_mensual(hoy, meses=12):
     )
     costos_dict = {c['mes']: c['costo'] or Decimal('0') for c in costos_por_mes}
 
+    # Redondeo a favor + recargo por medio de pago, por mes — suma a la
+    # ganancia igual que en resumen_ganancia (ver _cobrado_de_mas).
+    extra_por_mes = (
+        PagoVenta.objects
+        .filter(venta__estado=EstadoVenta.CONFIRMADA, venta__fecha__gte=primer_mes)
+        .annotate(mes=TruncMonth('venta__fecha'))
+        .values('mes')
+        .annotate(r=Sum('recargo_monto'), d=Sum('redondeo_monto'))
+    )
+    extra_dict = {
+        e['mes']: (e['r'] or Decimal('0')) + (e['d'] or Decimal('0'))
+        for e in extra_por_mes
+    }
+
     # Generamos explícitamente los `meses` casilleros del calendario,
     # en orden, completando con $0 los que no tengan ventas.
     serie = []
@@ -155,11 +191,12 @@ def serie_mensual(hoy, meses=12):
     for _ in range(meses):
         ingresos = ingresos_dict.get(cursor, Decimal('0'))
         costo = costos_dict.get(cursor, Decimal('0'))
+        extra = extra_dict.get(cursor, Decimal('0'))
         serie.append({
             'mes': cursor,
             'ingresos': ingresos,
             'costo': costo,
-            'ganancia': ingresos - costo,
+            'ganancia': ingresos - costo + extra,
         })
         # avanzar al primer día del mes siguiente
         if cursor.month == 12:

@@ -31,6 +31,7 @@ urlpatterns = [
     path('gastos/crear/',             views_gastos.CrearGastoAjax.as_view(),      name='crear_gasto'),
     path('gastos/editar/<int:pk>/',   views_gastos.EditarGastoAjax.as_view(),     name='editar_gasto'),
     path('gastos/eliminar/<int:pk>/', views_gastos.EliminarGastoAjax.as_view(),   name='eliminar_gasto'),
+    path('gastos/conceptos/sugerencias/', views_gastos.ConceptosSugerenciasAjax.as_view(), name='conceptos_sugerencias'),
 
     # ══════════════════════════════════════════════════════════════════
     #  AJAX — Movimientos programados (ingresos/egresos recurrentes)
@@ -105,6 +106,8 @@ urlpatterns = [
     path('diaria/estado/',             views_caja_diaria.EstadoCajaDiariaAjax.as_view(),    name='estado_caja_diaria'),
     path('diaria/historial-ajax/',     views_caja_diaria.HistorialTurnosAjax.as_view(),     name='historial_turnos_ajax'),
     path('diaria/eliminar-historial/', views_caja_diaria.EliminarHistorialAjax.as_view(),   name='eliminar_historial'),
+    path('diaria/movimiento-manual/crear/',          views_caja_diaria.TurnoMovimientoManualCrearAjax.as_view(),    name='turno_mov_manual_crear'),
+    path('diaria/movimiento-manual/<int:pk>/eliminar/', views_caja_diaria.TurnoMovimientoManualEliminarAjax.as_view(), name='turno_mov_manual_eliminar'),
 
     # ══════════════════════════════════════════════════════════════════
     #  AJAX — Transacciones

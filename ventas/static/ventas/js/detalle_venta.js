@@ -1385,6 +1385,23 @@ if (VDT.esBorrador) {
                 return;
             }
 
+            // Venta sin stock: si está habilitado globalmente y alguna línea
+            // del carrito supera el stock disponible, pedir confirmación —
+            // el stock va a quedar en negativo y no se va a poder cerrar el
+            // turno hasta cargar la mercadería. (En el detalle "suelto" del
+            // Historial no hay carrito: ahí la validación es solo server-side.)
+            if (window.VTA_CONFIG && window.VTA_CONFIG.permitirVentaSinStock &&
+                window.ventaCarrito && typeof window.ventaCarrito.tieneStockInsuficiente === 'function' &&
+                window.ventaCarrito.tieneStockInsuficiente()) {
+                const seguir = await KaiConfirm(
+                    'Hay productos sin stock suficiente. Si confirmás, el stock queda en ' +
+                    'negativo y NO vas a poder cerrar el turno hasta cargar la mercadería ' +
+                    'que falta (una compra o un ajuste de stock). ¿Confirmar la venta igual?',
+                    { confirmText: 'Vender sin stock' }
+                );
+                if (!seguir) return;
+            }
+
             btnConfirmar.disabled  = true;
             btnConfirmar.innerHTML = `<svg class="vta-spin" width="16" height="16" viewBox="0 0 16 16" fill="none">
                 <circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.5" stroke-dasharray="20 15"/>

@@ -5,7 +5,7 @@
 {% block title %}Ingresos y egresos{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'caja/css/gastos.css' %}">
+<link rel="stylesheet" href="{% static 'caja/css/gastos.css' %}?v=20260905">
 {% endblock %}
 
 {% block content %}
@@ -96,6 +96,14 @@
                         {% for moneda, label in monedas %}
                         <option value="{{ moneda }}">{{ label }}</option>
                         {% endfor %}
+                    </select>
+                </div>
+                <div class="filtro-campo">
+                    <label for="fOrigen">Origen</label>
+                    <select id="fOrigen" name="origen">
+                        <option value="">Todos</option>
+                        <option value="caja_grande">Caja grande</option>
+                        <option value="caja_diaria">Caja diaria (turnos)</option>
                     </select>
                 </div>
                 <div class="filtro-campo filtro-campo--ancho">
@@ -280,7 +288,12 @@
 
             <div class="form-campo">
                 <label for="movDescripcion">Descripción<span id="movDescReq" hidden> *</span></label>
-                <input type="text" id="movDescripcion" name="descripcion" placeholder="Ej: Alquiler, Mecánico, Luz, Sueldo, Herencia, Regalo...">
+                <div class="gastos-desc-autocomplete">
+                    <input type="text" id="movDescripcion" name="descripcion" autocomplete="off"
+                        placeholder="Ej: Alquiler, Mecánico, Luz, Sueldo, Herencia, Regalo...">
+                    <ul class="gastos-desc-sugerencias" id="movDescSugerencias" hidden></ul>
+                </div>
+                <small class="form-campo-ayuda">Se guarda como texto libre. Mientras escribís, te sugiere conceptos ya usados para no repetir (ayuda a las estadísticas de gastos).</small>
             </div>
 
             <div class="modal-footer">
@@ -354,8 +367,9 @@
         toggleProgramado: '{{ url_toggle_programado }}',
         confirmarInstancia: '{{ url_confirmar_instancia }}',
         anularInstancia: '{{ url_anular_instancia }}',
+        conceptosSugerencias: '{{ url_conceptos_sugerencias }}',
     };
     window.gastosToday = '{{ today }}';
 </script>
-<script src="{% static 'caja/js/gastos.js' %}?v=20260910"></script>
+<script src="{% static 'caja/js/gastos.js' %}?v=20260911"></script>
 {% endblock %}

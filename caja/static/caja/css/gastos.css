@@ -294,6 +294,26 @@
     border: 1px solid rgba(239,68,68,0.25);
 }
 
+/* Movimiento de caja diaria (en vez del nombre de cuenta) */
+.gastos-badge-origen {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.15rem 0.5rem;
+    border-radius: 0.35rem;
+    white-space: nowrap;
+    background: rgba(242,106,27,0.09);
+    color: var(--brand-orange);
+    border: 1px solid rgba(242,106,27,0.22);
+}
+
+.gastos-acciones-nota {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-style: italic;
+    white-space: nowrap;
+}
+
 /* Toggle Ingreso/Egreso en el modal */
 .gastos-tipo-toggle {
     display: flex;
@@ -541,6 +561,57 @@
     outline: none;
     border-color: var(--accent-primary);
     box-shadow: 0 0 0 3px var(--accent-light);
+}
+
+/* Autocompletado de la descripción (conceptos ya usados) */
+.gastos-desc-autocomplete {
+    position: relative;
+    display: block;
+}
+
+.gastos-desc-autocomplete input {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.gastos-desc-sugerencias {
+    position: absolute;
+    top: calc(100% + 3px);
+    left: 0;
+    right: 0;
+    z-index: 40;
+    margin: 0;
+    padding: 0.25rem;
+    list-style: none;
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-md, 0 8px 24px rgba(0, 0, 0, 0.12));
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.gastos-desc-sug {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.5rem 0.6rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.88rem;
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.gastos-desc-sug:hover {
+    background: var(--bg-primary, rgba(0, 0, 0, 0.04));
+}
+
+.gastos-desc-sug-usos {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    flex-shrink: 0;
 }
 
 .modal-footer {

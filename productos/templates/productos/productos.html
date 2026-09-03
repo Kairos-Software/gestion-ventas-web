@@ -721,11 +721,6 @@
                         <span>Gestiona stock</span>
                     </label>
                     <label class="prd-check-label">
-                        <input type="checkbox" id="f_permite_stock_negativo" class="prd-check">
-                        <span class="prd-check-box"></span>
-                        <span>Permite stock negativo</span>
-                    </label>
-                    <label class="prd-check-label">
                         <input type="checkbox" id="f_requiere_refrigeracion" class="prd-check">
                         <span class="prd-check-box"></span>
                         <span>Requiere refrigeración</span>
@@ -1374,6 +1369,6 @@ const URLS = {
 };
 </script>
 {{ columnas_resumen|json_script:"exportColumnasResumen" }}
-<script src="{% static 'productos/js/productos.js' %}?v=7"></script>
+<script src="{% static 'productos/js/productos.js' %}?v=8"></script>
 {% endif %}
 {% endblock %}

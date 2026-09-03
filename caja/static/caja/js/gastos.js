@@ -84,6 +84,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const tipo = document.getElementById('fTipo').value;
         const cuenta = document.getElementById('fCuenta').value;
         const moneda = document.getElementById('fMoneda').value;
+        const origen = document.getElementById('fOrigen') ? document.getElementById('fOrigen').value : '';
         const q = document.getElementById('fQ').value;
 
         const filtros = {};
@@ -92,6 +93,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (tipo) filtros.tipo = tipo;
         if (cuenta) filtros.cuenta = cuenta;
         if (moneda) filtros.moneda = moneda;
+        if (origen) filtros.origen = origen;
         if (q) filtros.q = q;
 
         return filtros;
@@ -103,18 +105,13 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        gastosBody.innerHTML = gastos.map(g => `
-            <tr>
-                <td>${g.fecha}</td>
-                <td>${g.hora}</td>
-                <td><span class="gastos-badge-tipo gastos-badge-tipo--${g.tipo}">${g.tipo === 'ingreso' ? 'Ingreso' : 'Egreso'}</span></td>
-                <td>${g.descripcion || '-'}</td>
-                <td>${g.cuenta_nombre || '-'}</td>
-                <td class="gastos-monto gastos-monto--${g.tipo}">${g.monto}</td>
-                <td>${g.moneda}</td>
-                <td>${g.creado_por || '-'}</td>
-                <td>
-                    <div class="gastos-tabla-acciones">
+        gastosBody.innerHTML = gastos.map(g => {
+            const cuentaCol = g.es_caja_diaria
+                ? `<span class="gastos-badge-origen">Caja diaria · turno #${g.turno_numero}</span>`
+                : (g.cuenta_nombre || '-');
+            const accionesCol = g.es_caja_diaria
+                ? `<span class="gastos-acciones-nota" title="Se gestiona desde Caja Diaria">en Caja Diaria</span>`
+                : `<div class="gastos-tabla-acciones">
                         <button type="button" class="icon-btn" onclick="editarGasto(${g.pk})" title="Editar">
                             <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                                 <path d="M2.5 13.5L13.5 2.5M13.5 2.5V7.5M13.5 2.5H8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -125,10 +122,20 @@ document.addEventListener('DOMContentLoaded', function () {
                                 <path d="M3 3L13 13M3 13L13 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                             </svg>
                         </button>
-                    </div>
-                </td>
-            </tr>
-        `).join('');
+                    </div>`;
+            return `
+            <tr>
+                <td>${g.fecha}</td>
+                <td>${g.hora}</td>
+                <td><span class="gastos-badge-tipo gastos-badge-tipo--${g.tipo}">${g.tipo === 'ingreso' ? 'Ingreso' : 'Egreso'}</span></td>
+                <td>${g.descripcion || '-'}</td>
+                <td>${cuentaCol}</td>
+                <td class="gastos-monto gastos-monto--${g.tipo}">${g.monto}</td>
+                <td>${g.moneda}</td>
+                <td>${g.creado_por || '-'}</td>
+                <td>${accionesCol}</td>
+            </tr>`;
+        }).join('');
     }
 
     function renderizarPaginacion(total, pagina, porPagina) {
@@ -236,13 +243,77 @@ document.addEventListener('DOMContentLoaded', function () {
     const movProximaFecha = document.getElementById('movProximaFecha');
     const movMontoFijo = document.getElementById('movMontoFijo');
     const movDescripcion = document.getElementById('movDescripcion');
+    const movDescSugerencias = document.getElementById('movDescSugerencias');
 
     function setTipo(tipo) {
         movTipo.value = tipo;
         formMovimiento.querySelectorAll('.gastos-tipo-btn[data-tipo]').forEach(btn => {
             btn.classList.toggle('gastos-tipo-btn--active', btn.dataset.tipo === tipo);
         });
+        // Al cambiar ingreso/egreso, refrescar las sugerencias abiertas.
+        if (document.activeElement === movDescripcion) buscarSugerenciasConcepto();
     }
+
+    // ══════════════════════════════════════════════════════════════
+    //  AUTOCOMPLETADO DE LA DESCRIPCIÓN (conceptos ya usados)
+    //  El texto sigue siendo libre — esto solo sugiere para no
+    //  repetir y para que las estadísticas agrupen parejo.
+    // ══════════════════════════════════════════════════════════════
+    let sugConceptoTimer = null;
+    let sugConceptoAbort = null;
+
+    function escaparHtml(s) {
+        return String(s).replace(/[&<>"']/g, ch => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+        }[ch]));
+    }
+
+    function cerrarSugerenciasConcepto() {
+        movDescSugerencias.hidden = true;
+        movDescSugerencias.innerHTML = '';
+    }
+
+    function renderSugerenciasConcepto(lista) {
+        if (!lista.length) { cerrarSugerenciasConcepto(); return; }
+        movDescSugerencias.innerHTML = lista.map(s => `
+            <li class="gastos-desc-sug" data-nombre="${escaparHtml(s.nombre)}">
+                <span class="gastos-desc-sug-nombre">${escaparHtml(s.nombre)}</span>
+                ${s.usos ? `<span class="gastos-desc-sug-usos">${s.usos}×</span>` : ''}
+            </li>`).join('');
+        movDescSugerencias.hidden = false;
+    }
+
+    async function buscarSugerenciasConcepto() {
+        const q = movDescripcion.value.trim();
+        if (sugConceptoAbort) sugConceptoAbort.abort();
+        sugConceptoAbort = new AbortController();
+        try {
+            const params = new URLSearchParams({ q, tipo: movTipo.value || '' });
+            const resp = await fetch(`${urls.conceptosSugerencias}?${params}`, { signal: sugConceptoAbort.signal });
+            const data = await resp.json();
+            // Si el texto coincide EXACTO con una sola sugerencia, no vale la pena mostrarla.
+            const filtradas = (data.sugerencias || []).filter(
+                s => s.nombre.trim().toLowerCase() !== q.toLowerCase());
+            renderSugerenciasConcepto(filtradas);
+        } catch (e) {
+            if (e.name !== 'AbortError') cerrarSugerenciasConcepto();
+        }
+    }
+
+    movDescripcion.addEventListener('input', () => {
+        clearTimeout(sugConceptoTimer);
+        sugConceptoTimer = setTimeout(buscarSugerenciasConcepto, 180);
+    });
+    movDescripcion.addEventListener('focus', buscarSugerenciasConcepto);
+    movDescripcion.addEventListener('blur', () => setTimeout(cerrarSugerenciasConcepto, 150));
+    movDescSugerencias.addEventListener('mousedown', (e) => {
+        const li = e.target.closest('.gastos-desc-sug');
+        if (!li) return;
+        e.preventDefault();
+        movDescripcion.value = li.dataset.nombre;
+        cerrarSugerenciasConcepto();
+        movDescripcion.focus();
+    });
     formMovimiento.querySelectorAll('.gastos-tipo-btn[data-tipo]').forEach(btn => {
         btn.addEventListener('click', () => setTipo(btn.dataset.tipo));
     });
@@ -296,6 +367,7 @@ document.addEventListener('DOMContentLoaded', function () {
         movPk.value = '';
         movEditKind.value = '';
         wrapModo.hidden = false;
+        cerrarSugerenciasConcepto();
         setTipo('egreso');
         setModo('unico');
     }
@@ -368,6 +440,10 @@ document.addEventListener('DOMContentLoaded', function () {
             const gasto = data.results.find(g => g.pk === pk);
             if (!gasto) {
                 KaiToast.show('Movimiento no encontrado', 'danger');
+                return;
+            }
+            if (gasto.es_caja_diaria) {
+                KaiToast.show('Es un ingreso/egreso de caja diaria — se edita desde Caja Diaria, con el turno abierto.', 'warning');
                 return;
             }
 

@@ -26,6 +26,7 @@
         {% if puede_editar_empresa %}<a href="#seccion-empresa">Datos de la empresa</a>{% endif %}
         {% if puede_editar_empresa %}<a href="#seccion-arca">Facturación Electrónica</a>{% endif %}
         {% if puede_editar_cuentas %}<a href="#seccion-cuentas">Cuentas de caja</a>{% endif %}
+        {% if puede_editar_config_ventas %}<a href="#seccion-ventas">Ventas</a>{% endif %}
         <a href="#seccion-apariencia">Apariencia</a>
         {% if puede_editar_asistencia %}<a href="#seccion-notificaciones">Notificaciones</a>{% endif %}
         <a href="#seccion-sistema">Sistema</a>
@@ -357,6 +358,50 @@
             <div class="config-row-desc">Cargá al menos una tarjeta, billetera o banco arriba para poder elegir predeterminadas.</div>
             {% endif %}
         </div>
+    </div>
+    {% endif %}
+
+    <!-- ── Ventas (solo el dueño) ── -->
+    {% if puede_editar_config_ventas %}
+    <div class="config-section" id="seccion-ventas">
+        <div class="config-section-header">
+            <div class="config-section-icon" style="background:rgba(242,106,27,0.1); color:var(--brand-orange);">
+                <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                    <path d="M3 3H5L6 13H16L18 6H6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+                    <circle cx="7.5" cy="16.5" r="1.3" fill="currentColor"/>
+                    <circle cx="14.5" cy="16.5" r="1.3" fill="currentColor"/>
+                </svg>
+            </div>
+            <div>
+                <h2>Ventas</h2>
+                <p>Cómo se comporta el sistema al vender</p>
+            </div>
+        </div>
+
+        <form id="formConfigVentas">
+            {% csrf_token %}
+            <div class="config-row config-setting-row">
+                <div class="config-row-info">
+                    <div class="config-row-label">Permitir vender sin stock</div>
+                    <div class="config-row-desc">
+                        Con esto activado se puede confirmar una venta aunque no haya stock:
+                        el stock queda en negativo y <strong>el turno de caja no se puede cerrar</strong>
+                        hasta que cargues la mercadería que falta (una compra o un ajuste de stock).
+                        Sirve para el caso de "compré pero todavía no lo cargué y el cliente ya se lo lleva".
+                        <br>
+                        Cuidado: mientras el stock está en negativo, esas ventas salen al precio y costo viejos
+                        — si compraste más caro, el balance de ese turno puede quedar corto hasta que cargues.
+                        <br>
+                        Apagado (por defecto): el sistema rechaza cualquier venta sin stock, como siempre.
+                    </div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="idPermitirVentaSinStock" {% if configuracion_ventas.permitir_venta_sin_stock %}checked{% endif %}>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+            <div id="configVentasMsg" class="config-empresa-msg"></div>
+        </form>
     </div>
     {% endif %}
 
@@ -721,6 +766,9 @@
     window.CONFIG_ASISTENCIA_URLS = {
         guardar: "{% url 'asistencia:preferencias_guardar' %}",
     };
+    window.CONFIG_VENTAS_URLS = {
+        guardar: "{% url 'core:config_ventas_guardar' %}",
+    };
 </script>
-<script src="{% static 'core/js/configuracion.js' %}?v=20260913"></script>
+<script src="{% static 'core/js/configuracion.js' %}?v=20260913.1"></script>
 {% endblock %}

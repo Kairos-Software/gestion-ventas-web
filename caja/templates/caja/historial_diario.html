@@ -107,6 +107,14 @@ Historial Diario
         <!-- Resumen financiero del día -->
         <div class="hd-resumen">
             <div class="hd-resumen-row">
+                <span class="hd-resumen-label">Recaudado del día</span>
+                <span class="hd-resumen-value">${{ dia.total_recaudado|floatformat:"2" }}</span>
+            </div>
+            <div class="hd-resumen-row hd-resumen-row--destacado">
+                <span class="hd-resumen-label">Ganancia del día</span>
+                <span class="hd-resumen-value">${{ dia.total_ganancia|floatformat:"2" }}</span>
+            </div>
+            <div class="hd-resumen-row">
                 <span class="hd-resumen-label">Monto inicial total</span>
                 <span class="hd-resumen-value">${{ dia.total_monto_inicial|floatformat:"2" }}</span>
             </div>
@@ -116,7 +124,7 @@ Historial Diario
             </div>
             {% if dia.total_redondeos %}
             <div class="hd-resumen-row">
-                <span class="hd-resumen-label">Redondeos a favor</span>
+                <span class="hd-resumen-label">Redondeos a favor (ya incluidos en la ganancia)</span>
                 <span class="hd-resumen-value">${{ dia.total_redondeos|floatformat:"2" }}</span>
             </div>
             {% endif %}
@@ -177,6 +185,10 @@ Historial Diario
                         {{ turno.fecha_apertura|date:"H:i" }}{% if turno.fecha_cierre %} → {{ turno.fecha_cierre|date:"H:i" }}{% endif %}
                     </span>
                     <span class="ht-row-total">${{ turno.total_recaudado|floatformat:"2" }}</span>
+                    <span class="ht-row-ganancia" title="Ganancia del turno (margen + redondeos y recargos)"
+                        style="flex-shrink:0;white-space:nowrap;font-size:0.72rem;font-weight:700;padding:0.2rem 0.55rem;border-radius:var(--radius-sm);background:rgba(16,185,129,0.1);color:var(--success)">
+                        Ganancia ${{ turno.ganancia_turno|floatformat:"2" }}
+                    </span>
                     {% if turno.diferencia_efectivo %}
                     <span class="ht-row-dif{% if turno.alerta_diferencia %} ht-row-dif--alert{% endif %}">
                         {% if turno.alerta_diferencia %}⚠ {% endif %}${{ turno.diferencia_efectivo|floatformat:"2" }}
@@ -192,6 +204,10 @@ Historial Diario
                         <div class="hd-medio-row">
                             <span class="hd-medio-label">Recaudado</span>
                             <span class="hd-medio-value">${{ turno.total_recaudado|floatformat:"2" }}</span>
+                        </div>
+                        <div class="hd-medio-row">
+                            <span class="hd-medio-label">Ganancia del turno</span>
+                            <span class="hd-medio-value">${{ turno.ganancia_turno|floatformat:"2" }}</span>
                         </div>
                         <div class="hd-medio-row">
                             <span class="hd-medio-label">Efectivo en caja</span>

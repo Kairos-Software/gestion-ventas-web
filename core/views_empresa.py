@@ -7,7 +7,10 @@ from django.http import JsonResponse
 
 from productos.utils_imagenes import comprimir_imagen_subida
 
-from .models import DatosEmpresa, CondicionIVA, ConfiguracionArca, AmbienteArca
+from .models import (
+    DatosEmpresa, CondicionIVA, ConfiguracionArca, AmbienteArca,
+    ConfiguracionVentas,
+)
 from .permisos import chequear_permiso
 from .services_arca import certificados, wsaa, wsfe
 from .services_arca.wsaa import ArcaError
@@ -178,3 +181,22 @@ class EmpresaArcaProbarAjax(LoginRequiredMixin, View):
             return JsonResponse({'error': str(exc)}, status=400)
 
         return JsonResponse({'ok': True, 'ambiente': config.ambiente, 'estado': estado})
+
+
+class ConfiguracionVentasGuardarAjax(LoginRequiredMixin, View):
+    """POST JSON {permitir_venta_sin_stock: bool} — sección Configuración → Ventas."""
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_empresa'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        config = ConfiguracionVentas.get_solo()
+        config.permitir_venta_sin_stock = bool(body.get('permitir_venta_sin_stock'))
+        config.save(update_fields=['permitir_venta_sin_stock', 'actualizado_el'])
+
+        return JsonResponse({'ok': True, 'permitir_venta_sin_stock': config.permitir_venta_sin_stock})

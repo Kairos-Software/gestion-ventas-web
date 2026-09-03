@@ -240,7 +240,6 @@ CAMPOS = {
     # — Booleanos —
     'precio_incluye_iva':      _p_bool,
     'gestiona_stock':          _p_bool,
-    'permite_stock_negativo':  _p_bool,
     'publicado':               _p_bool,
     'destacado':               _p_bool,
     'requiere_refrigeracion':  _p_bool,
@@ -258,7 +257,7 @@ CLAVES_ORDEN = [
     'peso_kg', 'alto_cm', 'ancho_cm', 'profundidad_cm',
     'precio_venta', 'modo_precio', 'porcentaje_ganancia', 'alicuota_iva',
     'precio_incluye_iva', 'costo',
-    'gestiona_stock', 'stock_minimo', 'stock_maximo', 'permite_stock_negativo',
+    'gestiona_stock', 'stock_minimo', 'stock_maximo',
     'estado', 'publicado', 'destacado',
     'requiere_refrigeracion', 'es_fragil', 'es_peligroso', 'es_perecedero',
     'posicion_deposito', 'notas',

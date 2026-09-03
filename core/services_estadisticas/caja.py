@@ -7,7 +7,8 @@ de arqueos de caja diaria.
 
 from decimal import Decimal
 
-from django.db.models import Q, Sum
+from django.db.models import Q, Sum, Count
+from django.db.models.functions import TruncMonth
 
 from productos.models import Moneda
 from caja.models import (
@@ -20,23 +21,113 @@ from caja.models import (
 
 
 # ══════════════════════════════════════════════════════════════════
-#  GASTOS POR CATEGORÍA
-#  (agrupa por descripción; si más adelante Gasto tiene un campo
-#  categoria propio, cambiar el agrupamiento acá por ese campo)
+#  INGRESOS Y EGRESOS MANUALES POR CONCEPTO
+#
+#  Agrupa los Gasto (ingresos y egresos manuales) por su `concepto`
+#  del catálogo (ver caja.ConceptoGasto). Los que no tienen concepto
+#  cargado caen en "Sin concepto". Los montos se suman sin distinguir
+#  moneda (igual criterio que el resto de Estadísticas — la enorme
+#  mayoría es ARS).
 # ══════════════════════════════════════════════════════════════════
 
-def gastos_por_categoria(desde, hasta, top=8):
-    # Gasto también registra ingresos manuales (tipo=INGRESO) — acá
-    # solo interesan los egresos, si no un ingreso manual se mostraría
-    # mezclado en este ranking como si fuera un gasto más.
-    return list(
-        Gasto.objects.filter(
-            fecha__range=(desde, hasta), tipo=TipoMovimientoCaja.EGRESO,
-        )
-        .values('descripcion')
-        .annotate(total=Sum('monto'))
-        .order_by('-total')[:top]
+def _rankear(bucket):
+    """dict{nombre: fila} → lista ordenada por total desc, con % del total."""
+    lista = sorted(bucket.values(), key=lambda x: x['total'], reverse=True)
+    total = sum((x['total'] for x in lista), Decimal('0'))
+    for x in lista:
+        x['pct'] = round(x['total'] / total * 100, 1) if total else Decimal('0')
+    return lista, total
+
+
+def movimientos_por_concepto(desde, hasta):
+    filas = (
+        Gasto.objects
+        .filter(fecha__range=(desde, hasta))
+        .values('concepto__nombre', 'tipo')
+        .annotate(total=Sum('monto'), cantidad=Count('id'))
     )
+
+    egresos, ingresos = {}, {}
+    for f in filas:
+        nombre = f['concepto__nombre'] or 'Sin concepto'
+        destino = egresos if f['tipo'] == TipoMovimientoCaja.EGRESO else ingresos
+        fila = destino.setdefault(
+            nombre, {'concepto': nombre, 'total': Decimal('0'), 'cantidad': 0})
+        fila['total'] += f['total'] or Decimal('0')
+        fila['cantidad'] += f['cantidad']
+
+    egr_lista, egr_total = _rankear(egresos)
+    ing_lista, ing_total = _rankear(ingresos)
+    return {
+        'egresos': egr_lista, 'total_egresos': egr_total,
+        'ingresos': ing_lista, 'total_ingresos': ing_total,
+    }
+
+
+def _mes_anterior(fecha):
+    """Primer día del mes anterior a `fecha` (que ya debe ser un día 1)."""
+    if fecha.month == 1:
+        return fecha.replace(year=fecha.year - 1, month=12)
+    return fecha.replace(month=fecha.month - 1)
+
+
+def serie_mensual_conceptos(hoy, meses=6, tipo=TipoMovimientoCaja.EGRESO, top=5):
+    """Para el gráfico "cuánto gasto por mes en cada rubro": los `top`
+    conceptos con más movimiento en la ventana, mes a mes, y el resto
+    junto en "Otros". Siempre devuelve `meses` casilleros (con $0 los
+    vacíos, e incluyendo el mes en curso) para que las barras se vean
+    parejas."""
+    primer_mes = hoy.replace(day=1)
+    for _ in range(meses - 1):
+        primer_mes = _mes_anterior(primer_mes)
+
+    filas = (
+        Gasto.objects
+        .filter(tipo=tipo, fecha__gte=primer_mes)
+        .annotate(mes=TruncMonth('fecha'))
+        .values('mes', 'concepto__nombre')
+        .annotate(total=Sum('monto'))
+    )
+
+    por_concepto = {}
+    por_mes_concepto = {}
+    for f in filas:
+        nombre = f['concepto__nombre'] or 'Sin concepto'
+        t = f['total'] or Decimal('0')
+        por_concepto[nombre] = por_concepto.get(nombre, Decimal('0')) + t
+        por_mes_concepto[(f['mes'], nombre)] = por_mes_concepto.get((f['mes'], nombre), Decimal('0')) + t
+
+    top_nombres = [
+        n for n, _ in sorted(por_concepto.items(), key=lambda x: x[1], reverse=True)[:top]
+    ]
+
+    meses_cal = []
+    cursor = primer_mes
+    for _ in range(meses):
+        meses_cal.append(cursor)
+        cursor = (cursor.replace(year=cursor.year + 1, month=1)
+                  if cursor.month == 12 else cursor.replace(month=cursor.month + 1))
+
+    series = []
+    for nombre in top_nombres:
+        series.append({
+            'concepto': nombre,
+            'valores': [por_mes_concepto.get((m, nombre), Decimal('0')) for m in meses_cal],
+            'total': por_concepto[nombre],
+        })
+
+    otros = set(por_concepto) - set(top_nombres)
+    if otros:
+        series.append({
+            'concepto': 'Otros',
+            'valores': [
+                sum((por_mes_concepto.get((m, n), Decimal('0')) for n in otros), Decimal('0'))
+                for m in meses_cal
+            ],
+            'total': sum((por_concepto[n] for n in otros), Decimal('0')),
+        })
+
+    return {'meses': meses_cal, 'series': series}
 
 
 # ══════════════════════════════════════════════════════════════════

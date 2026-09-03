@@ -335,8 +335,8 @@ function initChartDonut(elementId, items, colores, opciones) {
 //    la magnitud relativa mejor que en una torta, y escala mejor con
 //    varias categorías). Una sola serie: el color identifica "gasto",
 //    no hace falta leyenda ni una paleta categórica acá. ──
-function initChartGastos(gastosCategoria) {
-    const el = document.getElementById('chartGastos');
+function initChartGastos(gastosCategoria, elId, color) {
+    const el = document.getElementById(elId || 'chartGastos');
     if (!el || !gastosCategoria.length) return;
 
     new Chart(el, {
@@ -345,7 +345,7 @@ function initChartGastos(gastosCategoria) {
             labels: gastosCategoria.map(g => g.categoria),
             datasets: [{
                 data: gastosCategoria.map(g => g.total),
-                backgroundColor: '#F26A1B',
+                backgroundColor: color || '#F26A1B',
                 borderRadius: 4,
                 maxBarThickness: 28,
             }],
@@ -369,6 +369,57 @@ function initChartGastos(gastosCategoria) {
                     ...EST_TOOLTIP_BASE,
                     callbacks: {
                         label: (ctx) => `$${ctx.parsed.x.toLocaleString('es-AR')}`,
+                    },
+                },
+            },
+        },
+    });
+}
+
+// ── Caja: cuánto se gasta por mes en cada rubro (barras apiladas) ──
+//    data = { meses: [...], series: [{concepto, valores: [...]}, ...] }
+const EST_CONCEPTO_COLORS = [
+    '#F26A1B', '#1E6FA8', '#16a34a', '#b45309', '#7c3aed', '#0891b2', '#94a3b8',
+];
+
+function initChartConceptosMensual(data) {
+    const el = document.getElementById('chartConceptosMensual');
+    if (!el || !data.series || !data.series.length) return;
+
+    new Chart(el, {
+        type: 'bar',
+        data: {
+            labels: data.meses,
+            datasets: data.series.map((s, i) => ({
+                label: s.concepto,
+                data: s.valores,
+                backgroundColor: s.concepto === 'Otros'
+                    ? '#94a3b8'
+                    : EST_CONCEPTO_COLORS[i % EST_CONCEPTO_COLORS.length],
+                borderRadius: 3,
+                maxBarThickness: 46,
+            })),
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            scales: {
+                x: { stacked: true, grid: { display: false }, border: { color: '#c3c2b7' } },
+                y: {
+                    stacked: true,
+                    beginAtZero: true,
+                    ticks: { callback: (v) => '$' + v.toLocaleString('es-AR') },
+                    grid: { color: EST_GRID_COLOR },
+                    border: { display: false },
+                },
+            },
+            plugins: {
+                legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8 } },
+                tooltip: {
+                    ...EST_TOOLTIP_BASE,
+                    callbacks: {
+                        label: (ctx) => `${ctx.dataset.label}: $${ctx.parsed.y.toLocaleString('es-AR')}`,
                     },
                 },
             },

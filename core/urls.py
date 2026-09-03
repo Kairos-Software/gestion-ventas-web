@@ -83,6 +83,9 @@ urlpatterns = [
     path('configuracion/arca/generar-csr/', views_empresa.EmpresaArcaGenerarCsrAjax.as_view(), name='empresa_arca_generar_csr'),
     path('configuracion/arca/probar/', views_empresa.EmpresaArcaProbarAjax.as_view(), name='empresa_arca_probar'),
 
+    # ── Preferencias de ventas (Configuración → Ventas) ────────────
+    path('configuracion/ventas/guardar/', views_empresa.ConfiguracionVentasGuardarAjax.as_view(), name='config_ventas_guardar'),
+
     # ── Cuentas de caja (tarjetas/billeteras/bancos — Configuración) ──
     path('configuracion/cuentas/guardar/', views_cuentas.CuentaCrearEditarAjax.as_view(), name='cuenta_guardar'),
     path('configuracion/cuentas/baja/', views_cuentas.CuentaEliminarAjax.as_view(), name='cuenta_baja'),

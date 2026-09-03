@@ -84,26 +84,96 @@
     </div>
 </div>
 
-<!-- ══════════ GASTOS POR CATEGORÍA ══════════ -->
+<!-- ══════════ EGRESOS POR CONCEPTO ══════════ -->
 <div class="card">
     <div class="card-header">
         <div>
             <p class="card-title">¿En qué se te va la plata?</p>
-            <p class="text-muted" style="font-size:.8125rem;">Gastos del período que elegiste arriba</p>
+            <p class="text-muted" style="font-size:.8125rem;">Ingresos y egresos manuales del período, agrupados por concepto — no incluye compras de mercadería ni pago a proveedores</p>
+        </div>
+        <div class="est-mini-stat" style="text-align:right;">
+            <div class="est-mini-stat-valor" style="color:var(--danger);">${{ mov_concepto.total_egresos|floatformat:0|intcomma }}</div>
+            <div class="est-mini-stat-label">Total egresos del período</div>
         </div>
     </div>
     <div class="card-body">
-        {% if gastos_categoria %}
+        {% if mov_concepto.egresos %}
             <div class="est-chart-wrap">
-                <canvas id="chartGastos"></canvas>
+                <canvas id="chartEgresosConcepto"></canvas>
+            </div>
+            <div class="table-responsive mt-3">
+                <table class="table">
+                    <thead><tr><th>Concepto</th><th>Movimientos</th><th style="text-align:right;">Total</th><th style="text-align:right;">% del gasto</th></tr></thead>
+                    <tbody>
+                        {% for e in mov_concepto.egresos %}
+                        <tr>
+                            <td class="font-semibold">{{ e.concepto }}</td>
+                            <td>{{ e.cantidad }}</td>
+                            <td style="text-align:right;">${{ e.total|floatformat:0|intcomma }}</td>
+                            <td style="text-align:right;">{{ e.pct|floatformat:1 }}%</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         {% else %}
             <div class="empty-state">
-                <p>Todavía no cargaste gastos en este período.</p>
+                <p>Todavía no cargaste ingresos ni egresos manuales en este período.</p>
             </div>
         {% endif %}
     </div>
 </div>
+
+<!-- ══════════ CUÁNTO GASTÁS POR MES EN CADA RUBRO ══════════ -->
+<div class="card mt-4">
+    <div class="card-header">
+        <div>
+            <p class="card-title">Cuánto gastás por mes en cada rubro</p>
+            <p class="text-muted" style="font-size:.8125rem;">Últimos 6 meses — los conceptos con más gasto, el resto junto en "Otros". No depende del filtro de arriba.</p>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="est-chart-wrap">
+            <canvas id="chartConceptosMensual"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════ INGRESOS POR CONCEPTO (fuera de ventas) ══════════ -->
+{% if mov_concepto.ingresos %}
+<div class="card mt-4">
+    <div class="card-header">
+        <div>
+            <p class="card-title">Ingresos que no son ventas</p>
+            <p class="text-muted" style="font-size:.8125rem;">Aportes, préstamos de terceros, reintegros… del período elegido arriba</p>
+        </div>
+        <div class="est-mini-stat" style="text-align:right;">
+            <div class="est-mini-stat-valor" style="color:var(--success);">${{ mov_concepto.total_ingresos|floatformat:0|intcomma }}</div>
+            <div class="est-mini-stat-label">Total en el período</div>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="est-chart-wrap">
+            <canvas id="chartIngresosConcepto"></canvas>
+        </div>
+        <div class="table-responsive mt-3">
+            <table class="table">
+                <thead><tr><th>Concepto</th><th>Movimientos</th><th style="text-align:right;">Total</th><th style="text-align:right;">% del ingreso</th></tr></thead>
+                <tbody>
+                    {% for i in mov_concepto.ingresos %}
+                    <tr>
+                        <td class="font-semibold">{{ i.concepto }}</td>
+                        <td>{{ i.cantidad }}</td>
+                        <td style="text-align:right;">${{ i.total|floatformat:0|intcomma }}</td>
+                        <td style="text-align:right;">{{ i.pct|floatformat:1 }}%</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <!-- ══════════ HISTORIAL DE ARQUEOS ══════════ -->
 <div class="card mt-4">
@@ -166,10 +236,12 @@
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-<script src="{% static 'core/js/estadisticas.js' %}"></script>
+<script src="{% static 'core/js/estadisticas.js' %}?v=20260903"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        initChartGastos({{ gastos_categoria_json|safe }});
+        initChartGastos({{ egresos_concepto_json|safe }}, 'chartEgresosConcepto', '#F26A1B');
+        initChartGastos({{ ingresos_concepto_json|safe }}, 'chartIngresosConcepto', '#16a34a');
+        initChartConceptosMensual({{ serie_conceptos_json|safe }});
         initResumenBars();
     });
 </script>

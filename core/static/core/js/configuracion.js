@@ -537,4 +537,48 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
     }
+
+    // ── Ventas → Permitir vender sin stock (guarda al tocar el switch) ──
+    const formConfigVentas = document.getElementById('formConfigVentas');
+    if (formConfigVentas) {
+        const csrfV  = () => formConfigVentas.querySelector('[name=csrfmiddlewaretoken]').value;
+        const urlsV  = window.CONFIG_VENTAS_URLS || {};
+        const toggle = document.getElementById('idPermitirVentaSinStock');
+        const msgV   = document.getElementById('configVentasMsg');
+
+        if (toggle && urlsV.guardar) {
+            toggle.addEventListener('change', function () {
+                const valor = this.checked;
+                toggle.disabled = true;
+                if (msgV) { msgV.style.color = ''; msgV.textContent = 'Guardando…'; }
+                fetch(urlsV.guardar, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfV() },
+                    body: JSON.stringify({ permitir_venta_sin_stock: valor }),
+                })
+                .then(r => r.json())
+                .then(data => {
+                    toggle.disabled = false;
+                    if (data.error) {
+                        toggle.checked = !valor;   // revertir el switch
+                        if (msgV) { msgV.style.color = '#e11d48'; msgV.textContent = data.error; }
+                        if (window.KaiToast) KaiToast.show(data.error, 'danger');
+                        return;
+                    }
+                    if (msgV) {
+                        msgV.style.color = '#16a34a';
+                        msgV.textContent = data.permitir_venta_sin_stock
+                            ? 'Activado. Recordá cargar la mercadería antes de cerrar el turno.'
+                            : 'Desactivado. Las ventas sin stock vuelven a estar bloqueadas.';
+                    }
+                    if (window.KaiToast) KaiToast.show('Preferencia de ventas guardada.', 'success');
+                })
+                .catch(() => {
+                    toggle.disabled = false;
+                    toggle.checked = !valor;
+                    if (msgV) { msgV.style.color = '#e11d48'; msgV.textContent = 'Error de conexión. Intentá de nuevo.'; }
+                });
+            });
+        }
+    }
 });

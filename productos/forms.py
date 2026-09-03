@@ -250,7 +250,7 @@ class ProductoForm(forms.ModelForm):
             'requiere_refrigeracion', 'es_fragil', 'es_peligroso',
             'posicion_deposito',
             # Stock
-            'gestiona_stock', 'permite_stock_negativo',
+            'gestiona_stock',
             # Variantes
             'gestiona_variantes',
             # Perecedero
@@ -346,7 +346,6 @@ class ProductoForm(forms.ModelForm):
 
             # — Stock —
             'gestiona_stock':         forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'permite_stock_negativo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
 
             # — Variantes genéricas —
             'gestiona_variantes':     forms.CheckboxInput(attrs={'class': 'form-check-input'}),

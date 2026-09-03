@@ -7,7 +7,7 @@ Caja Diaria
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'caja/css/caja_common.css' %}">
-<link rel="stylesheet" href="{% static 'caja/css/caja_diaria.css' %}">
+<link rel="stylesheet" href="{% static 'caja/css/caja_diaria.css' %}?v=20260905">
 {% endblock %}
 
 {% block content %}
@@ -97,6 +97,7 @@ Caja Diaria
         </div>
         <div class="cd-resumen-card-label">Ganancia del Turno</div>
         <div class="cd-resumen-card-value">${{ ganancia_turno|floatformat:"2" }}</div>
+        <div class="cd-resumen-card-hint">Margen de lo vendido + redondeos y recargos cobrados</div>
     </div>
     {% if redondeos_turno %}
     <div class="cd-resumen-card">
@@ -218,7 +219,8 @@ Caja Diaria
             <div class="cd-totales-section cd-totales-section--pendiente">
                 <h4>Pendiente de cobro (cheque / cuotas)</h4>
                 <p class="cd-empty-inline" style="margin-bottom:0.6rem">
-                    Vendido en este turno pero todavía no es plata real — no suma al Total Recaudado ni a la Ganancia.
+                    Vendido en este turno pero todavía no es plata real — no suma al Total Recaudado. La Ganancia
+                    del turno sí lo cuenta: la venta ya se hizo, lo que falta es cobrarla.
                 </p>
                 <div class="cd-totales-list">
                     {% for medio, monto in totales_medio_pago_pendiente.items %}
@@ -253,10 +255,11 @@ Caja Diaria
             <div class="cd-totales-section cd-totales-section--pendiente">
                 <h4>Redondeos a favor</h4>
                 <p class="cd-empty-inline" style="margin-bottom:0.6rem">
-                    Lo que los clientes pagaron de más para redondear el pago. Es plata real que entró,
-                    pero no es precio de venta — no suma a la Ganancia del Turno. A la factura le llega
-                    siempre el precio de los productos. El redondeo en efectivo ya está contemplado en
-                    el efectivo esperado al cerrar; el de otros medios ya se acreditó en la cuenta.
+                    Lo que los clientes pagaron de más para redondear el pago. Suma a la Ganancia del
+                    Turno (es plata que entró sin costo asociado), pero no al precio de venta que va a
+                    la factura — ahí llega siempre el precio de los productos. El redondeo en efectivo
+                    ya está contemplado en el efectivo esperado al cerrar; el de otros medios ya se
+                    acreditó en la cuenta.
                 </p>
                 <div class="cd-totales-list">
                     {% if redondeos_efectivo %}
@@ -345,6 +348,56 @@ Caja Diaria
             <p class="cd-empty-inline">No tenés permiso para cerrar turnos.</p>
             {% endif %}
         </div>
+    </div>
+</div>
+
+<!-- INGRESOS Y EGRESOS DE CAJA DIARIA (efectivo del cajón de este turno) -->
+<div class="vta-card cd-mm-card">
+    <div class="vta-card-header">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M8 3v10M4 6l4-3 4 3M4 10l4 3 4-3" stroke="currentColor" stroke-width="1.3"
+                stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span class="vta-card-title">Ingresos y egresos de caja diaria</span>
+        {% if puede_cargar_mov_manual %}
+        <button class="vta-btn vta-btn-ghost cd-mm-add-btn" onclick="cdAbrirMovManual()">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="margin-right:.3rem">
+                <path d="M7 3v8M3 7h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+            </svg>
+            Ingreso / egreso
+        </button>
+        {% endif %}
+    </div>
+    <div class="vta-card-body">
+        <p class="cd-empty-inline" style="margin-bottom:.75rem">
+            Plata que entra o sale del cajón de <strong>este</strong> turno y no es una venta
+            (retirás efectivo para pagar algo, alguien te deja plata, etc.). Suma o resta del
+            <strong>efectivo esperado</strong> al cerrar. Recién impacta caja grande cuando cerrás el turno.
+        </p>
+        {% if movimientos_manuales %}
+        <div class="cd-mm-list">
+            {% for m in movimientos_manuales %}
+            <div class="cd-mm-row cd-mm-row--{{ m.tipo }}">
+                <span class="cd-mm-row-desc">
+                    <strong>{{ m.descripcion }}</strong>
+                    <span class="cd-mm-row-meta">
+                        {{ m.fecha|date:"d/m/Y" }} · {{ m.hora|time:"H:i" }}{% if m.creado_por %} · {{ m.creado_por.get_full_name|default:m.creado_por.username }}{% endif %}
+                    </span>
+                </span>
+                <span class="cd-mm-row-monto">{% if m.tipo == 'egreso' %}−{% else %}+{% endif %}${{ m.monto|floatformat:"2" }}</span>
+                {% if puede_eliminar_mov_manual %}
+                <button class="cd-mm-row-del" title="Eliminar" onclick="cdEliminarMovManual({{ m.pk }})">✕</button>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        <div class="cd-mm-totales">
+            {% if ingresos_manuales %}<span class="cd-mm-total cd-mm-total--in">Ingresos +${{ ingresos_manuales|floatformat:"2" }}</span>{% endif %}
+            {% if egresos_manuales %}<span class="cd-mm-total cd-mm-total--out">Egresos −${{ egresos_manuales|floatformat:"2" }}</span>{% endif %}
+        </div>
+        {% else %}
+        <p class="cd-empty-inline">Sin ingresos ni egresos manuales en este turno.</p>
+        {% endif %}
     </div>
 </div>
 
@@ -465,10 +518,52 @@ Caja Diaria
                 <textarea id="cd-notas" class="vta-control" rows="2"
                     placeholder="Observaciones del turno..."></textarea>
             </div>
+
+            <div id="cd-cerrar-bloqueo" class="cd-cerrar-bloqueo" style="display:none;"></div>
         </div>
         <div class="cd-modal-footer">
             <button onclick="cdCerrarModal('cd-modal-cerrar')" class="vta-btn vta-btn-ghost">Cancelar</button>
             <button onclick="cdConfirmarCerrar()" class="vta-btn vta-btn-primary">Cerrar Turno</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: ingreso / egreso de caja diaria -->
+<div id="cd-modal-mov-manual" class="cd-modal" style="display:none">
+    <div class="cd-modal-content">
+        <div class="cd-modal-header">
+            <h3>Ingreso / egreso de caja diaria</h3>
+            <button onclick="cdCerrarModal('cd-modal-mov-manual')" class="cd-modal-close">✕</button>
+        </div>
+        <div class="cd-modal-body">
+            <div class="cd-mm-tipo-toggle">
+                <button type="button" class="cd-mm-tipo is-active" data-tipo="egreso" onclick="cdMovManualTipo('egreso')">
+                    Egreso · sale del cajón
+                </button>
+                <button type="button" class="cd-mm-tipo" data-tipo="ingreso" onclick="cdMovManualTipo('ingreso')">
+                    Ingreso · entra al cajón
+                </button>
+            </div>
+
+            <label class="vta-label" style="margin-top:.9rem">Monto</label>
+            <input type="number" step="0.01" min="0" id="cd-mm-monto" class="vta-control" placeholder="0.00" inputmode="decimal">
+
+            <label class="vta-label" style="margin-top:.7rem">Descripción</label>
+            <input type="text" id="cd-mm-desc" class="vta-control" maxlength="300"
+                placeholder="Ej: pagué al fletero, adelanto a un empleado, aporte del dueño">
+
+            <label class="vta-label" style="margin-top:.7rem">Fecha</label>
+            <input type="date" id="cd-mm-fecha" class="vta-control">
+
+            <p class="cd-empty-inline" style="margin-top:.6rem">
+                No toca caja grande ahora: al cerrar el turno se acredita/debita con su propia línea.
+            </p>
+
+            <div id="cd-mm-error" class="cd-cerrar-bloqueo" style="display:none;"></div>
+        </div>
+        <div class="cd-modal-footer">
+            <button onclick="cdCerrarModal('cd-modal-mov-manual')" class="vta-btn vta-btn-ghost">Cancelar</button>
+            <button onclick="cdConfirmarMovManual()" class="vta-btn vta-btn-primary">Guardar</button>
         </div>
     </div>
 </div>
@@ -481,8 +576,10 @@ Caja Diaria
         abrir: "{% url 'caja:abrir_turno' %}",
         cerrar: "{% url 'caja:cerrar_turno' %}",
         estado: "{% url 'caja:estado_caja_diaria' %}",
+        movManualCrear: "{% url 'caja:turno_mov_manual_crear' %}",
+        movManualEliminar: "{% url 'caja:turno_mov_manual_eliminar' pk=0 %}",
         csrf: "{{ csrf_token }}"
     };
 </script>
-<script src="{% static 'caja/js/caja_diaria.js' %}?v=20260914"></script>
+<script src="{% static 'caja/js/caja_diaria.js' %}?v=20260914.2"></script>
 {% endblock %}

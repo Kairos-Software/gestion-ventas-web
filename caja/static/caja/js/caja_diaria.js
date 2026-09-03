@@ -225,6 +225,9 @@ async function cdConfirmarCerrar() {
             body: JSON.stringify({ cajas: cajas, notas: notas })
         });
         const data = await res.json();
+        const bloqueo = document.getElementById('cd-cerrar-bloqueo');
+        if (bloqueo) { bloqueo.style.display = 'none'; bloqueo.textContent = ''; }
+
         if (data.ok) {
             cdCerrarModal('cd-modal-cerrar');
             // Si hubo diferencia entre lo esperado y lo declarado, se
@@ -237,6 +240,22 @@ async function cdConfirmarCerrar() {
                 location.reload();
             }
         }
+        else if (data.productos_sin_stock && data.productos_sin_stock.length && bloqueo) {
+            // Cierre bloqueado por ventas sin stock: se muestra dentro del
+            // modal (que queda abierto) con la lista de qué falta cargar,
+            // no en un toast que se va solo.
+            const p = document.createElement('p');
+            p.textContent = data.error;
+            const ul = document.createElement('ul');
+            data.productos_sin_stock.forEach(function (prod) {
+                const li = document.createElement('li');
+                li.textContent = prod.nombre + ' — faltan ' + prod.faltante;
+                ul.appendChild(li);
+            });
+            bloqueo.appendChild(p);
+            bloqueo.appendChild(ul);
+            bloqueo.style.display = 'block';
+        }
         else { KaiToast.show(data.error || 'Error al cerrar turno', 'danger'); }
     } catch (e) {
         KaiToast.show('Error de conexión', 'danger');
@@ -244,4 +263,96 @@ async function cdConfirmarCerrar() {
 
     btn.disabled = false;
     btn.textContent = 'Cerrar Turno';
+}
+
+
+// ══════════════════════════════════════════════════════════════════
+//  INGRESO / EGRESO DE CAJA DIARIA (efectivo del cajón del turno)
+// ══════════════════════════════════════════════════════════════════
+
+let cdMovManualTipoActual = 'egreso';
+
+function cdMovManualTipo(t) {
+    cdMovManualTipoActual = t;
+    document.querySelectorAll('#cd-modal-mov-manual .cd-mm-tipo').forEach(function (b) {
+        b.classList.toggle('is-active', b.dataset.tipo === t);
+    });
+}
+
+function cdAbrirMovManual() {
+    document.getElementById('cd-mm-monto').value = '';
+    document.getElementById('cd-mm-desc').value = '';
+    const f = document.getElementById('cd-mm-fecha');
+    if (f) f.value = new Date().toLocaleDateString('en-CA');   // YYYY-MM-DD local
+    const err = document.getElementById('cd-mm-error');
+    err.style.display = 'none';
+    err.textContent = '';
+    cdMovManualTipo('egreso');
+    document.getElementById('cd-modal-mov-manual').style.display = 'flex';
+    setTimeout(function () { document.getElementById('cd-mm-monto').focus(); }, 50);
+}
+
+async function cdConfirmarMovManual() {
+    const err = document.getElementById('cd-mm-error');
+    const monto = document.getElementById('cd-mm-monto').value;
+    const desc = document.getElementById('cd-mm-desc').value.trim();
+    const fecha = document.getElementById('cd-mm-fecha').value;
+
+    err.style.display = 'none';
+    err.textContent = '';
+
+    if (!monto || parseFloat(monto) <= 0) {
+        err.textContent = 'Poné un monto mayor a 0.';
+        err.style.display = 'block';
+        return;
+    }
+    if (!desc) {
+        err.textContent = 'Poné una descripción (para qué salió / de dónde entró).';
+        err.style.display = 'block';
+        return;
+    }
+
+    const btn = document.querySelector('#cd-modal-mov-manual .vta-btn-primary');
+    btn.disabled = true;
+    btn.textContent = 'Guardando...';
+
+    try {
+        const res = await fetch(CD_URLS.movManualCrear, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CD_URLS.csrf },
+            body: JSON.stringify({ tipo: cdMovManualTipoActual, monto: monto, descripcion: desc, fecha: fecha }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+            location.reload();
+            return;
+        }
+        err.textContent = data.error || 'No se pudo guardar.';
+        err.style.display = 'block';
+    } catch (e) {
+        err.textContent = 'Error de conexión. Intentá de nuevo.';
+        err.style.display = 'block';
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'Guardar';
+}
+
+async function cdEliminarMovManual(pk) {
+    const ok = await KaiConfirm('¿Eliminar este ingreso/egreso de caja diaria del turno?', { danger: true, confirmText: 'Eliminar' });
+    if (!ok) return;
+    try {
+        const res = await fetch(CD_URLS.movManualEliminar.replace('/0/', '/' + pk + '/'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CD_URLS.csrf },
+        });
+        const data = await res.json();
+        if (data.ok) {
+            location.reload();
+            return;
+        }
+        KaiToast.show(data.error || 'No se pudo eliminar.', 'danger');
+    } catch (e) {
+        KaiToast.show('Error de conexión.', 'danger');
+    }
 }

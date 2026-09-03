@@ -713,8 +713,9 @@ class Producto(models.Model):
     stock_maximo  = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True,
                         help_text='Límite sugerido de stock. Orientativo para compras.')
 
-    permite_stock_negativo = models.BooleanField(default=False,
-                                 help_text='Permite registrar ventas aunque no haya stock disponible.')
+    # Vender / mover stock a negativo se controla ahora de forma global
+    # desde Configuración → Ventas (core.ConfiguracionVentas), no por
+    # producto — ver core.models.permite_venta_sin_stock().
     gestiona_stock         = models.BooleanField('Gestiona stock', default=True,
                                  help_text='Desactivar para productos de tipo servicio o sin control de inventario.')
 
@@ -1352,6 +1353,7 @@ class MovimientoStock(models.Model):
             )
 
         from django.db import transaction
+        from core.models import permite_venta_sin_stock
         with transaction.atomic():
             producto = Producto.objects.select_for_update().get(pk=self.producto_id)
 
@@ -1361,7 +1363,7 @@ class MovimientoStock(models.Model):
                 nuevo_stock = producto.stock_actual + self.cantidad
             else:
                 nuevo_stock = producto.stock_actual - self.cantidad
-                if nuevo_stock < 0 and not producto.permite_stock_negativo:
+                if nuevo_stock < 0 and not permite_venta_sin_stock():
                     raise ValueError(
                         f'Stock insuficiente. '
                         f'Disponible: {producto.stock_actual}, solicitado: {self.cantidad}.'

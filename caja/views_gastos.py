@@ -11,10 +11,13 @@ from django.utils import timezone
 from productos.models import Moneda
 from core.permisos import chequear_permiso
 
+from django.db.models import Count
+
 from .models import (
     Gasto, CuentaCaja, TipoCaja, TipoMovimientoCaja, sincronizar_movimiento_gasto,
     MovimientoProgramado, InstanciaProgramada, FrecuenciaProgramado, TipoMontoProgramado,
-    EstadoInstanciaProgramada, generar_instancias_pendientes,
+    EstadoInstanciaProgramada, generar_instancias_pendientes, ConceptoGasto,
+    _normalizar_concepto_gasto,
 )
 
 
@@ -44,6 +47,13 @@ def _serializar_gasto(g):
         'cuenta_nombre': g.cuenta.nombre if g.cuenta_id else '',
         'creado_por': str(g.creado_por) if g.creado_por else '',
         'fecha_alta': g.fecha_alta.isoformat() if hasattr(g.fecha_alta, 'isoformat') else str(g.fecha_alta),
+        # Movimiento de caja diaria (efectivo del cajón de un turno): se
+        # carga y se borra desde la pantalla de Caja Diaria, solo con el
+        # turno abierto. Acá se muestra pero no se edita/borra.
+        'es_caja_diaria': g.turno_id is not None,
+        'turno_numero': g.turno.numero if g.turno_id else None,
+        'turno_abierto': (g.turno.estado == 'abierto') if g.turno_id else False,
+        'concepto': g.concepto.nombre if g.concepto_id else '',
     }
 
 
@@ -102,6 +112,7 @@ class GastosView(LoginRequiredMixin, TemplateView):
         # Las URLs de editar y eliminar se construyen dinámicamente en el JS
         ctx['url_editar'] = reverse('caja:editar_gasto', args=[0])  # Placeholder
         ctx['url_eliminar'] = reverse('caja:eliminar_gasto', args=[0])  # Placeholder
+        ctx['url_conceptos_sugerencias'] = reverse('caja:conceptos_sugerencias')
 
         ctx['url_listar_programados']    = reverse('caja:listar_programados')
         ctx['url_crear_programado']      = reverse('caja:crear_programado')
@@ -123,7 +134,7 @@ class ListarGastosAjax(LoginRequiredMixin, View):
         if not chequear_permiso(request.user, PERMISO_VER):
             return JsonResponse({'error': 'Sin permiso.'}, status=403)
 
-        qs = Gasto.objects.all().select_related('creado_por', 'cuenta')
+        qs = Gasto.objects.all().select_related('creado_por', 'cuenta', 'turno', 'concepto')
 
         # Filtros
         desde = request.GET.get('desde', '').strip()
@@ -131,6 +142,7 @@ class ListarGastosAjax(LoginRequiredMixin, View):
         moneda = request.GET.get('moneda', '').strip()
         tipo = request.GET.get('tipo', '').strip()
         cuenta_pk = request.GET.get('cuenta', '').strip()
+        origen = request.GET.get('origen', '').strip()
         q = request.GET.get('q', '').strip()
 
         if desde:
@@ -143,6 +155,10 @@ class ListarGastosAjax(LoginRequiredMixin, View):
             qs = qs.filter(tipo=tipo)
         if cuenta_pk:
             qs = qs.filter(cuenta_id=cuenta_pk)
+        if origen == 'caja_grande':
+            qs = qs.filter(turno__isnull=True)
+        elif origen == 'caja_diaria':
+            qs = qs.filter(turno__isnull=False)
         if q:
             qs = qs.filter(descripcion__icontains=q)
 
@@ -231,6 +247,11 @@ class EditarGastoAjax(LoginRequiredMixin, View):
             return JsonResponse({'error': 'Sin permiso.'}, status=403)
 
         gasto = get_object_or_404(Gasto, pk=pk)
+        if gasto.turno_id:
+            return JsonResponse({
+                'error': 'Este es un ingreso/egreso de caja diaria — se edita desde la '
+                         'pantalla de Caja Diaria, y solo mientras el turno está abierto.'
+            }, status=400)
 
         try:
             data = json.loads(request.body)
@@ -289,12 +310,54 @@ class EliminarGastoAjax(LoginRequiredMixin, View):
             return JsonResponse({'error': 'Sin permiso.'}, status=403)
 
         gasto = get_object_or_404(Gasto, pk=pk)
+        if gasto.turno_id:
+            return JsonResponse({
+                'error': 'Este es un ingreso/egreso de caja diaria — se elimina desde la '
+                         'pantalla de Caja Diaria, y solo mientras el turno está abierto.'
+            }, status=400)
 
         try:
             gasto.delete()
             return JsonResponse({'success': True})
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
+
+
+# ══════════════════════════════════════════════════════════════════
+#  AJAX — Sugerencias de concepto (autocompletado de la descripción)
+# ══════════════════════════════════════════════════════════════════
+
+class ConceptosSugerenciasAjax(LoginRequiredMixin, View):
+    """GET ?q=<texto>&tipo=<ingreso|egreso> → hasta 8 conceptos del
+    catálogo que contienen ese texto, los más usados primero. Alimenta
+    el desplegable de la descripción en el modal de Ingresos y egresos."""
+
+    def get(self, request):
+        if not chequear_permiso(request.user, PERMISO_VER):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        q = _normalizar_concepto_gasto(request.GET.get('q', ''))
+        tipo = request.GET.get('tipo', '').strip()
+
+        qs = ConceptoGasto.objects.filter(activo=True).annotate(usos=Count('gastos'))
+        if q:
+            qs = qs.filter(nombre_normalizado__icontains=q)
+
+        if tipo in (TipoMovimientoCaja.INGRESO, TipoMovimientoCaja.EGRESO):
+            # El tipo es solo una preferencia de orden: primero los del
+            # tipo elegido, después el resto (no se esconden — un mismo
+            # concepto puede usarse en los dos sentidos).
+            conceptos = sorted(
+                qs, key=lambda c: (c.tipo != tipo, -c.usos, c.nombre.lower()))[:8]
+        else:
+            conceptos = list(qs.order_by('-usos', 'nombre')[:8])
+
+        return JsonResponse({
+            'sugerencias': [
+                {'nombre': c.nombre, 'tipo': c.tipo, 'usos': c.usos}
+                for c in conceptos
+            ],
+        })
 
 
 # ══════════════════════════════════════════════════════════════════

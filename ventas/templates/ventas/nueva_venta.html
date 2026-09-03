@@ -314,6 +314,7 @@ window.VTA_CONFIG = {
     itemsIniciales:     JSON.parse(document.getElementById('vtaItemsIniciales').textContent),
     listasDescuento:    JSON.parse(document.getElementById('vtaListasDescuento').textContent),
     ofertasVigentes:    JSON.parse(document.getElementById('vtaOfertasVigentes').textContent),
+    permitirVentaSinStock: {{ permitir_venta_sin_stock|yesno:"true,false" }},
 };
 </script>
 <script src="{% static 'ventas/js/nueva_venta.js' %}?v=20260917"></script>
@@ -331,7 +332,7 @@ window.TICKET_VENDOR = {
 <script src="{% static 'ventas/js/ticket_termica_58.js' %}?v=20260914"></script>
 <script src="{% static 'ventas/js/ticket_imprimir.js' %}?v=20260906"></script>
 <script src="{% static 'ventas/js/ticket_pdf.js' %}?v=20260906"></script>
-<script src="{% static 'ventas/js/detalle_venta.js' %}?v=20260916"></script>
+<script src="{% static 'ventas/js/detalle_venta.js' %}?v=20260916.1"></script>
 <script src="{% static 'ventas/js/panel_cobro.js' %}?v=20260906"></script>
 {% endif %}
 {% endblock %}

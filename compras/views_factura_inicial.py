@@ -38,7 +38,7 @@ from productos.models import (
     Producto, CombinacionVariante, Proveedor, ListaDescuento,
     AlicuotaIVA, TipoProveedor, cantidad_valida_para_unidad,
 )
-from core.models import DatosEmpresa
+from core.models import DatosEmpresa, permite_venta_sin_stock
 from core.permisos import chequear_permiso
 
 from .models import (
@@ -755,7 +755,7 @@ class FacturaInicialCorregirItemAjax(LoginRequiredMixin, View):
                             f'en menos de eso.')
 
                 # Guarda a nivel stock (mensaje claro antes de MovimientoStock)
-                if delta < 0 and not producto.permite_stock_negativo:
+                if delta < 0 and not permite_venta_sin_stock():
                     ref = (item.combinacion.stock_actual if item.combinacion_id
                            else producto.stock_actual)
                     if ref + delta < 0:
@@ -871,7 +871,7 @@ class FacturaInicialQuitarItemAjax(LoginRequiredMixin, View):
                                          '— no se puede quitar la línea.')
 
                 if producto is not None and producto.gestiona_stock and cant > 0:
-                    if not producto.permite_stock_negativo:
+                    if not permite_venta_sin_stock():
                         ref = (item.combinacion.stock_actual
                                if item.combinacion_id else producto.stock_actual)
                         if ref - cant < 0:

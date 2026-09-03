@@ -1,5 +1,5 @@
 import json
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import TemplateView
@@ -7,9 +7,13 @@ from django.views import View
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
+from django.utils import timezone
 
 from core.permisos import chequear_permiso
-from .models import TurnoCaja, EstadoTurno, MovimientoCaja, OrigenMovimiento
+from .models import (
+    TurnoCaja, EstadoTurno, MovimientoCaja, OrigenMovimiento,
+    Gasto, TipoMovimientoCaja,
+)
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -26,12 +30,20 @@ class CajaDiariaView(LoginRequiredMixin, TemplateView):
             return ctx
         ctx['puede_ver'] = True
         ctx['puede_abrir_cerrar_turno'] = chequear_permiso(self.request.user, 'abrir_cerrar_turno')
+        ctx['puede_cargar_mov_manual'] = chequear_permiso(self.request.user, 'crear_gastos')
+        ctx['puede_eliminar_mov_manual'] = chequear_permiso(self.request.user, 'eliminar_gastos')
 
         # Obtener turno actual
         turno_actual = TurnoCaja.turno_actual()
         ctx['turno_actual'] = turno_actual
-        
+
         if turno_actual:
+            ctx['movimientos_manuales'] = (
+                turno_actual.movimientos_manuales
+                .select_related('creado_por').order_by('-fecha_alta')
+            )
+            ctx['ingresos_manuales'] = turno_actual.ingresos_manuales
+            ctx['egresos_manuales'] = turno_actual.egresos_manuales
             ctx['totales_medio_pago'] = turno_actual.totales_medio_pago_inmediato
             ctx['totales_medio_pago_pendiente'] = turno_actual.totales_medio_pago_pendiente
             ctx['total_recaudado'] = turno_actual.total_recaudado
@@ -192,7 +204,24 @@ class CerrarTurnoAjax(LoginRequiredMixin, View):
         turno = TurnoCaja.turno_actual()
         if not turno:
             return JsonResponse({'error': 'No hay un turno abierto.'}, status=400)
-        
+
+        # Ventas sin stock: bloquea el cierre mientras algún producto
+        # vendido sin stock en este turno siga en negativo (ver
+        # TurnoCaja.cerrar, que también lo valida como red de seguridad).
+        pendientes_stock = turno.productos_vendidos_sin_stock_pendientes()
+        if pendientes_stock:
+            return JsonResponse({
+                'error': (
+                    'No se puede cerrar el turno todavía: hay productos que se vendieron '
+                    'sin stock en este turno y siguen en negativo. Cargá la mercadería que '
+                    'falta (una compra o un ajuste de stock) y volvé a cerrar.'
+                ),
+                'productos_sin_stock': [
+                    {'nombre': p['nombre'], 'faltante': str(p['faltante'])}
+                    for p in pendientes_stock
+                ],
+            }, status=400)
+
         # Calcular el efectivo esperado según el sistema (a nivel total)
         efectivo_esperado = turno.efectivo_total
         monto_final_total = sum(c['monto'] for c in cajas)
@@ -326,6 +355,18 @@ class HistorialTurnosAjax(LoginRequiredMixin, View):
                 'efectivo_ventas_sin_redondeo': str(turno.efectivo_ventas_sin_redondeo),
                 'efectivo_cuotas_cobradas': str(turno.efectivo_cuotas_cobradas),
                 'efectivo_cuotas_pagadas': str(turno.efectivo_cuotas_pagadas),
+                'ingresos_manuales': str(turno.ingresos_manuales),
+                'egresos_manuales': str(turno.egresos_manuales),
+                'movimientos_manuales': [
+                    {
+                        'tipo': m.tipo, 'monto': str(m.monto),
+                        'descripcion': m.descripcion,
+                        'fecha': m.fecha.isoformat(),
+                        'hora': m.hora.strftime('%H:%M') if m.hora else '',
+                        'creado_por': m.creado_por.get_full_name() if m.creado_por else None,
+                    }
+                    for m in turno.movimientos_manuales.select_related('creado_por').all()
+                ],
                 'efectivo_total': str(turno.efectivo_total),
                 'ganancia_turno': str(turno.ganancia_turno),
                 'alerta_diferencia': turno.alerta_diferencia,
@@ -416,6 +457,7 @@ class HistorialDiarioView(LoginRequiredMixin, TemplateView):
             total_recaudado_dia = Decimal('0')
             total_financiado_pendiente_dia = Decimal('0')
             total_redondeos_dia = Decimal('0')
+            total_ganancia_dia = Decimal('0')
             hay_alerta = False
             for turno in turnos_fecha:
                 totales = turno.totales_medio_pago
@@ -424,6 +466,7 @@ class HistorialDiarioView(LoginRequiredMixin, TemplateView):
                 total_recaudado_dia += turno.total_recaudado
                 total_financiado_pendiente_dia += turno.total_financiado_pendiente
                 total_redondeos_dia += turno.redondeos_turno
+                total_ganancia_dia += turno.ganancia_turno
                 if turno.alerta_diferencia:
                     hay_alerta = True
 
@@ -441,6 +484,7 @@ class HistorialDiarioView(LoginRequiredMixin, TemplateView):
                 'total_monto_final': entry['total_monto_final'] or 0,
                 'total_diferencia': entry['total_diferencia'] or 0,
                 'total_recaudado': total_recaudado_dia,
+                'total_ganancia': total_ganancia_dia,
                 'total_financiado_pendiente': total_financiado_pendiente_dia,
                 'total_redondeos': total_redondeos_dia,
                 'totales_medio_pago': totales_medio_pago_inmediato,
@@ -459,6 +503,79 @@ class HistorialDiarioView(LoginRequiredMixin, TemplateView):
 # ══════════════════════════════════════════════════════════════════
 #  AJAX — Eliminar Todo el Historial (Admin Only)
 # ══════════════════════════════════════════════════════════════════
+
+class TurnoMovimientoManualCrearAjax(LoginRequiredMixin, View):
+    """
+    POST JSON {tipo:'ingreso'|'egreso', monto, descripcion, fecha?} —
+    ingreso/egreso de CAJA DIARIA: mueve efectivo del cajón del turno
+    abierto. No toca caja grande hasta que se cierra el turno (ver
+    Gasto.turno / TurnoCaja.cerrar).
+    """
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'crear_gastos'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        turno = TurnoCaja.turno_actual()
+        if not turno:
+            return JsonResponse({'error': 'No hay un turno abierto.'}, status=400)
+
+        tipo = (body.get('tipo') or '').strip()
+        if tipo not in (TipoMovimientoCaja.INGRESO, TipoMovimientoCaja.EGRESO):
+            return JsonResponse({'error': 'El tipo debe ser "ingreso" o "egreso".'}, status=400)
+
+        descripcion = (body.get('descripcion') or '').strip()
+        if not descripcion:
+            return JsonResponse({'error': 'Poné una descripción (para qué salió / de dónde entró).'}, status=400)
+
+        try:
+            monto = Decimal(str(body.get('monto')))
+        except (TypeError, InvalidOperation):
+            return JsonResponse({'error': 'Monto inválido.'}, status=400)
+        if monto <= 0:
+            return JsonResponse({'error': 'El monto debe ser mayor a 0.'}, status=400)
+
+        fecha = (body.get('fecha') or '').strip() or timezone.localdate().isoformat()
+
+        from .models import _cuenta_default, TipoCaja, Moneda
+        gasto = Gasto.objects.create(
+            turno=turno,
+            tipo=tipo,
+            cuenta=_cuenta_default(caja=TipoCaja.GRANDE),
+            fecha=fecha,
+            monto=monto,
+            moneda=Moneda.ARS,
+            descripcion=descripcion,
+            creado_por=request.user,
+        )
+        return JsonResponse({'ok': True, 'pk': gasto.pk})
+
+
+class TurnoMovimientoManualEliminarAjax(LoginRequiredMixin, View):
+    """POST — borra un ingreso/egreso de caja diaria, solo si su turno
+    sigue abierto."""
+
+    def post(self, request, pk):
+        if not chequear_permiso(request.user, 'eliminar_gastos'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        gasto = get_object_or_404(Gasto, pk=pk)
+        if not gasto.turno_id:
+            return JsonResponse({'error': 'Este movimiento no es de caja diaria.'}, status=400)
+        if gasto.turno.estado != EstadoTurno.ABIERTO:
+            return JsonResponse(
+                {'error': f'El turno #{gasto.turno.numero} ya está cerrado — sus movimientos no se pueden modificar.'},
+                status=400,
+            )
+
+        gasto.delete()
+        return JsonResponse({'ok': True})
+
 
 class EliminarHistorialAjax(LoginRequiredMixin, View):
     """

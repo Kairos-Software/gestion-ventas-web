@@ -5,7 +5,10 @@ from django.shortcuts import render
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 
-from .models import DatosEmpresa, ConfiguracionArca, AmbienteArca, recalcular_scoring_pendientes
+from .models import (
+    DatosEmpresa, ConfiguracionArca, AmbienteArca, ConfiguracionVentas,
+    recalcular_scoring_pendientes,
+)
 from .permisos import chequear_permiso
 from .services_estadisticas.ventas import resumen_ganancia
 
@@ -157,6 +160,10 @@ def configuracion(request):
         'canales_notificacion':   CanalNotificacion.choices,
         'configuracion_arca':     ConfiguracionArca.get_solo(),
         'ambientes_arca':         AmbienteArca.choices,
+        # Preferencias operativas de ventas — sección "Ventas". La gestiona
+        # el dueño (mismo permiso que Datos de la empresa).
+        'configuracion_ventas':   ConfiguracionVentas.get_solo(),
+        'puede_editar_config_ventas': chequear_permiso(request.user, 'editar_empresa'),
     })
 
 

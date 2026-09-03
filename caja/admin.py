@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import CuentaCaja, ConceptoMovimiento, MovimientoCaja
+from .models import CuentaCaja, ConceptoMovimiento, ConceptoGasto, MovimientoCaja
 
 
 @admin.register(CuentaCaja)
@@ -32,3 +32,11 @@ class MovimientoCajaAdmin(admin.ModelAdmin):
         if obj is not None and obj.es_automatico:
             return False
         return super().has_change_permission(request, obj)
+
+
+@admin.register(ConceptoGasto)
+class ConceptoGastoAdmin(admin.ModelAdmin):
+    list_display  = ('nombre', 'tipo', 'activo', 'fecha_alta')
+    list_filter   = ('tipo', 'activo')
+    search_fields = ('nombre',)
+    ordering      = ('nombre',)

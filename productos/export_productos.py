@@ -70,7 +70,6 @@ COLUMNAS = [
     ('stock_actual',        'Stock actual',             lambda p: p.stock_actual),
     ('stock_minimo',        'Stock mínimo',             lambda p: p.stock_minimo),
     ('stock_maximo',        'Stock máximo',             lambda p: p.stock_maximo),
-    ('permite_stock_negativo', 'Permite stock negativo', lambda p: p.permite_stock_negativo),
     ('gestiona_variantes',  'Gestiona variantes',       lambda p: p.gestiona_variantes),
     ('es_paquete',          'Es un paquete',            lambda p: p.es_paquete),
 
@@ -106,7 +105,7 @@ GRUPOS = [
                 'precio_incluye_iva', 'modo_precio', 'porcentaje_ganancia',
                 'costo_actual', 'costo']),
     ('Stock', ['gestiona_stock', 'stock_actual', 'stock_minimo', 'stock_maximo',
-               'permite_stock_negativo', 'gestiona_variantes', 'es_paquete']),
+               'gestiona_variantes', 'es_paquete']),
     ('Estado y logística', ['estado', 'publicado', 'destacado', 'requiere_refrigeracion',
                             'es_fragil', 'es_peligroso', 'es_perecedero',
                             'posicion_deposito', 'notas']),

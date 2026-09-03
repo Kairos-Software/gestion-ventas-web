@@ -288,7 +288,7 @@ function limpiarFormProducto() {
 
     ['f_destacado','f_requiere_refrigeracion','f_es_fragil',
      'f_es_peligroso','f_gestiona_variantes',
-     'f_gestiona_stock','f_permite_stock_negativo'].forEach(id => {
+     'f_gestiona_stock'].forEach(id => {
         document.getElementById(id).checked = false;
     });
 
@@ -383,7 +383,6 @@ async function abrirEditar(pk) {
     document.getElementById('f_es_peligroso').checked          = data.es_peligroso;
     document.getElementById('f_gestiona_variantes').checked  = data.gestiona_variantes;
     document.getElementById('f_gestiona_stock').checked          = data.gestiona_stock;
-    document.getElementById('f_permite_stock_negativo').checked  = data.permite_stock_negativo;
 
     if (data.tiene_movimientos) {
         document.getElementById('combinacionWarningMovimientos').style.display = '';
@@ -463,7 +462,6 @@ async function guardarProducto() {
         gestiona_variantes:     tieneVariantes,
         es_perecedero:          document.getElementById('f_es_perecedero').checked,
         gestiona_stock:         document.getElementById('f_gestiona_stock').checked,
-        permite_stock_negativo: document.getElementById('f_permite_stock_negativo').checked,
         stock_minimo:           parseFloat(document.getElementById('f_stock_minimo').value) || 0,
         stock_maximo:           document.getElementById('f_stock_maximo') ? (document.getElementById('f_stock_maximo').value || null) : null,
         posicion_deposito:      document.getElementById('f_posicion_deposito').value,

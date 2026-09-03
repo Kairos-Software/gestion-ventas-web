@@ -4,11 +4,19 @@ from decimal import Decimal
 from django.db import models
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Sum, Q
+from django.db.models import Sum, Q, F, ExpressionWrapper, DecimalField
 from django.utils import timezone
 
 from productos.models import Moneda
 from core.models import Cliente, recalcular_scoring_cliente
+
+
+def _fmt_cantidad(d):
+    """Decimal → texto sin ceros de más: 3.000 → '3', 1.500 → '1.5'."""
+    s = f'{Decimal(d):f}'
+    if '.' in s:
+        s = s.rstrip('0').rstrip('.')
+    return s or '0'
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -968,6 +976,22 @@ class TurnoCaja(models.Model):
         return self.calcular_efectivo_cuotas_pagadas_en_turno()
 
     @property
+    def ingresos_manuales(self):
+        """Ingresos manuales de caja diaria de este turno (plata que entró
+        al cajón y no es venta). Congelado si el turno ya cerró."""
+        if self.estado == EstadoTurno.CERRADO and self.totales_cierre:
+            return Decimal(self.totales_cierre.get('ingresos_manuales', '0'))
+        return self.calcular_ingresos_manuales_en_turno()
+
+    @property
+    def egresos_manuales(self):
+        """Egresos manuales de caja diaria de este turno (plata que se
+        retiró del cajón). Congelado si el turno ya cerró."""
+        if self.estado == EstadoTurno.CERRADO and self.totales_cierre:
+            return Decimal(self.totales_cierre.get('egresos_manuales', '0'))
+        return self.calcular_egresos_manuales_en_turno()
+
+    @property
     def efectivo_total(self):
         """
         Efectivo que se espera encontrar AHORA MISMO en el cajón físico
@@ -981,12 +1005,55 @@ class TurnoCaja(models.Model):
 
     @property
     def ganancia_turno(self):
-        """Recaudación del turno por VENTAS, sin el redondeo a favor: el
-        redondeo es plata que entró pero no es precio de venta, así que se
-        deja afuera para que el número sea comparable día a día (se muestra
-        aparte, ver redondeos_turno). El margen real por producto no vive
-        acá — sale de ItemVenta/ConsumoLoteVenta, congelados por venta."""
-        return self.total_recaudado - self.redondeos_turno - (self.monto_inicial_efectivo or 0)
+        """Ganancia BRUTA del turno. Es lo que se ganó con lo vendido en
+        este turno, NO la recaudación (eso es total_recaudado). Se arma
+        con dos partes:
+
+          1. Margen de la mercadería: por cada producto vendido, el
+             precio de venta cobrado (con su descuento) menos el costo
+             real del lote del que salió cada unidad (vía
+             ConsumoLoteVenta).
+          2. Lo que el cliente pagó por encima del precio de lista:
+             redondeo a favor + recargo por medio de pago. Es plata que
+             entró y que no tiene costo asociado, así que es ganancia.
+
+        Cuenta TODAS las ventas confirmadas del turno, también las de
+        cheque/cuotas (la venta ya se hizo; que el cobro esté pendiente
+        es otra cosa). No descuenta gastos ni egresos manuales (eso
+        sería la ganancia NETA). Congelada en el snapshot si el turno
+        ya cerró."""
+        if self.estado == EstadoTurno.CERRADO and self.totales_cierre:
+            congelado = self.totales_cierre.get('ganancia_bruta_turno')
+            if congelado is not None:
+                return Decimal(congelado)
+        return self.calcular_ganancia_bruta_turno()
+
+    def calcular_ganancia_bruta_turno(self):
+        """Margen de la mercadería vendida (precio cobrado − costo real
+        del lote) MÁS lo cobrado por encima del precio de lista (redondeo
+        a favor + recargo por medio de pago), para las ventas confirmadas
+        de este turno. Ver ganancia_turno. Se calcula en caliente; el
+        cierre lo congela en totales_cierre."""
+        from ventas.models import ItemVenta, ConsumoLoteVenta, PagoVenta
+        ventas = self._ventas_en_turno()
+        money = DecimalField(max_digits=14, decimal_places=2)
+        ingresos = (
+            ItemVenta.objects.filter(venta__in=ventas)
+            .annotate(_sub=ExpressionWrapper(
+                F('cantidad') * F('precio_unitario') * (1 - F('descuento_pct') / 100),
+                output_field=money))
+            .aggregate(t=Sum('_sub'))['t'] or Decimal('0')
+        )
+        costo = (
+            ConsumoLoteVenta.objects.filter(item_venta__venta__in=ventas)
+            .annotate(_c=ExpressionWrapper(
+                F('cantidad') * F('costo_unitario_snapshot'), output_field=money))
+            .aggregate(t=Sum('_c'))['t'] or Decimal('0')
+        )
+        extra = PagoVenta.objects.filter(venta__in=ventas).aggregate(
+            r=Sum('recargo_monto'), d=Sum('redondeo_monto'))
+        extra_cobrado = (extra['r'] or Decimal('0')) + (extra['d'] or Decimal('0'))
+        return ingresos - costo + extra_cobrado
 
     @property
     def alerta_diferencia(self):
@@ -1120,6 +1187,57 @@ class TurnoCaja(models.Model):
             fecha_alta__lte=self.fecha_cierre if self.fecha_cierre else timezone.now()
         )
 
+    def productos_vendidos_sin_stock_pendientes(self):
+        """
+        Productos/variantes que se vendieron SIN stock en este turno
+        (ConsumoLoteVenta sin lote — ver
+        core.ConfiguracionVentas.permitir_venta_sin_stock) y que TODAVÍA
+        tienen stock negativo. Mientras haya alguno, el turno no se puede
+        cerrar: hay que cargar la mercadería que falta (una compra o un
+        ajuste de stock) para que el balance del turno cierre.
+
+        Devuelve [{'nombre': str, 'faltante': Decimal}, ...] ordenado por
+        nombre. `faltante` es el stock negativo expresado en positivo.
+        """
+        from ventas.models import ConsumoLoteVenta
+        from productos.models import Producto, CombinacionVariante
+
+        consumos = (
+            ConsumoLoteVenta.objects
+            .filter(item_venta__venta__in=self._ventas_en_turno(), lote__isnull=True)
+            .select_related('item_venta')
+        )
+
+        # (producto_id, combinacion_id) únicos — un mismo producto puede
+        # haberse vendido sin stock en varias ventas del turno.
+        claves = set()
+        for c in consumos:
+            it = c.item_venta
+            if it.producto_id is None:
+                continue
+            claves.add((it.producto_id, it.combinacion_id))
+
+        pendientes = []
+        for prod_id, comb_id in claves:
+            if comb_id:
+                comb = (CombinacionVariante.objects
+                        .select_related('producto')
+                        .filter(pk=comb_id).first())
+                if comb is None or comb.stock_actual >= 0:
+                    continue
+                nombre = f'{comb.producto.nombre} — {comb.descripcion_legible()}'
+                faltante = -comb.stock_actual
+            else:
+                prod = Producto.objects.filter(pk=prod_id).first()
+                if prod is None or prod.stock_actual >= 0:
+                    continue
+                nombre = prod.nombre
+                faltante = -prod.stock_actual
+            pendientes.append({'nombre': nombre, 'faltante': faltante})
+
+        pendientes.sort(key=lambda p: p['nombre'].lower())
+        return pendientes
+
     def _devoluciones_en_turno(self):
         """Devoluciones de venta reembolsadas en EFECTIVO dentro de la
         ventana horaria de este turno — ver calcular_efectivo_devuelto_en_turno."""
@@ -1184,13 +1302,34 @@ class TurnoCaja(models.Model):
         pero resta en vez de sumar (sale plata del cajón, no entra)."""
         return self._cuotas_pagadas_en_turno().aggregate(total=Sum('monto'))['total'] or Decimal('0')
 
+    def calcular_ingresos_manuales_en_turno(self):
+        """Ingresos manuales cargados en la pantalla de Caja Diaria para
+        este turno (Gasto con turno=self, tipo INGRESO) — plata que entró
+        al cajón físico y que no es venta (ej: un aporte, una devolución
+        de vuelto, plata que trajo el dueño). Suma al efectivo esperado."""
+        from .models import Gasto
+        return Gasto.objects.filter(
+            turno=self, tipo=TipoMovimientoCaja.INGRESO,
+        ).aggregate(total=Sum('monto'))['total'] or Decimal('0')
+
+    def calcular_egresos_manuales_en_turno(self):
+        """Egresos manuales cargados en la pantalla de Caja Diaria para
+        este turno (Gasto con turno=self, tipo EGRESO) — plata que salió
+        del cajón físico (ej: se retiró efectivo para pagar algo). Resta
+        del efectivo esperado."""
+        from .models import Gasto
+        return Gasto.objects.filter(
+            turno=self, tipo=TipoMovimientoCaja.EGRESO,
+        ).aggregate(total=Sum('monto'))['total'] or Decimal('0')
+
     def _componentes_efectivo_esperado(self):
         """
         Desglose completo de lo que se espera encontrar en el cajón
         físico de este turno: inicial + ventas en efectivo - devoluciones
         en efectivo + cuotas viejas cobradas en efectivo - cuotas viejas
-        pagadas en efectivo. Usado tanto por efectivo_total (mientras el
-        turno sigue abierto) como por cerrar() — un solo lugar con la
+        pagadas en efectivo + ingresos manuales de caja diaria - egresos
+        manuales de caja diaria. Usado tanto por efectivo_total (mientras
+        el turno sigue abierto) como por cerrar() — un solo lugar con la
         fórmula, para que nunca queden desincronizados.
         """
         efectivo_ventas = self.efectivo_ventas  # incluye el redondeo a favor
@@ -1198,9 +1337,12 @@ class TurnoCaja(models.Model):
         efectivo_devuelto = self.calcular_efectivo_devuelto_en_turno()
         efectivo_cuotas_cobradas = self.calcular_efectivo_cuotas_cobradas_en_turno()
         efectivo_cuotas_pagadas = self.calcular_efectivo_cuotas_pagadas_en_turno()
+        ingresos_manuales = self.calcular_ingresos_manuales_en_turno()
+        egresos_manuales = self.calcular_egresos_manuales_en_turno()
         esperado = (
             (self.monto_inicial_efectivo or 0) + efectivo_ventas - efectivo_devuelto
             + efectivo_cuotas_cobradas - efectivo_cuotas_pagadas
+            + ingresos_manuales - egresos_manuales
         )
         return {
             'efectivo_ventas': efectivo_ventas,
@@ -1209,6 +1351,8 @@ class TurnoCaja(models.Model):
             'efectivo_devuelto': efectivo_devuelto,
             'efectivo_cuotas_cobradas': efectivo_cuotas_cobradas,
             'efectivo_cuotas_pagadas': efectivo_cuotas_pagadas,
+            'ingresos_manuales': ingresos_manuales,
+            'egresos_manuales': egresos_manuales,
             'esperado': esperado,
         }
 
@@ -1305,6 +1449,22 @@ class TurnoCaja(models.Model):
                     f'{turno_bloqueado.get_estado_display().lower()}.'
                 )
 
+            # Ventas sin stock: no se puede cerrar mientras algún producto
+            # que se vendió sin stock en este turno siga en negativo — el
+            # balance del turno no cerraría (ver ConfiguracionVentas).
+            pendientes = self.productos_vendidos_sin_stock_pendientes()
+            if pendientes:
+                detalle = ' · '.join(
+                    f"{p['nombre']} (faltan {_fmt_cantidad(p['faltante'])})"
+                    for p in pendientes
+                )
+                raise ValueError(
+                    'No se puede cerrar el turno: hay productos que se vendieron sin stock '
+                    'en este turno y todavía están en negativo. Cargá la mercadería que falta '
+                    '(una compra o un ajuste de stock) y volvé a cerrar. '
+                    f'Pendiente de cargar → {detalle}.'
+                )
+
             # Calcular totales por medio de pago (en caliente, todavía
             # no está cerrado el turno en este punto)
             totales = self.calcular_totales_por_medio_pago()
@@ -1320,6 +1480,8 @@ class TurnoCaja(models.Model):
             efectivo_devuelto = componentes['efectivo_devuelto']
             efectivo_cuotas_cobradas = componentes['efectivo_cuotas_cobradas']
             efectivo_cuotas_pagadas = componentes['efectivo_cuotas_pagadas']
+            ingresos_manuales = componentes['ingresos_manuales']
+            egresos_manuales = componentes['egresos_manuales']
             esperado = componentes['esperado']
             redondeos_turno = self.calcular_redondeos_en_turno()
             redondeos_efectivo = componentes['efectivo_redondeos']
@@ -1337,12 +1499,14 @@ class TurnoCaja(models.Model):
                 'total_financiado_pendiente': str(total_financiado_pendiente),
                 'redondeos_turno': str(redondeos_turno),
                 'redondeos_efectivo': str(redondeos_efectivo),
-                'ganancia_turno': str(total_recaudado - redondeos_turno - (self.monto_inicial_efectivo or 0)),
+                'ganancia_bruta_turno': str(self.calcular_ganancia_bruta_turno()),
                 'esperado_efectivo': str(esperado),
                 'declarado_efectivo': str(monto_final_efectivo),
                 'efectivo_devuelto': str(efectivo_devuelto),
                 'efectivo_cuotas_cobradas': str(efectivo_cuotas_cobradas),
                 'efectivo_cuotas_pagadas': str(efectivo_cuotas_pagadas),
+                'ingresos_manuales': str(ingresos_manuales),
+                'egresos_manuales': str(egresos_manuales),
             }
             self.save()
 
@@ -1371,11 +1535,20 @@ class TurnoCaja(models.Model):
 
             fecha_cierre = self.fecha_cierre.date()
 
-            # ── 1. Efectivo: se transfiere lo REALMENTE contado ─────
+            # ── 1. Efectivo: vuelve a caja grande ───────────────────
+            # Se acredita el BRUTO del cajón (lo contado + lo que se
+            # retiró como egreso de caja diaria - lo que entró como
+            # ingreso de caja diaria) y esos ingresos/egresos se
+            # registran aparte, línea por línea (ver más abajo), para
+            # que el libro de caja grande muestre a dónde fue cada peso.
+            # El neto es idéntico a acreditar solo lo contado:
+            #   bruto - egresos_manuales + ingresos_manuales = declarado.
             cuenta_efectivo = _cuenta_grande_para_medio_pago('efectivo', 'Efectivo', moneda=Moneda.ARS)
             concepto_cierre_efectivo = _concepto_default('Cierre de turno - Efectivo', TipoMovimientoCaja.INGRESO)
 
-            if monto_final_efectivo and monto_final_efectivo > 0:
+            bruto_efectivo = monto_final_efectivo + egresos_manuales - ingresos_manuales
+
+            if bruto_efectivo and bruto_efectivo > 0:
                 detalle_cajas = (
                     ' (' + ', '.join(f"{c['nombre']}: {c['monto']}" for c in cajas) + ')'
                     if len(cajas) > 1 else ''
@@ -1385,11 +1558,11 @@ class TurnoCaja(models.Model):
                     cuenta=cuenta_efectivo,
                     concepto=concepto_cierre_efectivo,
                     tipo=TipoMovimientoCaja.INGRESO,
-                    monto=monto_final_efectivo,
+                    monto=bruto_efectivo,
                     moneda=Moneda.ARS,
                     fecha=fecha_cierre,
                     descripcion=(
-                        f'Cierre turno #{self.numero} — efectivo declarado '
+                        f'Cierre turno #{self.numero} — efectivo contado {monto_final_efectivo} '
                         f'(esperado {esperado}, diferencia {self.diferencia_efectivo})'
                         + detalle_cajas
                     ),
@@ -1398,6 +1571,31 @@ class TurnoCaja(models.Model):
                     origen_app='caja',
                     origen_id=self.pk,
                     creado_por=usuario,
+                )
+
+            # ── Ingresos/egresos manuales de caja diaria de este turno ──
+            # Ya venían "descontados/sumados" del cajón físico durante el
+            # turno; recién ahora impactan caja grande, cada uno con su
+            # propia línea (mismo criterio que una venta en efectivo, que
+            # espera al cierre).
+            for g in self.movimientos_manuales.all():
+                MovimientoCaja.objects.create(
+                    caja=TipoCaja.GRANDE,
+                    cuenta=cuenta_efectivo,
+                    concepto=_concepto_default(
+                        'Ingreso' if g.tipo == TipoMovimientoCaja.INGRESO else 'Gasto',
+                        g.tipo,
+                    ),
+                    tipo=g.tipo,
+                    monto=g.monto,
+                    moneda=Moneda.ARS,
+                    fecha=g.fecha,
+                    descripcion=f'{g.descripcion} · Caja diaria turno #{self.numero}',
+                    referencia=f'Turno #{self.numero}',
+                    origen=OrigenMovimiento.MANUAL,
+                    origen_app='caja',
+                    origen_id=g.pk,
+                    creado_por=g.creado_por,
                 )
 
             # ── 2. Resto de medios de pago: YA NO se tocan acá. Desde que
@@ -1449,14 +1647,75 @@ class CajaFisicaTurno(models.Model):
 
 
 # ══════════════════════════════════════════════════════════════════
+#  CONCEPTO DE GASTO  (rubro de un ingreso/egreso manual)
+#
+#  Catálogo liviano de conceptos reutilizables para la pantalla de
+#  Ingresos y egresos (combustible, luz, agua, sueldos...). OJO: es
+#  distinto de ConceptoMovimiento — ese categoriza los asientos de
+#  caja grande (Venta/Compra/...). Este solo etiqueta el Gasto para
+#  dos cosas: alimentar el autocompletado de la descripción y agrupar
+#  en Estadísticas ("¿cuánto gasté en combustible este mes?").
+#
+#  La descripción del Gasto SIGUE siendo texto libre. El catálogo se
+#  puebla solo: cada descripción nueva que se carga queda registrada
+#  acá, deduplicada por nombre normalizado (minúsculas + espacios
+#  colapsados) — así "Combustible", "combustible " y "COMBUSTIBLE"
+#  son el mismo concepto.
+# ══════════════════════════════════════════════════════════════════
+
+def _normalizar_concepto_gasto(nombre):
+    """'  Combustible   Nafta ' → 'combustible nafta' (para deduplicar)."""
+    return ' '.join((nombre or '').split()).lower()[:120]
+
+
+class ConceptoGasto(models.Model):
+    nombre = models.CharField(max_length=120)
+    nombre_normalizado = models.CharField(max_length=120, unique=True, editable=False)
+    tipo = models.CharField(
+        max_length=10, choices=TipoMovimientoCaja.choices,
+        default=TipoMovimientoCaja.EGRESO,
+        help_text='Si suele ser ingreso o egreso — ordena las sugerencias.',
+    )
+    activo = models.BooleanField(default=True)
+    fecha_alta = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Concepto de ingreso/egreso'
+        verbose_name_plural = 'Conceptos de ingresos/egresos'
+        ordering = ['nombre']
+
+    def __str__(self):
+        return self.nombre
+
+    @classmethod
+    def resolver(cls, nombre, tipo=None):
+        """Get-or-create por nombre normalizado. Devuelve el concepto, o
+        None si el nombre viene vacío. No pisa el `tipo` de un concepto
+        que ya existía."""
+        norm = _normalizar_concepto_gasto(nombre)
+        if not norm:
+            return None
+        obj, _ = cls.objects.get_or_create(
+            nombre_normalizado=norm,
+            defaults={
+                'nombre': ' '.join(nombre.split())[:120],
+                'tipo': tipo or TipoMovimientoCaja.EGRESO,
+            },
+        )
+        return obj
+
+
+# ══════════════════════════════════════════════════════════════════
 #  GASTO
 # ══════════════════════════════════════════════════════════════════
 
 class Gasto(models.Model):
     """
     Movimiento manual de caja grande: ingreso o egreso libre (sueldo,
-    herencia, regalo, alquiler, mecánico, luz, etc. — la descripción
-    queda libre a propósito, no hay catálogo de categorías).
+    herencia, regalo, alquiler, mecánico, luz, etc.). La descripción
+    queda libre a propósito; además se resuelve sola contra un catálogo
+    liviano de conceptos (ver ConceptoGasto / campo `concepto`) para el
+    autocompletado y para agrupar en Estadísticas.
 
     El nombre de la clase quedó como "Gasto" por compatibilidad con
     el resto del código (tabla, permisos, FKs) aunque ahora también
@@ -1472,11 +1731,29 @@ class Gasto(models.Model):
                  related_name='gastos',
                  help_text='Cuenta que se acredita o debita con este movimiento.')
 
+    # ── Movimiento de CAJA DIARIA (efectivo del cajón de un turno) ──
+    # Si `turno` está seteado, este ingreso/egreso NO impacta caja grande
+    # de inmediato: sale/entra del cajón físico del turno (igual que una
+    # venta en efectivo). Ajusta el efectivo esperado del turno mientras
+    # está abierto y, al cerrar, se vuelca a caja grande como su propia
+    # línea (ver TurnoCaja.cerrar). `cuenta` queda en la cuenta Efectivo
+    # por consistencia de FK/serialización, pero no se elige a mano.
+    turno = models.ForeignKey(
+        'TurnoCaja', on_delete=models.PROTECT,
+        null=True, blank=True, related_name='movimientos_manuales',
+        help_text='Si viene de la pantalla de Caja Diaria: el turno cuyo cajón afecta.',
+    )
+
     fecha = models.DateField(help_text='Fecha del movimiento')
     hora = models.TimeField(help_text='Hora del movimiento (automática)')
     monto = models.DecimalField(max_digits=14, decimal_places=2)
     moneda = models.CharField(max_length=5, choices=Moneda.choices, default=Moneda.ARS)
     descripcion = models.CharField(max_length=300, help_text='Ej: alquiler, mecánico, luz, sueldo, herencia, regalo')
+    concepto = models.ForeignKey(
+        'ConceptoGasto', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='gastos',
+        help_text='Concepto del catálogo — se resuelve solo desde la descripción.',
+    )
 
     # ── Auditoría ────────────────────────────────────────────────
     creado_por = models.ForeignKey(
@@ -1495,16 +1772,41 @@ class Gasto(models.Model):
         signo = '+' if self.tipo == TipoMovimientoCaja.INGRESO else '-'
         return f'{signo}{self.monto} {self.moneda} — {self.descripcion} ({self.fecha})'
     
+    @property
+    def es_caja_diaria(self):
+        return self.turno_id is not None
+
     def save(self, *args, **kwargs):
         is_new = self.pk is None
         if is_new:
             # Establecer hora automáticamente al crear
             if not self.hora:
                 self.hora = timezone.localtime().time()
+
+        # Mantener `concepto` en sync con la descripción: si está vacío o
+        # ya no coincide con el nombre normalizado del concepto actual,
+        # se resuelve de nuevo (get-or-create en el catálogo). Cubre
+        # TODAS las vías de alta de Gasto (pantalla de Ingresos y egresos,
+        # confirmación de un programado, movimiento de caja diaria).
+        update_fields = kwargs.get('update_fields')
+        toca_descripcion = update_fields is None or {'descripcion', 'concepto'} & set(update_fields)
+        if toca_descripcion:
+            norm = _normalizar_concepto_gasto(self.descripcion)
+            actual = self.concepto.nombre_normalizado if self.concepto_id else None
+            if norm and actual != norm:
+                self.concepto = ConceptoGasto.resolver(self.descripcion, self.tipo)
+                if update_fields is not None and 'concepto' not in update_fields:
+                    kwargs['update_fields'] = list(update_fields) + ['concepto']
+            elif not norm and self.concepto_id:
+                self.concepto = None
+
         super().save(*args, **kwargs)
-        
-        # Sincronizar movimiento de caja
-        if is_new:
+
+        # Sincronizar movimiento de caja grande — SALVO que sea un
+        # movimiento de caja diaria: ese se difiere hasta el cierre del
+        # turno (TurnoCaja.cerrar lo vuelca), igual que una venta en
+        # efectivo.
+        if is_new and not self.turno_id:
             sincronizar_movimiento_gasto(self)
     
     def delete(self, *args, **kwargs):
@@ -1528,7 +1830,14 @@ def sincronizar_movimiento_gasto(gasto):
     - Si el gasto existe: crea/actualiza el movimiento de caja contra
       `gasto.cuenta`, como ingreso o egreso según `gasto.tipo`.
     - Si el gasto se elimina: borra el movimiento de caja asociado.
+
+    Los movimientos de CAJA DIARIA (gasto.turno seteado) no se tocan acá:
+    su MovimientoCaja lo genera el cierre del turno (TurnoCaja.cerrar) y no
+    se pueden editar una vez cerrado el turno.
     """
+    if gasto.turno_id and Gasto.objects.filter(pk=gasto.pk).exists():
+        return
+
     # Buscar movimiento existente asociado a este gasto
     movimiento = MovimientoCaja.objects.filter(
         origen='manual',
@@ -1592,6 +1901,7 @@ def sincronizar_movimiento_gasto(gasto):
 # ══════════════════════════════════════════════════════════════════
 
 class FrecuenciaProgramado(models.TextChoices):
+    DIARIO    = 'diario',    'Diario'
     SEMANAL   = 'semanal',   'Semanal'
     QUINCENAL = 'quincenal', 'Quincenal'
     MENSUAL   = 'mensual',   'Mensual'
@@ -1658,7 +1968,9 @@ class MovimientoProgramado(models.Model):
 
     def avanzar_proxima_fecha(self):
         """Corre proxima_fecha un período hacia adelante, según frecuencia."""
-        if self.frecuencia == FrecuenciaProgramado.SEMANAL:
+        if self.frecuencia == FrecuenciaProgramado.DIARIO:
+            self.proxima_fecha = self.proxima_fecha + timedelta(days=1)
+        elif self.frecuencia == FrecuenciaProgramado.SEMANAL:
             self.proxima_fecha = self.proxima_fecha + timedelta(days=7)
         elif self.frecuencia == FrecuenciaProgramado.QUINCENAL:
             self.proxima_fecha = self.proxima_fecha + timedelta(days=15)
@@ -1757,7 +2069,13 @@ def generar_instancias_pendientes():
     creadas = 0
     for programado in MovimientoProgramado.objects.filter(activo=True, proxima_fecha__lte=hoy):
         intentos = 0
-        while programado.proxima_fecha <= hoy and intentos < 60:
+        # Tope de seguridad por si proxima_fecha quedó muy atrás: para los
+        # mensuales/anuales 60 vueltas son años; para el DIARIO son solo 60
+        # días, así que se le da margen de ~1 año. Si el atraso supera el
+        # tope, se completa en las siguientes visitas a la pantalla (la
+        # próxima_fecha ya quedó avanzada y get_or_create evita duplicados).
+        tope = 370 if programado.frecuencia == FrecuenciaProgramado.DIARIO else 60
+        while programado.proxima_fecha <= hoy and intentos < tope:
             monto_inicial = programado.monto_fijo if programado.tipo_monto == TipoMontoProgramado.FIJO else None
             _, created = InstanciaProgramada.objects.get_or_create(
                 programado=programado,

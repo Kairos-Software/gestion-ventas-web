@@ -155,6 +155,14 @@
                 <span class="est-resumen-concepto">Costo de esa mercadería</span>
                 <span class="est-resumen-monto menos">${{ resumen.costo_mercaderia|floatformat:0|intcomma }}</span>
             </div>
+            {% if resumen.cobrado_de_mas %}
+            <div class="est-resumen-fila" data-monto="{{ resumen.cobrado_de_mas|floatformat:0 }}" data-tipo="positivo">
+                <span class="est-resumen-bar"></span>
+                <span class="est-resumen-signo">+</span>
+                <span class="est-resumen-concepto">Redondeos y recargos cobrados</span>
+                <span class="est-resumen-monto">${{ resumen.cobrado_de_mas|floatformat:0|intcomma }}</span>
+            </div>
+            {% endif %}
             <div class="est-resumen-fila subtotal">
                 <span class="est-resumen-signo">=</span>
                 <span class="est-resumen-concepto">Ganancia por las ventas</span>

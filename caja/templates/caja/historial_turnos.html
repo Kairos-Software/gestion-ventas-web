@@ -85,6 +85,10 @@ Historial de Turnos
                 {{ turno.fecha_apertura|date:"d/m/Y H:i" }}{% if turno.fecha_cierre %} → {{ turno.fecha_cierre|date:"H:i" }}{% endif %}
             </span>
             <span class="ht-row-total">${{ turno.total_recaudado|floatformat:"2" }}</span>
+            <span class="ht-row-ganancia" title="Ganancia del turno (margen + redondeos y recargos)"
+                style="flex-shrink:0;white-space:nowrap;font-size:0.72rem;font-weight:700;padding:0.2rem 0.55rem;border-radius:var(--radius-sm);background:rgba(16,185,129,0.1);color:var(--success)">
+                Ganancia ${{ turno.ganancia_turno|floatformat:"2" }}
+            </span>
             {% if turno.diferencia_efectivo %}
             <span class="ht-row-dif{% if turno.alerta_diferencia %} ht-row-dif--alert{% endif %}">
                 {% if turno.alerta_diferencia %}⚠ {% endif %}${{ turno.diferencia_efectivo|floatformat:"2" }}
@@ -224,6 +228,18 @@ Historial de Turnos
                         <span class="hd-medio-value">-${{ turno.efectivo_cuotas_pagadas|floatformat:"2" }}</span>
                     </div>
                     {% endif %}
+                    {% if turno.ingresos_manuales %}
+                    <div class="hd-medio-row">
+                        <span class="hd-medio-label">Ingresos manuales de caja diaria</span>
+                        <span class="hd-medio-value">${{ turno.ingresos_manuales|floatformat:"2" }}</span>
+                    </div>
+                    {% endif %}
+                    {% if turno.egresos_manuales %}
+                    <div class="hd-medio-row">
+                        <span class="hd-medio-label">Egresos manuales de caja diaria</span>
+                        <span class="hd-medio-value">-${{ turno.egresos_manuales|floatformat:"2" }}</span>
+                    </div>
+                    {% endif %}
                     <div class="hd-medio-row">
                         <span class="hd-medio-label">Efectivo esperado</span>
                         <span class="hd-medio-value">${{ turno.efectivo_total|floatformat:"2" }}</span>
@@ -236,6 +252,31 @@ Historial de Turnos
                     {% endif %}
                 </div>
             </div>
+
+            <!-- Ingresos y egresos de caja diaria de este turno -->
+            {% with movs=turno.movimientos_manuales.all %}
+            {% if movs %}
+            <div class="hd-medios-pago" style="margin-top:1rem">
+                <h4>Ingresos y egresos de caja diaria</h4>
+                <p class="hd-medios-nota">Plata que entró o salió del cajón de este turno y no es una venta.</p>
+                <div class="hd-medios-list">
+                    {% for m in movs %}
+                    <div class="hd-medio-row">
+                        <span class="hd-medio-label">
+                            {{ m.descripcion }}
+                            <span style="color:var(--text-muted); font-size:.8em">
+                                · {{ m.fecha|date:"d/m/Y" }}{% if m.creado_por %} · {{ m.creado_por.get_full_name|default:m.creado_por.username }}{% endif %}
+                            </span>
+                        </span>
+                        <span class="hd-medio-value" style="color:{% if m.tipo == 'egreso' %}var(--danger){% else %}var(--success){% endif %}">
+                            {% if m.tipo == 'egreso' %}-{% else %}+{% endif %}${{ m.monto|floatformat:"2" }}
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% endwith %}
 
             <!-- Detalle por caja física — solo si hay más de una, es
                  puramente declarativo (sin diferencia propia por caja,

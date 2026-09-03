@@ -1387,6 +1387,49 @@ class ConfiguracionArca(models.Model):
         return bool(self.certificado_pem and self.clave_privada_enc)
 
 
+class ConfiguracionVentas(models.Model):
+    """
+    Modelo singleton (mismo patrón que DatosEmpresa / ConfiguracionArca)
+    con preferencias operativas de ventas de esta instalación. Se edita
+    desde Configuración → Ventas.
+    """
+    permitir_venta_sin_stock = models.BooleanField(
+        'Permitir vender sin stock', default=False,
+        help_text=(
+            'Si está activo, se puede confirmar una venta aunque no haya '
+            'stock suficiente: el stock queda en negativo y el turno de caja '
+            'no se puede cerrar hasta cargar la mercadería que falta '
+            '(una compra o un ajuste de stock). Si está apagado, el sistema '
+            'rechaza cualquier venta o movimiento que deje stock negativo.'
+        ),
+    )
+    actualizado_el = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Configuración de ventas'
+        verbose_name_plural = 'Configuración de ventas'
+
+    def __str__(self):
+        return 'Configuración de ventas'
+
+    @classmethod
+    def get_solo(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
+def permite_venta_sin_stock():
+    """
+    Atajo global: ¿esta instalación tolera que una venta o un movimiento
+    de stock deje el stock en negativo? (ver ConfiguracionVentas).
+
+    Reemplaza al viejo flag por producto `Producto.permite_stock_negativo`
+    — se consulta desde ventas, compras y productos. Es una sola fila
+    cacheada por la base, barata de consultar.
+    """
+    return ConfiguracionVentas.get_solo().permitir_venta_sin_stock
+
+
 class Nota(models.Model):
     """
     Anotador global (Herramientas). Pública por defecto — cualquiera con

@@ -23,6 +23,7 @@ from .forms import (
 )
 from .export_productos import grupos_para_template, COLUMNAS_RESUMEN
 from core.permisos import chequear_permiso
+from core.models import permite_venta_sin_stock
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -83,7 +84,6 @@ def _serializar_producto(p):
         'stock_actual':          str(p.stock_actual),
         'stock_minimo':          str(p.stock_minimo),
         'stock_maximo':          str(p.stock_maximo) if p.stock_maximo else '',
-        'permite_stock_negativo': p.permite_stock_negativo,
         'gestiona_stock':        p.gestiona_stock,
         'gestiona_variantes':    p.gestiona_variantes,
         'estado':                p.estado,
@@ -414,7 +414,7 @@ class ProductoCrearEditarAjax(LoginRequiredMixin, View):
         BOOL_FIELDS = [
             'publicado', 'destacado',
             'requiere_refrigeracion', 'es_fragil', 'es_peligroso', 'es_perecedero',
-            'gestiona_stock', 'permite_stock_negativo',
+            'gestiona_stock',
             'gestiona_variantes', 'precio_incluye_iva',
         ]
         form_data = dict(body)
@@ -996,8 +996,8 @@ class CombinacionVarianteStockAjax(LoginRequiredMixin, View):
 
         try:
             nuevo_stock = Decimal(str(body.get('stock_actual')))
-            if nuevo_stock < 0 and not combinacion.producto.permite_stock_negativo:
-                raise ValueError('Stock negativo no permitido para este producto.')
+            if nuevo_stock < 0 and not permite_venta_sin_stock():
+                raise ValueError('Stock negativo no permitido (ver Configuración → Ventas).')
         except (TypeError, ValueError, InvalidOperation) as e:
             if 'negativo' in str(e):
                 return JsonResponse({'ok': False, 'error': str(e)}, status=400)

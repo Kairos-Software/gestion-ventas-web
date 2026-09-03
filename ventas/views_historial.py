@@ -140,11 +140,21 @@ class ListarVentasAjax(LoginRequiredMixin, View):
                 tiene_variante = bool(item.combinacion_id or item.combinacion_descripcion)
 
                 # — Origen del stock: FIFO (más viejo) o lote(s) puntual(es) —
+                # 'SIN STOCK' aparece cuando parte (o todo) se vendió sin
+                # stock (ver ConfiguracionVentas.permitir_venta_sin_stock).
                 lotes = item.lotes_utilizados
-                if item.tipo_escaneo == 'lote_especifico' and lotes:
-                    origen_label = ' + '.join(lotes)
-                elif lotes:
-                    origen_label = f'FIFO ({", ".join(lotes)})'
+                lotes_reales = [l for l in lotes if l and l != 'SIN STOCK']
+                vendio_sin_stock = 'SIN STOCK' in lotes
+                if item.tipo_escaneo == 'lote_especifico' and lotes_reales:
+                    origen_label = ' + '.join(lotes_reales)
+                    if vendio_sin_stock:
+                        origen_label += ' + sin stock'
+                elif lotes_reales:
+                    origen_label = f'FIFO ({", ".join(lotes_reales)})'
+                    if vendio_sin_stock:
+                        origen_label += ' + sin stock'
+                elif vendio_sin_stock:
+                    origen_label = 'Vendido sin stock'
                 else:
                     origen_label = '—'
 

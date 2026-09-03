@@ -124,14 +124,16 @@ def _sumar_stock_item(item):
     mismo producto a la vez, ambas partirían del mismo stock_actual
     "viejo" y una de las dos sumas se perdería.
     """
+    from core.models import permite_venta_sin_stock
     producto = item.producto
     if producto is None or not producto.gestiona_stock:
         return
+    permitir_negativo = permite_venta_sin_stock()
 
     if producto.gestiona_variantes and item.combinacion is not None:
         combinacion = CombinacionVariante.objects.select_for_update().get(pk=item.combinacion_id)
         nuevo_stock = combinacion.stock_actual + item.cantidad
-        if nuevo_stock < 0 and not producto.permite_stock_negativo:
+        if nuevo_stock < 0 and not permitir_negativo:
             raise ValueError(f'Stock resultaría negativo para combinación {combinacion.descripcion_legible()}: {nuevo_stock}')
         combinacion.stock_actual = nuevo_stock
         combinacion.save(update_fields=['stock_actual'])
@@ -139,7 +141,7 @@ def _sumar_stock_item(item):
     else:
         producto = Producto.objects.select_for_update().get(pk=producto.pk)
         nuevo_stock = producto.stock_actual + item.cantidad
-        if nuevo_stock < 0 and not producto.permite_stock_negativo:
+        if nuevo_stock < 0 and not permitir_negativo:
             raise ValueError(f'Stock resultaría negativo para producto {producto.nombre}: {nuevo_stock}')
         producto.stock_actual = nuevo_stock
         producto.save(update_fields=['stock_actual'])
@@ -151,14 +153,16 @@ def _restar_stock_item(item):
     Misma lógica de despacho y misma protección con select_for_update()
     que _sumar_stock_item.
     """
+    from core.models import permite_venta_sin_stock
     producto = item.producto
     if producto is None or not producto.gestiona_stock:
         return
+    permitir_negativo = permite_venta_sin_stock()
 
     if producto.gestiona_variantes and item.combinacion is not None:
         combinacion = CombinacionVariante.objects.select_for_update().get(pk=item.combinacion_id)
         nuevo_stock = combinacion.stock_actual - item.cantidad
-        if nuevo_stock < 0 and not producto.permite_stock_negativo:
+        if nuevo_stock < 0 and not permitir_negativo:
             raise ValueError(f'Stock resultaría negativo para combinación {combinacion.descripcion_legible()}: {nuevo_stock}')
         combinacion.stock_actual = nuevo_stock
         combinacion.save(update_fields=['stock_actual'])
@@ -166,7 +170,7 @@ def _restar_stock_item(item):
     else:
         producto = Producto.objects.select_for_update().get(pk=producto.pk)
         nuevo_stock = producto.stock_actual - item.cantidad
-        if nuevo_stock < 0 and not producto.permite_stock_negativo:
+        if nuevo_stock < 0 and not permitir_negativo:
             raise ValueError(f'Stock resultaría negativo para producto {producto.nombre}: {nuevo_stock}')
         producto.stock_actual = nuevo_stock
         producto.save(update_fields=['stock_actual'])
