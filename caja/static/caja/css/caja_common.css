@@ -306,6 +306,16 @@
     color: var(--danger);
 }
 
+/* Sobra efectivo: "esperado" ya incluye los redondeos a favor
+   registrados, así que este sobrante sigue siendo plata sin explicar —
+   pero no es una pérdida como sí lo es un faltante, por eso va en un
+   tono informativo (azul) y no de alarma (rojo). */
+.ht-diferencia--sobra {
+    background: rgba(59, 130, 246, 0.08);
+    border-color: rgba(59, 130, 246, 0.25);
+    color: var(--info);
+}
+
 .ht-correccion {
     display: block;
     padding: 0.6rem 0.9rem;
@@ -449,6 +459,14 @@
 
 .hd-resumen-alert.hd-resumen-row--destacado {
     border-left-color: var(--danger);
+}
+
+.hd-resumen-sobra .hd-resumen-value {
+    color: var(--info);
+}
+
+.hd-resumen-sobra.hd-resumen-row--destacado {
+    border-left-color: var(--info);
 }
 
 .hd-medios-pago {
@@ -619,6 +637,11 @@
 .ht-row-dif--alert {
     background: rgba(239, 68, 68, 0.08);
     color: var(--danger);
+}
+
+.ht-row-dif--sobra {
+    background: rgba(59, 130, 246, 0.08);
+    color: var(--info);
 }
 
 .ht-row-chevron {

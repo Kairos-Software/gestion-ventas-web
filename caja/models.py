@@ -1061,13 +1061,26 @@ class TurnoCaja(models.Model):
         return self.diferencia_efectivo is not None and abs(self.diferencia_efectivo) >= Decimal('0.01')
 
     @property
+    def sobra_efectivo(self):
+        """True si la diferencia es a favor (declarado > esperado) — no confundir
+        con un error: "esperado" ya incluye los redondeos a favor registrados
+        (ver `_componentes_efectivo_esperado`), así que este sobrante es plata
+        SIN explicar por el sistema (ej. un cobro de más no registrado), pero
+        no implica una pérdida como sí lo implica un faltante. Se muestra con
+        un tono informativo, no de alarma — ver `mensaje_alerta`."""
+        return bool(self.alerta_diferencia and self.diferencia_efectivo > 0)
+
+    @property
     def mensaje_alerta(self):
         if not self.alerta_diferencia:
             return None
-        signo = 'sobra' if self.diferencia_efectivo > 0 else 'falta'
+        if self.sobra_efectivo:
+            return (
+                f'Turno #{self.numero}: sobra efectivo respecto de lo esperado — '
+                f'revisá si corresponde a un cobro no registrado.'
+            )
         return (
-            f'¡Atención! En el turno #{self.numero} {signo} '
-            f'{abs(self.diferencia_efectivo)} en efectivo respecto de lo esperado. '
+            f'¡Atención! Turno #{self.numero}: falta efectivo respecto de lo esperado. '
             f'Revisar con urgencia.'
         )
 

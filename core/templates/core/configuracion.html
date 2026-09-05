@@ -2,6 +2,7 @@
 {% extends 'core/base.html' %}
 {% load static %}
 {% load kai_formato %}
+{% load l10n %}
 
 {% block title %}Configuración{% endblock %}
 
@@ -457,11 +458,11 @@
             <div class="config-row config-form-pair">
                 <div class="config-field">
                     <label class="config-row-label" for="idLimiteMensual">Tope mensual (opcional)</label>
-                    <input type="number" min="0" step="0.01" class="form-control" id="idLimiteMensual" value="{{ configuracion_limite_contable.limite_mensual }}" placeholder="0 = no controlar">
+                    <input type="number" min="0" step="0.01" class="form-control" id="idLimiteMensual" value="{{ configuracion_limite_contable.limite_mensual|unlocalize }}" placeholder="0 = no controlar">
                 </div>
                 <div class="config-field">
                     <label class="config-row-label" for="idLimiteAnual">Tope anual (opcional)</label>
-                    <input type="number" min="0" step="0.01" class="form-control" id="idLimiteAnual" value="{{ configuracion_limite_contable.limite_anual }}" placeholder="0 = no controlar">
+                    <input type="number" min="0" step="0.01" class="form-control" id="idLimiteAnual" value="{{ configuracion_limite_contable.limite_anual|unlocalize }}" placeholder="0 = no controlar">
                 </div>
             </div>
             <p class="config-row-desc" style="padding:0 0 0.5rem;">
@@ -878,5 +879,5 @@
         guardar: "{% url 'core:config_limite_contable_guardar' %}",
     };
 </script>
-<script src="{% static 'core/js/configuracion.js' %}?v=20260904"></script>
+<script src="{% static 'core/js/configuracion.js' %}?v=20260905"></script>
 {% endblock %}

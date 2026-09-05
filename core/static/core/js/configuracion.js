@@ -597,8 +597,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 body: JSON.stringify({
                     activo: document.getElementById('idLimiteActivo').checked,
                     nombre_categoria: document.getElementById('idLimiteNombreCategoria').value,
+                    limite_mensual: document.getElementById('idLimiteMensual').value,
                     limite_anual: document.getElementById('idLimiteAnual').value,
                     incluir_efectivo: document.getElementById('idLimiteIncluirEfectivo').checked,
+                    solo_facturado_arca: document.getElementById('idLimiteSoloArca').checked,
                     umbral_alerta_pct: document.getElementById('idLimiteUmbralAlerta').value,
                 }),
             })

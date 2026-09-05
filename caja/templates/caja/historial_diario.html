@@ -74,7 +74,7 @@ Historial Diario
     </svg>
     <div class="cd-alerta-banner-texto">
         <strong>Hay días con diferencias de efectivo sin revisar</strong>
-        <span>Se marcan en rojo dentro del día correspondiente.</span>
+        <span>En rojo, falta efectivo — revisar con urgencia. En azul, sobra efectivo — probablemente un cobro no registrado.</span>
     </div>
 </div>
 {% endif %}
@@ -90,9 +90,15 @@ Historial Diario
         <span class="vta-card-title">{{ dia.fecha|date:"l d/m/Y"|capfirst }}</span>
         <span class="ht-badge ht-badge-cerrado">{{ dia.cantidad_turnos }} turno{{ dia.cantidad_turnos|pluralize }}</span>
         {% if dia.hay_alerta %}
+        {% if dia.total_diferencia > 0 %}
+        <span class="ht-badge" style="background:rgba(59,130,246,0.12); color:var(--info)">
+            Sobra efectivo
+        </span>
+        {% else %}
         <span class="ht-badge" style="background:rgba(239,68,68,0.12); color:var(--danger)">
             Diferencia sin revisar
         </span>
+        {% endif %}
         {% endif %}
         <a href="{% url 'ventas:historial_ventas' %}?dia={{ dia.fecha|date:'Y-m-d' }}" class="vta-btn vta-btn-ghost" style="margin-left:auto;padding:0.35rem 0.8rem;font-size:0.82rem;">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
@@ -128,9 +134,9 @@ Historial Diario
                 <span class="hd-resumen-value">${{ dia.total_redondeos|floatformat:"2" }}</span>
             </div>
             {% endif %}
-            <div class="hd-resumen-row hd-resumen-row--destacado{% if dia.hay_alerta %} hd-resumen-alert{% endif %}">
+            <div class="hd-resumen-row hd-resumen-row--destacado{% if dia.hay_alerta %}{% if dia.total_diferencia > 0 %} hd-resumen-sobra{% else %} hd-resumen-alert{% endif %}{% endif %}">
                 <span class="hd-resumen-label">Diferencia total del día</span>
-                <span class="hd-resumen-value">${{ dia.total_diferencia|floatformat:"2" }}</span>
+                <span class="hd-resumen-value">{% if dia.hay_alerta and dia.total_diferencia > 0 %}+{% endif %}${{ dia.total_diferencia|floatformat:"2" }}</span>
             </div>
         </div>
 
@@ -190,9 +196,13 @@ Historial Diario
                         Ganancia ${{ turno.ganancia_turno|floatformat:"2" }}
                     </span>
                     {% if turno.diferencia_efectivo %}
-                    <span class="ht-row-dif{% if turno.alerta_diferencia %} ht-row-dif--alert{% endif %}">
-                        {% if turno.alerta_diferencia %}⚠ {% endif %}${{ turno.diferencia_efectivo|floatformat:"2" }}
-                    </span>
+                    {% if turno.sobra_efectivo %}
+                    <span class="ht-row-dif ht-row-dif--sobra">+${{ turno.diferencia_efectivo|floatformat:"2" }}</span>
+                    {% elif turno.alerta_diferencia %}
+                    <span class="ht-row-dif ht-row-dif--alert">⚠ ${{ turno.diferencia_efectivo|floatformat:"2" }}</span>
+                    {% else %}
+                    <span class="ht-row-dif">${{ turno.diferencia_efectivo|floatformat:"2" }}</span>
+                    {% endif %}
                     {% endif %}
                     <svg class="ht-row-chevron" width="14" height="14" viewBox="0 0 14 14" fill="none">
                         <path d="M3.5 5L7 8.5L10.5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
@@ -251,10 +261,10 @@ Historial Diario
                     {% endif %}
                     {% endwith %}
                     {% if turno.diferencia_efectivo %}
-                    <div class="ht-diferencia{% if turno.alerta_diferencia %} ht-diferencia--alert{% endif %}"
+                    <div class="ht-diferencia{% if turno.sobra_efectivo %} ht-diferencia--sobra{% elif turno.alerta_diferencia %} ht-diferencia--alert{% endif %}"
                         style="margin-top:0.75rem">
                         <span>{{ turno.mensaje_alerta|default:"Diferencia de efectivo" }}</span>
-                        <strong>${{ turno.diferencia_efectivo|floatformat:"2" }}</strong>
+                        <strong>{% if turno.sobra_efectivo %}+{% endif %}${{ turno.diferencia_efectivo|floatformat:"2" }}</strong>
                     </div>
                     {% endif %}
                     {% with cajas=turno.cajas_fisicas.all %}

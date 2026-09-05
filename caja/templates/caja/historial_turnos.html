@@ -67,7 +67,7 @@ Historial de Turnos
     </svg>
     <div class="cd-alerta-banner-texto">
         <strong>Hay turnos con diferencias de efectivo sin revisar</strong>
-        <span>Revisá los turnos marcados en rojo más abajo.</span>
+        <span>En rojo, falta efectivo — revisar con urgencia. En azul, sobra efectivo — probablemente un cobro no registrado.</span>
     </div>
 </div>
 {% endif %}
@@ -90,9 +90,13 @@ Historial de Turnos
                 Ganancia ${{ turno.ganancia_turno|floatformat:"2" }}
             </span>
             {% if turno.diferencia_efectivo %}
-            <span class="ht-row-dif{% if turno.alerta_diferencia %} ht-row-dif--alert{% endif %}">
-                {% if turno.alerta_diferencia %}⚠ {% endif %}${{ turno.diferencia_efectivo|floatformat:"2" }}
-            </span>
+            {% if turno.sobra_efectivo %}
+            <span class="ht-row-dif ht-row-dif--sobra">+${{ turno.diferencia_efectivo|floatformat:"2" }}</span>
+            {% elif turno.alerta_diferencia %}
+            <span class="ht-row-dif ht-row-dif--alert">⚠ ${{ turno.diferencia_efectivo|floatformat:"2" }}</span>
+            {% else %}
+            <span class="ht-row-dif">${{ turno.diferencia_efectivo|floatformat:"2" }}</span>
+            {% endif %}
             {% endif %}
             <svg class="ht-row-chevron" width="14" height="14" viewBox="0 0 14 14" fill="none">
                 <path d="M3.5 5L7 8.5L10.5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
@@ -303,10 +307,10 @@ Historial de Turnos
 
             <!-- Diferencia de efectivo (si aplica) -->
             {% if turno.diferencia_efectivo %}
-            <div class="ht-diferencia{% if turno.alerta_diferencia %} ht-diferencia--alert{% endif %}"
+            <div class="ht-diferencia{% if turno.sobra_efectivo %} ht-diferencia--sobra{% elif turno.alerta_diferencia %} ht-diferencia--alert{% endif %}"
                 style="margin-top:1rem">
                 <span>{{ turno.mensaje_alerta|default:"Diferencia de efectivo" }}</span>
-                <strong>${{ turno.diferencia_efectivo|floatformat:"2" }}</strong>
+                <strong>{% if turno.sobra_efectivo %}+{% endif %}${{ turno.diferencia_efectivo|floatformat:"2" }}</strong>
             </div>
             {% endif %}
 
