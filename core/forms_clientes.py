@@ -31,6 +31,9 @@ class FormularioClienteBase(forms.ModelForm):
             # CRM
             'notas', 'como_nos_conocio', 'tags', 'referido_por',
             'fecha_desde_cliente', 'fecha_ultimo_contacto', 'fecha_proximo_contacto',
+            # Pagaré en blanco (la foto se sube aparte, desde la ficha del
+            # cliente, una vez creado — acá solo va el número).
+            'numero_pagare',
             # Scoring (no se edita manualmente en el form base, pero sí en admin/vista especial)
         ]
         widgets = {

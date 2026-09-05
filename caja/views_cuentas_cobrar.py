@@ -12,6 +12,7 @@ from django.utils import timezone
 from django.db.models import Q, Sum
 
 from productos.models import Moneda
+from productos.utils_imagenes import comprimir_imagen_subida
 from core.models import Cliente
 from core.permisos import chequear_permiso
 
@@ -30,6 +31,7 @@ PERMISO_CONFIRMAR = 'confirmar_cuotas_cobro'
 
 DOCUMENTO_TAMANIO_MAXIMO = 10 * 1024 * 1024
 DOCUMENTO_EXTENSIONES_PERMITIDAS = {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.pdf'}
+PAGARE_EXTENSIONES_PERMITIDAS = {'.jpg', '.jpeg', '.png', '.webp'}
 
 
 def _cuenta_valida(cuenta_pk):
@@ -81,6 +83,7 @@ def _serializar_cuota(c):
         'cheque_es_historico': cheque.es_historico if cheque else False,
         'fecha_confirmacion': c.fecha_confirmacion.isoformat() if c.fecha_confirmacion else '',
         'confirmado_por': str(c.confirmado_por) if c.confirmado_por else '',
+        'numero_comprobante': c.numero_comprobante,
     }
 
 
@@ -105,6 +108,7 @@ def _serializar_cxc(cxc, con_cuotas=False):
         'cliente_nombre': cxc.cliente.get_nombre_display() if cxc.cliente_id else '',
         'descripcion': cxc.descripcion,
         'numero_comprobante': cxc.numero_comprobante,
+        'numero_pagare': cxc.numero_pagare,
         'es_carga_inicial': cxc.es_carga_inicial,
         'modo_cuotas': cxc.modo_cuotas,
         'modo_cuotas_display': cxc.get_modo_cuotas_display(),
@@ -126,6 +130,7 @@ def _serializar_cxc(cxc, con_cuotas=False):
     if con_cuotas:
         data['cuotas'] = [_serializar_cuota(c) for c in cxc.cuotas.all()]
         data['documentos'] = [_serializar_documento(doc) for doc in cxc.documentos.all()]
+        data['foto_pagare_url'] = cxc.foto_pagare.url if cxc.foto_pagare else ''
     return data
 
 
@@ -170,6 +175,8 @@ class CuentasCobrarView(LoginRequiredMixin, TemplateView):
         ctx['url_previsualizar_cuotas'] = reverse('caja:previsualizar_cuotas_cobro')
         ctx['url_documento_subir'] = reverse('caja:cuenta_cobrar_documento_subir')
         ctx['url_documento_eliminar'] = reverse('caja:cuenta_cobrar_documento_eliminar')
+        ctx['url_pagare_subir'] = reverse('caja:cuenta_cobrar_pagare_subir')
+        ctx['url_editar_comprobante_cuota'] = reverse('caja:editar_comprobante_cuota', args=[0])
         ctx['url_buscar_cliente'] = reverse('caja:buscar_cliente_cobrar')
         ctx['url_cliente_perfil_base'] = reverse('core:estadisticas_cliente_perfil', args=[0])[:-2]
 
@@ -218,8 +225,11 @@ class ListarCuentasCobrarAjax(LoginRequiredMixin, View):
 
         data = [_serializar_cxc(c) for c in items]
 
-        # Total a cobrar por moneda: siempre global (no depende de los
-        # filtros/paginación de arriba), para la barra "Te deben" de la pantalla.
+        # Total a cobrar por moneda para el mismo conjunto filtrado que ve el
+        # usuario. Se calcula antes de paginar: incluye todas las coincidencias
+        # de la búsqueda/filtros, no solamente las filas de la página actual.
+        # Las cuentas anuladas nunca representan saldo exigible, incluso si el
+        # filtro de estado se usa para consultarlas en el historial.
         # Cuotas fijas: el saldo está representado por cuotas CuotaCobro
         # PENDIENTE reales, así que alcanza con sumarlas por SQL. Cuotas
         # libres NO tienen cuotas futuras pre-generadas (se cobran de a
@@ -234,7 +244,8 @@ class ListarCuentasCobrarAjax(LoginRequiredMixin, View):
         agregado_fijas = (
             CuotaCobro.objects
             .filter(estado=EstadoCuota.PENDIENTE, cuenta_por_cobrar__estado=EstadoDeuda.ACTIVA,
-                    cuenta_por_cobrar__modo_cuotas=ModoCuotas.FIJAS)
+                    cuenta_por_cobrar__modo_cuotas=ModoCuotas.FIJAS,
+                    cuenta_por_cobrar__in=qs)
             .values('cuenta_por_cobrar__moneda')
             .annotate(total=Sum('monto'))
         )
@@ -242,33 +253,13 @@ class ListarCuentasCobrarAjax(LoginRequiredMixin, View):
             moneda = row['cuenta_por_cobrar__moneda']
             totales_pendientes[moneda] = totales_pendientes.get(moneda, Decimal('0')) + row['total']
 
-        cuentas_libres = CuentaPorCobrar.objects.filter(
-            estado=EstadoDeuda.ACTIVA, modo_cuotas=ModoCuotas.LIBRE
+        cuentas_libres = qs.filter(
+            estado=EstadoDeuda.ACTIVA, modo_cuotas=ModoCuotas.LIBRE,
         )
         for cxc_libre in cuentas_libres:
             saldo = cxc_libre.saldo_pendiente
             if saldo:
                 totales_pendientes[cxc_libre.moneda] = totales_pendientes.get(cxc_libre.moneda, Decimal('0')) + saldo
-
-        # Ojo: un cheque con cuota_cobro_id ya está representado en
-        # agregado_fijas/cuentas_libres de arriba — la cuota que paga
-        # sigue PENDIENTE mientras el cheque está en trámite (ver
-        # CuotaCobro.confirmar_con_cheque), así que sumarlo de nuevo acá
-        # sería contar la misma plata dos veces. Solo entran los cheques
-        # que son la ÚNICA representación de esa deuda: los que pagan una
-        # venta directo (pago_venta) o los cargados sueltos a mano.
-        agregado_cheques = (
-            Cheque.objects
-            .filter(
-                tipo=TipoCheque.A_COBRAR, estado=EstadoCheque.PENDIENTE, es_historico=False,
-                cuota_cobro_id__isnull=True,
-            )
-            .values('moneda')
-            .annotate(total=Sum('monto'))
-        )
-        for row in agregado_cheques:
-            moneda = row['moneda']
-            totales_pendientes[moneda] = totales_pendientes.get(moneda, Decimal('0')) + row['total']
 
         totales_pendientes = {moneda: str(total) for moneda, total in totales_pendientes.items() if total}
 
@@ -420,6 +411,8 @@ class EditarCuentaCobrarAjax(LoginRequiredMixin, View):
                 kwargs['notas'] = data.get('notas', '').strip()
             if 'numero_comprobante' in data:
                 kwargs['numero_comprobante'] = data.get('numero_comprobante', '').strip()
+            if 'numero_pagare' in data:
+                kwargs['numero_pagare'] = data.get('numero_pagare', '').strip()[:100]
 
             if 'monto_original' in data:
                 try:
@@ -490,6 +483,7 @@ class ConfirmarCuotaCobroAjax(LoginRequiredMixin, View):
         try:
             data = json.loads(request.body)
             adelantar = bool(data.get('adelantar', False))
+            numero_comprobante = str(data.get('numero_comprobante', '') or '').strip()[:100]
 
             if data.get('cheque'):
                 # Cobrada con cheque: todavía no es un cobro real (ver
@@ -497,9 +491,15 @@ class ConfirmarCuotaCobroAjax(LoginRequiredMixin, View):
                 # confirmado" se manda recién cuando ESE cheque se
                 # deposita de verdad (ver ConfirmarChequeAjax en
                 # views_cheques.py).
-                cuota.confirmar_con_cheque(data.get('cheque'), request.user, adelantar=adelantar)
+                cuota.confirmar_con_cheque(
+                    data.get('cheque'), request.user, adelantar=adelantar,
+                    numero_comprobante=numero_comprobante,
+                )
             else:
-                cuota.confirmar(data.get('cuenta_pk'), request.user, adelantar=adelantar)
+                cuota.confirmar(
+                    data.get('cuenta_pk'), request.user, adelantar=adelantar,
+                    numero_comprobante=numero_comprobante,
+                )
 
                 # En segundo plano: mismo criterio que ConfirmarCuotaAjax
                 # (caja/views_deudas.py) para no colgar el pedido HTTP con
@@ -513,6 +513,30 @@ class ConfirmarCuotaCobroAjax(LoginRequiredMixin, View):
             return JsonResponse({'error': 'JSON inválido'}, status=400)
         except ValueError as e:
             return JsonResponse({'error': str(e)}, status=400)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+
+
+# ══════════════════════════════════════════════════════════════════
+#  AJAX — Editar el N° de comprobante de una cuota ya confirmada
+#  (por si se olvidó anotarlo al momento de cobrar)
+# ══════════════════════════════════════════════════════════════════
+
+class EditarComprobanteCuotaAjax(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        if not chequear_permiso(request.user, PERMISO_EDITAR):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        cuota = get_object_or_404(CuotaCobro, pk=pk)
+
+        try:
+            data = json.loads(request.body)
+            cuota.numero_comprobante = str(data.get('numero_comprobante', '') or '').strip()[:100]
+            cuota.save(update_fields=['numero_comprobante'])
+            return JsonResponse({'success': True, 'cuota': _serializar_cuota(cuota)})
+
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido'}, status=400)
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
 
@@ -548,16 +572,20 @@ class RegistrarAbonoCobroAjax(LoginRequiredMixin, View):
                 except ValueError:
                     return JsonResponse({'error': 'Fecha inválida.'}, status=400)
 
+            numero_comprobante = str(data.get('numero_comprobante', '') or '').strip()[:100]
+
             if data.get('cheque'):
                 # Cobrado con cheque: el mail se manda recién cuando ESE
                 # cheque se deposita de verdad (ver ConfirmarChequeAjax
                 # en views_cheques.py).
                 cuota = cxc.registrar_abono(
                     monto=monto, usuario=request.user, cheque_data=data.get('cheque'), fecha=fecha,
+                    numero_comprobante=numero_comprobante,
                 )
             else:
                 cuota = cxc.registrar_abono(
                     monto=monto, usuario=request.user, cuenta_pk=data.get('cuenta_pk'), fecha=fecha,
+                    numero_comprobante=numero_comprobante,
                 )
                 from asistencia.services.eventos import notificar_cuota_cobro_confirmada, enviar_en_background
                 enviar_en_background(notificar_cuota_cobro_confirmada, cuota)
@@ -702,6 +730,49 @@ class CuentaCobrarDocumentoEliminarAjax(LoginRequiredMixin, View):
 
         doc.delete()
         return JsonResponse({'ok': True})
+
+
+# ══════════════════════════════════════════════════════════════════
+#  AJAX — Foto del pagaré de una cuenta por cobrar (una sola, se
+#  reemplaza — a diferencia de los documentos, que se acumulan)
+# ══════════════════════════════════════════════════════════════════
+
+class CuentaCobrarPagareSubirAjax(LoginRequiredMixin, View):
+    """POST multipart, campos: cuenta_pk, archivo. Reemplaza la foto anterior si había."""
+
+    def post(self, request):
+        if not chequear_permiso(request.user, PERMISO_EDITAR):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        cuenta_pk = request.POST.get('cuenta_pk')
+        if not cuenta_pk:
+            return JsonResponse({'error': 'cuenta_pk requerido.'}, status=400)
+
+        archivo = request.FILES.get('archivo')
+        if not archivo:
+            return JsonResponse({'error': 'No se recibió ningún archivo.'}, status=400)
+
+        if archivo.size > DOCUMENTO_TAMANIO_MAXIMO:
+            return JsonResponse({'error': 'El archivo supera el límite de 10 MB.'}, status=400)
+
+        ext = os.path.splitext(archivo.name)[1].lower()
+        if ext not in PAGARE_EXTENSIONES_PERMITIDAS:
+            return JsonResponse({'error': 'Usá JPG, PNG o WEBP para la foto del pagaré.'}, status=400)
+
+        cxc = get_object_or_404(CuentaPorCobrar, pk=cuenta_pk)
+
+        try:
+            archivo = comprimir_imagen_subida(archivo)
+        except Exception:
+            return JsonResponse({'error': 'No se pudo procesar la imagen. Probá con otra foto.'}, status=400)
+
+        if cxc.foto_pagare and os.path.isfile(cxc.foto_pagare.path):
+            os.remove(cxc.foto_pagare.path)
+
+        cxc.foto_pagare = archivo
+        cxc.save(update_fields=['foto_pagare'])
+
+        return JsonResponse({'ok': True, 'foto_pagare_url': cxc.foto_pagare.url})
 
 
 # ══════════════════════════════════════════════════════════════════

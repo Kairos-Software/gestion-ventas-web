@@ -16,7 +16,7 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 
-from .models import Cliente
+from .models import Cliente, ConfiguracionLimiteContable
 from .services_estadisticas import rango_por_preset
 from .services_estadisticas import ventas as stats_ventas
 from .services_estadisticas import compras as stats_compras
@@ -24,6 +24,7 @@ from .services_estadisticas import productos as stats_productos
 from .services_estadisticas import clientes as stats_clientes
 from .services_estadisticas import cliente_perfil as stats_cliente_perfil
 from .services_estadisticas import caja as stats_caja
+from .services_estadisticas.limite_contable import resumen_limite_contable
 from .permisos import chequear_permiso
 
 
@@ -129,6 +130,15 @@ def resumen(request):
 
     if chequear_permiso(request.user, 'ver_caja'):
         contexto['situacion_financiera'] = stats_caja.situacion_financiera()
+
+    # Límite contable (monotributo): mismo permiso que edita la
+    # configuración (Configuración → Límite contable) — no todo el que
+    # ve Estadísticas tiene por qué ver esto.
+    if chequear_permiso(request.user, 'editar_empresa'):
+        config_limite = ConfiguracionLimiteContable.get_solo()
+        if config_limite.activo:
+            contexto['configuracion_limite_contable'] = config_limite
+            contexto['limite_contable'] = resumen_limite_contable(hoy, config_limite)
 
     return render(request, 'core/estadisticas/resumen.html', contexto)
 

@@ -1,5 +1,5 @@
 {% extends "core/base.html" %}
-{% load static humanize %}
+{% load static humanize kai_formato %}
 
 {% block title %}Estadísticas — Resumen{% endblock %}
 {% block breadcrumb %}<strong>Estadísticas</strong> · Resumen{% endblock %}
@@ -34,10 +34,69 @@
     <div class="est-posicion-neta-valores">
         {% for p in situacion_financiera.posicion_neta %}
         <div class="est-posicion-neta-valor {% if p.total < 0 %}negativo{% else %}positivo{% endif %}">
-            ${{ p.total|floatformat:0|intcomma }}<span>{{ p.moneda }}</span>
+            ${{ p.total|pesos }}<span>{{ p.moneda }}</span>
         </div>
         {% endfor %}
     </div>
+</div>
+{% endif %}
+
+<!-- ══════════ LÍMITE CONTABLE (monotributo) — solo con permiso de editar empresa ══════════ -->
+{% if limite_contable %}
+<div class="est-limite-contable-card">
+    <p class="card-title">Límite contable{% if configuracion_limite_contable.nombre_categoria %} — {{ configuracion_limite_contable.nombre_categoria }}{% endif %}</p>
+    <p class="text-muted" style="font-size:.8125rem;">Total facturado (no la ganancia), independiente del filtro de fecha de abajo.</p>
+
+    {% if limite_contable.mensual or limite_contable.anual %}
+    <div class="est-limite-contable-bloques">
+        {% if limite_contable.mensual %}
+        <div class="est-limite-contable-bloque">
+            <div>
+                <span class="est-limite-contable-bloque-label">Este mes</span>
+                <div class="est-limite-contable-monto">${{ limite_contable.mensual.total|pesos }}<span class="est-limite-contable-monto-de">de ${{ limite_contable.mensual.limite|pesos }}</span></div>
+            </div>
+            <span class="est-badge-limite est-badge-limite--{{ limite_contable.mensual.estado }}">{{ limite_contable.mensual.porcentaje|floatformat:1 }}%</span>
+        </div>
+        {% endif %}
+        {% if limite_contable.anual %}
+        <div class="est-limite-contable-bloque">
+            <div>
+                <span class="est-limite-contable-bloque-label">Últimos 12 meses</span>
+                <div class="est-limite-contable-monto">${{ limite_contable.anual.total|pesos }}<span class="est-limite-contable-monto-de">de ${{ limite_contable.anual.limite|pesos }}</span></div>
+            </div>
+            <span class="est-badge-limite est-badge-limite--{{ limite_contable.anual.estado }}">{{ limite_contable.anual.porcentaje|floatformat:1 }}%</span>
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
+    <p class="text-muted" style="font-size:.8125rem; margin-top:.5rem;">
+        No cargaste ningún tope todavía — configuralo en <a href="{% url 'core:configuracion' %}#seccion-limite-contable">Configuración → Límite contable</a>.
+    </p>
+    {% endif %}
+
+    <details class="est-limite-contable-detalle">
+        <summary>Ver detalle mes a mes</summary>
+        <div class="est-limite-contable-tabla-wrap">
+            <table class="est-limite-contable-tabla">
+                <thead>
+                    <tr>
+                        <th>Mes</th>
+                        <th class="th-monto">Facturación total</th>
+                        <th class="th-monto">Sin efectivo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for fila in limite_contable.serie %}
+                    <tr>
+                        <td>{{ fila.mes|date:"M Y" }}</td>
+                        <td class="th-monto{% if configuracion_limite_contable.incluir_efectivo %} est-limite-contable-col-activa{% endif %}">${{ fila.total_con_efectivo|pesos }}</td>
+                        <td class="th-monto{% if not configuracion_limite_contable.incluir_efectivo %} est-limite-contable-col-activa{% endif %}">${{ fila.total_sin_efectivo|pesos }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </details>
 </div>
 {% endif %}
 
@@ -52,7 +111,7 @@
             </div>
             <div class="est-kpi-label">Total vendido</div>
         </div>
-        <div class="est-kpi-value">${{ resumen.ingresos|floatformat:0|intcomma }}</div>
+        <div class="est-kpi-value">${{ resumen.ingresos|pesos }}</div>
         {% if comparacion.variacion_ingresos is not None %}
             <div class="est-kpi-delta {% if comparacion.variacion_ingresos > 0 %}up{% elif comparacion.variacion_ingresos < 0 %}down{% else %}flat{% endif %}">
                 {% if comparacion.variacion_ingresos > 0 %}▲ {{ comparacion.variacion_ingresos|floatformat:0 }}% más{% elif comparacion.variacion_ingresos < 0 %}▼ {{ comparacion.variacion_ingresos|cut:"-"|floatformat:0 }}% menos{% else %}Igual{% endif %}
@@ -72,7 +131,7 @@
             </div>
             <div class="est-kpi-label">Total ganado</div>
         </div>
-        <div class="est-kpi-value">${{ resumen.ganancia_bruta|floatformat:0|intcomma }}</div>
+        <div class="est-kpi-value">${{ resumen.ganancia_bruta|pesos }}</div>
         {% if comparacion.variacion_ganancia is not None %}
             <div class="est-kpi-delta {% if comparacion.variacion_ganancia > 0 %}up{% elif comparacion.variacion_ganancia < 0 %}down{% else %}flat{% endif %}">
                 {% if comparacion.variacion_ganancia > 0 %}▲ {{ comparacion.variacion_ganancia|floatformat:0 }}% más{% elif comparacion.variacion_ganancia < 0 %}▼ {{ comparacion.variacion_ganancia|cut:"-"|floatformat:0 }}% menos{% else %}Igual{% endif %}
@@ -91,7 +150,7 @@
             </div>
             <div class="est-kpi-label">Ticket promedio</div>
         </div>
-        <div class="est-kpi-value">${{ ticket_promedio|floatformat:0|intcomma }}</div>
+        <div class="est-kpi-value">${{ ticket_promedio|pesos }}</div>
         <div class="est-kpi-sub">{{ resumen.cantidad_ventas }} venta{{ resumen.cantidad_ventas|pluralize }} confirmada{{ resumen.cantidad_ventas|pluralize }}</div>
     </div>
 
@@ -103,7 +162,7 @@
             </div>
             <div class="est-kpi-label">Facturado con ARCA</div>
         </div>
-        <div class="est-kpi-value">${{ facturacion_arca.total_facturado|floatformat:0|intcomma }}</div>
+        <div class="est-kpi-value">${{ facturacion_arca.total_facturado|pesos }}</div>
         <div class="est-kpi-sub">{{ facturacion_arca.pct_facturado }}% del total vendido — detalle en <a href="{% url 'core:estadisticas_ventas' %}">Ventas</a></div>
     </div>
 
@@ -115,7 +174,7 @@
             </div>
             <div class="est-kpi-label">Total gastado</div>
         </div>
-        <div class="est-kpi-value">${{ resumen.gastos|floatformat:0|intcomma }}</div>
+        <div class="est-kpi-value">${{ resumen.gastos|pesos }}</div>
         <div class="est-kpi-sub">Gastos operativos cargados en este período — detalle en <a href="{% url 'core:estadisticas_caja' %}">Caja y Finanzas</a></div>
     </div>
 
@@ -127,7 +186,7 @@
             </div>
             <div class="est-kpi-label">Total perdido</div>
         </div>
-        <div class="est-kpi-value">${{ perdidas_periodo.total_perdidas_periodo|floatformat:0|intcomma }}</div>
+        <div class="est-kpi-value">${{ perdidas_periodo.total_perdidas_periodo|pesos }}</div>
         <div class="est-kpi-sub">Por vencimiento y mermas — detalle en <a href="{% url 'core:estadisticas_productos' %}">Productos y Stock</a></div>
     </div>
 
@@ -147,54 +206,54 @@
                 <span class="est-resumen-bar"></span>
                 <span class="est-resumen-signo">+</span>
                 <span class="est-resumen-concepto">Total vendido</span>
-                <span class="est-resumen-monto">${{ resumen.ingresos|floatformat:0|intcomma }}</span>
+                <span class="est-resumen-monto">${{ resumen.ingresos|pesos }}</span>
             </div>
             <div class="est-resumen-fila" data-monto="{{ resumen.costo_mercaderia|floatformat:0 }}" data-tipo="negativo">
                 <span class="est-resumen-bar"></span>
                 <span class="est-resumen-signo menos">−</span>
                 <span class="est-resumen-concepto">Costo de esa mercadería</span>
-                <span class="est-resumen-monto menos">${{ resumen.costo_mercaderia|floatformat:0|intcomma }}</span>
+                <span class="est-resumen-monto menos">${{ resumen.costo_mercaderia|pesos }}</span>
             </div>
             {% if resumen.cobrado_de_mas %}
             <div class="est-resumen-fila" data-monto="{{ resumen.cobrado_de_mas|floatformat:0 }}" data-tipo="positivo">
                 <span class="est-resumen-bar"></span>
                 <span class="est-resumen-signo">+</span>
                 <span class="est-resumen-concepto">Redondeos y recargos cobrados</span>
-                <span class="est-resumen-monto">${{ resumen.cobrado_de_mas|floatformat:0|intcomma }}</span>
+                <span class="est-resumen-monto">${{ resumen.cobrado_de_mas|pesos }}</span>
             </div>
             {% endif %}
             <div class="est-resumen-fila subtotal">
                 <span class="est-resumen-signo">=</span>
                 <span class="est-resumen-concepto">Ganancia por las ventas</span>
-                <span class="est-resumen-monto">${{ resumen.ganancia_bruta|floatformat:0|intcomma }}</span>
+                <span class="est-resumen-monto">${{ resumen.ganancia_bruta|pesos }}</span>
             </div>
             <div class="est-resumen-fila" data-monto="{{ resumen.gastos|floatformat:0 }}" data-tipo="negativo">
                 <span class="est-resumen-bar"></span>
                 <span class="est-resumen-signo menos">−</span>
                 <span class="est-resumen-concepto">Gastos del período</span>
-                <span class="est-resumen-monto menos">${{ resumen.gastos|floatformat:0|intcomma }}</span>
+                <span class="est-resumen-monto menos">${{ resumen.gastos|pesos }}</span>
             </div>
             <div class="est-resumen-fila subtotal">
                 <span class="est-resumen-signo">=</span>
                 <span class="est-resumen-concepto">Te queda en el bolsillo</span>
-                <span class="est-resumen-monto">${{ resumen.ganancia_neta|floatformat:0|intcomma }}</span>
+                <span class="est-resumen-monto">${{ resumen.ganancia_neta|pesos }}</span>
             </div>
             <div class="est-resumen-fila" data-monto="{{ perdidas_periodo.total_vencido_periodo|floatformat:0 }}" data-tipo="negativo">
                 <span class="est-resumen-bar"></span>
                 <span class="est-resumen-signo menos">−</span>
                 <span class="est-resumen-concepto">Perdido por vencimiento en este período</span>
-                <span class="est-resumen-monto menos">${{ perdidas_periodo.total_vencido_periodo|floatformat:0|intcomma }}</span>
+                <span class="est-resumen-monto menos">${{ perdidas_periodo.total_vencido_periodo|pesos }}</span>
             </div>
             <div class="est-resumen-fila" data-monto="{{ perdidas_periodo.total_mermas_periodo|floatformat:0 }}" data-tipo="negativo">
                 <span class="est-resumen-bar"></span>
                 <span class="est-resumen-signo menos">−</span>
                 <span class="est-resumen-concepto">Perdido por rotura / merma en este período</span>
-                <span class="est-resumen-monto menos">${{ perdidas_periodo.total_mermas_periodo|floatformat:0|intcomma }}</span>
+                <span class="est-resumen-monto menos">${{ perdidas_periodo.total_mermas_periodo|pesos }}</span>
             </div>
             <div class="est-resumen-fila total">
                 <span class="est-resumen-signo">=</span>
                 <span class="est-resumen-concepto">Ganancia final real</span>
-                <span class="est-resumen-monto">${{ ganancia_final|floatformat:0|intcomma }}</span>
+                <span class="est-resumen-monto">${{ ganancia_final|pesos }}</span>
             </div>
         </div>
     </div>

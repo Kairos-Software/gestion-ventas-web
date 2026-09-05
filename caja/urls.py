@@ -71,6 +71,8 @@ urlpatterns = [
     path('cuentas-cobrar/previsualizar-cuotas/',     views_cuentas_cobrar.PrevisualizarCuotasCobroAjax.as_view(),   name='previsualizar_cuotas_cobro'),
     path('cuentas-cobrar/documentos/subir/',         views_cuentas_cobrar.CuentaCobrarDocumentoSubirAjax.as_view(),   name='cuenta_cobrar_documento_subir'),
     path('cuentas-cobrar/documentos/eliminar/',      views_cuentas_cobrar.CuentaCobrarDocumentoEliminarAjax.as_view(), name='cuenta_cobrar_documento_eliminar'),
+    path('cuentas-cobrar/pagare/subir/',              views_cuentas_cobrar.CuentaCobrarPagareSubirAjax.as_view(), name='cuenta_cobrar_pagare_subir'),
+    path('cuentas-cobrar/cuotas/<int:pk>/comprobante/', views_cuentas_cobrar.EditarComprobanteCuotaAjax.as_view(), name='editar_comprobante_cuota'),
     path('cuentas-cobrar/buscar-cliente/',           views_cuentas_cobrar.BuscarClienteCobrarAjax.as_view(),  name='buscar_cliente_cobrar'),
 
     # ══════════════════════════════════════════════════════════════════

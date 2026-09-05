@@ -314,8 +314,10 @@
                                         <option value="suspendido">Suspendido</option>
                                     </select>
                                 </div>
-                                {# El nivel de riesgo ahora lo calcula solo el scoring del cliente
-                                   (ver ficha del cliente → Scoring de riesgo de pago). #}
+                                {% comment %}
+                                El nivel de riesgo ahora lo calcula solo el scoring del cliente
+                                (ver ficha del cliente → Scoring de riesgo de pago).
+                                {% endcomment %}
                                 <div class="col-md-6">
                                     <label class="form-label">Canal preferido</label>
                                     <select class="form-select" name="canal_preferido" id="id_canal_preferido">
@@ -547,6 +549,15 @@
                                     <label class="form-label">Tags</label>
                                     <input type="text" class="form-control" name="tags" id="id_tags" placeholder="Ej: VIP, moroso, potencial (separados por coma)">
                                     <p class="field-hint">Separados por coma. Se muestran como chips en la lista.</p>
+                                </div>
+                            </div>
+
+                            <p class="form-section-title">Pagaré en blanco</p>
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-6">
+                                    <label class="form-label">N° de pagaré</label>
+                                    <input type="text" class="form-control" name="numero_pagare" id="id_numero_pagare" placeholder="Ej: 0001-00001234">
+                                    <p class="field-hint">Cubre el total de las cuentas del cliente. La foto del papel firmado se sube desde la ficha del cliente, una vez guardado.</p>
                                 </div>
                             </div>
 

@@ -1,5 +1,6 @@
 import os
 import json
+from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views import View
@@ -9,7 +10,7 @@ from productos.utils_imagenes import comprimir_imagen_subida
 
 from .models import (
     DatosEmpresa, CondicionIVA, ConfiguracionArca, AmbienteArca,
-    ConfiguracionVentas,
+    ConfiguracionVentas, ConfiguracionLimiteContable,
 )
 from .permisos import chequear_permiso
 from .services_arca import certificados, wsaa, wsfe
@@ -200,3 +201,43 @@ class ConfiguracionVentasGuardarAjax(LoginRequiredMixin, View):
         config.save(update_fields=['permitir_venta_sin_stock', 'actualizado_el'])
 
         return JsonResponse({'ok': True, 'permitir_venta_sin_stock': config.permitir_venta_sin_stock})
+
+
+class ConfiguracionLimiteContableGuardarAjax(LoginRequiredMixin, View):
+    """POST JSON con la configuración del seguimiento de límite de facturación
+    de monotributo — sección Configuración → Límite contable."""
+
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_empresa'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        try:
+            limite_mensual = Decimal(str(body.get('limite_mensual') or '0'))
+            limite_anual = Decimal(str(body.get('limite_anual') or '0'))
+        except InvalidOperation:
+            return JsonResponse({'error': 'Límite inválido.'}, status=400)
+        if limite_mensual < 0 or limite_anual < 0:
+            return JsonResponse({'error': 'El límite no puede ser negativo.'}, status=400)
+
+        try:
+            umbral_alerta_pct = int(body.get('umbral_alerta_pct') or 80)
+        except (ValueError, TypeError):
+            return JsonResponse({'error': 'Umbral de alerta inválido.'}, status=400)
+        umbral_alerta_pct = max(1, min(100, umbral_alerta_pct))
+
+        config = ConfiguracionLimiteContable.get_solo()
+        config.activo = bool(body.get('activo'))
+        config.nombre_categoria = str(body.get('nombre_categoria') or '').strip()[:50]
+        config.limite_mensual = limite_mensual
+        config.limite_anual = limite_anual
+        config.incluir_efectivo = bool(body.get('incluir_efectivo'))
+        config.solo_facturado_arca = bool(body.get('solo_facturado_arca'))
+        config.umbral_alerta_pct = umbral_alerta_pct
+        config.save()
+
+        return JsonResponse({'ok': True})

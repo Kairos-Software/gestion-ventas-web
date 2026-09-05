@@ -71,6 +71,14 @@
     margin: 0;
 }
 
+.cxc-filtros-resumen {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+}
+
 .btn-filtros-toggle {
     display: inline-flex;
     align-items: center;
@@ -662,8 +670,9 @@
 .cxc-totales {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.75rem;
-    margin-bottom: 1.5rem;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin: 0;
 }
 
 .cxc-total-card {
@@ -672,8 +681,8 @@
     gap: 0.5rem;
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg);
-    padding: 0.6rem 1rem;
+    border-radius: var(--radius-sm);
+    padding: 0.45rem 0.75rem;
 }
 
 .cxc-total-label {
@@ -685,9 +694,13 @@
 .cxc-total-monto {
     font-family: var(--font-heading);
     font-weight: 700;
-    font-size: 1.1rem;
+    font-size: 1rem;
     color: var(--success);
     font-variant-numeric: tabular-nums;
+}
+
+.cxc-total-card--zero .cxc-total-monto {
+    color: var(--text-muted);
 }
 
 /* ── Carga inicial (cuenta preexistente) ───────────────────────── */
@@ -887,6 +900,48 @@
 .doc-desc-input::placeholder { color: var(--text-muted); }
 .doc-upload-status { font-size: 0.78rem; color: var(--text-muted); font-style: italic; }
 
+/* ── Foto del pagaré (una sola, se reemplaza) ────────────────── */
+.pagare-foto-wrap { margin-bottom: 0.5rem; }
+.pagare-foto-vacio { font-size: 0.82rem; color: var(--text-muted); font-style: italic; margin: 0; padding: 0.2rem 0; }
+.pagare-foto-link { display: inline-block; }
+.pagare-foto-thumb {
+    display: block;
+    max-width: 160px;
+    max-height: 160px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    object-fit: cover;
+    transition: border-color .15s, box-shadow .15s;
+}
+.pagare-foto-thumb:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
+
+/* ── N° de comprobante por cuota (tabla de cuotas) ───────────── */
+.cxc-cuota-comprobante-input {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 7px;
+    padding: 0.28rem 0.5rem;
+    font-size: 0.8rem;
+    color: var(--text-primary);
+    outline: none;
+    font-family: var(--font-body);
+    width: 100%;
+    max-width: 130px;
+    transition: border-color .15s;
+}
+.cxc-cuota-comprobante-input:focus { border-color: var(--accent-primary); }
+.cxc-cuota-comprobante-editar {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 0.1rem 0.2rem;
+    font-size: 0.78rem;
+    line-height: 1;
+    transition: color .15s;
+}
+.cxc-cuota-comprobante-editar:hover { color: var(--accent-primary); }
+
 /* ── Cuotas libres (modo_cuotas) ─────────────────────────────── */
 
 /* Mismo componente que caja/static/caja/css/deudas.css — se duplica
@@ -1045,6 +1100,17 @@
     }
     .filtro-campo--ancho {
         grid-column: span 1;
+    }
+    .cxc-filtros-header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+    .cxc-filtros-resumen {
+        justify-content: space-between;
+    }
+    .cxc-totales {
+        flex: 1 1 auto;
+        justify-content: flex-start;
     }
     .cxc-form-section-header {
         flex-wrap: wrap;

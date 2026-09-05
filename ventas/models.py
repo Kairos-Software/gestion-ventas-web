@@ -910,9 +910,11 @@ class Venta(models.Model):
                             fecha_inicio_cobro = date.fromisoformat(str(fecha_inicio_raw))
                         except ValueError:
                             raise ValueError('Fecha de inicio de cobro inválida.')
+                    numero_pagare = str(p.get('numero_pagare', '') or '').strip()[:100]
                     cuotas_info = {
                         'cliente': cliente_venta, 'modo_cuotas': modo_cuotas, 'cantidad_cuotas': cantidad_cuotas,
                         'interes_pct': interes_pct, 'fecha_inicio_cobro': fecha_inicio_cobro,
+                        'numero_pagare': numero_pagare,
                     }
                 else:
                     cuenta = CuentaCaja.objects.filter(
@@ -1056,6 +1058,7 @@ class Venta(models.Model):
                         moneda=Moneda.ARS,
                         descripcion=f'Venta {self.numero}',
                         numero_comprobante=self.numero,
+                        numero_pagare=info['numero_pagare'],
                         creado_por=confirmado_por,
                     )
                 if p['cheques_info'] is not None:

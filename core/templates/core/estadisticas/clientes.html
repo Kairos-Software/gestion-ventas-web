@@ -5,7 +5,7 @@
 {% block breadcrumb %}<strong>Estadísticas</strong> · Clientes{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'core/css/estadisticas.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas.css' %}?v=20260903">
 <link rel="stylesheet" href="{% static 'core/css/estadisticas_cliente_perfil.css' %}">
 {% endblock %}
 
@@ -86,7 +86,7 @@
                     </div>
                 </div>
                 <div class="est-ranking-right">
-                    <div class="est-ranking-ganancia">${{ cl.total_comprado|floatformat:0|intcomma }}</div>
+                    <div class="est-ranking-monto"><span class="est-ranking-etiqueta">te compró</span>${{ cl.total_comprado|floatformat:0|intcomma }}</div>
                 </div>
             </div>
             {% endfor %}
@@ -200,7 +200,7 @@
                     </div>
                 </div>
                 <div class="est-ranking-right">
-                    <div class="est-ranking-ganancia">${{ d.total|floatformat:0|intcomma }}</div>
+                    <div class="est-ranking-monto es-deuda"><span class="est-ranking-etiqueta">te debe</span>${{ d.total|floatformat:0|intcomma }}</div>
                 </div>
             </div>
             {% endfor %}

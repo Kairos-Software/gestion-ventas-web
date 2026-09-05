@@ -393,6 +393,7 @@ html { scroll-behavior: smooth; }
 .config-status-badge--ok        { background: rgba(16,185,129,0.1); color: var(--success); }
 .config-status-badge--pendiente { background: rgba(245,158,11,0.1); color: var(--warning); }
 .config-status-badge--off       { background: var(--bg-secondary); color: var(--text-muted); }
+.config-status-badge--superado  { background: rgba(239,68,68,0.1); color: var(--danger); }
 
 /* Recuadro destacado dentro de una sección (ej: "Generar CSR") */
 .config-callout {

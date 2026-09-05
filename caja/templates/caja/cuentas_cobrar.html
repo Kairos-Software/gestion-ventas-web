@@ -39,22 +39,20 @@
     </header>
 
     <!-- ══════════════════════════════════
-         TOTAL A COBRAR
-    ══════════════════════════════════ -->
-    <div class="cxc-totales" id="cxcTotales"></div>
-
-    <!-- ══════════════════════════════════
          FILTROS
     ══════════════════════════════════ -->
     <section class="cxc-section">
         <div class="cxc-filtros-header">
             <h2 class="cxc-section-title">Historial</h2>
-            <button type="button" class="btn-filtros-toggle" id="btnToggleFiltros" aria-expanded="false">
-                <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
-                    <path d="M2 4H14M4.5 8H11.5M7 12H9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-                </svg>
-                Filtros
-            </button>
+            <div class="cxc-filtros-resumen">
+                <div class="cxc-totales" id="cxcTotales" aria-live="polite"></div>
+                <button type="button" class="btn-filtros-toggle" id="btnToggleFiltros" aria-expanded="false">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                        <path d="M2 4H14M4.5 8H11.5M7 12H9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                    </svg>
+                    Filtros
+                </button>
+            </div>
         </div>
 
         <form id="formFiltros" class="cxc-filtros" hidden>
@@ -275,6 +273,9 @@
                 <input type="text" id="detNotas" placeholder="Observaciones (opcional)">
             </div>
 
+            <h3 class="cxc-cuotas-title">Pagaré</h3>
+            <div class="cxc-pagare" id="cxcPagare"></div>
+
             <h3 class="cxc-cuotas-title" id="cuotasTitle">Cuotas</h3>
             <div class="cxc-cuotas-wrap">
                 <table class="cxc-cuotas-tabla">
@@ -284,6 +285,7 @@
                             <th>Vencimiento</th>
                             <th class="th-monto">Monto</th>
                             <th>Estado</th>
+                            <th>N° comprobante</th>
                             <th class="th-acciones">Confirmar cobro</th>
                         </tr>
                     </thead>
@@ -308,6 +310,10 @@
                     <select id="raCuenta">
                         <option value="">— Elegí una cuenta —</option>
                     </select>
+                </div>
+                <div class="form-campo">
+                    <label for="raComprobante">N° de comprobante</label>
+                    <input type="text" id="raComprobante" placeholder="Opcional">
                 </div>
                 <div id="raMsg" style="color:#dc2626; font-size:.8125rem; margin-bottom:.5rem;"></div>
                 <div class="cxc-registrar-abono-acciones">
@@ -371,6 +377,10 @@
                 <label for="cchc_banco">Banco</label>
                 <input type="text" id="cchc_banco" placeholder="Ej: Banco Galicia">
             </div>
+            <div class="form-campo">
+                <label for="cchc_numero_comprobante">N° de comprobante</label>
+                <input type="text" id="cchc_numero_comprobante" placeholder="Opcional">
+            </div>
             <div id="cchcMsg" style="color:#dc2626; font-size:.8125rem; margin-bottom:.5rem;"></div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-ghost" id="btnCancelarChequeCuota">Cancelar</button>
@@ -399,6 +409,8 @@
         previsualizarCuotas: '{{ url_previsualizar_cuotas }}',
         documentoSubir: '{{ url_documento_subir }}',
         documentoEliminar: '{{ url_documento_eliminar }}',
+        pagareSubir: '{{ url_pagare_subir }}',
+        editarComprobanteCuota: '{{ url_editar_comprobante_cuota }}',
         buscarCliente: '{{ url_buscar_cliente }}',
         clientePerfilBase: '{{ url_cliente_perfil_base }}',
     };
@@ -406,7 +418,8 @@
     window.cxcPuedeConfirmar = {{ puede_confirmar|yesno:"true,false" }};
     window.cxcPuedeEditar = {{ puede_editar|yesno:"true,false" }};
 </script>
-<script src="{% static 'caja/js/cuentas_cobrar.js' %}?v=20260910"></script>
+<script src="{% static 'caja/js/cuentas_cobrar.js' %}?v=20260904"></script>
 <script src="{% static 'caja/js/cuentas_cobrar_documentos.js' %}"></script>
+<script src="{% static 'caja/js/cuentas_cobrar_pagare.js' %}"></script>
 <script src="{% static 'caja/js/cuentas_cobrar_imprimir.js' %}"></script>
 {% endblock %}

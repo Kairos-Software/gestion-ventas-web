@@ -1,13 +1,14 @@
 <!-- core/templates/core/configuracion.html -->
 {% extends 'core/base.html' %}
 {% load static %}
+{% load kai_formato %}
 
 {% block title %}Configuración{% endblock %}
 
 {% block breadcrumb %}<strong>Configuración</strong>{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'core/css/configuracion.css' %}?v=20260902.1">
+<link rel="stylesheet" href="{% static 'core/css/configuracion.css' %}?v=20260904">
 {% endblock %}
 
 {% block content %}
@@ -27,6 +28,7 @@
         {% if puede_editar_empresa %}<a href="#seccion-arca">Facturación Electrónica</a>{% endif %}
         {% if puede_editar_cuentas %}<a href="#seccion-cuentas">Cuentas de caja</a>{% endif %}
         {% if puede_editar_config_ventas %}<a href="#seccion-ventas">Ventas</a>{% endif %}
+        {% if puede_editar_limite_contable %}<a href="#seccion-limite-contable">Límite contable</a>{% endif %}
         <a href="#seccion-apariencia">Apariencia</a>
         {% if puede_editar_asistencia %}<a href="#seccion-notificaciones">Notificaciones</a>{% endif %}
         <a href="#seccion-sistema">Sistema</a>
@@ -405,6 +407,109 @@
     </div>
     {% endif %}
 
+    <!-- ── Límite contable / monotributo (solo el dueño) ── -->
+    {% if puede_editar_limite_contable %}
+    <div class="config-section" id="seccion-limite-contable">
+        <div class="config-section-header">
+            <div class="config-section-icon" style="background:rgba(99,102,241,0.1); color:#6366f1;">
+                <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                    <path d="M3 17V6L10 2L17 6V17" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+                    <path d="M7 10V14M10 8V14M13 11V14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <div>
+                <h2>Límite contable</h2>
+                <p>
+                    ARCA evalúa la categoría de monotributo sobre el <strong>total facturado</strong> (no la ganancia)
+                    de una ventana móvil de los últimos 12 meses, no el año calendario. Acá solo se configura el
+                    seguimiento — el resumen calculado (tabla de meses, % y aviso) se ve en
+                    <strong>Estadísticas → Resumen</strong>.
+                </p>
+            </div>
+        </div>
+
+        <form id="formConfigLimiteContable">
+            {% csrf_token %}
+            <div class="config-row config-setting-row">
+                <div class="config-row-info">
+                    <div class="config-row-label">Activar seguimiento</div>
+                    <div class="config-row-desc">Con esto apagado no se calcula ni se muestra nada en Estadísticas.</div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="idLimiteActivo" {% if configuracion_limite_contable.activo %}checked{% endif %}>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+
+            <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                <label class="config-row-label kai-label-help">
+                    Categoría (informativo)
+                    <button type="button" class="kai-help-btn" data-help-target="ayuda_limite_facturado" aria-label="Ayuda">?</button>
+                </label>
+                <div class="kai-help-popover" id="ayuda_limite_facturado">
+                    El tope de categoría de monotributo se mide sobre el <strong>total vendido</strong>, no sobre
+                    la ganancia. Ejemplo: si algo te costó $100 y lo vendiste a $150, cuenta como $150 facturados
+                    para este límite — no los $50 de ganancia.
+                </div>
+                <input class="form-control" id="idLimiteNombreCategoria" value="{{ configuracion_limite_contable.nombre_categoria }}" placeholder="Ej: Categoría D">
+            </div>
+
+            <div class="config-row config-form-pair">
+                <div class="config-field">
+                    <label class="config-row-label" for="idLimiteMensual">Tope mensual (opcional)</label>
+                    <input type="number" min="0" step="0.01" class="form-control" id="idLimiteMensual" value="{{ configuracion_limite_contable.limite_mensual }}" placeholder="0 = no controlar">
+                </div>
+                <div class="config-field">
+                    <label class="config-row-label" for="idLimiteAnual">Tope anual (opcional)</label>
+                    <input type="number" min="0" step="0.01" class="form-control" id="idLimiteAnual" value="{{ configuracion_limite_contable.limite_anual }}" placeholder="0 = no controlar">
+                </div>
+            </div>
+            <p class="config-row-desc" style="padding:0 0 0.5rem;">
+                Se controla el que tenga un valor cargado — podés cargar uno solo o los dos en simultáneo.
+            </p>
+
+            <div class="config-row config-setting-row">
+                <div class="config-row-info">
+                    <div class="config-row-label">Incluir efectivo en el cálculo</div>
+                    <div class="config-row-desc">
+                        Prendido (recomendado): cuenta todos los medios de pago, que es lo que realmente exige ARCA.
+                        Apagado: muestra el acumulado excluyendo efectivo, como vista adicional.
+                    </div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="idLimiteIncluirEfectivo" {% if configuracion_limite_contable.incluir_efectivo %}checked{% endif %}>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+
+            <div class="config-row config-setting-row">
+                <div class="config-row-info">
+                    <div class="config-row-label">Contar solo lo facturado con ARCA</div>
+                    <div class="config-row-desc">
+                        Apagado (recomendado): cuenta toda venta confirmada, esté o no facturada electrónicamente
+                        (es ingreso bruto igual). Prendido: cuenta solo lo que generó comprobante ARCA (CAE) real,
+                        como vista adicional.
+                    </div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="idLimiteSoloArca" {% if configuracion_limite_contable.solo_facturado_arca %}checked{% endif %}>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+
+            <div class="config-row" style="flex-direction:column; align-items:flex-start;">
+                <label class="config-row-label" for="idLimiteUmbralAlerta">Avisar cuando se llegue al (%) del tope</label>
+                <input type="number" min="1" max="100" class="form-control" id="idLimiteUmbralAlerta" value="{{ configuracion_limite_contable.umbral_alerta_pct }}" style="max-width:120px;">
+            </div>
+
+            <div class="config-row config-form-actions">
+                <button type="submit" class="btn btn-sm" style="background:var(--brand-orange); color:white;">Guardar cambios</button>
+            </div>
+            <div id="configLimiteContableMsg" class="config-empresa-msg"></div>
+        </form>
+    </div>
+    {% endif %}
+
     <!-- ── Apariencia (todos) ── -->
     <div class="config-section" id="seccion-apariencia">
         <div class="config-section-header">
@@ -769,6 +874,9 @@
     window.CONFIG_VENTAS_URLS = {
         guardar: "{% url 'core:config_ventas_guardar' %}",
     };
+    window.CONFIG_LIMITE_CONTABLE_URLS = {
+        guardar: "{% url 'core:config_limite_contable_guardar' %}",
+    };
 </script>
-<script src="{% static 'core/js/configuracion.js' %}?v=20260913.1"></script>
+<script src="{% static 'core/js/configuracion.js' %}?v=20260904"></script>
 {% endblock %}

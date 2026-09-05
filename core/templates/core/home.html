@@ -120,9 +120,13 @@
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7.5" stroke="currentColor" stroke-width="1.5"/><path d="M10 6V10L12.5 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </div>
             <div class="home-kpi-info">
-                <span class="home-kpi-label">Ganancia neta de hoy</span>
-                <span class="home-kpi-value">${{ kpi_ventas_hoy.ganancia_neta|floatformat:0 }}</span>
+                <span class="home-kpi-label">Ganancia de hoy</span>
+                <span class="home-kpi-value">${{ kpi_ventas_hoy.ganancia_bruta|floatformat:0 }}</span>
+                {% if kpi_ventas_hoy.gastos %}
+                <span class="home-kpi-sub" title="Ganancia de las ventas (margen + redondeos y recargos) ${{ kpi_ventas_hoy.ganancia_bruta|floatformat:0 }} menos ${{ kpi_ventas_hoy.gastos|floatformat:0 }} de gastos cargados hoy.">Margen {{ kpi_ventas_hoy.margen_pct }}% · te queda ${{ kpi_ventas_hoy.ganancia_neta|floatformat:0 }} tras gastos</span>
+                {% else %}
                 <span class="home-kpi-sub">Margen {{ kpi_ventas_hoy.margen_pct }}%</span>
+                {% endif %}
             </div>
         </div>
         {% endif %}

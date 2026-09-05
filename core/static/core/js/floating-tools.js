@@ -112,71 +112,153 @@
     // ══════════════════════════════════════════════════════════════════
     // CONTADOR DE BILLETES
     // ══════════════════════════════════════════════════════════════════
-    const BILLETES_KEY = 'contadorBilletesDenominaciones';
+    // El estado es COMPARTIDO: vive en el servidor (una fila para toda la
+    // instalación, ver core/views_billetes.py), no en el navegador. Así
+    // el arqueo se ve igual desde cualquier PC. Antes estaba en
+    // localStorage y no se sincronizaba entre navegadores.
+    //
+    // `billetesLista` es la copia en memoria y la única fuente de verdad
+    // mientras la ventana está abierta. Se sincroniza con el server:
+    //   - al abrir / restaurar / des-minimizar  → GET (traer)
+    //   - en cada cambio                          → POST con debounce
+    //   - al cerrar / minimizar / navegar        → POST inmediato (flush)
 
-    // Orden de mayor a menor (antes estaba de menor a mayor).
+    const BILLETES_URL = (window.CONTADOR_BILLETES_URL || '/billetes/');
+
+    // Orden de mayor a menor.
     function ordenDescendente(a, b) { return b.valor - a.valor; }
 
-    function leerBilletes() {
-        try {
-            const data = JSON.parse(localStorage.getItem(BILLETES_KEY) || '[]');
-            return Array.isArray(data) ? data : [];
-        } catch (e) { return []; }
+    let billetesLista = [];      // [{valor, cantidad}]
+    let billetesGuardarTimer = null;
+
+    function billetesTotal() {
+        return billetesLista.reduce(function (acc, it) {
+            return acc + it.valor * it.cantidad;
+        }, 0);
     }
 
-    function guardarBilletes(lista) {
-        localStorage.setItem(BILLETES_KEY, JSON.stringify(lista));
+    function pintarTotalBilletes() {
+        const totalEl = document.getElementById('billetesTotal');
+        if (totalEl) totalEl.textContent = formatearMonto(billetesTotal());
     }
 
+    function cargarBilletesServidor(cb) {
+        fetch(BILLETES_URL, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+        })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+                if (data && Array.isArray(data.denominaciones)) {
+                    billetesLista = data.denominaciones.map(function (d) {
+                        return {
+                            valor: Number(d.valor) || 0,
+                            cantidad: parseInt(d.cantidad, 10) || 0,
+                        };
+                    }).filter(function (d) { return d.valor > 0; });
+                }
+                if (typeof cb === 'function') cb();
+            })
+            .catch(function () { if (typeof cb === 'function') cb(); });
+    }
+
+    function enviarBilletes(usarKeepalive) {
+        const opciones = {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken'),
+            },
+            body: JSON.stringify({ denominaciones: billetesLista }),
+        };
+        if (usarKeepalive) opciones.keepalive = true;
+        return fetch(BILLETES_URL, opciones).catch(function () {
+            /* sin red: se reintenta en el próximo cambio */
+        });
+    }
+
+    // Debounce: se llama en cada tecla, pero el POST sale un ratito
+    // después para no golpear el server con cada dígito.
+    function guardarBilletesServidor() {
+        clearTimeout(billetesGuardarTimer);
+        billetesGuardarTimer = setTimeout(function () {
+            billetesGuardarTimer = null;
+            enviarBilletes(false);
+        }, 600);
+    }
+
+    // Manda ya lo que haya pendiente (al cerrar, minimizar o navegar).
+    function flushGuardarBilletes() {
+        if (!billetesGuardarTimer) return;
+        clearTimeout(billetesGuardarTimer);
+        billetesGuardarTimer = null;
+        enviarBilletes(true);
+    }
+
+    // Rearma la lista completa en el DOM. Solo se llama cuando cambia la
+    // cantidad de filas (abrir, traer del server, agregar, eliminar) —
+    // NUNCA al tipear una cantidad, porque recrear los inputs le roba el
+    // foco al usuario y el scroll salta al tope de la herramienta.
     function renderBilletes() {
         const cont = document.getElementById('billetesFilas');
         if (!cont) return;
 
-        const lista = leerBilletes().sort(ordenDescendente);
+        billetesLista.sort(ordenDescendente);
         cont.innerHTML = '';
 
-        if (lista.length === 0) {
+        if (billetesLista.length === 0) {
             cont.innerHTML = '<p class="billetes-vacio">Todavía no cargaste ninguna denominación. Agregá la primera abajo.</p>';
         }
 
-        let total = 0;
-
-        lista.forEach(function (item, index) {
-            total += item.valor * item.cantidad;
-
+        billetesLista.forEach(function (item, index) {
             const fila = document.createElement('div');
             fila.className = 'billete-fila';
             fila.innerHTML =
                 '<span class="billete-valor">' + formatearMonto(item.valor) + '</span>' +
                 '<input type="number" class="billete-cantidad-input" min="0" step="1" value="' + item.cantidad + '" data-index="' + index + '" aria-label="Cantidad de billetes de ' + formatearMonto(item.valor) + '">' +
-                '<span class="billete-subtotal">' + formatearMonto(item.valor * item.cantidad) + '</span>' +
+                '<span class="billete-subtotal" data-index="' + index + '">' + formatearMonto(item.valor * item.cantidad) + '</span>' +
                 '<button type="button" class="billete-eliminar" data-index="' + index + '" aria-label="Quitar esta denominación">×</button>';
             cont.appendChild(fila);
         });
 
-        const totalEl = document.getElementById('billetesTotal');
-        if (totalEl) totalEl.textContent = formatearMonto(total);
+        pintarTotalBilletes();
 
         cont.querySelectorAll('.billete-cantidad-input').forEach(function (input) {
-            input.addEventListener('input', function () {
-                const idx = parseInt(this.dataset.index, 10);
-                const listaActual = leerBilletes().sort(ordenDescendente);
-                const cantidad = parseInt(this.value, 10);
-                listaActual[idx].cantidad = isNaN(cantidad) ? 0 : cantidad;
-                guardarBilletes(listaActual);
-                renderBilletes();
-            });
+            input.addEventListener('input', onCantidadBilleteInput);
+            // Al entrar al campo se selecciona todo: así el "0" que viene
+            // por defecto se reemplaza al primer dígito en vez de quedar
+            // pegado adelante ("0" + "121" = "0121").
+            input.addEventListener('focus', function () { this.select(); });
         });
-
         cont.querySelectorAll('.billete-eliminar').forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                const idx = parseInt(this.dataset.index, 10);
-                const listaActual = leerBilletes().sort(ordenDescendente);
-                listaActual.splice(idx, 1);
-                guardarBilletes(listaActual);
-                renderBilletes();
-            });
+            btn.addEventListener('click', onEliminarBilleteClick);
         });
+    }
+
+    function onCantidadBilleteInput() {
+        const idx = parseInt(this.dataset.index, 10);
+        const item = billetesLista[idx];
+        if (!item) return;
+
+        const cantidad = parseInt(this.value, 10);
+        item.cantidad = (isNaN(cantidad) || cantidad < 0) ? 0 : cantidad;
+
+        // Solo tocamos el subtotal de ESTA fila y el total — sin re-render,
+        // así el input no se destruye y el cursor no se mueve.
+        const sub = document.querySelector('.billete-subtotal[data-index="' + idx + '"]');
+        if (sub) sub.textContent = formatearMonto(item.valor * item.cantidad);
+        pintarTotalBilletes();
+
+        guardarBilletesServidor();
+    }
+
+    function onEliminarBilleteClick() {
+        const idx = parseInt(this.dataset.index, 10);
+        if (!billetesLista[idx]) return;
+        billetesLista.splice(idx, 1);
+        renderBilletes();
+        guardarBilletesServidor();
     }
 
     window.agregarDenominacion = function () {
@@ -192,18 +274,17 @@
             return;
         }
 
-        const lista = leerBilletes();
-        const existente = lista.find(function (b) { return b.valor === valor; });
+        const existente = billetesLista.find(function (b) { return b.valor === valor; });
         if (existente) {
             existente.cantidad += cantidad;
         } else {
-            lista.push({ valor: valor, cantidad: cantidad });
+            billetesLista.push({ valor: valor, cantidad: cantidad });
         }
 
-        guardarBilletes(lista);
         valorInput.value = '';
         cantidadInput.value = '0';
         renderBilletes();
+        guardarBilletesServidor();
         valorInput.focus();
     };
 
@@ -213,12 +294,11 @@
     // volver a cargarlas cada vez. Para sacar una denominación puntual
     // sigue estando el × de cada fila.
     window.reiniciarContadorBilletes = async function () {
-        const lista = leerBilletes();
-        if (lista.length === 0) return;
+        if (billetesLista.length === 0) return;
         if (!await KaiConfirm('¿Poner todas las cantidades en 0? Las denominaciones cargadas se mantienen.')) return;
-        lista.forEach(function (item) { item.cantidad = 0; });
-        guardarBilletes(lista);
+        billetesLista.forEach(function (item) { item.cantidad = 0; });
         renderBilletes();
+        guardarBilletesServidor();
     };
 
     // Botón "+" discreto: el formulario de alta queda oculto por defecto
@@ -246,7 +326,11 @@
         if (abrir) {
             win.classList.remove('minimized');
             traerAlFrente(win);
+            // Traé lo último del server por si otro navegador lo cambió.
             renderBilletes();
+            cargarBilletesServidor(renderBilletes);
+        } else {
+            flushGuardarBilletes();
         }
     };
 
@@ -299,7 +383,12 @@
         const win = document.getElementById(id);
         if (!win) return;
         win.classList.toggle('minimized');
-        guardarEstadoVentana(id, win.classList.contains('minimized') ? 'minimized' : 'open');
+        const minimizada = win.classList.contains('minimized');
+        guardarEstadoVentana(id, minimizada ? 'minimized' : 'open');
+        if (id === 'floatingBilletes') {
+            if (minimizada) flushGuardarBilletes();
+            else cargarBilletesServidor(renderBilletes);
+        }
     };
 
     // Restaura, sin resetear campos ni robar foco, el estado que tenían
@@ -318,7 +407,7 @@
             traerAlFrente(win);
             marcarNavItemActivo(id, true);
             if (guardado === 'minimized') win.classList.add('minimized');
-            if (id === 'floatingBilletes') renderBilletes();
+            if (id === 'floatingBilletes') cargarBilletesServidor(renderBilletes);
         });
     }
 
@@ -353,5 +442,10 @@
             if (key === 'u') { e.preventDefault(); toggleFloatingVuelto(); return; }
         });
     });
+
+    // Cada sección es una carga de página nueva: si quedó un guardado del
+    // contador en el aire, lo mandamos antes de irnos (keepalive) para no
+    // perder los últimos dígitos tipeados.
+    window.addEventListener('pagehide', flushGuardarBilletes);
 
 })();

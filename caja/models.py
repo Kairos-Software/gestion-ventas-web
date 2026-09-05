@@ -3134,6 +3134,12 @@ class DeudaDocumento(models.Model):
 #  EGRESO) cuando el cliente efectivamente paga esa cuota.
 # ══════════════════════════════════════════════════════════════════
 
+def _cuenta_cobrar_pagare_path(instance, filename):
+    """Ruta: cuentas_cobrar/<pk>/pagare/<filename>"""
+    nombre_limpio = _os.path.basename(filename)
+    return f'cuentas_cobrar/{instance.pk}/pagare/{nombre_limpio}'
+
+
 class CuentaPorCobrar(models.Model):
     """
     Cabecera de una venta financiada en cuotas. El detalle de cobro
@@ -3168,6 +3174,14 @@ class CuentaPorCobrar(models.Model):
     numero_comprobante = models.CharField(
         max_length=100, blank=True,
         help_text='N° de factura/comprobante que se le dio al cliente, si corresponde.',
+    )
+    numero_pagare = models.CharField(
+        max_length=100, blank=True,
+        help_text='N° del pagaré firmado por el cliente como respaldo legal, si corresponde.',
+    )
+    foto_pagare = models.ImageField(
+        upload_to=_cuenta_cobrar_pagare_path, null=True, blank=True,
+        help_text='Foto del pagaré ya firmado, por si se pierde el papel.',
     )
     es_carga_inicial = models.BooleanField(
         default=False,
@@ -3226,7 +3240,7 @@ class CuentaPorCobrar(models.Model):
                           fecha_inicio, moneda=Moneda.ARS, descripcion='', notas='',
                           pago_venta=None, creado_por=None, numero_comprobante='',
                           modo_cuotas=ModoCuotas.FIJAS, es_carga_inicial=False,
-                          cuotas_historicas=None, abonos_historicos=None):
+                          cuotas_historicas=None, abonos_historicos=None, numero_pagare=''):
         """
         Crea la CuentaPorCobrar. Si modo_cuotas=FIJAS, genera de una el plan
         de N cuotas iguales (comportamiento original). Si modo_cuotas=LIBRE,
@@ -3281,6 +3295,7 @@ class CuentaPorCobrar(models.Model):
             moneda=moneda, modo_cuotas=modo_cuotas, cantidad_cuotas=cantidad_cuotas,
             fecha_inicio=fecha_inicio, notas=notas, creado_por=creado_por,
             numero_comprobante=numero_comprobante, es_carga_inicial=es_carga_inicial,
+            numero_pagare=numero_pagare,
         )
 
         if modo_cuotas == ModoCuotas.LIBRE:
@@ -3335,7 +3350,7 @@ class CuentaPorCobrar(models.Model):
     @transaction.atomic
     def registrar_abono(self, *, monto, usuario, cuenta_pk=None, cheque_data=None,
                          fecha=None, es_historica=False, cuenta_pago_historica=None,
-                         medio_pago_historico='', cheque_historico=None):
+                         medio_pago_historico='', cheque_historico=None, numero_comprobante=''):
         """
         Solo para modo_cuotas=LIBRE: registra un cobro de monto libre. A
         diferencia de una cuota fija (que se genera de antemano y se
@@ -3380,17 +3395,17 @@ class CuentaPorCobrar(models.Model):
                 cheque_historico=cheque_historico,
             )
         elif cheque_data:
-            cuota.confirmar_con_cheque(cheque_data, usuario, adelantar=True)
+            cuota.confirmar_con_cheque(cheque_data, usuario, adelantar=True, numero_comprobante=numero_comprobante)
         else:
-            cuota.confirmar(cuenta_pk, usuario, adelantar=True)
+            cuota.confirmar(cuenta_pk, usuario, adelantar=True, numero_comprobante=numero_comprobante)
 
         _recalcular_scoring_pk(self.cliente_id)
         return cuota
 
     @transaction.atomic
     def editar(self, *, descripcion=None, notas=None, numero_comprobante=None,
-               monto_original=None, porcentaje_interes=None, cantidad_cuotas=None,
-               fecha_inicio=None, moneda=None):
+               numero_pagare=None, monto_original=None, porcentaje_interes=None,
+               cantidad_cuotas=None, fecha_inicio=None, moneda=None):
         """
         Edita una cuenta por cobrar existente. `descripcion`/`notas` se
         pueden tocar siempre. `numero_comprobante` también, EXCEPTO si la
@@ -3431,6 +3446,8 @@ class CuentaPorCobrar(models.Model):
             self.notas = notas
         if numero_comprobante is not None:
             self.numero_comprobante = numero_comprobante
+        if numero_pagare is not None:
+            self.numero_pagare = numero_pagare
 
         if toca_plan:
             if monto_original is not None:
@@ -3581,6 +3598,10 @@ class CuotaCobro(models.Model):
                    'cuenta_pago_historica ni un Cheque.es_historico (ej. "permuta", '
                    '"compensación con otra deuda") — nota libre de registro.',
     )
+    numero_comprobante = models.CharField(
+        max_length=100, blank=True,
+        help_text='N° del comprobante/recibo entregado al cliente al cobrar esta cuota, si corresponde.',
+    )
 
     class Meta:
         verbose_name        = 'Cuota de cobro'
@@ -3600,7 +3621,7 @@ class CuotaCobro(models.Model):
         return timezone.localtime().date() >= self.fecha_vencimiento - timedelta(days=DIAS_HABILITACION_CUOTA)
 
     @transaction.atomic
-    def confirmar(self, cuenta_pk, usuario, adelantar=False):
+    def confirmar(self, cuenta_pk, usuario, adelantar=False, numero_comprobante=''):
         # select_for_update(): mismo guard que CuotaDeuda.confirmar() —
         # un doble clic en "Confirmar cobro" no debe generar dos ingresos.
         if CuotaCobro.objects.select_for_update().get(pk=self.pk).estado != EstadoCuota.PENDIENTE:
@@ -3626,13 +3647,16 @@ class CuotaCobro(models.Model):
         self.estado = EstadoCuota.CONFIRMADA
         self.fecha_confirmacion = timezone.now()
         self.confirmado_por = usuario
-        self.save(update_fields=['cuenta_cobro', 'estado', 'fecha_confirmacion', 'confirmado_por'])
+        self.numero_comprobante = numero_comprobante
+        self.save(update_fields=[
+            'cuenta_cobro', 'estado', 'fecha_confirmacion', 'confirmado_por', 'numero_comprobante',
+        ])
 
         sincronizar_movimiento_cuota_cobro(self)
         _recalcular_scoring_de_cxc(self.cuenta_por_cobrar_id)
 
     @transaction.atomic
-    def confirmar_con_cheque(self, cheque_data, usuario, adelantar=False):
+    def confirmar_con_cheque(self, cheque_data, usuario, adelantar=False, numero_comprobante=''):
         """
         Alternativa a confirmar(): esta cuota se cobra con un cheque de
         un tercero (A_COBRAR) por su monto exacto. La cuota NO queda
@@ -3691,6 +3715,10 @@ class CuotaCobro(models.Model):
             cuota_cobro=self,
             creado_por=usuario,
         )
+
+        if numero_comprobante:
+            self.numero_comprobante = numero_comprobante
+            self.save(update_fields=['numero_comprobante'])
 
 
 def generar_cuotas_cobro(cuenta_por_cobrar):

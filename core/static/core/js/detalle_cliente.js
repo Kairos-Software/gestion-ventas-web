@@ -148,4 +148,86 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     })();
 
+    // ══ PAGARÉ EN BLANCO ══
+    (function initPagare() {
+        const card = document.getElementById('pagCard');
+        if (!card) return;
+        const urlGuardar = card.dataset.urlGuardar;
+        const urlSubir = card.dataset.urlSubir;
+
+        function getCookie(name) {
+            let v = null;
+            document.cookie.split(';').forEach(c => {
+                const [k, val] = c.trim().split('=');
+                if (k === name) v = decodeURIComponent(val);
+            });
+            return v;
+        }
+
+        const msgEl = document.getElementById('pagMsg');
+
+        const btnGuardar = document.getElementById('btnGuardarPagare');
+        if (btnGuardar) {
+            btnGuardar.addEventListener('click', async () => {
+                const numero = document.getElementById('pagNumero')?.value || '';
+                btnGuardar.disabled = true;
+                if (msgEl) msgEl.textContent = '';
+                try {
+                    const res = await fetch(urlGuardar, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                        body: JSON.stringify({ numero_pagare: numero }),
+                    });
+                    const data = await res.json();
+                    if (!res.ok || !data.ok) {
+                        if (msgEl) msgEl.textContent = data.error || 'No se pudo guardar.';
+                        return;
+                    }
+                    if (window.KaiToast) KaiToast.show('N° de pagaré guardado.', 'success');
+                } catch {
+                    if (msgEl) msgEl.textContent = 'Error de conexión. Intentá de nuevo.';
+                } finally {
+                    btnGuardar.disabled = false;
+                }
+            });
+        }
+
+        const fileInput = document.getElementById('pagFile');
+        if (fileInput) {
+            fileInput.addEventListener('change', async () => {
+                const file = fileInput.files && fileInput.files[0];
+                if (!file) return;
+                const statusEl = document.getElementById('pagStatus');
+                const labelEl = fileInput.closest('.doc-subir-label');
+                if (statusEl) statusEl.style.display = 'inline';
+                if (labelEl) labelEl.style.pointerEvents = 'none';
+                if (msgEl) msgEl.textContent = '';
+
+                const formData = new FormData();
+                formData.append('archivo', file);
+                try {
+                    const res = await fetch(urlSubir, {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                        body: formData,
+                    });
+                    const data = await res.json();
+                    if (!res.ok || !data.ok) {
+                        if (msgEl) msgEl.textContent = data.error || 'No se pudo subir la foto.';
+                        return;
+                    }
+                    // Recargamos la ficha: más simple y garantiza que la
+                    // miniatura y el texto "Subir"/"Reemplazar" queden coherentes.
+                    window.location.reload();
+                } catch {
+                    if (msgEl) msgEl.textContent = 'Error de conexión. Intentá de nuevo.';
+                } finally {
+                    if (statusEl) statusEl.style.display = 'none';
+                    if (labelEl) labelEl.style.pointerEvents = '';
+                    fileInput.value = '';
+                }
+            });
+        }
+    })();
+
 });

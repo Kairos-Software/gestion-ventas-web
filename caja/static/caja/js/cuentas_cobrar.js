@@ -47,6 +47,10 @@ document.addEventListener('DOMContentLoaded', function () {
         return urls.registrarAbono.replace('/0/', `/${cxcPk}/`);
     }
 
+    function urlEditarComprobanteCuota(cuotaPk) {
+        return urls.editarComprobanteCuota.replace('/0/', `/${cuotaPk}/`);
+    }
+
     let paginaActual = 1;
     let porPagina = 50;
     let cxcDetalleActual = null;
@@ -107,6 +111,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const raMonto = document.getElementById('raMonto');
     const raFecha = document.getElementById('raFecha');
     const raCuenta = document.getElementById('raCuenta');
+    const raComprobante = document.getElementById('raComprobante');
     const raMsg = document.getElementById('raMsg');
     const btnAbonar = document.getElementById('btnAbonar');
     const btnAbonarCheque = document.getElementById('btnAbonarCheque');
@@ -494,13 +499,20 @@ document.addEventListener('DOMContentLoaded', function () {
     function renderizarTotales(totalesPendientes) {
         if (!cxcTotales) return;
         const entradas = Object.entries(totalesPendientes || {});
+        const filtros = getFiltrosActivos();
+        const hayFiltros = Object.keys(filtros).length > 0;
+        const etiqueta = hayFiltros ? 'Total filtrado' : 'Te deben en total';
         if (entradas.length === 0) {
-            cxcTotales.innerHTML = '';
+            cxcTotales.innerHTML = `
+                <div class="cxc-total-card cxc-total-card--zero">
+                    <span class="cxc-total-label">${etiqueta}</span>
+                    <span class="cxc-total-monto">${fmtMoneda(0, filtros.moneda || '')}</span>
+                </div>`;
             return;
         }
         cxcTotales.innerHTML = entradas.map(([moneda, total]) => `
             <div class="cxc-total-card">
-                <span class="cxc-total-label">Te deben</span>
+                <span class="cxc-total-label">${etiqueta}</span>
                 <span class="cxc-total-monto">${fmtMoneda(total, moneda)}</span>
             </div>
         `).join('');
@@ -687,6 +699,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 ${item('N° de comprobante', (puedeEditar && !d.venta_numero)
                     ? `<input type="text" id="detNumeroComprobante" placeholder="Opcional" value="${_cxcEscInput(d.numero_comprobante)}">`
                     : (d.numero_comprobante || '-'))}
+                ${item('N° de pagaré', puedeEditar
+                    ? `<input type="text" id="detNumeroPagare" placeholder="Opcional" value="${_cxcEscInput(d.numero_pagare)}">`
+                    : (d.numero_pagare || '-'))}
                 ${item('Moneda', puedeEditarPlan
                     ? `<select id="detMoneda">${cMoneda.innerHTML}</select>`
                     : d.moneda)}
@@ -719,6 +734,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // confirm al hacer click, no acá.
 
         if (typeof renderizarDocumentosCxc === 'function') renderizarDocumentosCxc(d);
+        if (typeof renderizarPagareCxc === 'function') renderizarPagareCxc(d);
 
         if (cuotasTitle) cuotasTitle.textContent = d.modo_cuotas === 'libre' ? 'Abonos' : 'Cuotas';
 
@@ -734,6 +750,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 raFecha.max = today;
                 const cuentasAbono = cuentasPorMoneda(d.moneda);
                 poblarSelect(raCuenta, cuentasAbono, cuentaPrincipalEn(cuentasAbono));
+                if (raComprobante) raComprobante.value = '';
                 raMsg.textContent = '';
             }
         }
@@ -806,16 +823,58 @@ document.addEventListener('DOMContentLoaded', function () {
             } else if (c.estado === 'confirmada') {
                 accion = `${c.cuenta_cobro_nombre} <span class="cxc-cuota-fecha">(${c.fecha_confirmacion ? c.fecha_confirmacion.slice(0, 10) : ''})</span>`;
             }
+
+            let comprobanteCelda = '-';
+            if (c.estado === 'confirmada' && !c.es_historica) {
+                const valor = c.numero_comprobante ? _cxcEscInput(c.numero_comprobante) : '-';
+                comprobanteCelda = `<span id="comprobanteView${c.pk}">${valor}` +
+                    (puedeEditar ? ` <button type="button" class="cxc-cuota-comprobante-editar" onclick="editarComprobanteCuota(${c.pk})" aria-label="Editar N° de comprobante">✎</button>` : '') +
+                    `</span>`;
+            } else if (c.estado === 'pendiente' && puedeConfirmar && !chequeActivo) {
+                comprobanteCelda = `<input type="text" id="cuotaComprobante${c.pk}" class="cxc-cuota-comprobante-input" placeholder="Opcional">`;
+            }
+
             return `
                 <tr>
                     <td>${c.numero}</td>
                     <td>${c.fecha_vencimiento}</td>
                     <td class="cxc-monto">${fmtMoneda(c.monto, d.moneda)}</td>
                     <td><span class="cxc-badge-estado cxc-badge-estado--${c.estado === 'confirmada' ? 'activa' : c.estado === 'anulada' ? 'anulada' : 'pendiente'}">${c.estado}</span></td>
+                    <td>${comprobanteCelda}</td>
                     <td>${accion}</td>
                 </tr>`;
         }).join('');
     }
+
+    window.editarComprobanteCuota = function (cuotaPk) {
+        const cuota = (cxcDetalleActual && cxcDetalleActual.cuotas || []).find(c => c.pk === cuotaPk);
+        const celda = document.getElementById(`comprobanteView${cuotaPk}`)?.closest('td');
+        if (!celda) return;
+        celda.innerHTML = `
+            <input type="text" id="comprobanteEdit${cuotaPk}" class="cxc-cuota-comprobante-input" value="${_cxcEscInput(cuota ? cuota.numero_comprobante : '')}">
+            <button type="button" class="btn btn-primary btn--sm" onclick="guardarComprobanteCuota(${cuotaPk})">Guardar</button>`;
+    };
+
+    window.guardarComprobanteCuota = async function (cuotaPk) {
+        const input = document.getElementById(`comprobanteEdit${cuotaPk}`);
+        const numeroComprobante = input ? input.value : '';
+        try {
+            const response = await fetch(urlEditarComprobanteCuota(cuotaPk), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                body: JSON.stringify({ numero_comprobante: numeroComprobante }),
+            });
+            const result = await response.json();
+            if (result.success) {
+                window.verCxc(cxcDetalleActual.pk);
+            } else {
+                KaiToast.show(result.error || 'Error al guardar el comprobante.', 'danger');
+            }
+        } catch (error) {
+            console.error('Error al guardar comprobante:', error);
+            KaiToast.show('Error al guardar el comprobante.', 'danger');
+        }
+    };
 
     window.confirmarCuotaCobro = async function (cuotaPk, adelantar = false) {
         const select = document.getElementById(`cuentaCuota${cuotaPk}`);
@@ -824,6 +883,8 @@ document.addEventListener('DOMContentLoaded', function () {
             KaiToast.show('Elegí la cuenta a la que entra el cobro.', 'warning');
             return;
         }
+        const comprobanteInput = document.getElementById(`cuotaComprobante${cuotaPk}`);
+        const numeroComprobante = comprobanteInput ? comprobanteInput.value : '';
         const mensaje = adelantar
             ? '¿Adelantar el cobro de esta cuota antes de su fecha habilitada? Esto va a impactar la caja.'
             : '¿Confirmar el cobro de esta cuota? Esto va a impactar la caja.';
@@ -836,7 +897,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': getCookie('csrftoken'),
                 },
-                body: JSON.stringify({ cuenta_pk: cuentaPk, adelantar }),
+                body: JSON.stringify({ cuenta_pk: cuentaPk, adelantar, numero_comprobante: numeroComprobante }),
             });
             const result = await response.json();
 
@@ -878,6 +939,7 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('cchc_fecha_cobro').value = today;
         document.getElementById('cchc_emisor').value = '';
         document.getElementById('cchc_banco').value = '';
+        document.getElementById('cchc_numero_comprobante').value = '';
         document.getElementById('cchcMsg').textContent = '';
 
         modalChequeCuota.hidden = false;
@@ -923,6 +985,7 @@ document.addEventListener('DOMContentLoaded', function () {
             emisor: document.getElementById('cchc_emisor').value,
             banco: document.getElementById('cchc_banco').value,
         };
+        const numeroComprobante = document.getElementById('cchc_numero_comprobante').value;
 
         btnGuardarChequeCuota.disabled = true;
         try {
@@ -934,12 +997,16 @@ document.addEventListener('DOMContentLoaded', function () {
                         monto: chequeCuotaActual.monto,
                         fecha: chequeCuotaActual.fecha,
                         cheque: chequeData,
+                        numero_comprobante: numeroComprobante,
                     }),
                 })
                 : await fetch(urlConfirmarCuota(chequeCuotaActual.cuotaPk), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
-                    body: JSON.stringify({ adelantar: chequeCuotaActual.adelantar, cheque: chequeData }),
+                    body: JSON.stringify({
+                        adelantar: chequeCuotaActual.adelantar, cheque: chequeData,
+                        numero_comprobante: numeroComprobante,
+                    }),
                 });
             const result = await response.json();
             if (result.success) {
@@ -974,7 +1041,10 @@ document.addEventListener('DOMContentLoaded', function () {
             const response = await fetch(urlRegistrarAbono(cxcDetalleActual.pk), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
-                body: JSON.stringify({ monto, fecha, cuenta_pk: cuentaPk }),
+                body: JSON.stringify({
+                    monto, fecha, cuenta_pk: cuentaPk,
+                    numero_comprobante: raComprobante ? raComprobante.value : '',
+                }),
             });
             const result = await response.json();
             if (result.success) {
@@ -1006,8 +1076,10 @@ document.addEventListener('DOMContentLoaded', function () {
         const payload = { notas: detNotas.value };
         const detDescripcion = document.getElementById('detDescripcion');
         const detNumeroComprobante = document.getElementById('detNumeroComprobante');
+        const detNumeroPagare = document.getElementById('detNumeroPagare');
         if (detDescripcion) payload.descripcion = detDescripcion.value;
         if (detNumeroComprobante) payload.numero_comprobante = detNumeroComprobante.value;
+        if (detNumeroPagare) payload.numero_pagare = detNumeroPagare.value;
 
         // Estos campos solo existen en el DOM si todavía no hay cuotas
         // confirmadas y la cuenta no nació de una venta (ver

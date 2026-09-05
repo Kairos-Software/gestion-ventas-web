@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 from django.utils import timezone
@@ -923,6 +925,21 @@ class Cliente(models.Model):
     # ── Foto de perfil ────────────────────────────────────────────
     foto_perfil = models.ImageField(upload_to='clientes/perfiles/', blank=True, null=True)
 
+    # ── Pagaré en blanco (respaldo legal general del cliente) ──────
+    #  Distinto del pagaré puntual de una CuentaPorCobrar concreta (ver
+    #  CuentaPorCobrar.numero_pagare/foto_pagare): este cubre el total de
+    #  TODAS las cuentas activas del cliente en un momento dado (ej. ya
+    #  debía $50, se le vende $30 más, firma un pagaré nuevo por $80 acá).
+    #  Uno solo — subir una foto nueva reemplaza la anterior.
+    numero_pagare = models.CharField(
+        max_length=100, blank=True,
+        help_text='N° del pagaré en blanco firmado por el total de sus cuentas, si corresponde.',
+    )
+    foto_pagare = models.ImageField(
+        upload_to='clientes/pagares/', blank=True, null=True,
+        help_text='Foto del pagaré en blanco ya firmado, por si se pierde el papel.',
+    )
+
     # ── CRM ───────────────────────────────────────────────────────
     notas            = models.TextField('Notas internas', blank=True)
     como_nos_conocio = models.CharField('¿Cómo nos conoció?', max_length=200, blank=True)
@@ -1418,6 +1435,73 @@ class ConfiguracionVentas(models.Model):
         return obj
 
 
+class ConfiguracionLimiteContable(models.Model):
+    """
+    Modelo singleton (mismo patrón que ConfiguracionVentas/ConfiguracionArca)
+    con el seguimiento del tope de facturación de la categoría de monotributo
+    de esta instalación. Se edita desde Configuración → Límite contable — el
+    resumen calculado (tabla de meses, %, aviso) NO se muestra ahí, se
+    muestra en Estadísticas → Resumen (ver views_estadisticas.resumen),
+    gateado por el mismo permiso que edita esta configuración.
+
+    ARCA evalúa la recategorización de monotributo mirando los ingresos
+    brutos de una ventana móvil de los últimos 12 meses (no año calendario;
+    ver `limite_anual`), contando todos los medios de pago — efectivo
+    incluido — y toda venta confirmada, esté o no facturada electrónicamente
+    (ver `solo_facturado_arca`). `incluir_efectivo`/`solo_facturado_arca` no
+    cambian lo que la ley exige, solo dan vistas adicionales (proxy de lo
+    que es más difícil de no declarar / de lo que queda trazado en ARCA).
+    Además del tope anual, `limite_mensual` permite llevar un control del
+    mes en curso en paralelo — ninguno de los dos es obligatorio, se
+    calcula el que tenga un valor cargado (>0).
+    """
+    activo = models.BooleanField(
+        default=False,
+        help_text='Si está apagado, no se calcula ni se muestra el resumen de facturación.',
+    )
+    nombre_categoria = models.CharField(
+        max_length=50, blank=True,
+        help_text='Categoría de monotributo actual, a modo informativo (ej. "Categoría D").',
+    )
+    limite_mensual = models.DecimalField(
+        max_digits=14, decimal_places=2, default=Decimal('0'),
+        help_text='Tope de facturación del mes en curso, opcional (0 = no se controla).',
+    )
+    limite_anual = models.DecimalField(
+        max_digits=14, decimal_places=2, default=Decimal('0'),
+        help_text='Tope de ingresos brutos anuales de la categoría según ARCA, opcional (0 = no se controla).',
+    )
+    incluir_efectivo = models.BooleanField(
+        default=True,
+        help_text='Prendido (recomendado): cuenta todos los medios de pago, que es lo que '
+                   'realmente exige ARCA. Apagado: muestra el acumulado excluyendo efectivo, '
+                   'como vista adicional.',
+    )
+    solo_facturado_arca = models.BooleanField(
+        default=False,
+        help_text='Apagado (recomendado): cuenta toda venta confirmada, esté o no facturada '
+                   'electrónicamente (es ingreso bruto igual). Prendido: cuenta solo lo que '
+                   'generó comprobante ARCA (CAE) real, como vista adicional.',
+    )
+    umbral_alerta_pct = models.PositiveSmallIntegerField(
+        default=80,
+        help_text='Porcentaje del límite a partir del cual se avisa que se está acercando.',
+    )
+    actualizado_el = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Configuración de límite contable'
+        verbose_name_plural = 'Configuración de límite contable'
+
+    def __str__(self):
+        return 'Configuración de límite contable'
+
+    @classmethod
+    def get_solo(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
 def permite_venta_sin_stock():
     """
     Atajo global: ¿esta instalación tolera que una venta o un movimiento
@@ -1428,6 +1512,37 @@ def permite_venta_sin_stock():
     cacheada por la base, barata de consultar.
     """
     return ConfiguracionVentas.get_solo().permitir_venta_sin_stock
+
+
+class ContadorBilletes(models.Model):
+    """
+    Estado compartido del Contador de billetes (la herramienta flotante
+    de core/base.html). Una sola fila para toda la instalación —mismo
+    patrón singleton que DatosEmpresa / ConfiguracionVentas— así el
+    arqueo se ve igual desde cualquier navegador o dispositivo.
+
+    Antes vivía únicamente en el localStorage del navegador: lo que se
+    cargaba en una PC no aparecía en otra.
+
+    `denominaciones` es una lista de dicts:
+        [{"valor": 1000, "cantidad": 3}, {"valor": 500, "cantidad": 8}]
+    ordenada de mayor a menor. La normaliza siempre la vista antes de
+    guardar (ver core/views_billetes.py).
+    """
+    denominaciones = models.JSONField(default=list, blank=True)
+    actualizado_el = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Contador de billetes'
+        verbose_name_plural = 'Contador de billetes'
+
+    def __str__(self):
+        return 'Contador de billetes'
+
+    @classmethod
+    def get_solo(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
 
 
 class Nota(models.Model):

@@ -385,6 +385,7 @@ document.addEventListener('DOMContentLoaded', function () {
         set('id_fecha_desde_cliente', c.fecha_desde_cliente);
         set('id_fecha_ultimo_contacto', c.fecha_ultimo_contacto);
         set('id_fecha_proximo_contacto', c.fecha_proximo_contacto);
+        set('id_numero_pagare', c.numero_pagare);
 
         // Teléfonos
         if (telContainer) { telContainer.innerHTML = ''; (c.telefonos || []).forEach(t => agregarFilaTelefono(t)); }

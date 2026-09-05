@@ -562,6 +562,12 @@ function _cuotasExtraHTML(l) {
             <input type="date" class="vdt-pago-select"
                    value="${l.fechaInicioCobro || ''}" data-campo="fechaInicioCobro" data-id="${l.id}">
         </div>`}
+    </div>
+    <div class="vdt-pago-pagare-row">
+        <span class="vdt-pago-cuotas-label">N° de pagaré (si firmó uno por esta deuda)</span>
+        <input type="text" class="vdt-pago-select" placeholder="Opcional"
+               value="${_escVdt(l.numeroPagare || '').replace(/"/g, '&quot;')}"
+               data-campo="numeroPagare" data-id="${l.id}">
     </div>`;
 }
 
@@ -750,6 +756,10 @@ function _renderLineas() {
             if (campo === 'modoCuotas') {
                 linea.modoCuotas = el.checked ? 'libre' : 'fijas';
                 _renderLineas();
+                return;
+            }
+            if (campo === 'numeroPagare') {
+                linea.numeroPagare = el.value;
                 return;
             }
             if (campo === 'interesPct') {
@@ -1156,6 +1166,7 @@ function _getPagoPayload() {
                 cuotas: libre ? null : l.cuotas,
                 interes_pct: l.interesPct != null ? l.interesPct : 0,
                 fecha_inicio_cobro: libre ? null : (l.fechaInicioCobro || null),
+                numero_pagare: l.numeroPagare || '',
             };
         }
         if (l.medio === 'cheque') {

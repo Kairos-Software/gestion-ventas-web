@@ -10,6 +10,7 @@ from . import views_cuentas
 from . import views_reiniciar
 from . import views_estadisticas
 from . import views_notas
+from . import views_billetes
 from . import views_recuperacion
 
 app_name = 'core'
@@ -65,6 +66,8 @@ urlpatterns = [
     path('clientes/<int:pk>/', views_clientes.ClienteDetalleView.as_view(), name='cliente_detalle'),
     path('clientes/<int:pk>/scoring/', views_clientes.ClienteScoringAjax.as_view(), name='cliente_scoring'),
     path('clientes/<int:pk>/imagenes/', views_clientes.ClienteImagenAjax.as_view(), name='cliente_imagenes'),
+    path('clientes/<int:pk>/pagare/guardar/', views_clientes.ClientePagareGuardarAjax.as_view(), name='cliente_pagare_guardar'),
+    path('clientes/<int:pk>/pagare/subir/', views_clientes.ClientePagareSubirAjax.as_view(), name='cliente_pagare_subir'),
     path('clientes/<int:pk>/contactos/', views_clientes.ClienteContactoAjax.as_view(), name='cliente_contactos'),
     path('clientes/<int:pk>/telefonos/', views_clientes.ClienteTelefonoAjax.as_view(), name='cliente_telefonos'),
     path('clientes/grupos/', views_clientes.GrupoFamiliarAjax.as_view(), name='grupo_familiar'),
@@ -86,6 +89,9 @@ urlpatterns = [
     # ── Preferencias de ventas (Configuración → Ventas) ────────────
     path('configuracion/ventas/guardar/', views_empresa.ConfiguracionVentasGuardarAjax.as_view(), name='config_ventas_guardar'),
 
+    # ── Límite contable / monotributo (Configuración) ───────────────
+    path('configuracion/limite-contable/guardar/', views_empresa.ConfiguracionLimiteContableGuardarAjax.as_view(), name='config_limite_contable_guardar'),
+
     # ── Cuentas de caja (tarjetas/billeteras/bancos — Configuración) ──
     path('configuracion/cuentas/guardar/', views_cuentas.CuentaCrearEditarAjax.as_view(), name='cuenta_guardar'),
     path('configuracion/cuentas/baja/', views_cuentas.CuentaEliminarAjax.as_view(), name='cuenta_baja'),
@@ -100,4 +106,7 @@ urlpatterns = [
     path('notas/listar/', views_notas.NotasListarAjax.as_view(), name='notas_listar'),
     path('notas/acciones/', views_notas.NotaCrearEditarAjax.as_view(), name='nota_acciones'),
     path('notas/eliminar/', views_notas.NotaEliminarAjax.as_view(), name='nota_eliminar'),
+
+    # ── Contador de billetes (herramienta flotante — estado compartido) ──
+    path('billetes/', views_billetes.ContadorBilletesAjax.as_view(), name='contador_billetes'),
 ]

@@ -11,6 +11,8 @@ from django.db import transaction
 from django.conf import settings
 from django.utils import timezone
 
+from productos.utils_imagenes import comprimir_imagen_subida
+
 from .models import (
     Cliente, ClienteImagen, ClienteContactoAdicional,
     ClienteTelefono, GrupoFamiliar, recalcular_scoring_pendientes
@@ -103,6 +105,7 @@ def _cliente_a_dict(c):
         'fecha_desde_cliente':     str(c.fecha_desde_cliente) if c.fecha_desde_cliente else '',
         'fecha_ultimo_contacto':   str(c.fecha_ultimo_contacto) if c.fecha_ultimo_contacto else '',
         'fecha_proximo_contacto':  str(c.fecha_proximo_contacto) if c.fecha_proximo_contacto else '',
+        'numero_pagare':           c.numero_pagare,
         # Imágenes
         'imagenes': [
             {
@@ -224,6 +227,67 @@ class ClienteDetalleView(LoginRequiredMixin, View):
             'puede_eliminar': chequear_permiso(request.user, 'eliminar_clientes'),
         }
         return render(request, 'core/detalle_cliente.html', context)
+
+
+# ── AJAX: Pagaré en blanco (respaldo legal general del cliente) ───
+#  Distinto del pagaré puntual de una CuentaPorCobrar (ver
+#  caja.views_cuentas_cobrar.CuentaCobrarPagareSubirAjax) — este es
+#  uno solo por cliente, cubre el total de todas sus cuentas activas.
+
+PAGARE_TAMANIO_MAXIMO = 10 * 1024 * 1024
+PAGARE_EXTENSIONES_PERMITIDAS = {'.jpg', '.jpeg', '.png', '.webp'}
+
+
+class ClientePagareGuardarAjax(LoginRequiredMixin, View):
+    """POST JSON {numero_pagare} — guarda el N° del pagaré en blanco del cliente."""
+
+    def post(self, request, pk):
+        if not chequear_permiso(request.user, 'editar_clientes'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        cliente = get_object_or_404(Cliente, pk=pk)
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        cliente.numero_pagare = str(body.get('numero_pagare', '') or '').strip()[:100]
+        cliente.save(update_fields=['numero_pagare'])
+        return JsonResponse({'ok': True, 'numero_pagare': cliente.numero_pagare})
+
+
+class ClientePagareSubirAjax(LoginRequiredMixin, View):
+    """POST multipart, campo `archivo` — sube/reemplaza la foto del pagaré en blanco."""
+
+    def post(self, request, pk):
+        if not chequear_permiso(request.user, 'editar_clientes'):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        archivo = request.FILES.get('archivo')
+        if not archivo:
+            return JsonResponse({'error': 'No se recibió ningún archivo.'}, status=400)
+
+        if archivo.size > PAGARE_TAMANIO_MAXIMO:
+            return JsonResponse({'error': 'El archivo supera el límite de 10 MB.'}, status=400)
+
+        ext = os.path.splitext(archivo.name)[1].lower()
+        if ext not in PAGARE_EXTENSIONES_PERMITIDAS:
+            return JsonResponse({'error': 'Usá JPG, PNG o WEBP para la foto del pagaré.'}, status=400)
+
+        cliente = get_object_or_404(Cliente, pk=pk)
+
+        try:
+            archivo = comprimir_imagen_subida(archivo)
+        except Exception:
+            return JsonResponse({'error': 'No se pudo procesar la imagen. Probá con otra foto.'}, status=400)
+
+        if cliente.foto_pagare and os.path.isfile(cliente.foto_pagare.path):
+            os.remove(cliente.foto_pagare.path)
+
+        cliente.foto_pagare = archivo
+        cliente.save(update_fields=['foto_pagare'])
+
+        return JsonResponse({'ok': True, 'foto_pagare_url': cliente.foto_pagare.url})
 
 
 class ClienteScoringAjax(LoginRequiredMixin, View):

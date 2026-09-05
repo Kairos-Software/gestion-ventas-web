@@ -253,6 +253,7 @@ def ranking_empleados(desde, hasta, top=10):
             'id': empleado_id,
             'nombre': nombre or fila['venta__confirmado_por__username'],
             'ingresos': ingresos,
+            'costo': costo,
             'ganancia': ganancia,
             'cant_ventas': cant_ventas,
             'ticket_promedio': round(ingresos / cant_ventas, 2) if cant_ventas else Decimal('0'),
@@ -296,6 +297,7 @@ def ranking_categorias(desde, hasta, top=10):
             'id': cat_id,
             'nombre': fila['producto__categoria__nombre'],
             'ingresos': ingresos,
+            'costo': costo,
             'ganancia': ingresos - costo,
             'unidades': fila['unidades'] or 0,
         })
@@ -434,13 +436,23 @@ def ranking_productos(desde, hasta, top=10):
         producto_id = fila['producto__id']
         ingresos = fila['ingresos'] or Decimal('0')
         costo = costos_dict.get(producto_id, Decimal('0'))
+        unidades = fila['unidades'] or Decimal('0')
         ranking.append({
             'id': producto_id,
             'nombre': fila['producto__nombre'],
             'codigo': fila['producto__codigo'],
             'ingresos': ingresos,
+            'costo': costo,
             'ganancia': ingresos - costo,
-            'unidades': fila['unidades'] or 0,
+            'unidades': unidades,
+            # promedios reales del período (total ÷ unidades), para que se
+            # entienda que "vendido" y "costo" no son un precio fijo sino la
+            # suma de ventas/compras a distinto precio.
+            'precio_prom': (ingresos / unidades) if unidades else Decimal('0'),
+            'costo_prom': (costo / unidades) if unidades else Decimal('0'),
+            # markup real sobre el costo — comparable con el "% de ganancia"
+            # que se configura por producto (ej.: costo 124 + 60% = 198,40).
+            'margen_sobre_costo': ((ingresos - costo) / costo * 100) if costo else None,
         })
 
     ranking.sort(key=lambda r: r['ganancia'], reverse=True)

@@ -1,11 +1,11 @@
 {% extends "core/base.html" %}
-{% load static humanize %}
+{% load static humanize kai_formato %}
 
 {% block title %}Estadísticas — Productos y Stock{% endblock %}
 {% block breadcrumb %}<strong>Estadísticas</strong> · Productos y Stock{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'core/css/estadisticas.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas.css' %}?v=20260903">
 {% endblock %}
 
 {% block content %}
@@ -53,8 +53,13 @@
 <div class="card mb-4">
     <div class="card-header">
         <div>
-            <p class="card-title">¿Cómo rinden tus combos?</p>
+            <p class="card-title">¿Cómo rinden tus combos?
+                <button type="button" class="kai-help-btn" data-help-target="ayuda_rendimiento_paquetes" aria-label="Cómo se calcula">?</button>
+            </p>
             <p class="text-muted" style="font-size:.8125rem;">Paquetes vendidos en este período, por ganancia real</p>
+            <div class="kai-help-popover" id="ayuda_rendimiento_paquetes">
+                <strong>Ganancia = vendido − costo.</strong> El costo es el de los productos reales que se descontaron al armar cada paquete (costo por lote, FIFO), no un valor fijo del combo.
+            </div>
         </div>
     </div>
     <div class="card-body">
@@ -66,12 +71,14 @@
                     <span class="est-ranking-pos">{{ forloop.counter }}</span>
                     <div>
                         <div class="est-ranking-nombre">{{ pq.nombre }}</div>
-                        <div class="est-ranking-detalle">{{ pq.codigo }} · {{ pq.unidades }} unid. vendidas</div>
+                        <div class="est-ranking-detalle">
+                            Cód. {{ pq.codigo }} · {{ pq.unidades|cantidad }} u vendidas a ${{ pq.precio_prom|floatformat:0|intcomma }} c/u promedio{% if pq.margen_sobre_costo is not None %} · margen {{ pq.margen_sobre_costo|floatformat:0 }}% sobre el costo{% endif %}
+                        </div>
                     </div>
                 </div>
                 <div class="est-ranking-right">
-                    <div class="est-ranking-ganancia">${{ pq.ganancia|floatformat:0|intcomma }}</div>
-                    <div class="est-ranking-vendido">${{ pq.ingresos|floatformat:0|intcomma }} vendido</div>
+                    <div class="est-ranking-ganancia"><span class="est-ranking-etiqueta">ganancia</span>${{ pq.ganancia|floatformat:0|intcomma }}</div>
+                    <div class="est-ranking-vendido">${{ pq.ingresos|floatformat:0|intcomma }} vendido · ${{ pq.costo|floatformat:0|intcomma }} de costo</div>
                 </div>
             </div>
             {% endfor %}
@@ -101,8 +108,8 @@
                         {% for p in stock_bajo %}
                         <tr>
                             <td>{{ p.nombre }} <span class="badge badge-secondary">{{ p.codigo }}</span></td>
-                            <td class="font-semibold text-danger">{{ p.stock_actual }}</td>
-                            <td>{{ p.stock_minimo }}</td>
+                            <td class="font-semibold text-danger">{{ p.stock_actual|cantidad }}</td>
+                            <td>{{ p.stock_minimo|cantidad }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -132,7 +139,7 @@
                         {% for p in sin_movimiento %}
                         <tr>
                             <td>{{ p.nombre }} <span class="badge badge-secondary">{{ p.codigo }}</span></td>
-                            <td>{{ p.stock_actual }}</td>
+                            <td>{{ p.stock_actual|cantidad }}</td>
                             <td class="font-semibold">${{ p.valor|floatformat:0|intcomma }}</td>
                         </tr>
                         {% endfor %}
@@ -166,7 +173,7 @@
             <div class="est-perdida-box merma">
                 <div class="est-perdida-titulo">Se rompió o se perdió</div>
                 <div class="est-perdida-valor">${{ perdidas_periodo.total_mermas_periodo|floatformat:0|intcomma }}</div>
-                <div class="est-perdida-nota">{{ perdidas_periodo.unidades_mermas_periodo }} unidad{{ perdidas_periodo.unidades_mermas_periodo|pluralize }} perdida{{ perdidas_periodo.unidades_mermas_periodo|pluralize }}</div>
+                <div class="est-perdida-nota">{{ perdidas_periodo.unidades_mermas_periodo|cantidad }} unidad{{ perdidas_periodo.unidades_mermas_periodo|pluralize }} perdida{{ perdidas_periodo.unidades_mermas_periodo|pluralize }}</div>
             </div>
         </div>
 
@@ -182,7 +189,7 @@
                         <td><span class="badge badge-danger">{{ lote.codigo }}</span></td>
                         <td>{{ lote.producto }}</td>
                         <td>{{ lote.fecha_vencimiento|date:'d/m/Y' }}</td>
-                        <td>{{ lote.cantidad_actual }}</td>
+                        <td>{{ lote.cantidad_actual|cantidad }}</td>
                         <td class="font-semibold text-danger">${{ lote.valor_perdido|floatformat:0|intcomma }}</td>
                     </tr>
                     {% endfor %}
@@ -232,7 +239,7 @@
                         <td><span class="badge badge-danger">{{ lote.codigo }}</span></td>
                         <td>{{ lote.producto }}</td>
                         <td>{{ lote.fecha_vencimiento|date:'d/m/Y' }}</td>
-                        <td>{{ lote.cantidad_actual }}</td>
+                        <td>{{ lote.cantidad_actual|cantidad }}</td>
                         <td class="font-semibold text-danger">${{ lote.valor_perdido|floatformat:0|intcomma }}</td>
                     </tr>
                     {% endfor %}
@@ -254,7 +261,7 @@
                         <td><span class="badge badge-warning">{{ lote.codigo }}</span></td>
                         <td>{{ lote.producto }}</td>
                         <td>{{ lote.fecha_vencimiento|date:'d/m/Y' }}</td>
-                        <td>{{ lote.cantidad_actual }}</td>
+                        <td>{{ lote.cantidad_actual|cantidad }}</td>
                         <td class="font-semibold text-warning">${{ lote.valor_en_riesgo|floatformat:0|intcomma }}</td>
                     </tr>
                     {% endfor %}

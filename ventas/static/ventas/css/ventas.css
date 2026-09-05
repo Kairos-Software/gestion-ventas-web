@@ -1537,6 +1537,19 @@ textarea.vta-control {
         margin-bottom: .35rem;
     }
 
+    .vdt-pago-pagare-row {
+        margin-top: .5rem;
+    }
+    .vdt-pago-pagare-row .vdt-pago-cuotas-label {
+        font-size: .68rem;
+        color: var(--text-muted);
+        margin-bottom: .2rem;
+        display: block;
+    }
+    .vdt-pago-pagare-row .vdt-pago-select {
+        width: 100%;
+    }
+
     /* Mismo componente que caja/static/caja/css/deudas.css — se duplica
        acá siguiendo la convención de que cada pantalla tiene su propio CSS. */
     .toggle-switch { position: relative; width: 36px; height: 20px; flex-shrink: 0; }

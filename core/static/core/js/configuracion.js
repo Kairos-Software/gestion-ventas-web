@@ -581,4 +581,42 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
     }
+
+    // Formulario de Límite contable (monotributo)
+    const formLimite = document.getElementById('formConfigLimiteContable');
+    if (formLimite) {
+        const csrfL = () => formLimite.querySelector('[name=csrfmiddlewaretoken]').value;
+        const urlsL = window.CONFIG_LIMITE_CONTABLE_URLS || {};
+
+        formLimite.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const msg = document.getElementById('configLimiteContableMsg');
+            fetch(urlsL.guardar, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfL() },
+                body: JSON.stringify({
+                    activo: document.getElementById('idLimiteActivo').checked,
+                    nombre_categoria: document.getElementById('idLimiteNombreCategoria').value,
+                    limite_anual: document.getElementById('idLimiteAnual').value,
+                    incluir_efectivo: document.getElementById('idLimiteIncluirEfectivo').checked,
+                    umbral_alerta_pct: document.getElementById('idLimiteUmbralAlerta').value,
+                }),
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    msg.style.color = '#e11d48';
+                    msg.textContent = data.error;
+                    return;
+                }
+                msg.style.color = 'var(--success)';
+                msg.textContent = 'Guardado. Recargando para actualizar el resumen…';
+                setTimeout(() => window.location.reload(), 800);
+            })
+            .catch(() => {
+                msg.style.color = '#e11d48';
+                msg.textContent = 'Error de conexión. Intentá de nuevo.';
+            });
+        });
+    }
 });

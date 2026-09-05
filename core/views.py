@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from .models import (
     DatosEmpresa, ConfiguracionArca, AmbienteArca, ConfiguracionVentas,
-    recalcular_scoring_pendientes,
+    ConfiguracionLimiteContable, recalcular_scoring_pendientes,
 )
 from .permisos import chequear_permiso
 from .services_estadisticas.ventas import resumen_ganancia
@@ -143,6 +143,7 @@ def configuracion(request):
         {'valor': v, 'label': l, 'cuenta_pk': _predet.get(v)}
         for v, l in CuentaPredeterminadaMedio.Medio.choices
     ]
+
     return render(request, 'core/configuracion.html', {
         'datos_empresa':        DatosEmpresa.get_solo(),
         'puede_editar_empresa': chequear_permiso(request.user, 'editar_empresa'),
@@ -164,6 +165,10 @@ def configuracion(request):
         # el dueño (mismo permiso que Datos de la empresa).
         'configuracion_ventas':   ConfiguracionVentas.get_solo(),
         'puede_editar_config_ventas': chequear_permiso(request.user, 'editar_empresa'),
+        # Formulario de Límite contable (el resumen calculado se ve en
+        # Estadísticas → Resumen, no acá — ver views_estadisticas.resumen).
+        'configuracion_limite_contable': ConfiguracionLimiteContable.get_solo(),
+        'puede_editar_limite_contable': chequear_permiso(request.user, 'editar_empresa'),
     })
 
 

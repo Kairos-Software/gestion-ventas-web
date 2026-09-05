@@ -1,5 +1,5 @@
 {% extends "core/base.html" %}
-{% load static humanize %}
+{% load static humanize kai_formato %}
 
 {% block title %}Estadísticas — Caja y Finanzas{% endblock %}
 {% block breadcrumb %}<strong>Estadísticas</strong> · Caja y Finanzas{% endblock %}
@@ -42,36 +42,36 @@
                         <span class="est-resumen-bar"></span>
                         <span class="est-resumen-signo{% if m.saldo < 0 %} menos{% endif %}">+</span>
                         <span class="est-resumen-concepto">Disponible en cuentas{% if m.saldo < 0 %} <span style="color:var(--danger);font-weight:600;">(cuenta en descubierto)</span>{% endif %}</span>
-                        <span class="est-resumen-monto{% if m.saldo < 0 %} menos{% endif %}">${{ m.saldo|floatformat:0|intcomma }}</span>
+                        <span class="est-resumen-monto{% if m.saldo < 0 %} menos{% endif %}">${{ m.saldo|pesos }}</span>
                     </div>
                     <div class="est-resumen-fila" data-monto="{{ m.cxc|floatformat:0 }}" data-tipo="positivo">
                         <span class="est-resumen-bar"></span>
                         <span class="est-resumen-signo">+</span>
                         <span class="est-resumen-concepto">Te deben (clientes en cuotas)</span>
-                        <span class="est-resumen-monto">${{ m.cxc|floatformat:0|intcomma }}</span>
+                        <span class="est-resumen-monto">${{ m.cxc|pesos }}</span>
                     </div>
                     <div class="est-resumen-fila" data-monto="{{ m.cheques_cobrar|floatformat:0 }}" data-tipo="positivo">
                         <span class="est-resumen-bar"></span>
                         <span class="est-resumen-signo">+</span>
                         <span class="est-resumen-concepto">Cheques a cobrar</span>
-                        <span class="est-resumen-monto">${{ m.cheques_cobrar|floatformat:0|intcomma }}</span>
+                        <span class="est-resumen-monto">${{ m.cheques_cobrar|pesos }}</span>
                     </div>
                     <div class="est-resumen-fila" data-monto="{{ m.deudas|floatformat:0 }}" data-tipo="negativo">
                         <span class="est-resumen-bar"></span>
                         <span class="est-resumen-signo menos">−</span>
                         <span class="est-resumen-concepto">Debés (créditos y préstamos)</span>
-                        <span class="est-resumen-monto menos">${{ m.deudas|floatformat:0|intcomma }}</span>
+                        <span class="est-resumen-monto menos">${{ m.deudas|pesos }}</span>
                     </div>
                     <div class="est-resumen-fila" data-monto="{{ m.cheques_pagar|floatformat:0 }}" data-tipo="negativo">
                         <span class="est-resumen-bar"></span>
                         <span class="est-resumen-signo menos">−</span>
                         <span class="est-resumen-concepto">Cheques a pagar</span>
-                        <span class="est-resumen-monto menos">${{ m.cheques_pagar|floatformat:0|intcomma }}</span>
+                        <span class="est-resumen-monto menos">${{ m.cheques_pagar|pesos }}</span>
                     </div>
                     <div class="est-resumen-fila total {% if m.neto < 0 %}ef-total-negativo{% else %}ef-total-positivo{% endif %}">
                         <span class="est-resumen-signo">=</span>
                         <span class="est-resumen-concepto">Posición neta proyectada</span>
-                        <span class="est-resumen-monto">${{ m.neto|floatformat:0|intcomma }} {{ m.moneda }}</span>
+                        <span class="est-resumen-monto">${{ m.neto|pesos }} {{ m.moneda }}</span>
                     </div>
                 </div>
             </div>
@@ -92,7 +92,7 @@
             <p class="text-muted" style="font-size:.8125rem;">Ingresos y egresos manuales del período, agrupados por concepto — no incluye compras de mercadería ni pago a proveedores</p>
         </div>
         <div class="est-mini-stat" style="text-align:right;">
-            <div class="est-mini-stat-valor" style="color:var(--danger);">${{ mov_concepto.total_egresos|floatformat:0|intcomma }}</div>
+            <div class="est-mini-stat-valor" style="color:var(--danger);">${{ mov_concepto.total_egresos|pesos }}</div>
             <div class="est-mini-stat-label">Total egresos del período</div>
         </div>
     </div>
@@ -109,7 +109,7 @@
                         <tr>
                             <td class="font-semibold">{{ e.concepto }}</td>
                             <td>{{ e.cantidad }}</td>
-                            <td style="text-align:right;">${{ e.total|floatformat:0|intcomma }}</td>
+                            <td style="text-align:right;">${{ e.total|pesos }}</td>
                             <td style="text-align:right;">{{ e.pct|floatformat:1 }}%</td>
                         </tr>
                         {% endfor %}
@@ -148,7 +148,7 @@
             <p class="text-muted" style="font-size:.8125rem;">Aportes, préstamos de terceros, reintegros… del período elegido arriba</p>
         </div>
         <div class="est-mini-stat" style="text-align:right;">
-            <div class="est-mini-stat-valor" style="color:var(--success);">${{ mov_concepto.total_ingresos|floatformat:0|intcomma }}</div>
+            <div class="est-mini-stat-valor" style="color:var(--success);">${{ mov_concepto.total_ingresos|pesos }}</div>
             <div class="est-mini-stat-label">Total en el período</div>
         </div>
     </div>
@@ -164,7 +164,7 @@
                     <tr>
                         <td class="font-semibold">{{ i.concepto }}</td>
                         <td>{{ i.cantidad }}</td>
-                        <td style="text-align:right;">${{ i.total|floatformat:0|intcomma }}</td>
+                        <td style="text-align:right;">${{ i.total|pesos }}</td>
                         <td style="text-align:right;">{{ i.pct|floatformat:1 }}%</td>
                     </tr>
                     {% endfor %}
@@ -194,11 +194,11 @@
                 <div class="est-mini-stat-label">Con diferencia</div>
             </div>
             <div class="est-mini-stat">
-                <div class="est-mini-stat-valor" style="color:var(--success);">${{ historial_arqueos.total_sobrante|floatformat:0|intcomma }}</div>
+                <div class="est-mini-stat-valor" style="color:var(--success);">${{ historial_arqueos.total_sobrante|pesos }}</div>
                 <div class="est-mini-stat-label">Total sobrante</div>
             </div>
             <div class="est-mini-stat">
-                <div class="est-mini-stat-valor" style="color:var(--danger);">${{ historial_arqueos.total_faltante|floatformat:0|intcomma }}</div>
+                <div class="est-mini-stat-valor" style="color:var(--danger);">${{ historial_arqueos.total_faltante|pesos }}</div>
                 <div class="est-mini-stat-label">Total faltante</div>
             </div>
         </div>
@@ -214,8 +214,8 @@
                         <td>{{ t.fecha_cierre|date:'d/m/Y H:i' }}</td>
                         <td>{{ t.cerrado_por|default:'—' }}</td>
                         <td class="font-semibold {% if t.diferencia_efectivo > 0 %}text-success{% elif t.diferencia_efectivo < 0 %}text-danger{% endif %}">
-                            {% if t.diferencia_efectivo > 0 %}Sobró ${{ t.diferencia_efectivo|floatformat:0|intcomma }}
-                            {% elif t.diferencia_efectivo < 0 %}Faltó ${{ t.diferencia_efectivo|floatformat:0|intcomma|cut:"-" }}
+                            {% if t.diferencia_efectivo > 0 %}Sobró ${{ t.diferencia_efectivo|pesos }}
+                            {% elif t.diferencia_efectivo < 0 %}Faltó ${{ t.diferencia_efectivo|pesos|cut:"-" }}
                             {% else %}Cuadró{% endif %}
                         </td>
                     </tr>

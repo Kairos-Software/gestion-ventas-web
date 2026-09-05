@@ -263,13 +263,17 @@ def rendimiento_paquetes(desde, hasta, top=10):
         paquete_id = fila['producto__id']
         ingresos = fila['ingresos'] or Decimal('0')
         costo = costos_dict.get(paquete_id, Decimal('0'))
+        unidades = fila['unidades'] or Decimal('0')
         ranking.append({
             'id': paquete_id,
             'nombre': fila['producto__nombre'],
             'codigo': fila['producto__codigo'],
             'ingresos': ingresos,
+            'costo': costo,
             'ganancia': ingresos - costo,
-            'unidades': fila['unidades'] or 0,
+            'unidades': unidades,
+            'precio_prom': (ingresos / unidades) if unidades else Decimal('0'),
+            'margen_sobre_costo': ((ingresos - costo) / costo * 100) if costo else None,
         })
 
     ranking.sort(key=lambda r: r['ganancia'], reverse=True)

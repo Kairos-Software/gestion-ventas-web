@@ -79,3 +79,75 @@
 .est-resumen-fila.total.ef-total-negativo .est-resumen-signo,
 .est-resumen-fila.total.ef-total-negativo .est-resumen-concepto,
 .est-resumen-fila.total.ef-total-negativo .est-resumen-monto { color: var(--danger); }
+
+/* ═══════════ RESUMEN — Límite contable (monotributo) ═══════════ */
+.est-limite-contable-card {
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-sm);
+    padding: 1.125rem 1.375rem;
+    margin-bottom: 1.25rem;
+}
+.est-limite-contable-bloques {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    margin-top: 0.75rem;
+}
+.est-limite-contable-bloque {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+}
+.est-limite-contable-bloque-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.est-limite-contable-monto {
+    font-family: var(--font-heading);
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    line-height: 1.1;
+}
+.est-limite-contable-monto-de {
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-left: 0.3rem;
+}
+.est-badge-limite {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.2rem 0.6rem;
+    border-radius: 1rem;
+    white-space: nowrap;
+}
+.est-badge-limite--ok       { background: rgba(16,185,129,0.1); color: var(--success); }
+.est-badge-limite--cerca    { background: rgba(245,158,11,0.1); color: var(--warning); }
+.est-badge-limite--superado { background: rgba(239,68,68,0.1); color: var(--danger); }
+
+.est-limite-contable-detalle { margin-top: 0.85rem; }
+.est-limite-contable-detalle summary {
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--brand-blue, var(--accent-primary));
+}
+.est-limite-contable-tabla-wrap { overflow-x: auto; margin-top: 0.6rem; }
+.est-limite-contable-tabla { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.est-limite-contable-tabla th, .est-limite-contable-tabla td {
+    padding: 0.4rem 0.6rem;
+    border-bottom: 1px solid var(--border-color);
+    text-align: left;
+    white-space: nowrap;
+}
+.est-limite-contable-tabla th { color: var(--text-muted); font-weight: 600; }
+.est-limite-contable-tabla .th-monto { text-align: right; }
+.est-limite-contable-tabla .est-limite-contable-col-activa { font-weight: 700; color: var(--text-primary); }

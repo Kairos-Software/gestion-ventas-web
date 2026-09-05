@@ -672,6 +672,8 @@
                 cajaGrande: "{% url 'caja:caja_grande' %}",
                 cajaDiaria: "{% url 'caja:caja_diaria' %}"
             };
+            // Contador de billetes flotante: estado compartido en el server.
+            window.CONTADOR_BILLETES_URL = "{% url 'core:contador_billetes' %}";
         </script>
         {% endif %}
 
@@ -921,7 +923,7 @@
 <script src="{% static 'core/js/notify.js' %}"></script>
 <script src="{% static 'core/js/base.js' %}"></script>
 {% if user.is_authenticated %}
-<script src="{% static 'core/js/floating-tools.js' %}"></script>
+<script src="{% static 'core/js/floating-tools.js' %}?v=20260903"></script>
 <script src="{% static 'core/js/fullscreen-persist.js' %}"></script>
 {% endif %}
 {% block extra_js %}{% endblock %}

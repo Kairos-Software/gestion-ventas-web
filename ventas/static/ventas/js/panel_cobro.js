@@ -158,6 +158,52 @@
 
     function _wireConfirmada() {
         body.querySelector('#vdtBtnNuevaVentaPanel')?.addEventListener('click', nuevaVenta);
+        body.querySelector('#vdtBtnEditarVentaPanel')?.addEventListener('click', editarVentaConfirmada);
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  EDITAR VENTA CONFIRMADA — sin salir de la pantalla: anula (revierte
+    //  stock; el modelo ya bloquea solo si hay comprobante ARCA, cheques o
+    //  devoluciones de por medio), reactiva como borrador y recarga esta
+    //  misma página en modo edición (?editar=pk), igual que "Editar" desde
+    //  el Historial — ver ventas/static/ventas/js/historial_ventas.js.
+    // ══════════════════════════════════════════════════════════════
+    async function editarVentaConfirmada() {
+        const pk = estado.ventaPk;
+        if (!pk) return;
+
+        const ok = await window.KaiConfirm(
+            'Se va a reabrir esta venta para agregar o quitar productos. Vas a tener que confirmarla de nuevo.',
+            { title: 'Editar esta venta', confirmText: 'Sí, editar' }
+        );
+        if (!ok) return;
+
+        const btn = body.querySelector('#vdtBtnEditarVentaPanel');
+        if (btn) btn.disabled = true;
+
+        try {
+            const post = (url) => fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CFG.csrfToken },
+                body: JSON.stringify({ pk }),
+            }).then(r => r.json());
+
+            const anulado = await post(CFG.urlAnular);
+            if (!anulado.ok) {
+                toast('No se pudo editar la venta', anulado.error || 'Intentá de nuevo.');
+                return;
+            }
+            const reactivado = await post(CFG.urlReactivar);
+            if (!reactivado.ok) {
+                toast('No se pudo editar la venta', reactivado.error || 'Intentá de nuevo.');
+                return;
+            }
+            window.location.href = window.location.pathname + '?editar=' + pk;
+        } catch (e) {
+            toast('Error de conexión', e.message || 'Intentá de nuevo.');
+        } finally {
+            if (btn) btn.disabled = false;
+        }
     }
 
     // ══════════════════════════════════════════════════════════════

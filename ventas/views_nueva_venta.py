@@ -921,6 +921,9 @@ class ConfirmarVentaAjax(LoginRequiredMixin, View):
                         'cuotas': p.get('cuotas'),
                         'interes_pct': p.get('interes_pct'),
                         'fecha_inicio_cobro': p.get('fecha_inicio_cobro'),
+                        # N° de pagaré firmado por esta deuda puntual (opcional) —
+                        # ver CuentaPorCobrar.numero_pagare.
+                        'numero_pagare': p.get('numero_pagare'),
                         # Solo se usa si medio_p == 'cheque' — lista de cheques
                         # cargados en el modal, se valida y crea en Venta.confirmar().
                         'cheques': p.get('cheques'),

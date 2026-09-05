@@ -402,6 +402,29 @@
     font-size: 0.9375rem;
 }
 
+/* etiqueta chiquita arriba del número grande ("ganancia") — para que no
+   haya que adivinar qué es ese importe verde. */
+.est-ranking-etiqueta {
+    display: block;
+    font-size: 0.625rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    line-height: 1.1;
+}
+
+/* variante neutra del número grande de la derecha — para rankings que
+   NO muestran ganancia (total comprado por un proveedor, lo que te debe
+   un cliente, etc.): el verde de .est-ranking-ganancia da a entender
+   "esto es plata a favor" y confunde. */
+.est-ranking-monto {
+    font-weight: 800;
+    color: var(--text-primary);
+    font-size: 0.9375rem;
+}
+.est-ranking-monto.es-deuda { color: var(--warning); }
+
 .est-ranking-vendido {
     font-size: 0.75rem;
     color: var(--text-muted);

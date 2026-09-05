@@ -5,7 +5,7 @@
 {% block breadcrumb %}<strong>Estadísticas</strong> · Compras{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'core/css/estadisticas.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas.css' %}?v=20260903">
 {% endblock %}
 
 {% block content %}
@@ -92,7 +92,7 @@
                         </div>
                     </div>
                     <div class="est-ranking-right">
-                        <div class="est-ranking-ganancia">${{ p.total|floatformat:0|intcomma }}</div>
+                        <div class="est-ranking-monto"><span class="est-ranking-etiqueta">le compraste</span>${{ p.total|floatformat:0|intcomma }}</div>
                     </div>
                 </div>
                 {% endfor %}
@@ -127,7 +127,7 @@
                             </div>
                         </div>
                         <div class="est-ranking-right">
-                            <div class="est-ranking-ganancia">${{ m.total|floatformat:0|intcomma }}</div>
+                            <div class="est-ranking-monto">${{ m.total|floatformat:0|intcomma }}</div>
                         </div>
                     </div>
                     {% endfor %}

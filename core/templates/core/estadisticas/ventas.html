@@ -1,11 +1,11 @@
 {% extends "core/base.html" %}
-{% load static humanize %}
+{% load static humanize kai_formato %}
 
 {% block title %}Estadísticas — Ventas{% endblock %}
 {% block breadcrumb %}<strong>Estadísticas</strong> · Ventas{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'core/css/estadisticas.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas.css' %}?v=20260903">
 {% endblock %}
 
 {% block content %}
@@ -69,7 +69,7 @@
                             </div>
                         </div>
                         <div class="est-ranking-right">
-                            <div class="est-ranking-ganancia">${{ f.total|floatformat:0|intcomma }}</div>
+                            <div class="est-ranking-monto">${{ f.total|floatformat:0|intcomma }}</div>
                         </div>
                     </div>
                     {% endfor %}
@@ -83,7 +83,7 @@
                             </div>
                         </div>
                         <div class="est-ranking-right">
-                            <div class="est-ranking-ganancia">${{ facturacion_arca.total_sin_facturar|floatformat:0|intcomma }}</div>
+                            <div class="est-ranking-monto">${{ facturacion_arca.total_sin_facturar|floatformat:0|intcomma }}</div>
                         </div>
                     </div>
                     {% endif %}
@@ -110,8 +110,14 @@
     <div class="card">
         <div class="card-header">
             <div>
-                <p class="card-title">¿Quién vende mejor?</p>
+                <p class="card-title">¿Quién vende mejor?
+                    <button type="button" class="kai-help-btn" data-help-target="ayuda_ranking_empleados" aria-label="Cómo se calcula">?</button>
+                </p>
                 <p class="text-muted" style="font-size:.8125rem;">Ordenado por la ganancia real que generó cada uno, no solo por cuánto vendió</p>
+                <div class="kai-help-popover" id="ayuda_ranking_empleados">
+                    <strong>Ganancia</strong> = lo que cobró en sus ventas − lo que costó comprar esa mercadería.
+                    Se ordena por ahí y no por el monto vendido: alguien puede vender mucho con poco margen.
+                </div>
             </div>
         </div>
         <div class="card-body">
@@ -127,8 +133,8 @@
                         </div>
                     </div>
                     <div class="est-ranking-right">
-                        <div class="est-ranking-ganancia">${{ e.ganancia|floatformat:0|intcomma }}</div>
-                        <div class="est-ranking-vendido">${{ e.ingresos|floatformat:0|intcomma }} vendido</div>
+                        <div class="est-ranking-ganancia"><span class="est-ranking-etiqueta">ganancia</span>${{ e.ganancia|floatformat:0|intcomma }}</div>
+                        <div class="est-ranking-vendido">${{ e.ingresos|floatformat:0|intcomma }} vendido · ${{ e.costo|floatformat:0|intcomma }} de costo</div>
                     </div>
                 </div>
                 {% endfor %}
@@ -143,8 +149,16 @@
     <div class="card">
         <div class="card-header">
             <div>
-                <p class="card-title">Tus productos estrella</p>
+                <p class="card-title">Tus productos estrella
+                    <button type="button" class="kai-help-btn" data-help-target="ayuda_ranking_productos" aria-label="Cómo se calcula">?</button>
+                </p>
                 <p class="text-muted" style="font-size:.8125rem;">Los que te generaron más ganancia en este período</p>
+                <div class="kai-help-popover" id="ayuda_ranking_productos">
+                    <strong>Ganancia = vendido − costo.</strong><br>
+                    <strong>Vendido</strong>: la suma de todas las ventas del producto en el período (con descuentos ya aplicados), no un precio fijo.<br>
+                    <strong>Costo</strong>: lo que realmente pagaste al comprar esas unidades. Si salieron de compras a distinto precio, se suma el costo real de cada lote (ej.: 771 u a $110 + 79 u a $124 = $94.606), no el precio de lista ni el último costo.<br>
+                    El <strong>precio y el costo promedio</strong> son esos totales divididos por las unidades vendidas.
+                </div>
             </div>
         </div>
         <div class="card-body">
@@ -156,12 +170,14 @@
                         <span class="est-ranking-pos">{{ forloop.counter }}</span>
                         <div>
                             <div class="est-ranking-nombre">{{ p.nombre }}</div>
-                            <div class="est-ranking-detalle">{{ p.codigo }} · {{ p.unidades }} unid. vendidas</div>
+                            <div class="est-ranking-detalle">
+                                Cód. {{ p.codigo }} · {{ p.unidades|cantidad }} u vendidas a ${{ p.precio_prom|floatformat:0|intcomma }} c/u promedio{% if p.margen_sobre_costo is not None %} · margen {{ p.margen_sobre_costo|floatformat:0 }}% sobre el costo{% endif %}
+                            </div>
                         </div>
                     </div>
                     <div class="est-ranking-right">
-                        <div class="est-ranking-ganancia">${{ p.ganancia|floatformat:0|intcomma }}</div>
-                        <div class="est-ranking-vendido">${{ p.ingresos|floatformat:0|intcomma }} vendido</div>
+                        <div class="est-ranking-ganancia"><span class="est-ranking-etiqueta">ganancia</span>${{ p.ganancia|floatformat:0|intcomma }}</div>
+                        <div class="est-ranking-vendido">${{ p.ingresos|floatformat:0|intcomma }} vendido · ${{ p.costo|floatformat:0|intcomma }} de costo</div>
                     </div>
                 </div>
                 {% endfor %}
@@ -179,8 +195,13 @@
     <div class="card">
         <div class="card-header">
             <div>
-                <p class="card-title">¿Qué categoría rinde más?</p>
+                <p class="card-title">¿Qué categoría rinde más?
+                    <button type="button" class="kai-help-btn" data-help-target="ayuda_ranking_categorias" aria-label="Cómo se calcula">?</button>
+                </p>
                 <p class="text-muted" style="font-size:.8125rem;">Por ganancia real generada en este período</p>
+                <div class="kai-help-popover" id="ayuda_ranking_categorias">
+                    <strong>Ganancia = vendido − costo real</strong> de la mercadería de esa categoría en el período.
+                </div>
             </div>
         </div>
         <div class="card-body">
@@ -192,12 +213,12 @@
                         <span class="est-ranking-pos">{{ forloop.counter }}</span>
                         <div>
                             <div class="est-ranking-nombre">{{ cat.nombre }}</div>
-                            <div class="est-ranking-detalle">{{ cat.unidades }} unid. vendidas</div>
+                            <div class="est-ranking-detalle">{{ cat.unidades|cantidad }} u vendidas</div>
                         </div>
                     </div>
                     <div class="est-ranking-right">
-                        <div class="est-ranking-ganancia">${{ cat.ganancia|floatformat:0|intcomma }}</div>
-                        <div class="est-ranking-vendido">${{ cat.ingresos|floatformat:0|intcomma }} vendido</div>
+                        <div class="est-ranking-ganancia"><span class="est-ranking-etiqueta">ganancia</span>${{ cat.ganancia|floatformat:0|intcomma }}</div>
+                        <div class="est-ranking-vendido">${{ cat.ingresos|floatformat:0|intcomma }} vendido · ${{ cat.costo|floatformat:0|intcomma }} de costo</div>
                     </div>
                 </div>
                 {% endfor %}
@@ -247,7 +268,7 @@
                                 </div>
                             </div>
                             <div class="est-ranking-right">
-                                <div class="est-ranking-ganancia">${{ m.total|floatformat:0|intcomma }}</div>
+                                <div class="est-ranking-monto">${{ m.total|floatformat:0|intcomma }}</div>
                             </div>
                         </div>
                         {% endfor %}
@@ -281,7 +302,7 @@
                     <div class="est-ranking-left">
                         <div>
                             <div class="est-ranking-nombre">{{ o.nombre }}</div>
-                            <div class="est-ranking-detalle">{{ o.unidades }} unid. · {{ o.cant_items }} línea{{ o.cant_items|pluralize }}</div>
+                            <div class="est-ranking-detalle">{{ o.unidades|cantidad }} u · {{ o.cant_items }} línea{{ o.cant_items|pluralize }}</div>
                         </div>
                     </div>
                     <div class="est-ranking-right">
@@ -295,7 +316,7 @@
                     <div class="est-ranking-left">
                         <div>
                             <div class="est-ranking-nombre">{{ l.nombre }}</div>
-                            <div class="est-ranking-detalle">{{ l.unidades }} unid. · {{ l.cant_items }} línea{{ l.cant_items|pluralize }}</div>
+                            <div class="est-ranking-detalle">{{ l.unidades|cantidad }} u · {{ l.cant_items }} línea{{ l.cant_items|pluralize }}</div>
                         </div>
                     </div>
                     <div class="est-ranking-right">
