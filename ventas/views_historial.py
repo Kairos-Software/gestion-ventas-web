@@ -51,8 +51,19 @@ class ListarVentasAjax(LoginRequiredMixin, View):
         if not chequear_permiso(request.user, 'ver_ventas'):
             return JsonResponse({'error': 'Sin permiso.'}, status=403)
 
+        # Confirmadas y anuladas siempre; además los borradores que en
+        # realidad son una edición sin terminar: alguien tocó "Editar"
+        # (la venta se anuló y se reabrió como borrador, ver
+        # Venta.reactivar()) y después se fue del carrito sin confirmar ni
+        # cancelar. Esos borradores tienen fecha_anulacion seteada e
+        # ItemVenta/PagoVenta históricos reales detrás — antes desaparecían
+        # del historial hasta que descartar_borradores_vencidos() los
+        # revertía a ANULADA (24 h después, y solo al entrar a Nueva
+        # Venta). Los borradores nuevos genuinos (fecha_anulacion vacía)
+        # siguen sin aparecer: son ruido, nunca fueron una venta real.
         qs = Venta.objects.filter(
-            estado__in=[EstadoVenta.CONFIRMADA, EstadoVenta.ANULADA]
+            Q(estado__in=[EstadoVenta.CONFIRMADA, EstadoVenta.ANULADA])
+            | Q(estado=EstadoVenta.BORRADOR, fecha_anulacion__isnull=False)
         ).select_related(
             'creado_por',
             'confirmado_por',
@@ -195,6 +206,12 @@ class ListarVentasAjax(LoginRequiredMixin, View):
                     'subido_el':   doc.subido_el.strftime('%d/%m/%Y %H:%M'),
                 })
 
+            # Borrador con fecha_anulacion = edición sin terminar (ver el
+            # filtro del queryset). Los ítems/total que se muestran son
+            # los de la venta ANTES de empezar a editarla — reactivar() no
+            # los toca, recién los reemplaza editar_completa() al re-confirmar.
+            es_edicion_abandonada = v.estado == EstadoVenta.BORRADOR
+
             # — Auditoría —
             creado_por     = _nombre_usuario(v.creado_por)
             confirmado_por = _nombre_usuario(v.confirmado_por)
@@ -287,6 +304,9 @@ class ListarVentasAjax(LoginRequiredMixin, View):
                 'fecha_anulacion':         _fmt_dt(v.fecha_anulacion),
                 'editado_por':             editado_por,
                 'fecha_edicion':           _fmt_dt(v.fecha_edicion),
+                # — Edición sin terminar (borrador reabierto y abandonado) —
+                'es_edicion_abandonada':   es_edicion_abandonada,
+                'fecha_reapertura':        _fmt_dt(v.fecha_modificacion) if es_edicion_abandonada else None,
                 # — Ítems y docs —
                 'items':                   items,
                 'items_count':             len(items),
@@ -294,7 +314,12 @@ class ListarVentasAjax(LoginRequiredMixin, View):
                 # — Permisos de acción —
                 'puede_anular':            puede_editar   and v.estado == EstadoVenta.CONFIRMADA,
                 'puede_editar':            puede_editar   and v.estado == EstadoVenta.ANULADA,
-                'puede_eliminar':          puede_eliminar,
+                # Una edición sin terminar no se "elimina" desde acá
+                # (EliminarVentaAjax rechaza los borradores) — se retoma o
+                # se descarta (vuelve a ANULADA).
+                'puede_eliminar':          puede_eliminar and not es_edicion_abandonada,
+                'puede_retomar_edicion':   puede_editar   and es_edicion_abandonada,
+                'puede_descartar_edicion': puede_editar   and es_edicion_abandonada,
                 'eliminar_revierte_stock': v.estado == EstadoVenta.CONFIRMADA,
             })
 

@@ -154,6 +154,48 @@ function accionEditar(pk, numero) {
     });
 }
 
+/** Retomar una edición sin terminar: la venta ya está en BORRADOR
+ *  (alguien la anuló y la reabrió y después se fue del carrito), así que
+ *  NO hay que reactivarla de nuevo — se va derecho al carrito con
+ *  ?editar=<pk>, igual que el botón "Editar carrito" del detalle. */
+function accionRetomarEdicion(pk, numero) {
+    abrirModal({
+        icon: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                   <path d="M18 6L22 10L9 23H5V19L18 6Z" stroke="var(--brand-blue,#2563eb)" stroke-width="1.6"
+                         stroke-linecap="round" stroke-linejoin="round"/>
+               </svg>`,
+        title:        `Retomar edición de ${numero}`,
+        body:         'Esta venta se anuló para editarla y quedó a medio camino. Te llevamos al carrito para terminar la edición y volver a confirmarla.',
+        confirmLabel: 'Ir al carrito',
+        onConfirm: () => {
+            window.location.href = HISTORIAL_URLS.nuevaVenta + '?editar=' + pk;
+        },
+    });
+}
+
+/** Descartar una edición sin terminar: la venta vuelve a ANULADA, tal
+ *  como estaba antes de tocar "Editar" — no se pierde nada. */
+function accionDescartarEdicion(pk, numero) {
+    abrirModal({
+        icon: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                   <circle cx="14" cy="14" r="12" stroke="var(--warning)" stroke-width="1.6"/>
+                   <path d="M9 14H19" stroke="var(--warning)" stroke-width="1.8" stroke-linecap="round"/>
+               </svg>`,
+        title:        `Descartar edición de ${numero}`,
+        body:         'La venta vuelve a quedar anulada, tal como estaba antes de empezar a editarla. Sus ítems y pagos no se pierden.',
+        confirmLabel: 'Sí, descartar',
+        confirmClass: 'modal-btn-warning',
+        onConfirm: () => {
+            postAccion(
+                HISTORIAL_URLS.descartarEdicion,
+                { pk },
+                () => { mostrarToastExito(`Edición de ${numero} descartada. La venta quedó anulada.`); fetchVentas(currentPage); },
+                msg => mostrarToastError(msg)
+            );
+        },
+    });
+}
+
 function accionEliminar(pk, numero, revierteStock) {
     abrirModal({
         icon: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none">
@@ -247,6 +289,19 @@ function buildItemsHTML(items) {
 function buildAuditoriaHTML(c) {
     const filas = [];
 
+    // Edición sin terminar: la venta se anuló para editarla, se reabrió
+    // como borrador y nadie terminó de confirmarla. Antes desaparecía del
+    // historial hasta que la limpieza automática la revertía a anulada.
+    if (c.es_edicion_abandonada) {
+        filas.push(`
+        <div class="hist-audit-aviso hist-audit-aviso--edicion">
+            &#9998; <strong>Edición sin terminar.</strong> Alguien anuló esta venta para editarla
+            ${c.fecha_reapertura ? `(${_esc(c.fecha_reapertura)}) ` : ''}y no volvió a confirmarla.
+            Los ítems y el total que se ven abajo son los de <strong>antes</strong> de editarla.
+            Retomá la edición para terminarla, o descartála para dejarla anulada.
+        </div>`);
+    }
+
     // Confirmada HOY + tiene fecha de anulación = se anuló y se volvió a
     // confirmar. Si NO hay editado_por (se editó desde el carrito, no desde
     // el editor de historial) el par "Confirmado + Anulado" se lee como si
@@ -313,6 +368,21 @@ function buildAccionesHTML(c) {
             Ver detalle
         </a>`);
 
+    if (c.puede_retomar_edicion) {
+        btns.push(`
+        <button class="btn-accion btn-accion--blue"
+                data-accion="retomar" data-pk="${c.pk}" data-numero="${_esc(c.numero)}">
+            ${iconEditar()} Retomar edición
+        </button>`);
+    }
+    if (c.puede_descartar_edicion) {
+        btns.push(`
+        <button class="btn-accion btn-accion--warning"
+                data-accion="descartar-edicion" data-pk="${c.pk}" data-numero="${_esc(c.numero)}">
+            ${iconAnular()} Descartar edición
+        </button>`);
+    }
+
     if (c.puede_anular) {
         btns.push(`
         <button class="btn-accion btn-accion--warning"
@@ -363,8 +433,20 @@ function buildVentaHTML(c) {
         ? `<span class="badge-estado badge-estado--reconf" title="Anulada el ${_esc(c.fecha_anulacion)} y vuelta a confirmar${c.anulado_por && c.anulado_por !== '—' ? ' · por ' + _esc(c.anulado_por) : ''}">&#9998; re-confirmada</span>`
         : '';
 
+    // Edición sin terminar (borrador reabierto y abandonado): badge y
+    // borde propios para que se distinga de una venta confirmada/anulada.
+    const esEdicionAbandonada = !!c.es_edicion_abandonada;
+    const badgeEstado = esEdicionAbandonada
+        ? `<span class="badge-estado badge-estado--edicion" title="Anulada para editarla${c.fecha_reapertura ? ' el ' + _esc(c.fecha_reapertura) : ''} y nunca vuelta a confirmar">&#9998; edición sin terminar</span>`
+        : `<span class="badge-estado ${c.estado}">${_esc(c.estado_label)}</span>`;
+
+    const rowClases = [
+        fueReconfirmada ? 'venta-row--reconf' : '',
+        esEdicionAbandonada ? 'venta-row--edicion' : '',
+    ].filter(Boolean).join(' ');
+
     return `
-    <div class="venta-row${fueReconfirmada ? ' venta-row--reconf' : ''}" data-pk="${c.pk}">
+    <div class="venta-row${rowClases ? ' ' + rowClases : ''}" data-pk="${c.pk}">
         <div class="venta-cabecera">
             <span class="venta-numero">${_esc(c.numero)}</span>
             <span class="venta-fecha">${_esc(c.fecha)}</span>
@@ -375,7 +457,7 @@ function buildVentaHTML(c) {
                 ${medioBadgeCabecera}
                 <span class="venta-total"${c.oferta_global_nombre ? ` title="Incluye oferta &quot;${_esc(c.oferta_global_nombre)}&quot;: -${c.descuento_global_pct}% sobre el total"` : ''}>${formatMoney(c.total_cobrado)}</span>
                 ${c.oferta_global_nombre ? `<span class="descuento-tag" title="Oferta: ${_esc(c.oferta_global_nombre)} (-${c.descuento_global_pct}% sobre el total)">Oferta</span>` : ''}
-                <span class="badge-estado ${c.estado}">${_esc(c.estado_label)}</span>
+                ${badgeEstado}
                 ${badgeReconf}
                 <svg class="venta-toggle" width="16" height="16" viewBox="0 0 16 16" fill="none">
                     <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -450,9 +532,11 @@ function renderLista(data) {
             const numero   = btn.dataset.numero;
             const revierte = btn.dataset.revierte === '1';
 
-            if (accion === 'anular')   accionAnular(pk, numero);
-            if (accion === 'eliminar') accionEliminar(pk, numero, revierte);
-            if (accion === 'editar')   accionEditar(pk, numero);
+            if (accion === 'anular')            accionAnular(pk, numero);
+            if (accion === 'eliminar')          accionEliminar(pk, numero, revierte);
+            if (accion === 'editar')            accionEditar(pk, numero);
+            if (accion === 'retomar')           accionRetomarEdicion(pk, numero);
+            if (accion === 'descartar-edicion') accionDescartarEdicion(pk, numero);
         });
     });
 

@@ -40,6 +40,7 @@ urlpatterns = [
     # ══════════════════════════════════════════════════════════════════
     path('anular/',     views_acciones.AnularVentaAjax.as_view(),    name='anular_venta'),
     path('reactivar/',  views_acciones.ReactivarVentaAjax.as_view(), name='reactivar_venta'),
+    path('descartar-edicion/', views_acciones.DescartarEdicionAjax.as_view(), name='descartar_edicion'),
     path('eliminar/',   views_acciones.EliminarVentaAjax.as_view(),  name='eliminar_venta'),
     path('editar/',     views_acciones.EditarVentaAjax.as_view(),    name='editar_venta'),
     path('devoluciones/registrar/', views_devoluciones.RegistrarDevolucionAjax.as_view(), name='registrar_devolucion'),

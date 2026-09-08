@@ -8,7 +8,7 @@
 {% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'ventas/css/historial_ventas.css' %}?v=20260920">
+<link rel="stylesheet" href="{% static 'ventas/css/historial_ventas.css' %}?v=20260921">
 <style>
 /* Resalte temporal de la venta recién confirmada (llegada desde Nueva Venta) */
 .venta-row--recien-confirmada .venta-cabecera {
@@ -100,8 +100,15 @@
         <label>Estado</label>
         <select id="filtroEstado">
             <option value="">Todos</option>
+            {% comment %}
+                El valor 'borrador' filtra solo los borradores que son una
+                edición sin terminar (venta reabierta y abandonada) — ver
+                ListarVentasAjax, que ya restringe el queryset.
+            {% endcomment %}
             {% for val, label in estados %}
-                {% if val != 'borrador' %}
+                {% if val == 'borrador' %}
+                    <option value="{{ val }}">Edición sin terminar</option>
+                {% else %}
                     <option value="{{ val }}">{{ label }}</option>
                 {% endif %}
             {% endfor %}
@@ -197,6 +204,7 @@
         listar:           "{% url 'ventas:listar_ventas' %}",
         anular:           "{% url 'ventas:anular_venta' %}",
         reactivar:        "{% url 'ventas:reactivar_venta' %}",
+        descartarEdicion: "{% url 'ventas:descartar_edicion' %}",
         eliminar:         "{% url 'ventas:eliminar_venta' %}",
         editar:           "{% url 'ventas:editar_venta' %}",
         nuevaVenta:       "{% url 'ventas:nueva_venta' %}",
@@ -217,7 +225,7 @@
 </script>
 <script src="{% static 'ventas/js/historial_utils.js' %}"></script>
 <script src="{% static 'ventas/js/historial_docs.js' %}"></script>
-<script src="{% static 'ventas/js/historial_ventas.js' %}?v=20260920"></script>
+<script src="{% static 'ventas/js/historial_ventas.js' %}?v=20260921"></script>
 <script>
 // Resaltar la venta recién confirmada al llegar desde Nueva Venta
 (function() {

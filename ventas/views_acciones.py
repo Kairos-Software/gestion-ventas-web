@@ -68,6 +68,51 @@ class ReactivarVentaAjax(LoginRequiredMixin, View):
         })
 
 
+class DescartarEdicionAjax(LoginRequiredMixin, View):
+    """
+    Descarta una edición sin terminar desde el Historial.
+
+    Caso: alguien tocó "Editar" sobre una venta (se anuló y se reabrió
+    como borrador, ver Venta.reactivar()) y después se fue del carrito
+    sin confirmar ni cancelar. La venta quedó en BORRADOR y, hasta que
+    descartar_borradores_vencidos() la revirtiera (24 h después y solo al
+    entrar a Nueva Venta), no aparecía en el Historial.
+
+    Esto la vuelve a dejar ANULADA de inmediato, tal como estaba antes de
+    empezar a editarla — no se pierde nada: sus ItemVenta/PagoVenta
+    históricos siguen intactos (reactivar() no los toca).
+    """
+    @transaction.atomic
+    def post(self, request):
+        if not chequear_permiso(request.user, 'editar_ventas'):
+            return JsonResponse({'error': 'No tenés permiso para editar ventas.'}, status=403)
+        try:
+            body = json.loads(request.body)
+            pk   = body.get('pk')
+        except (json.JSONDecodeError, AttributeError):
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        venta = get_object_or_404(Venta.objects.select_for_update(), pk=pk)
+
+        if venta.estado != EstadoVenta.BORRADOR or venta.fecha_anulacion is None:
+            return JsonResponse(
+                {'error': 'Esta venta no es una edición sin terminar — no hay nada que descartar.'},
+                status=400,
+            )
+
+        try:
+            venta.descartar_edicion()  # BORRADOR → ANULADA (no borra)
+        except ValueError as e:
+            return JsonResponse({'error': str(e)}, status=400)
+
+        return JsonResponse({
+            'ok':           True,
+            'numero':       venta.numero,
+            'estado':       venta.estado,
+            'estado_label': venta.get_estado_display(),
+        })
+
+
 class EliminarVentaAjax(LoginRequiredMixin, View):
     @transaction.atomic
     def post(self, request):
