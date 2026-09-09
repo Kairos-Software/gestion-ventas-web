@@ -209,6 +209,10 @@ class ListarCuentasCobrarAjax(LoginRequiredMixin, View):
                 Q(cliente__nombre__icontains=q) |
                 Q(cliente__apellido__icontains=q) |
                 Q(cliente__razon_social__icontains=q) |
+                Q(cliente__nombre_comercial__icontains=q) |
+                Q(cliente__dni__icontains=q) |
+                Q(cliente__cuil__icontains=q) |
+                Q(cliente__cuit__icontains=q) |
                 Q(descripcion__icontains=q) |
                 Q(numero_comprobante__icontains=q)
             )
