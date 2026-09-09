@@ -12,7 +12,7 @@ from django.utils import timezone
 from core.permisos import chequear_permiso
 from .models import (
     TurnoCaja, EstadoTurno, MovimientoCaja, OrigenMovimiento,
-    Gasto, TipoMovimientoCaja,
+    Gasto, TipoMovimientoCaja, ReaperturaTurno,
 )
 
 
@@ -266,6 +266,54 @@ class CerrarTurnoAjax(LoginRequiredMixin, View):
 
 
 # ══════════════════════════════════════════════════════════════════
+#  AJAX — Reabrir Turno (corrección de un turno ya cerrado)
+# ══════════════════════════════════════════════════════════════════
+
+class ReabrirTurnoAjax(LoginRequiredMixin, View):
+    """
+    POST JSON {"motivo": "..."} — reabre el turno <pk> ya cerrado para
+    poder corregirlo (ver TurnoCaja.reabrir). Solo si no hay ningún
+    turno abierto. Permiso `reabrir_turno` (solo lo da un superusuario).
+    """
+
+    def post(self, request, pk):
+        if not chequear_permiso(request.user, 'reabrir_turno'):
+            return JsonResponse({'error': 'Sin permiso para reabrir turnos.'}, status=403)
+
+        try:
+            body = json.loads(request.body or '{}')
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        motivo = (body.get('motivo') or '').strip()
+
+        turno = get_object_or_404(TurnoCaja, pk=pk)
+        try:
+            reapertura = turno.reabrir(usuario=request.user, motivo=motivo)
+        except ValueError as e:
+            return JsonResponse({'error': str(e)}, status=400)
+        except Exception as e:
+            return JsonResponse({'error': f'Error al reabrir turno: {e}'}, status=500)
+
+        return JsonResponse({
+            'ok': True,
+            'turno': {
+                'numero': turno.numero,
+                'estado': turno.get_estado_display(),
+                'veces_reabierto': turno.veces_reabierto,
+            },
+            'efectivo_revertido': str(reapertura.efectivo_revertido),
+            'era_ultimo_turno': reapertura.era_ultimo_turno,
+            'mensaje': (
+                f'Turno #{turno.numero} reabierto. Se sacaron '
+                f'${reapertura.efectivo_revertido} de caja grande — se vuelven a '
+                f'depositar cuando lo cierres. Ahora es la caja activa: hacé las '
+                f'correcciones y cerralo de nuevo.'
+            ),
+        })
+
+
+# ══════════════════════════════════════════════════════════════════
 #  AJAX — Estado Actual de Caja Diaria
 # ══════════════════════════════════════════════════════════════════
 
@@ -405,12 +453,23 @@ class HistorialTurnosView(LoginRequiredMixin, TemplateView):
             ctx['sin_permiso'] = True
             return ctx
         ctx['puede_ver'] = True
-        
+
         # Obtener todos los turnos
-        turnos = TurnoCaja.objects.all().order_by('-fecha_apertura').prefetch_related('cajas_fisicas')
+        turnos = (
+            TurnoCaja.objects.all().order_by('-fecha_apertura')
+            .prefetch_related('cajas_fisicas', 'reaperturas__reabierto_por')
+        )
         ctx['turnos'] = turnos
         ctx['hay_alertas'] = any(t.alerta_diferencia for t in turnos)
-        
+
+        # Reabrir turno: solo lo puede quien tenga el permiso (restringido
+        # a superusuarios) y solo si NO hay ningún turno abierto ahora.
+        ctx['puede_reabrir'] = chequear_permiso(self.request.user, 'reabrir_turno')
+        ctx['hay_turno_abierto'] = TurnoCaja.turno_actual() is not None
+        # El turno más nuevo — al reabrirlo, su ventana horaria puede
+        # avanzar; cualquier otro queda con la ventana congelada.
+        ctx['turno_mas_nuevo_pk'] = turnos[0].pk if turnos else None
+
         return ctx
 
 

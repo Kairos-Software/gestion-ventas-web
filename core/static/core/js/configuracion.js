@@ -546,40 +546,57 @@ document.addEventListener('DOMContentLoaded', function () {
         const toggle = document.getElementById('idPermitirVentaSinStock');
         const msgV   = document.getElementById('configVentasMsg');
 
-        if (toggle && urlsV.guardar) {
-            toggle.addEventListener('change', function () {
-                const valor = this.checked;
-                toggle.disabled = true;
+        const toggleCtaCte = document.getElementById('idModoCuentaCorriente');
+
+        // Guarda un campo suelto de Configuración → Ventas y maneja el
+        // ida y vuelta (revertir el switch si falla, toast, mensaje). El
+        // segundo argumento arma el body y el tercero el texto de éxito.
+        function guardarPrefVenta(el, armarBody, textoOk) {
+            if (!el || !urlsV.guardar) return;
+            el.addEventListener('change', function () {
+                const previo = !el.checked;
+                el.disabled = true;
                 if (msgV) { msgV.style.color = ''; msgV.textContent = 'Guardando…'; }
                 fetch(urlsV.guardar, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfV() },
-                    body: JSON.stringify({ permitir_venta_sin_stock: valor }),
+                    body: JSON.stringify(armarBody(el.checked)),
                 })
                 .then(r => r.json())
                 .then(data => {
-                    toggle.disabled = false;
+                    el.disabled = false;
                     if (data.error) {
-                        toggle.checked = !valor;   // revertir el switch
+                        el.checked = previo;   // revertir el switch
                         if (msgV) { msgV.style.color = '#e11d48'; msgV.textContent = data.error; }
                         if (window.KaiToast) KaiToast.show(data.error, 'danger');
                         return;
                     }
-                    if (msgV) {
-                        msgV.style.color = '#16a34a';
-                        msgV.textContent = data.permitir_venta_sin_stock
-                            ? 'Activado. Recordá cargar la mercadería antes de cerrar el turno.'
-                            : 'Desactivado. Las ventas sin stock vuelven a estar bloqueadas.';
-                    }
+                    if (msgV) { msgV.style.color = '#16a34a'; msgV.textContent = textoOk(el.checked); }
                     if (window.KaiToast) KaiToast.show('Preferencia de ventas guardada.', 'success');
                 })
                 .catch(() => {
-                    toggle.disabled = false;
-                    toggle.checked = !valor;
+                    el.disabled = false;
+                    el.checked = previo;
                     if (msgV) { msgV.style.color = '#e11d48'; msgV.textContent = 'Error de conexión. Intentá de nuevo.'; }
                 });
             });
         }
+
+        guardarPrefVenta(
+            toggle,
+            (on) => ({ permitir_venta_sin_stock: on }),
+            (on) => on
+                ? 'Activado. Recordá cargar la mercadería antes de cerrar el turno.'
+                : 'Desactivado. Las ventas sin stock vuelven a estar bloqueadas.',
+        );
+
+        guardarPrefVenta(
+            toggleCtaCte,
+            (on) => ({ modo_cobranza: on ? 'cuenta_corriente' : 'individual' }),
+            (on) => on
+                ? 'Cuenta corriente activada. El botón "Cuotas" ahora se llama "Cuenta corriente".'
+                : 'Volviste al modo de deudas individuales.',
+        );
     }
 
     // Formulario de Límite contable (monotributo)

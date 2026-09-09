@@ -10,7 +10,7 @@ from productos.utils_imagenes import comprimir_imagen_subida
 
 from .models import (
     DatosEmpresa, CondicionIVA, ConfiguracionArca, AmbienteArca,
-    ConfiguracionVentas, ConfiguracionLimiteContable,
+    ConfiguracionVentas, ConfiguracionLimiteContable, ModoCobranza,
 )
 from .permisos import chequear_permiso
 from .services_arca import certificados, wsaa, wsfe
@@ -185,7 +185,12 @@ class EmpresaArcaProbarAjax(LoginRequiredMixin, View):
 
 
 class ConfiguracionVentasGuardarAjax(LoginRequiredMixin, View):
-    """POST JSON {permitir_venta_sin_stock: bool} — sección Configuración → Ventas."""
+    """
+    POST JSON — sección Configuración → Ventas. Acepta, cada uno opcional:
+      - permitir_venta_sin_stock: bool
+      - modo_cobranza: 'individual' | 'cuenta_corriente'
+    Solo se toca lo que viene en el body (el front manda un campo por vez).
+    """
 
     def post(self, request):
         if not chequear_permiso(request.user, 'editar_empresa'):
@@ -197,10 +202,26 @@ class ConfiguracionVentasGuardarAjax(LoginRequiredMixin, View):
             return JsonResponse({'error': 'JSON inválido.'}, status=400)
 
         config = ConfiguracionVentas.get_solo()
-        config.permitir_venta_sin_stock = bool(body.get('permitir_venta_sin_stock'))
-        config.save(update_fields=['permitir_venta_sin_stock', 'actualizado_el'])
+        campos = ['actualizado_el']
 
-        return JsonResponse({'ok': True, 'permitir_venta_sin_stock': config.permitir_venta_sin_stock})
+        if 'permitir_venta_sin_stock' in body:
+            config.permitir_venta_sin_stock = bool(body.get('permitir_venta_sin_stock'))
+            campos.append('permitir_venta_sin_stock')
+
+        if 'modo_cobranza' in body:
+            valor = str(body.get('modo_cobranza') or '')
+            if valor not in ModoCobranza.values:
+                return JsonResponse({'error': 'Modo de cobranza inválido.'}, status=400)
+            config.modo_cobranza = valor
+            campos.append('modo_cobranza')
+
+        config.save(update_fields=campos)
+
+        return JsonResponse({
+            'ok': True,
+            'permitir_venta_sin_stock': config.permitir_venta_sin_stock,
+            'modo_cobranza': config.modo_cobranza,
+        })
 
 
 class ConfiguracionLimiteContableGuardarAjax(LoginRequiredMixin, View):

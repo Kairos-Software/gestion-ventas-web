@@ -1,0 +1,223 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Cuenta corriente{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'caja/css/cuenta_corriente.css' %}?v=20260908.6">
+<link rel="stylesheet" href="{% static 'core/css/selector_impresion.css' %}?v=2026090801">
+{% endblock %}
+
+{% block content %}
+<div class="cc-container">
+    {% if sin_permiso %}
+    <div class="cc-sin-permiso">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M12 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="12" cy="16.2" r="0.9" fill="currentColor"/>
+        </svg>
+        <p>No tenés permiso para ver la cuenta corriente.</p>
+    </div>
+    {% else %}
+
+    <header class="cc-header">
+        <div>
+            <h1 class="cc-title kai-label-help">
+                Cuenta corriente
+                <button type="button" class="kai-help-btn" data-help-target="ayuda_cc" aria-label="Cómo funciona">?</button>
+            </h1>
+            <div class="kai-help-popover" id="ayuda_cc">
+                Cada cliente tiene <strong>un solo saldo</strong>: la suma de todo lo que debe.
+                Cuando paga, ponés el monto y el sistema lo descuenta solo, empezando por la
+                deuda más vieja. Para ver o cobrar deuda por deuda,
+                entrá a <a href="{% url 'caja:cuentas_cobrar' %}">deudas individuales</a>.
+                <br><br>
+                Atajos: <kbd>/</kbd> buscar · <kbd>?</kbd> ver todos.
+            </div>
+        </div>
+        <div class="cc-header-acciones">
+            <button type="button" class="btn btn-secondary" id="ccBtnListado">Listado de deudores</button>
+            <a href="{% url 'caja:cuentas_cobrar' %}" class="btn btn-ghost">Deudas individuales</a>
+            {% if puede_crear_deuda %}
+            <a href="{% url 'caja:cuentas_cobrar' %}" class="btn btn-primary">+ Nueva deuda</a>
+            {% endif %}
+        </div>
+    </header>
+
+    <section class="cc-resumen" id="ccResumen" aria-live="polite">
+        <div class="cc-resumen-stat cc-resumen-stat--hero">
+            <div class="cc-resumen-valor" id="ccSaldoTotal">—</div>
+            <div class="cc-resumen-label">Total a cobrar</div>
+        </div>
+        <div class="cc-resumen-stat">
+            <div class="cc-resumen-valor" id="ccClientesConDeuda">—</div>
+            <div class="cc-resumen-label">Clientes con deuda</div>
+        </div>
+        <div class="cc-resumen-stat cc-resumen-stat--mora" id="ccMoraStat" hidden>
+            <div class="cc-resumen-valor" id="ccMoraCount">—</div>
+            <div class="cc-resumen-label">Con deuda vencida</div>
+        </div>
+    </section>
+
+    <div class="cc-toolbar">
+        <div class="cc-buscador" id="ccBuscadorWrap">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M11 11L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            <input type="search" id="ccBuscar" placeholder="Buscar cliente por nombre, DNI o CUIT…"
+                   autocomplete="off" aria-label="Buscar cliente">
+            <kbd>/</kbd>
+            <button type="button" class="cc-buscador-clear" id="ccBuscarClear" aria-label="Limpiar búsqueda">✕</button>
+        </div>
+        <label class="cc-orden">
+            Ordenar
+            <select id="ccOrden">
+                <option value="saldo">Mayor saldo</option>
+                <option value="mora">En mora primero</option>
+                <option value="antiguedad">Deuda más vieja</option>
+                <option value="nombre">Nombre (A–Z)</option>
+            </select>
+        </label>
+    </div>
+
+    <div class="cc-lista" id="ccLista" role="list"></div>
+    {% endif %}
+</div>
+
+<!-- ══ MODAL DETALLE CLIENTE ══ -->
+<div class="modal" id="ccModalCliente" hidden role="dialog" aria-modal="true" aria-labelledby="ccClienteTitulo">
+    <div class="modal-backdrop" data-cc-cerrar></div>
+    <div class="modal-content modal-content--ancho">
+        <div class="modal-header">
+            <h2 class="modal-title" id="ccClienteTitulo">Cuenta corriente</h2>
+            <button type="button" class="modal-close" data-cc-cerrar aria-label="Cerrar">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M5 5L15 15M5 15L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body" id="ccClienteBody">
+            <div class="cc-saldo-grande" id="ccSaldoGrande">
+                <div>
+                    <div class="cc-saldo-grande-label">Saldo total</div>
+                    <div class="cc-saldo-grande-valor" id="ccDetSaldo">—</div>
+                </div>
+                {% if puede_cobrar %}
+                <button type="button" class="btn btn-primary btn-lg" id="ccBtnCobrar">Cobrar</button>
+                {% endif %}
+            </div>
+
+            <div class="cc-det-tabs" role="tablist">
+                <button type="button" class="cc-det-tab is-active" id="ccTabDeudas" data-cc-tab="deudas" role="tab" aria-controls="ccPanelDeudas" aria-selected="true">Deudas</button>
+                <button type="button" class="cc-det-tab" id="ccTabMovimientos" data-cc-tab="movimientos" role="tab" aria-controls="ccPanelMovimientos" aria-selected="false" tabindex="-1">Movimientos</button>
+                <button type="button" class="cc-det-tab" id="ccTabCobros" data-cc-tab="cobros" role="tab" aria-controls="ccPanelCobros" aria-selected="false" tabindex="-1">Cobros</button>
+                <button type="button" class="cc-det-tab" id="ccTabPagare" data-cc-tab="pagare" role="tab" aria-controls="ccPanelPagare" aria-selected="false" tabindex="-1">Pagaré</button>
+            </div>
+
+            <div class="cc-det-panel is-active" data-cc-panel="deudas" id="ccPanelDeudas" role="tabpanel" aria-labelledby="ccTabDeudas"></div>
+            <div class="cc-det-panel" data-cc-panel="movimientos" id="ccPanelMovimientos" role="tabpanel" aria-labelledby="ccTabMovimientos" hidden></div>
+            <div class="cc-det-panel" data-cc-panel="cobros" id="ccPanelCobros" role="tabpanel" aria-labelledby="ccTabCobros" hidden></div>
+            <div class="cc-det-panel" data-cc-panel="pagare" id="ccPanelPagare" role="tabpanel" aria-labelledby="ccTabPagare" hidden></div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" id="ccBtnEstadoCuenta">Imprimir estado de cuenta</button>
+            <a href="#" class="btn btn-ghost" id="ccLinkPerfil" target="_blank" rel="noopener">Ver ficha del cliente</a>
+            <button type="button" class="btn btn-ghost" data-cc-cerrar>Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ══ MODAL COBRAR ══ -->
+<div class="modal" id="ccModalCobrar" hidden role="dialog" aria-modal="true" aria-labelledby="ccCobrarTitulo ccCobrarCliente">
+    <div class="modal-backdrop" data-cc-cobrar-cerrar></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title" id="ccCobrarTitulo">Cobrar</h2>
+            <button type="button" class="modal-close" data-cc-cobrar-cerrar aria-label="Cerrar">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M5 5L15 15M5 15L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <p class="cc-cobrar-cliente" id="ccCobrarCliente"></p>
+            <p class="cc-cobrar-saldo" id="ccCobrarSaldo"></p>
+
+            <div class="form-campo">
+                <label for="ccCobrarMonto">¿Cuánto paga?</label>
+                <div class="cc-monto-row">
+                    <input type="number" id="ccCobrarMonto" step="0.01" min="0.01" inputmode="decimal"
+                           placeholder="0,00" autocomplete="off">
+                    <button type="button" class="cc-cobrar-todo" id="ccCobrarTodo">Todo</button>
+                </div>
+            </div>
+
+            <div class="cc-preview" id="ccPreview" aria-live="polite"></div>
+
+            <div class="form-campo">
+                <label for="ccCobrarCuenta">¿A qué cuenta entra?</label>
+                <select id="ccCobrarCuenta"><option value="">— Elegí una cuenta —</option></select>
+            </div>
+            <div class="form-campo">
+                <label for="ccCobrarComprobante">N° de recibo / comprobante <span class="cc-opcional">(opcional)</span></label>
+                <input type="text" id="ccCobrarComprobante" autocomplete="off">
+            </div>
+            <details class="form-campo cc-mas-opciones">
+                <summary>Más opciones</summary>
+                <label for="ccCobrarFecha">Fecha del recibo</label>
+                <input type="date" id="ccCobrarFecha">
+                <label for="ccCobrarNotas">Notas</label>
+                <input type="text" id="ccCobrarNotas" autocomplete="off">
+            </details>
+
+            <div class="cc-cobrar-msg" id="ccCobrarMsg" role="alert" aria-live="polite"></div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-ghost" data-cc-cobrar-cerrar>Cancelar</button>
+            <button type="button" class="btn btn-primary" id="ccCobrarConfirmar">Registrar cobro</button>
+        </div>
+    </div>
+</div>
+
+<!-- ══ OVERLAY ATAJOS ══ -->
+<div class="cc-atajos" id="ccAtajos" hidden>
+    <div class="cc-atajos-card" role="dialog" aria-modal="true" aria-label="Atajos de teclado">
+        <h2>Atajos de teclado</h2>
+        <div class="cc-atajos-list">
+            <div><span>Buscar cliente</span><kbd>/</kbd></div>
+            <div><span>Moverse en la lista</span><kbd>↑ ↓</kbd></div>
+            <div><span>Abrir el cliente marcado</span><kbd>Enter</kbd></div>
+            <div><span>Cobrarle al cliente marcado</span><kbd>C</kbd></div>
+            <div><span>Cerrar / volver</span><kbd>Esc</kbd></div>
+            <div><span>Cambiar de pestaña (en el detalle)</span><kbd>1</kbd>–<kbd>4</kbd></div>
+            <div><span>Ver esta ayuda</span><kbd>?</kbd></div>
+        </div>
+        <button type="button" class="btn btn-secondary cc-atajos-cerrar" id="ccAtajosCerrar">Entendido</button>
+    </div>
+</div>
+
+{% include 'core/_selector_impresion.html' %}
+
+{% endblock %}
+
+{% block extra_js %}
+{% if not sin_permiso %}
+<script id="cc-cuentas-data" type="application/json">{{ cuentas_json|safe }}</script>
+<script>
+    window.CC = {
+        urls: {{ urls|safe }},
+        today: "{{ today }}",
+        puedeCobrar: {{ puede_cobrar|yesno:"true,false" }},
+        puedeAnular: {{ puede_anular|yesno:"true,false" }},
+        puedeEditar: {{ puede_editar|yesno:"true,false" }},
+    };
+</script>
+<script src="{% static 'core/js/selector_impresion.js' %}?v=2026090801"></script>
+<script src="{% static 'core/js/cliente_deuda_total_imprimir.js' %}?v=2026090801"></script>
+<script src="{% static 'caja/js/cuenta_corriente_recibo.js' %}?v=20260908.5"></script>
+<script src="{% static 'caja/js/cuenta_corriente_movimientos_imprimir.js' %}?v=2026090801"></script>
+<script src="{% static 'caja/js/cuenta_corriente.js' %}?v=2026090802"></script>
+{% endif %}
+{% endblock %}

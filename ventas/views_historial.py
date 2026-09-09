@@ -6,7 +6,7 @@ from django.views import View
 from django.http import JsonResponse
 from django.db.models import Q
 
-from .models import Venta, EstadoVenta, MedioPago, DevolucionVenta
+from .models import Venta, EstadoVenta, DevolucionVenta, medios_pago_choices
 from core.permisos import chequear_permiso
 
 
@@ -22,7 +22,7 @@ class HistorialVentasView(LoginRequiredMixin, TemplateView):
         ctx['puede_editar']   = chequear_permiso(self.request.user, 'editar_ventas')
         ctx['puede_eliminar'] = chequear_permiso(self.request.user, 'eliminar_ventas')
         ctx['estados']        = EstadoVenta.choices
-        ctx['medios_pago']    = MedioPago.choices
+        ctx['medios_pago']    = medios_pago_choices()
         ctx['turnos']         = self._turnos_para_filtro()
         return ctx
 

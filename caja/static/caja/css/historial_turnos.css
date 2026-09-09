@@ -12,3 +12,133 @@
     background: var(--bg-secondary);
     border-radius: var(--radius-sm);
 }
+
+/* ── Reapertura de turnos ──────────────────────────────────────── */
+.ht-badge-reabierto {
+    background: rgba(180, 83, 9, 0.10);
+    color: var(--warning, #b45309);
+    border-color: rgba(180, 83, 9, 0.28);
+}
+
+.ht-reaperturas {
+    display: block;
+    margin: 0.75rem 0;
+    padding: 0.6rem 0.9rem;
+    border-radius: var(--radius-sm);
+    background: rgba(180, 83, 9, 0.06);
+    border: 1px solid rgba(180, 83, 9, 0.2);
+    font-size: 0.82rem;
+}
+.ht-reaperturas summary {
+    cursor: pointer;
+    font-weight: 700;
+    color: var(--warning, #b45309);
+}
+.ht-reaperturas summary::-webkit-details-marker { display: none; }
+.ht-reapertura-lista { margin-top: 0.6rem; display: flex; flex-direction: column; gap: 0.55rem; }
+.ht-reapertura-item {
+    padding: 0.55rem 0.7rem;
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+}
+.ht-reapertura-cab {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+.ht-reapertura-cab strong { color: var(--text-primary); }
+.ht-reapertura-recierre { color: var(--text-muted); }
+.ht-reapertura-motivo {
+    margin-top: 0.35rem;
+    font-style: italic;
+    color: var(--text-secondary);
+}
+.ht-reapertura-meta {
+    margin-top: 0.3rem;
+    font-size: 0.74rem;
+    color: var(--text-muted);
+}
+
+.ht-reabrir-hint {
+    margin: 1rem 0 0;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+/* ── Modal de reapertura ───────────────────────────────────────── */
+.ht-reabrir-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(13, 27, 42, 0.55);
+}
+.ht-reabrir-overlay[hidden] { display: none; }
+.ht-reabrir-box {
+    background: var(--bg-white);
+    border-radius: var(--radius-lg, 14px);
+    box-shadow: var(--shadow-lg);
+    max-width: 460px;
+    width: 100%;
+    max-height: 92vh;
+    overflow-y: auto;
+    padding: 1.5rem;
+}
+.ht-reabrir-box h3 {
+    margin: 0 0 0.6rem;
+    font-family: var(--font-heading, inherit);
+    font-size: 1.05rem;
+}
+.ht-reabrir-explica {
+    margin: 0 0 0.8rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+.ht-reabrir-efectos {
+    margin: 0 0 1rem;
+    padding-left: 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    line-height: 1.45;
+}
+.ht-reabrir-efectos li[hidden] { display: none; }
+.ht-reabrir-label {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 0.35rem;
+}
+.ht-reabrir-box textarea {
+    width: 100%;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    padding: 0.55rem 0.7rem;
+    font: inherit;
+    font-size: 0.9rem;
+    resize: vertical;
+    min-height: 52px;
+}
+.ht-reabrir-box textarea:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px var(--accent-light, rgba(201, 80, 12, 0.15));
+}
+.ht-reabrir-acciones {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.6rem;
+    margin-top: 1.2rem;
+}

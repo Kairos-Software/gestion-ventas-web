@@ -81,6 +81,11 @@ Historial de Turnos
             <span class="ht-badge {% if turno.estado == 'abierto' %}ht-badge-abierto{% else %}ht-badge-cerrado{% endif %}">
                 {{ turno.get_estado_display }}
             </span>
+            {% if turno.veces_reabierto %}
+            <span class="ht-badge ht-badge-reabierto" title="Este turno se reabrió para corregirlo">
+                ↺ Reabierto {{ turno.veces_reabierto }}×
+            </span>
+            {% endif %}
             <span class="ht-row-fecha">
                 {{ turno.fecha_apertura|date:"d/m/Y H:i" }}{% if turno.fecha_cierre %} → {{ turno.fecha_cierre|date:"H:i" }}{% endif %}
             </span>
@@ -330,7 +335,35 @@ Historial de Turnos
             <div class="ht-notas">"{{ turno.notas }}"</div>
             {% endif %}
 
-            <div class="ht-footer" style="margin-top:0.75rem">
+            {% with reaperturas=turno.reaperturas.all %}
+            {% if reaperturas %}
+            <details class="ht-reaperturas">
+                <summary>↺ {{ reaperturas|length }} reapertura{{ reaperturas|length|pluralize }} de este turno</summary>
+                <div class="ht-reapertura-lista">
+                    {% for r in reaperturas %}
+                    <div class="ht-reapertura-item">
+                        <div class="ht-reapertura-cab">
+                            <strong>#{{ r.numero }}</strong>
+                            <span>{{ r.fecha_reapertura|date:"d/m/Y H:i" }}{% if r.reabierto_por %} · {{ r.reabierto_por.get_full_name|default:r.reabierto_por.username }}{% endif %}</span>
+                            {% if r.sigue_abierto %}
+                            <span class="ht-badge ht-badge-abierto">Sin volver a cerrar</span>
+                            {% else %}
+                            <span class="ht-reapertura-recierre">re-cerrado {{ r.fecha_recierre|date:"d/m/Y H:i" }}{% if r.recerrado_por %} · {{ r.recerrado_por.get_full_name|default:r.recerrado_por.username }}{% endif %}</span>
+                            {% endif %}
+                        </div>
+                        <div class="ht-reapertura-motivo">"{{ r.motivo }}"</div>
+                        <div class="ht-reapertura-meta">
+                            Efectivo revertido de caja grande: ${{ r.efectivo_revertido|floatformat:"2" }}
+                            {% if not r.era_ultimo_turno %} · ventana horaria congelada (turno no era el último){% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </details>
+            {% endif %}
+            {% endwith %}
+
+            <div class="ht-footer" style="margin-top:0.75rem; gap:0.5rem; flex-wrap:wrap">
                 <a href="{% url 'ventas:historial_ventas' %}?turno={{ turno.pk }}" class="vta-btn vta-btn-ghost" style="padding:0.35rem 0.8rem;font-size:0.82rem;">
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                         <path d="M1.5 8C3 4.5 5.5 2.5 8 2.5S13 4.5 14.5 8C13 11.5 10.5 13.5 8 13.5S3 11.5 1.5 8Z" stroke="currentColor" stroke-width="1.3" />
@@ -338,11 +371,29 @@ Historial de Turnos
                     </svg>
                     Ver ventas de este turno
                 </a>
+                {% if puede_reabrir and turno.estado == 'cerrado' and not hay_turno_abierto %}
+                <button type="button" class="vta-btn vta-btn-ghost ht-reabrir-btn"
+                        style="padding:0.35rem 0.8rem;font-size:0.82rem;"
+                        data-turno-pk="{{ turno.pk }}" data-turno-numero="{{ turno.numero }}"
+                        data-es-ultimo="{% if turno.pk == turno_mas_nuevo_pk %}1{% else %}0{% endif %}"
+                        data-efectivo="{{ turno.monto_final_efectivo|default_if_none:'0'|floatformat:'2' }}">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                        <path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9M2.5 3v3h3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    Reabrir para corregir
+                </button>
+                {% endif %}
             </div>
         </div>
     </details>
     {% endfor %}
 </div>
+
+{% if puede_reabrir and hay_turno_abierto %}
+<p class="ht-reabrir-hint">
+    Para reabrir un turno cerrado y corregirlo, primero cerrá el turno que está abierto ahora.
+</p>
+{% endif %}
 {% else %}
 <div class="vta-card" style="text-align:center; padding:3rem">
     <svg width="48" height="48" viewBox="0 0 48 48" fill="none" style="color:var(--text-muted); margin-bottom:1rem">
@@ -356,6 +407,38 @@ Historial de Turnos
 </div>
 {% endif %}
 
+{% if puede_reabrir %}
+<div class="ht-reabrir-overlay" id="htReabrirOverlay" hidden>
+    <div class="ht-reabrir-box" role="dialog" aria-modal="true" aria-labelledby="htReabrirTitulo">
+        <h3 id="htReabrirTitulo">Reabrir turno <span id="htReabrirNum"></span></h3>
+        <p class="ht-reabrir-explica">
+            El turno vuelve a quedar <strong>abierto</strong> para que puedas corregirlo
+            (editar o anular ventas, ajustar la caja diaria, rehacer el arqueo). Cuando
+            termines, lo cerrás de nuevo normalmente.
+        </p>
+        <ul class="ht-reabrir-efectos">
+            <li>
+                Se <strong>saca de Caja Grande</strong> el efectivo que este turno
+                depositó al cerrar (<span id="htReabrirEfectivo">$0,00</span>). Se vuelve
+                a depositar cuando lo cierres, con el arqueo nuevo.
+            </li>
+            <li id="htReabrirVentana" hidden>
+                No es el último turno: su <strong>ventana horaria queda congelada</strong>
+                en su día. Podés editar/anular sus ventas, pero una venta nueva cargada
+                ahora no quedaría dentro de este turno.
+            </li>
+            <li>Mientras esté reabierto, es la caja activa. No vas a poder abrir otro turno hasta cerrarlo.</li>
+        </ul>
+        <label class="ht-reabrir-label" for="htReabrirMotivo">¿Por qué lo reabrís? (queda registrado)</label>
+        <textarea id="htReabrirMotivo" rows="2" placeholder="Ej: cargué mal el efectivo del cierre"></textarea>
+        <div class="ht-reabrir-acciones">
+            <button type="button" class="vta-btn vta-btn-ghost" id="htReabrirCancelar">Cancelar</button>
+            <button type="button" class="vta-btn vta-btn-primary" id="htReabrirConfirmar">Reabrir turno</button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 {% endif %}
 
 {% endblock %}
@@ -364,9 +447,10 @@ Historial de Turnos
 <script>
     const HT_URLS = {
         eliminar: "{% url 'caja:eliminar_historial' %}",
+        reabrirBase: "{% url 'caja:reabrir_turno' pk=0 %}",
         csrf: "{{ csrf_token }}",
         cantidadTurnos: {{ turnos|length }}
     };
 </script>
-<script src="{% static 'caja/js/historial_turnos.js' %}"></script>
+<script src="{% static 'caja/js/historial_turnos.js' %}?v=20260908"></script>
 {% endblock %}

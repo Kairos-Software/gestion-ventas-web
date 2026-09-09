@@ -52,6 +52,30 @@ class MedioPago(models.TextChoices):
     CHEQUE        = 'cheque',        'Cheque'
 
 
+def etiqueta_medio_pago(valor):
+    """
+    Texto que ve el usuario para un medio de pago. Igual que
+    `dict(MedioPago.choices)[valor]`, salvo que en las instalaciones que
+    cobran por cuenta corriente (ver core.models.usa_cuenta_corriente)
+    el medio CUOTAS se muestra como "Cuenta corriente". El value
+    guardado sigue siendo 'cuotas' en todos lados — solo cambia el
+    rótulo.
+    """
+    base = dict(MedioPago.choices).get(valor, valor)
+    if valor == MedioPago.CUOTAS:
+        from core.models import usa_cuenta_corriente
+        if usa_cuenta_corriente():
+            return 'Cuenta corriente'
+    return base
+
+
+def medios_pago_choices():
+    """MedioPago.choices con la etiqueta de CUOTAS ya resuelta según el
+    modo de cobranza (ver `etiqueta_medio_pago`). Para los <select> y la
+    botonera de medios de Nueva Venta / Historial."""
+    return [(v, etiqueta_medio_pago(v)) for v, _ in MedioPago.choices]
+
+
 class TipoResolucionLote(models.TextChoices):
     """
     Cómo se determinó de qué lote sale el stock de un ítem.
@@ -878,6 +902,13 @@ class Venta(models.Model):
                     modo_cuotas = p.get('modo_cuotas', ModoCuotas.FIJAS)
                     if modo_cuotas not in ModoCuotas.values:
                         modo_cuotas = ModoCuotas.FIJAS
+                    # En modo cuenta corriente una venta financiada SIEMPRE
+                    # es saldo libre: se suma al saldo único del cliente, no
+                    # arma un plan de cuotas propio (ver
+                    # core.models.usa_cuenta_corriente).
+                    from core.models import usa_cuenta_corriente
+                    if usa_cuenta_corriente():
+                        modo_cuotas = ModoCuotas.LIBRE
                     es_libre = modo_cuotas == ModoCuotas.LIBRE
 
                     try:

@@ -1,0 +1,138 @@
+/* Selector reutilizable de papel/impresora para documentos no fiscales. */
+body.kps-open {
+    overflow: hidden;
+}
+
+.kps-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 12000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(13, 27, 42, .55);
+    backdrop-filter: blur(2px);
+}
+
+.kps-overlay[hidden] {
+    display: none;
+}
+
+.kps-dialog {
+    position: relative;
+    width: min(100%, 430px);
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+    padding: 1.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 1rem;
+    background: var(--bg-white, #fff);
+    box-shadow: 0 24px 70px rgba(13, 27, 42, .28);
+}
+
+.kps-close {
+    position: absolute;
+    top: .8rem;
+    right: .8rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: .5rem;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.kps-close:hover {
+    color: var(--text-primary);
+    background: var(--bg-secondary);
+}
+
+.kps-title {
+    margin: 0 2.25rem .25rem 0;
+    font-family: var(--font-heading, 'Plus Jakarta Sans', sans-serif);
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--text-primary);
+}
+
+.kps-description {
+    margin: 0 0 1.1rem;
+    font-size: .8125rem;
+    line-height: 1.45;
+    color: var(--text-muted);
+}
+
+.kps-options {
+    display: flex;
+    flex-direction: column;
+    gap: .55rem;
+}
+
+.kps-option {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) 16px;
+    align-items: center;
+    gap: .75rem;
+    width: 100%;
+    padding: .75rem .85rem;
+    border: 1px solid var(--border-color);
+    border-radius: .7rem;
+    background: var(--bg-white, #fff);
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+    transition: border-color .15s, background .15s, box-shadow .15s;
+}
+
+.kps-option:hover {
+    border-color: var(--accent-primary, #F26A1B);
+    background: var(--brand-orange-light, #FFF0E6);
+}
+
+.kps-option:focus-visible,
+.kps-close:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(242, 106, 27, .22);
+}
+
+.kps-option-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent-primary, #F26A1B);
+}
+
+.kps-option-copy {
+    min-width: 0;
+}
+
+.kps-option-copy strong,
+.kps-option-copy span {
+    display: block;
+}
+
+.kps-option-copy strong {
+    margin-bottom: .1rem;
+    font-size: .875rem;
+}
+
+.kps-option-copy span {
+    font-size: .75rem;
+    line-height: 1.35;
+    color: var(--text-muted);
+}
+
+.kps-option-arrow {
+    color: var(--text-muted);
+}
+
+@media (max-width: 480px) {
+    .kps-dialog { padding: 1.25rem; }
+    .kps-option { padding: .7rem; }
+}

@@ -102,6 +102,7 @@ PERMISOS_CHOICES = [
     ('ver_caja',              'Ver balance y movimientos de caja'),
     ('cargar_movimientos_caja', 'Cargar movimientos manuales en caja'),
     ('abrir_cerrar_turno',    'Abrir y cerrar turnos de caja diaria'),
+    ('reabrir_turno',         'Reabrir un turno de caja ya cerrado para corregirlo (avanzado)'),
 
     # ── Módulo: Transacciones (caja grande) ─────────────────────────
     ('ver_transacciones',     'Ver transacciones entre cuentas'),
@@ -154,6 +155,7 @@ PERMISOS_RESTRINGIDOS = {
     'editar_recargos',
     'gestionar_notificaciones',
     'editar_catalogo',
+    'reabrir_turno',
 }
 
 
@@ -1404,6 +1406,28 @@ class ConfiguracionArca(models.Model):
         return bool(self.certificado_pem and self.clave_privada_enc)
 
 
+class ModoCobranza(models.TextChoices):
+    """
+    Cómo se le cobra al cliente lo que debe.
+
+    INDIVIDUAL (por defecto): cada venta financiada es su propia deuda
+    con su plan de cuotas, su vencimiento y su interés — se cobra deuda
+    por deuda. Es el modelo completo, el que necesita, por ejemplo, una
+    casa de electrodomésticos (una heladera y un aire son dos créditos
+    distintos).
+
+    CUENTA_CORRIENTE: el cliente tiene UN saldo que sube y baja (modelo
+    "libreta de almacén" / financiera). Las deudas individuales siguen
+    existiendo por debajo (para trazabilidad, ARCA, y para poder volver
+    atrás), pero la pantalla muestra un saldo único por cliente y el
+    cobro se imputa solo a las deudas más viejas primero (FIFO). NADA
+    del modelo de datos cambia al prender esto — ver comentario de
+    CuentaPorCobrar y el helper `usa_cuenta_corriente()`.
+    """
+    INDIVIDUAL       = 'individual',       'Deudas individuales (cuotas por venta)'
+    CUENTA_CORRIENTE = 'cuenta_corriente', 'Cuenta corriente (un saldo por cliente)'
+
+
 class ConfiguracionVentas(models.Model):
     """
     Modelo singleton (mismo patrón que DatosEmpresa / ConfiguracionArca)
@@ -1418,6 +1442,17 @@ class ConfiguracionVentas(models.Model):
             'no se puede cerrar hasta cargar la mercadería que falta '
             '(una compra o un ajuste de stock). Si está apagado, el sistema '
             'rechaza cualquier venta o movimiento que deje stock negativo.'
+        ),
+    )
+    modo_cobranza = models.CharField(
+        'Modo de cobranza', max_length=20,
+        choices=ModoCobranza.choices, default=ModoCobranza.INDIVIDUAL,
+        help_text=(
+            'Individual (por defecto): cada venta financiada es una deuda '
+            'aparte con su plan de cuotas. Cuenta corriente: el cliente '
+            'tiene un solo saldo que sube y baja, y el cobro se imputa a '
+            'las deudas más viejas primero. No reescribe ninguna venta '
+            'existente — solo cambia cómo se ve y se cobra.'
         ),
     )
     actualizado_el = models.DateTimeField(auto_now=True)
@@ -1512,6 +1547,22 @@ def permite_venta_sin_stock():
     cacheada por la base, barata de consultar.
     """
     return ConfiguracionVentas.get_solo().permitir_venta_sin_stock
+
+
+def usa_cuenta_corriente():
+    """
+    Atajo global: ¿esta instalación cobra en modo "cuenta corriente"
+    (un saldo por cliente) en vez de deuda por deuda? (ver
+    ConfiguracionVentas.modo_cobranza / ModoCobranza).
+
+    Con esto en False (por defecto) el sistema se comporta exactamente
+    como siempre: cada venta financiada es su propia CuentaPorCobrar con
+    su plan de cuotas. En True, las deudas individuales siguen existiendo
+    igual por debajo — solo cambia la presentación (saldo único por
+    cliente) y el flujo de cobro (imputación FIFO). Ningún dato se
+    reescribe al prender o apagar el flag.
+    """
+    return ConfiguracionVentas.get_solo().modo_cobranza == ModoCobranza.CUENTA_CORRIENTE
 
 
 class ContadorBilletes(models.Model):

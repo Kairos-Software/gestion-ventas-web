@@ -500,14 +500,14 @@
                         </a>
                         {% endif %}
                         {% if perms_kai.ver_cuentas_cobrar %}
-                        <a href="{% url 'caja:cuentas_cobrar' %}"
-                           class="nav-subitem {% if request.resolver_match.url_name == 'cuentas_cobrar' %}active{% endif %}">
+                        <a href="{% if kai_usa_cuenta_corriente %}{% url 'caja:cuenta_corriente' %}{% else %}{% url 'caja:cuentas_cobrar' %}{% endif %}"
+                           class="nav-subitem {% if request.resolver_match.url_name == 'cuentas_cobrar' or request.resolver_match.url_name == 'cuenta_corriente' %}active{% endif %}">
                             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
                                 <rect x="1.5" y="3" width="13" height="9" rx="1.2" stroke="currentColor" stroke-width="1.3"/>
                                 <path d="M1.5 6.5H14.5" stroke="currentColor" stroke-width="1.3"/>
                                 <path d="M9 9.5H12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
                             </svg>
-                            <span>Cuentas por cobrar</span>
+                            <span>{% if kai_usa_cuenta_corriente %}Cuenta corriente{% else %}Cuentas por cobrar{% endif %}</span>
                         </a>
                         {% endif %}
                         {% if perms_kai.ver_cheques %}

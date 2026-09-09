@@ -8,7 +8,8 @@
  * imprimir.js, en espejo (cobro, no pago) y con la sección de
  * documentos agregada (más relevante acá por el caso de carga inicial).
  *
- * Expone: cxcImprimir(cxc, ventanaPrevia) — llamada desde cuentas_cobrar.js.
+ * Expone: cxcImprimir(cxc, formato, ventanaPrevia) — formatos: a4,
+ * termica80 o termica58. La firma anterior (cxc, ventana) sigue válida.
  * ─────────────────────────────────────────────────────────────────
  */
 'use strict';
@@ -32,21 +33,60 @@ function _ciEstadoLabel(c) {
     return 'Pendiente';
 }
 
+function _ciResolverSalida(formato, ventanaPrevia) {
+    if (formato && typeof formato !== 'string') {
+        return { formato: 'a4', ventana: formato };
+    }
+    const valor = ['a4', 'termica80', 'termica58'].includes(formato) ? formato : 'a4';
+    return { formato: valor, ventana: ventanaPrevia || null };
+}
+
+function _ciCssFormato(formato) {
+    if (formato === 'a4') return '@page { size: A4; margin: 12mm; }';
+    const ancho = formato === 'termica58' ? 58 : 80;
+    const padding = formato === 'termica58' ? '2.5mm' : '3.5mm';
+    const fuente = formato === 'termica58' ? '8.2pt' : '9pt';
+    return `
+        @page { size: ${ancho}mm auto; margin: 0; }
+        html, body { width: ${ancho}mm; max-width: ${ancho}mm; margin: 0; }
+        body { padding: ${padding}; font-size: ${fuente}; }
+        h1 { font-size: 12pt; line-height: 1.25; }
+        .ci-subtitulo { font-size: 8pt; margin-bottom: 12px; }
+        .ci-resumen { grid-template-columns: 1fr; gap: 0; margin-bottom: 12px; font-size: ${fuente}; }
+        .ci-resumen div { gap: 8px; padding: 3px 0; }
+        .ci-resumen strong { text-align: right; overflow-wrap: anywhere; }
+        .ci-badge { margin-bottom: 8px; }
+        table, tbody { display: block; width: 100%; }
+        thead { display: none; }
+        tr { display: block; padding: 5px 0; border-top: 1px dashed #777; page-break-inside: avoid; }
+        td { display: flex; justify-content: space-between; gap: 8px; border: 0; padding: 1px 0; text-align: right; }
+        td::before { content: attr(data-label); color: #555; font-weight: normal; text-align: left; }
+        .ci-monto { text-align: right; font-weight: bold; }
+        .ci-subtitulo-seccion { font-size: 9pt; margin-top: 14px; }
+        .ci-docs { padding-left: 15px; font-size: 7.5pt; overflow-wrap: anywhere; }
+        .ci-footer { margin-top: 14px; font-size: 7pt; text-align: center; }
+    `;
+}
+
 /**
  * @param {object} cxc
+ * @param {'a4'|'termica80'|'termica58'} [formato]
  * @param {Window} [ventanaPrevia] - Ventana ya abierta (window.open llamado
  *   de forma síncrona en el click, antes de cualquier `await`) para no
  *   perder el gesto del usuario y que el navegador no bloquee el popup.
  *   Si no se pasa, la abre acá mismo (caso de uso sin async de por medio).
  */
-function cxcImprimir(cxc, ventanaPrevia) {
+function cxcImprimir(cxc, formato, ventanaPrevia) {
+    const salida = _ciResolverSalida(formato, ventanaPrevia);
+    formato = salida.formato;
+    ventanaPrevia = salida.ventana;
     const filasCuotas = (cxc.cuotas || []).map(c => `
         <tr>
-            <td>${c.numero}</td>
-            <td>${_ciEsc(c.fecha_vencimiento)}</td>
-            <td class="ci-monto">${_ciFmtMoneda(c.monto, cxc.moneda)}</td>
-            <td>${_ciEsc(_ciEstadoLabel(c))}</td>
-            <td>${c.fecha_confirmacion ? _ciEsc(c.fecha_confirmacion.slice(0, 10)) : '-'}</td>
+            <td data-label="Cuota">${c.numero}</td>
+            <td data-label="Vencimiento">${_ciEsc(c.fecha_vencimiento)}</td>
+            <td data-label="Monto" class="ci-monto">${_ciFmtMoneda(c.monto, cxc.moneda)}</td>
+            <td data-label="Estado">${_ciEsc(_ciEstadoLabel(c))}</td>
+            <td data-label="Fecha de cobro">${c.fecha_confirmacion ? _ciEsc(c.fecha_confirmacion.slice(0, 10)) : '-'}</td>
         </tr>`).join('');
 
     const documentos = cxc.documentos || [];
@@ -78,6 +118,7 @@ function cxcImprimir(cxc, ventanaPrevia) {
     .ci-docs { font-size: .8125rem; padding-left: 20px; margin: 0; }
     .ci-footer { margin-top: 24px; font-size: .75rem; color: #888; }
     @media print { body { padding: 0; } }
+    ${_ciCssFormato(formato)}
 </style>
 </head>
 <body>
@@ -107,7 +148,8 @@ function cxcImprimir(cxc, ventanaPrevia) {
 </body>
 </html>`;
 
-    const ventana = ventanaPrevia || window.open('', '_blank', 'width=800,height=950');
+    const anchoVentana = formato === 'a4' ? 800 : (formato === 'termica80' ? 440 : 360);
+    const ventana = ventanaPrevia || window.open('', '_blank', `width=${anchoVentana},height=950`);
     if (!ventana) {
         KaiToast.show('El navegador bloqueó la ventana de impresión. Permití popups para este sitio e intentá de nuevo.', 'warning', 6000);
         return;

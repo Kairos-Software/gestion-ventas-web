@@ -163,8 +163,17 @@ const _MEDIO_ICONOS = {
     cheque:        '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="3" y="3.5" width="14" height="13" rx="1.6" stroke="currentColor" stroke-width="1.4"/><path d="M6 8h8M6 11h8M6 14h5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
 };
 
-/** "Transferencia" es larga para el botón — el resto va con su label tal cual. */
+/** "Transferencia" es larga para el botón — el resto va con su label tal
+ *  cual. "cuotas" puede venir del server como "Cuenta corriente" (según
+ *  el modo de cobranza): en el botón se abrevia "Cta. cte." pero el
+ *  título/tooltip sigue mostrando el label completo. */
 const _MEDIO_LABEL_CORTO = { transferencia: 'Transf.' };
+
+function _medioLabelCorto(m) {
+    if (m.value === 'transferencia') return 'Transf.';
+    if (m.value === 'cuotas' && /corriente/i.test(m.label || '')) return 'Cta. cte.';
+    return m.label;
+}
 
 /** Botonera de medios de pago (acceso directo, uno al lado del otro) —
  *  reemplaza al <select>. El activo queda resaltado; al tocar otro se
@@ -178,7 +187,7 @@ function _pagoMediosBotones(l) {
                 aria-pressed="${m.value === l.medio ? 'true' : 'false'}" title="${m.label} (tecla ${i + 1})">
             <span class="vdt-medio-tab-num" aria-hidden="true">${i + 1}</span>
             ${_MEDIO_ICONOS[m.value] || ''}
-            <span>${_MEDIO_LABEL_CORTO[m.value] || m.label}</span>
+            <span>${_medioLabelCorto(m)}</span>
         </button>`).join('');
 }
 
@@ -202,7 +211,9 @@ function _aplicarMedioALinea(linea, nuevoMedio) {
     linea.aplicaRecargo = true; // se sugiere aplicado; el vendedor lo destilda si no corresponde
     if (nuevoMedio === 'cuotas') {
         if (!linea.fechaInicioCobro) linea.fechaInicioCobro = VDT.hoy || '';
-        if (!linea.modoCuotas) linea.modoCuotas = 'fijas';
+        // En modo cuenta corriente no hay plan de cuotas: la venta se
+        // suma al saldo único del cliente (siempre "libre").
+        linea.modoCuotas = VDT.usaCuentaCorriente ? 'libre' : (linea.modoCuotas || 'fijas');
     }
     if (nuevoMedio === 'cheque') {
         linea.cheques = linea.cheques || [];
@@ -296,12 +307,20 @@ function _bindClienteVentaDetalle() {
                         <div class="vta-cli-option" data-idx="${i}" data-nombre="${_escVdt(c.nombre)}">
                             <div class="vta-cli-option-top">
                                 <span class="vta-cli-option-nombre">${_escVdt(c.nombre)}</span>
-                                ${c.scoring_banda && !c.scoring_sin_historial
-                                    ? `<span class="vdt-sco-mini vdt-sco-mini--${c.scoring_banda}">${_escVdt(c.scoring_banda_label || '')}</span>`
-                                    : ''}
-                                ${c.codigo ? `<span class="vta-dropdown-item-codigo">${_escVdt(c.codigo)}</span>` : ''}
+                                <span class="vta-cli-option-badges">
+                                    ${c.scoring_banda && !c.scoring_sin_historial
+                                        ? `<span class="vdt-sco-mini vdt-sco-mini--${c.scoring_banda}">${_escVdt(c.scoring_banda_label || '')}</span>`
+                                        : ''}
+                                    ${c.codigo ? `<span class="vta-dropdown-item-codigo">${_escVdt(c.codigo)}</span>` : ''}
+                                </span>
                             </div>
-                            ${c.doc ? `<div class="vta-cli-option-doc">${_escVdt(c.doc)}</div>` : ''}
+                            ${c.doc ? `<div class="vta-cli-option-doc">
+                                <svg width="11" height="11" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                                    <rect x="2" y="1.5" width="10" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
+                                    <path d="M4.5 5H9.5M4.5 8H8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                                </svg>
+                                ${_escVdt(c.doc)}
+                            </div>` : ''}
                         </div>`).join('')
                     : `<div class="vta-dropdown-empty">Sin resultados para "${_escVdt(q)}"</div>`;
 
@@ -532,6 +551,25 @@ function _montoArsLinea(l) {
  *  muestra el total a cobrar calculado en vivo. */
 function _cuotasExtraHTML(l) {
     const libre = l.modoCuotas === 'libre';
+
+    // Modo cuenta corriente: sin plan de cuotas ni pagaré por deuda (hay
+    // uno consolidado en la ficha del cliente). Solo muestra el interés
+    // opcional y el total; el medio seleccionado ya explica el destino.
+    if (VDT.usaCuentaCorriente) {
+        return `
+        <div class="vdt-pago-cuotas-extra">
+            <div>
+                <span class="vdt-pago-cuotas-label">Interés %</span>
+                <input type="number" class="vdt-pago-select" min="0" step="0.01" placeholder="0"
+                       value="${l.interesPct != null ? l.interesPct : ''}" data-campo="interesPct" data-id="${l.id}">
+            </div>
+            <div class="vdt-credito-total-libre">
+                <span class="vdt-pago-cuotas-label">Suma a cobrar</span>
+                <strong>${_fmtARS(_montoPagadoLinea(l))}</strong>
+            </div>
+        </div>`;
+    }
+
     return `
     <label class="vdt-credito-modo-row">
         <span class="vdt-pago-cuotas-label">Cuotas libres</span>

@@ -5,7 +5,8 @@
 {% block title %}Cuentas por cobrar{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'caja/css/cuentas_cobrar.css' %}">
+<link rel="stylesheet" href="{% static 'caja/css/cuentas_cobrar.css' %}?v=2026090802">
+<link rel="stylesheet" href="{% static 'core/css/selector_impresion.css' %}?v=2026090801">
 {% endblock %}
 
 {% block content %}
@@ -111,29 +112,29 @@
         </div>
         <div class="cxc-paginacion" id="paginacionContainer"></div>
     </section>
-</div>
 
 <!-- ══════════════════════════════════
      MODAL NUEVA CUENTA POR COBRAR
 ══════════════════════════════════ -->
-<div class="modal" id="modalCxc" hidden>
+<div class="modal" id="modalCxc" hidden role="dialog" aria-modal="true" aria-labelledby="modalCxcTitle">
     <div class="modal-backdrop" id="modalBackdrop"></div>
     <div class="modal-content modal-content--ancho">
         <div class="modal-header">
-            <h2 class="modal-title">Nueva cuenta por cobrar</h2>
+            <h2 class="modal-title" id="modalCxcTitle">Nueva cuenta por cobrar</h2>
             <button type="button" class="modal-close" id="btnCerrarModal" aria-label="Cerrar">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                     <path d="M5 5L15 15M5 15L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
             </button>
         </div>
-        <form id="formCxc" class="modal-body">
+        <form id="formCxc" class="cxc-modal-form">
+            <div class="modal-body">
             <div class="cxc-form-section-header">
                 <h3 class="cxc-form-section-title">Datos generales</h3>
             </div>
 
             <div class="form-campo">
-                <label for="cCliente">Cliente *</label>
+                <label for="cClienteBusqueda">Cliente *</label>
                 <div class="cxc-cliente-buscador">
                     <input type="text" id="cClienteBusqueda" placeholder="Buscá por nombre, DNI/CUIT…" autocomplete="off">
                     <input type="hidden" id="cClientePk" name="cliente_pk">
@@ -145,7 +146,7 @@
             <div class="cxc-form-grid cxc-form-grid--2-1">
                 <div class="form-campo">
                     <label for="cDescripcion">Descripción *</label>
-                    <input type="text" id="cDescripcion" name="descripcion" placeholder="Ej: Saldo de mercadería, Venta financiada…">
+                    <input type="text" id="cDescripcion" name="descripcion" placeholder="Ej: Saldo de mercadería, Venta financiada…" required>
                 </div>
                 <div class="form-campo">
                     <label for="cNumeroComprobante">N° de factura / comprobante</label>
@@ -243,6 +244,7 @@
                 <input type="text" id="cNotas" name="notas" placeholder="Observaciones (opcional)">
             </div>
 
+            </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-ghost" id="btnCancelarModal">Cancelar</button>
                 <button type="submit" class="btn btn-primary" id="btnGuardarCxc">Guardar</button>
@@ -254,7 +256,7 @@
 <!-- ══════════════════════════════════
      MODAL DETALLE (cuotas)
 ══════════════════════════════════ -->
-<div class="modal" id="modalDetalle" hidden>
+<div class="modal" id="modalDetalle" hidden role="dialog" aria-modal="true" aria-labelledby="detalleTitle">
     <div class="modal-backdrop" id="modalDetalleBackdrop"></div>
     <div class="modal-content modal-content--ancho">
         <div class="modal-header">
@@ -315,7 +317,7 @@
                     <label for="raComprobante">N° de comprobante</label>
                     <input type="text" id="raComprobante" placeholder="Opcional">
                 </div>
-                <div id="raMsg" style="color:#dc2626; font-size:.8125rem; margin-bottom:.5rem;"></div>
+                <div id="raMsg" class="cxc-form-msg" role="alert" aria-live="polite"></div>
                 <div class="cxc-registrar-abono-acciones">
                     <button type="button" class="btn btn-ghost" id="btnAbonarCheque">Cobrar con cheque</button>
                     <button type="button" class="btn btn-primary" id="btnAbonar">Cobrar</button>
@@ -325,15 +327,16 @@
             <h3 class="cxc-cuotas-title">Documentos adjuntos</h3>
             <div class="cxc-documentos" id="cxcDocumentos"></div>
 
-            <div class="modal-footer">
-                {% if puede_eliminar %}
-                <button type="button" class="btn btn-ghost cxc-btn-danger" id="btnEliminarCxc">Eliminar</button>
-                {% endif %}
-                <button type="button" class="btn btn-ghost" id="btnImprimirCxc">Imprimir</button>
-                {% if puede_editar %}
-                <button type="button" class="btn btn-primary" id="btnGuardarNotas">Guardar cambios</button>
-                {% endif %}
-            </div>
+        </div>
+        <div class="modal-footer">
+            {% if puede_eliminar %}
+            <button type="button" class="btn btn-ghost cxc-btn-danger" id="btnEliminarCxc">Eliminar</button>
+            {% endif %}
+            <button type="button" class="btn btn-ghost" id="btnImprimirCxc">Imprimir</button>
+            {% if puede_editar %}
+            <button type="button" class="btn btn-primary" id="btnGuardarNotas">Guardar cambios</button>
+            {% endif %}
+            <button type="button" class="btn btn-ghost" id="btnCerrarDetalleFooter">Cerrar</button>
         </div>
     </div>
 </div>
@@ -341,11 +344,11 @@
 <!-- ══════════════════════════════════
      MODAL COBRAR CUOTA CON CHEQUE
 ══════════════════════════════════ -->
-<div class="modal" id="modalChequeCuota" hidden>
+<div class="modal" id="modalChequeCuota" hidden role="dialog" aria-modal="true" aria-labelledby="modalChequeCuotaTitle">
     <div class="modal-backdrop" id="modalChequeCuotaBackdrop"></div>
     <div class="modal-content">
         <div class="modal-header">
-            <h2 class="modal-title">Cobrar cuota con cheque</h2>
+            <h2 class="modal-title" id="modalChequeCuotaTitle">Cobrar cuota con cheque</h2>
             <button type="button" class="modal-close" id="btnCerrarChequeCuota" aria-label="Cerrar">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                     <path d="M5 5L15 15M5 15L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -353,7 +356,7 @@
             </button>
         </div>
         <div class="modal-body">
-            <p style="font-size:.8125rem; color:var(--text-muted); margin:0 0 .75rem;">
+            <p class="cxc-cheque-ayuda">
                 El cheque tiene que ser por el monto exacto de esta cuota: <strong id="cchcMontoLabel"></strong>.
                 La nota del cheque queda cargada sola con la cuota y la operación de origen.
             </p>
@@ -381,17 +384,19 @@
                 <label for="cchc_numero_comprobante">N° de comprobante</label>
                 <input type="text" id="cchc_numero_comprobante" placeholder="Opcional">
             </div>
-            <div id="cchcMsg" style="color:#dc2626; font-size:.8125rem; margin-bottom:.5rem;"></div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-ghost" id="btnCancelarChequeCuota">Cancelar</button>
-                <button type="button" class="btn btn-primary" id="btnGuardarChequeCuota">Confirmar con cheque</button>
-            </div>
+            <div id="cchcMsg" class="cxc-form-msg" role="alert" aria-live="polite"></div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-ghost" id="btnCancelarChequeCuota">Cancelar</button>
+            <button type="button" class="btn btn-primary" id="btnGuardarChequeCuota">Confirmar con cheque</button>
         </div>
     </div>
 </div>
 
 {% endif %}
 </div>
+
+{% include 'core/_selector_impresion.html' %}
 
 {% endblock %}
 
@@ -418,8 +423,9 @@
     window.cxcPuedeConfirmar = {{ puede_confirmar|yesno:"true,false" }};
     window.cxcPuedeEditar = {{ puede_editar|yesno:"true,false" }};
 </script>
-<script src="{% static 'caja/js/cuentas_cobrar.js' %}?v=20260904"></script>
+<script src="{% static 'core/js/selector_impresion.js' %}?v=2026090801"></script>
+<script src="{% static 'caja/js/cuentas_cobrar.js' %}?v=2026090802"></script>
 <script src="{% static 'caja/js/cuentas_cobrar_documentos.js' %}"></script>
 <script src="{% static 'caja/js/cuentas_cobrar_pagare.js' %}"></script>
-<script src="{% static 'caja/js/cuentas_cobrar_imprimir.js' %}"></script>
+<script src="{% static 'caja/js/cuentas_cobrar_imprimir.js' %}?v=2026090801"></script>
 {% endblock %}

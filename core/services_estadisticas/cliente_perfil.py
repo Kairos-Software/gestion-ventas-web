@@ -204,17 +204,35 @@ def historial_cliente(cliente):
         .filter(cuenta_por_cobrar__cliente=cliente, estado=EstadoCuota.CONFIRMADA)
         .select_related('cuenta_por_cobrar')
     )
+    # Las cuotas/abonos que generó un cobro por cuenta corriente (cascada
+    # FIFO) se muestran como UN solo evento por recibo — "pagó $X", no una
+    # línea por cada deuda que tocó. El resto, una línea por cuota.
+    cobros_cc = {}   # cobro_id -> {fecha, monto}
     for cuota in cuotas:
         cxc = cuota.cuenta_por_cobrar
+        fecha = cuota.fecha_confirmacion.date() if cuota.fecha_confirmacion else cuota.fecha_vencimiento
+        if cuota.cobro_cuenta_corriente_id:
+            acc = cobros_cc.setdefault(
+                cuota.cobro_cuenta_corriente_id, {'fecha': fecha, 'monto': Decimal('0')})
+            acc['monto'] += cuota.monto
+            acc['fecha'] = min(acc['fecha'], fecha)
+            continue
         referencia = cxc.descripcion or cxc.numero_comprobante or f'deuda #{cxc.pk}'
         numero_cuota = f'{cuota.numero}/{cxc.cantidad_cuotas}' if cxc.cantidad_cuotas else str(cuota.numero)
-        fecha = cuota.fecha_confirmacion.date() if cuota.fecha_confirmacion else cuota.fecha_vencimiento
         eventos.append({
             'fecha': fecha,
             'descripcion': f'Pago cuota {numero_cuota} — {referencia}',
             'medio_pago': '',
             'monto': cuota.monto,
             'delta': -cuota.monto,
+        })
+    for cobro_id, acc in cobros_cc.items():
+        eventos.append({
+            'fecha': acc['fecha'],
+            'descripcion': 'Cobro de cuenta corriente',
+            'medio_pago': '',
+            'monto': acc['monto'],
+            'delta': -acc['monto'],
         })
 
     eventos.sort(key=lambda e: e['fecha'])

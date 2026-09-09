@@ -256,7 +256,10 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 1rem;
 }
+
+body.cxc-modal-open { overflow: hidden; }
 
 .modal-backdrop {
     position: fixed;
@@ -269,44 +272,59 @@
     position: relative;
     z-index: 1002;
     background: var(--bg-white);
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-xl);
     box-shadow: var(--shadow-lg);
     max-width: 580px;
-    width: 92%;
-    max-height: 90vh;
-    overflow-y: auto;
+    width: 100%;
+    max-height: min(92vh, 900px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 .modal-content--ancho {
     max-width: 960px;
 }
 
+#modalCxc .modal-content--ancho,
+#modalDetalle .modal-content--ancho { max-width: 960px; }
+
+#modalChequeCuota .modal-content { max-width: 580px; }
+
 .modal-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 1.25rem 1.5rem;
+    gap: 0.75rem;
+    padding: 1rem 1.375rem;
     border-bottom: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    flex-shrink: 0;
 }
 
 .modal-title {
     font-family: var(--font-heading);
     font-weight: 700;
-    font-size: 1.25rem;
+    font-size: 1.0625rem;
     margin: 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .modal-close {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
     border-radius: var(--radius-sm);
     border: none;
     background: transparent;
     color: var(--text-secondary);
     cursor: pointer;
+    flex-shrink: 0;
 }
 
 .modal-close:hover {
@@ -314,8 +332,26 @@
     color: var(--text-primary);
 }
 
+.modal-close:focus-visible,
+.modal-footer .btn:focus-visible {
+    outline: 3px solid var(--accent-light);
+    outline-offset: 2px;
+}
+
 .modal-body {
-    padding: 1.5rem;
+    min-height: 0;
+    padding: 1.375rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+}
+
+.cxc-modal-form {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
 }
 
 .form-campo {
@@ -388,6 +424,8 @@
     font-size: 0.9rem;
     background: var(--bg-white);
     color: var(--text-primary);
+    width: 100%;
+    min-height: 42px;
 }
 
 .form-campo input:focus,
@@ -403,9 +441,15 @@
 
 .modal-footer {
     display: flex;
+    align-items: center;
     justify-content: flex-end;
     gap: 0.75rem;
-    margin-top: 1.5rem;
+    margin: 0;
+    padding: 0.875rem 1.375rem;
+    border-top: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    flex-shrink: 0;
+    flex-wrap: wrap;
 }
 
 .cxc-btn-danger {
@@ -416,6 +460,25 @@
 
 .cxc-btn-danger:hover:not(:disabled) {
     background: rgba(239,68,68,0.06);
+}
+
+.cxc-cheque-ayuda {
+    margin: 0 0 1rem;
+    padding: 0.75rem 0.85rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.45;
+}
+
+.cxc-cheque-ayuda strong { color: var(--text-primary); }
+
+.cxc-form-msg {
+    min-height: 1.1em;
+    color: var(--danger, #dc2626);
+    font-size: 0.8125rem;
 }
 
 /* ── Detalle ───────────────────────────────────────────────────── */
@@ -518,6 +581,7 @@
 
 .cxc-cuotas-tabla {
     width: 100%;
+    min-width: 720px;
     border-collapse: collapse;
     font-size: 0.82rem;
 }
@@ -626,21 +690,42 @@
 }
 
 .cxc-cliente-resultado-item {
+    width: 100%;
+    border: 0;
     padding: 0.5rem 0.75rem;
     font-size: 0.85rem;
+    font-family: inherit;
+    color: var(--text-primary);
+    background: transparent;
+    text-align: left;
     cursor: pointer;
     display: flex;
     justify-content: space-between;
     gap: 0.5rem;
 }
 
-.cxc-cliente-resultado-item:hover {
+.cxc-cliente-resultado-item:hover,
+.cxc-cliente-resultado-item:focus-visible {
     background: var(--bg-secondary);
+    outline: none;
 }
 
 .cxc-cliente-resultado-item span {
     color: var(--text-muted);
     font-size: 0.78rem;
+}
+
+.cxc-cliente-resultado-item span:first-child {
+    min-width: 0;
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.cxc-cliente-resultado-item span:last-child {
+    flex-shrink: 0;
+    text-align: right;
 }
 
 .cxc-cliente-seleccionado {
@@ -654,6 +739,8 @@
 
 .cxc-cliente-seleccionado strong {
     color: var(--text-primary);
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .cxc-cliente-cambiar {
@@ -1128,9 +1215,74 @@
     .cxc-resumen-item--wide {
         grid-column: span 1;
     }
+    .modal {
+        padding: 0;
+    }
+    #modalCxc .modal-content,
+    #modalDetalle .modal-content,
+    #modalChequeCuota .modal-content {
+        width: 100%;
+        max-width: none;
+        height: 100dvh;
+        max-height: 100dvh;
+        border-radius: 0;
+    }
+    .modal-header {
+        padding-top: max(0.75rem, env(safe-area-inset-top));
+    }
+    .modal-body {
+        padding: 1rem;
+    }
+    .modal-footer {
+        padding: 0.75rem 1rem max(0.75rem, env(safe-area-inset-bottom));
+    }
+    .cxc-cuotas-wrap,
+    .cxc-cuotas-historicas-wrap {
+        margin-right: -1rem;
+        margin-left: -1rem;
+        border-right: 0;
+        border-left: 0;
+        border-radius: 0;
+    }
+    .cxc-cliente-buscador {
+        max-width: none;
+    }
+    .cxc-registrar-abono-acciones {
+        align-items: stretch;
+        flex-direction: column-reverse;
+    }
+    .cxc-registrar-abono-acciones .btn {
+        justify-content: center;
+        width: 100%;
+    }
+    .cxc-cheque-ayuda {
+        padding: 0.65rem 0.75rem;
+    }
     .doc-item { flex-wrap: wrap; }
     .doc-descripcion, .doc-fecha { display: none; }
     .doc-subir-wrap { flex-direction: column; align-items: stretch; }
     .doc-subir-label { justify-content: center; }
     .doc-desc-input { min-width: unset; }
+}
+
+@media (max-width: 479px) {
+    #modalDetalle .modal-footer,
+    #modalChequeCuota .modal-footer,
+    #modalCxc .modal-footer {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .modal-footer .cxc-btn-danger {
+        grid-column: 1 / -1;
+        margin-right: 0;
+        order: 10;
+    }
+
+    #modalDetalle .modal-footer .btn,
+    #modalChequeCuota .modal-footer .btn,
+    #modalCxc .modal-footer .btn {
+        width: 100%;
+        justify-content: center;
+    }
 }

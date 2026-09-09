@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views, views_gastos, views_caja_diaria, views_transacciones, views_deudas, views_cheques, views_cuentas_cobrar, views_recargos
+from . import views, views_gastos, views_caja_diaria, views_transacciones, views_deudas, views_cheques, views_cuentas_cobrar, views_cuenta_corriente, views_recargos
 
 app_name = 'caja'
 
@@ -16,6 +16,7 @@ urlpatterns = [
     path('transacciones/',           views_transacciones.TransaccionesPageView.as_view(), name='transacciones_listar_page'),
     path('deudas/',                  views_deudas.DeudasView.as_view(),               name='deudas'),
     path('cuentas-cobrar/',          views_cuentas_cobrar.CuentasCobrarView.as_view(), name='cuentas_cobrar'),
+    path('cuenta-corriente/',        views_cuenta_corriente.CuentaCorrienteView.as_view(), name='cuenta_corriente'),
     path('cheques/',                 views_cheques.ChequesView.as_view(),             name='cheques'),
     path('recargos/',                views_recargos.RecargosView.as_view(),           name='recargos'),
 
@@ -76,6 +77,15 @@ urlpatterns = [
     path('cuentas-cobrar/buscar-cliente/',           views_cuentas_cobrar.BuscarClienteCobrarAjax.as_view(),  name='buscar_cliente_cobrar'),
 
     # ══════════════════════════════════════════════════════════════════
+    #  AJAX — Cuenta corriente (saldo consolidado por cliente + cobro FIFO)
+    # ══════════════════════════════════════════════════════════════════
+    path('cuenta-corriente/listar/',                 views_cuenta_corriente.CuentaCorrienteListarAjax.as_view(),        name='cc_listar'),
+    path('cuenta-corriente/cliente/<int:pk>/',       views_cuenta_corriente.CuentaCorrienteDetalleClienteAjax.as_view(), name='cc_detalle_cliente'),
+    path('cuenta-corriente/cliente/<int:pk>/cobrar/', views_cuenta_corriente.CuentaCorrienteCobrarAjax.as_view(),        name='cc_cobrar'),
+    path('cuenta-corriente/cobros/<int:pk>/anular/', views_cuenta_corriente.CuentaCorrienteAnularCobroAjax.as_view(),    name='cc_anular_cobro'),
+    path('cuenta-corriente/deudas/<int:pk>/convertir-libre/', views_cuenta_corriente.CuentaCorrienteConvertirLibreAjax.as_view(), name='cc_convertir_libre'),
+
+    # ══════════════════════════════════════════════════════════════════
     #  AJAX — Cheques
     # ══════════════════════════════════════════════════════════════════
     path('cheques/listar/',            views_cheques.ListarChequesAjax.as_view(),    name='listar_cheques'),
@@ -105,6 +115,7 @@ urlpatterns = [
     # ══════════════════════════════════════════════════════════════════
     path('diaria/abrir/',              views_caja_diaria.AbrirTurnoAjax.as_view(),          name='abrir_turno'),
     path('diaria/cerrar/',             views_caja_diaria.CerrarTurnoAjax.as_view(),         name='cerrar_turno'),
+    path('diaria/turnos/<int:pk>/reabrir/', views_caja_diaria.ReabrirTurnoAjax.as_view(),   name='reabrir_turno'),
     path('diaria/estado/',             views_caja_diaria.EstadoCajaDiariaAjax.as_view(),    name='estado_caja_diaria'),
     path('diaria/historial-ajax/',     views_caja_diaria.HistorialTurnosAjax.as_view(),     name='historial_turnos_ajax'),
     path('diaria/eliminar-historial/', views_caja_diaria.EliminarHistorialAjax.as_view(),   name='eliminar_historial'),

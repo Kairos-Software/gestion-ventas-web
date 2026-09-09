@@ -19,8 +19,9 @@ from compras.models import LoteCompra
 from .models import (
     Venta, ItemVenta, EstadoVenta, MedioPago, TipoResolucionLote,
     EtiquetaBalanza, EstadoEtiquetaBalanza, descartar_borradores_vencidos,
-    TipoComprobante,
+    TipoComprobante, medios_pago_choices,
 )
+from core.models import usa_cuenta_corriente as _usa_cuenta_corriente
 from core.permisos import chequear_permiso
 from core.services_arca import facturacion
 from core.services_arca.wsaa import ArcaError
@@ -1341,7 +1342,8 @@ def construir_contexto_detalle(request, venta):
         'total_redondeo': total_redondeo,
         'total_a_cobrar': venta.total + total_recargo + total_redondeo,
         'es_borrador': venta.estado == EstadoVenta.BORRADOR,
-        'medios_pago': MedioPago.choices,
+        'medios_pago': medios_pago_choices(),
+        'usa_cuenta_corriente': _usa_cuenta_corriente(),
         'datos_empresa': DatosEmpresa.get_solo(),
         'configuracion_arca': config_arca,
         'comprobante_arca': getattr(venta, 'comprobante_arca', None),

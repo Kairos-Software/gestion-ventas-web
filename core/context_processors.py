@@ -20,6 +20,22 @@ render). El backend NO se apoya en esto: cada vista sigue chequeando con
 from .permisos import permisos_efectivos
 
 
+def kai_flags(request):
+    """
+    Flags de instalación que la barra lateral / templates base necesitan
+    en cada request. Por ahora solo el modo de cobranza (para renombrar
+    "Cuentas por cobrar" → "Cuenta corriente"). Una fila singleton
+    cacheada, barata de consultar.
+    """
+    try:
+        from .models import usa_cuenta_corriente
+        return {'kai_usa_cuenta_corriente': usa_cuenta_corriente()}
+    except Exception:
+        # Nunca romper el render de una página por esto (ej. migraciones
+        # a medio aplicar durante un deploy).
+        return {'kai_usa_cuenta_corriente': False}
+
+
 class _PermisosProxy:
     """Wrapper de solo-lectura sobre el set de códigos concedidos."""
 

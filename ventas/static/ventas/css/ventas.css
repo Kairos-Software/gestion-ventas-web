@@ -687,9 +687,24 @@
    para no pisar otros usos del autocomplete de cliente. */
 .vta-cli-option-top {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     gap: .5rem;
+}
+
+.vta-cli-option-nombre {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    line-height: 1.3;
+}
+
+.vta-cli-option-badges {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: .3rem;
+    flex: 0 0 auto;
 }
 
 .vta-cli-option-doc {
@@ -1830,6 +1845,33 @@ textarea.vta-control {
     margin-bottom: .7rem;
 }
 
+/* El selector vive dentro de un panel con scroll. El desplegable debe
+   superponerse al resto del cobro: si participa del flujo, desplaza Fecha y
+   Medios de pago y las opciones quedan visualmente partidas. */
+.vdt-cobro .vta-cli-wrap {
+    width: 100%;
+}
+.vdt-cobro .vta-cli-input {
+    width: 100%;
+    padding-left: 1.95rem;
+    padding-right: 2rem;
+}
+.vdt-cobro .vta-cli-dropdown {
+    position: absolute;
+    top: calc(100% + .35rem);
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-height: min(17rem, 45vh);
+    overscroll-behavior: contain;
+}
+.vdt-cobro .vta-cli-option {
+    padding: .65rem .75rem;
+}
+.vdt-cobro .vta-cli-option-doc {
+    line-height: 1.35;
+}
+
 /* Bloque de cierre del pago — total FIJO + estado + recargo, todo junto.
    Reemplaza al ex "Total grande" + las 2 cajitas de resumen separadas. */
 .vdt-pago-cierre {
@@ -2078,7 +2120,7 @@ details.vdt-cobro-details[open] > summary::after { content: '▴'; }
     letter-spacing: .03em;
     padding: .06rem .4rem;
     border-radius: 999px;
-    margin-left: .4rem;
+    white-space: nowrap;
 }
 .vdt-sco-mini--excelente { color: #15803d; background: #dcfce7; }
 .vdt-sco-mini--bueno     { color: #4d7c0f; background: #ecfccb; }

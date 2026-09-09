@@ -100,6 +100,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const modalDetalle = document.getElementById('modalDetalle');
     const modalDetalleBackdrop = document.getElementById('modalDetalleBackdrop');
     const btnCerrarDetalle = document.getElementById('btnCerrarDetalle');
+    const btnCerrarDetalleFooter = document.getElementById('btnCerrarDetalleFooter');
     const detalleResumen = document.getElementById('detalleResumen');
     const detNotas = document.getElementById('detNotas');
     const cuotasBody = document.getElementById('cuotasBody');
@@ -115,6 +116,38 @@ document.addEventListener('DOMContentLoaded', function () {
     const raMsg = document.getElementById('raMsg');
     const btnAbonar = document.getElementById('btnAbonar');
     const btnAbonarCheque = document.getElementById('btnAbonarCheque');
+
+    // Mantiene el bloqueo del fondo y devuelve el foco al control que abrió
+    // cada modal. Es importante cuando el modal de cheque vive encima del
+    // detalle: cerrar el de arriba no debe habilitar el scroll de la página.
+    const origenFocoModal = new WeakMap();
+
+    function sincronizarModalesAbiertos() {
+        const hayModalAbierto = document.querySelector('.modal:not([hidden])');
+        document.body.classList.toggle('cxc-modal-open', Boolean(hayModalAbierto));
+    }
+
+    function mostrarModal(elemento, selectorFoco) {
+        if (!elemento || !elemento.hidden) return;
+        origenFocoModal.set(elemento, document.activeElement);
+        elemento.hidden = false;
+        sincronizarModalesAbiertos();
+        requestAnimationFrame(() => {
+            const destino = selectorFoco ? elemento.querySelector(selectorFoco) : null;
+            (destino || elemento.querySelector('.modal-close'))?.focus();
+        });
+    }
+
+    function ocultarModal(elemento) {
+        if (!elemento || elemento.hidden) return;
+        elemento.hidden = true;
+        sincronizarModalesAbiertos();
+        const origen = origenFocoModal.get(elemento);
+        origenFocoModal.delete(elemento);
+        if (origen && origen.isConnected && typeof origen.focus === 'function') {
+            requestAnimationFrame(() => origen.focus());
+        }
+    }
 
     // ── Buscador de cliente ───────────────────────────────────────
     let clienteBusquedaTimeout = null;
@@ -160,9 +193,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 cClienteResultados.hidden = false;
                 cClienteResultados.innerHTML = resultados.map(c => `
-                    <div class="cxc-cliente-resultado-item" data-pk="${c.pk}" data-nombre="${_cxcEscInput(c.nombre)}">
+                    <button type="button" class="cxc-cliente-resultado-item" data-pk="${c.pk}" data-nombre="${_cxcEscInput(c.nombre)}">
                         <span>${_cxcEscInput(c.nombre)}</span><span>${_cxcEscInput(c.doc || c.codigo || '')}</span>
-                    </div>`).join('');
+                    </button>`).join('');
                 cClienteResultados.querySelectorAll('.cxc-cliente-resultado-item[data-pk]').forEach(item => {
                     item.addEventListener('click', () => {
                         seleccionarCliente({ pk: item.dataset.pk, nombre: item.dataset.nombre });
@@ -545,13 +578,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // ── Modal alta ────────────────────────────────────────────────
     function abrirModal() {
-        modalCxc.hidden = false;
-        document.body.style.overflow = 'hidden';
+        mostrarModal(modalCxc, '#cClienteBusqueda');
     }
 
     function cerrarModal() {
-        modalCxc.hidden = true;
-        document.body.style.overflow = '';
+        ocultarModal(modalCxc);
         formCxc.reset();
         cFechaInicio.value = today;
         setModoCuotas('fijas');
@@ -612,17 +643,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // ── Modal detalle (cuotas) ───────────────────────────────────────
     function abrirDetalle() {
-        modalDetalle.hidden = false;
-        document.body.style.overflow = 'hidden';
+        mostrarModal(modalDetalle, '#btnCerrarDetalle');
     }
 
     function cerrarDetalle() {
-        modalDetalle.hidden = true;
-        document.body.style.overflow = '';
+        ocultarModal(modalDetalle);
         cxcDetalleActual = null;
     }
 
     btnCerrarDetalle.addEventListener('click', cerrarDetalle);
+    btnCerrarDetalleFooter?.addEventListener('click', cerrarDetalle);
     modalDetalleBackdrop.addEventListener('click', cerrarDetalle);
 
     window.verCxc = async function (pk) {
@@ -644,33 +674,34 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     };
 
+    function seleccionarFormatoCxc(cxc) {
+        const imprimir = (formato) => cxcImprimir(cxc, formato);
+        if (window.KaiPrintSelector && window.KaiPrintSelector.abrir({
+            titulo: 'Imprimir cuenta por cobrar',
+            descripcion: `Estado de deuda de ${cxc.cliente_nombre || 'cliente'}.`,
+            alElegir: imprimir,
+        })) return;
+        imprimir('a4');
+    }
+
     // El listado no trae `cuotas`/`documentos` (eso solo lo da el
-    // detalle) — hay que pedirlo antes de poder armar la impresión. La
-    // ventana se abre ACÁ, en blanco, antes del `await`: si se abriera
-    // recién después del fetch, ya no cuenta como gesto directo del
-    // usuario y el navegador la bloquea sin avisar.
+    // detalle), por lo que primero se obtiene la cuenta completa. Elegir el
+    // formato después del fetch aporta un nuevo gesto de usuario y evita
+    // que el navegador bloquee la ventana de impresión.
     window.imprimirCxcDesdeLista = async function (pk) {
-        const ventana = window.open('', '_blank', 'width=800,height=950');
-        if (!ventana) {
-            KaiToast.show('El navegador bloqueó la ventana de impresión. Permití popups para este sitio e intentá de nuevo.', 'warning', 6000);
-            return;
-        }
         try {
             const response = await fetch(`${urlDetalleBase}${pk}/`);
             const data = await response.json();
             if (!data.cuenta_cobrar) {
-                ventana.close();
                 KaiToast.show('Cuenta por cobrar no encontrada', 'danger');
                 return;
             }
             if (typeof cxcImprimir === 'function') {
-                cxcImprimir(data.cuenta_cobrar, ventana);
+                seleccionarFormatoCxc(data.cuenta_cobrar);
             } else {
-                ventana.close();
                 console.error('cuentas_cobrar_imprimir.js no está cargado.');
             }
         } catch (error) {
-            ventana.close();
             console.error('Error al cargar cuenta por cobrar para imprimir:', error);
             KaiToast.show('Error al cargar la cuenta por cobrar', 'danger');
         }
@@ -942,8 +973,7 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('cchc_numero_comprobante').value = '';
         document.getElementById('cchcMsg').textContent = '';
 
-        modalChequeCuota.hidden = false;
-        document.body.style.overflow = 'hidden';
+        mostrarModal(modalChequeCuota, '#cchc_numero_cheque');
     }
 
     window.abrirModalChequeCuota = function (cuotaPk, monto, moneda, adelantar) {
@@ -957,13 +987,26 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function cerrarModalChequeCuota() {
-        modalChequeCuota.hidden = true;
-        document.body.style.overflow = '';
+        ocultarModal(modalChequeCuota);
         chequeCuotaActual = null;
     }
     btnCerrarChequeCuota.addEventListener('click', cerrarModalChequeCuota);
     btnCancelarChequeCuota.addEventListener('click', cerrarModalChequeCuota);
     modalChequeCuotaBackdrop.addEventListener('click', cerrarModalChequeCuota);
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        if (!modalChequeCuota.hidden) {
+            e.preventDefault();
+            cerrarModalChequeCuota();
+        } else if (!modalDetalle.hidden) {
+            e.preventDefault();
+            cerrarDetalle();
+        } else if (!modalCxc.hidden) {
+            e.preventDefault();
+            cerrarModal();
+        }
+    });
 
     btnGuardarChequeCuota.addEventListener('click', async () => {
         if (!chequeCuotaActual) return;
@@ -1122,7 +1165,7 @@ document.addEventListener('DOMContentLoaded', function () {
     btnImprimirCxc?.addEventListener('click', () => {
         if (!cxcDetalleActual) return;
         if (typeof cxcImprimir === 'function') {
-            cxcImprimir(cxcDetalleActual);
+            seleccionarFormatoCxc(cxcDetalleActual);
         } else {
             console.error('cuentas_cobrar_imprimir.js no está cargado.');
         }

@@ -50,6 +50,7 @@
             { value: "{{ val }}", label: "{{ label }}" }{% if not forloop.last %},{% endif %}
             {% endfor %}
         ],
+        usaCuentaCorriente: {{ usa_cuenta_corriente|yesno:"true,false" }},
         cuentas: JSON.parse(document.getElementById('cuentas-data').textContent),
         cuentasPredeterminadas: JSON.parse(document.getElementById('cuentas-predet-data').textContent),
         cuentaPrincipalPk: {{ cuenta_principal_pk|default:"null" }},

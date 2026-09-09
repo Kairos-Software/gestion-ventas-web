@@ -795,6 +795,12 @@ class TurnoCaja(models.Model):
     totales_cierre = models.JSONField(null=True, blank=True, default=None,
                         help_text='Snapshot de totales_medio_pago/total_recaudado/ganancia al cerrar el turno.')
 
+    # Cuántas veces se reabrió este turno ya cerrado para corregirlo
+    # (ver reabrir()). 0 = nunca. El detalle de cada reapertura —quién,
+    # cuándo, por qué, y una foto del cierre anterior— vive en
+    # ReaperturaTurno.
+    veces_reabierto = models.PositiveIntegerField(default=0)
+
     # Auditoría
     abierto_por = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
@@ -804,7 +810,7 @@ class TurnoCaja(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
         null=True, blank=True, related_name='turnos_cerrados',
     )
-    
+
     notas = models.TextField(blank=True, help_text='Notas del turno')
     
     class Meta:
@@ -1500,9 +1506,17 @@ class TurnoCaja(models.Model):
             redondeos_efectivo = componentes['efectivo_redondeos']
 
             # ── Congelar estado del turno ───────────────────────────
+            # Un turno viejo reabierto para corrección (ver reabrir())
+            # llega acá con estado ABIERTO y fecha_cierre YA seteada: se
+            # respeta su ventana horaria original — moverla a "ahora" la
+            # haría solapar con los turnos siguientes y contarles las
+            # ventas. Al último turno reabierto, en cambio, reabrir() le
+            # limpió fecha_cierre, así que su ventana sí avanza hasta acá.
+            ventana_congelada = self.fecha_cierre is not None
             self.monto_final_efectivo = monto_final_efectivo
             self.diferencia_efectivo = monto_final_efectivo - esperado
-            self.fecha_cierre = timezone.now()
+            if not ventana_congelada:
+                self.fecha_cierre = timezone.now()
             self.estado = EstadoTurno.CERRADO
             self.cerrado_por = usuario
             self.notas = notas
@@ -1620,6 +1634,211 @@ class TurnoCaja(models.Model):
             #      porque recién ahí existe un conteo físico contra el
             #      cual conciliar.
 
+            # ── Cerrar la ficha de reapertura abierta (si esto es un
+            #    re-cierre después de reabrir para corregir) ──────────
+            reapertura = (
+                self.reaperturas.filter(fecha_recierre__isnull=True)
+                .order_by('-fecha_reapertura').first()
+            )
+            if reapertura:
+                reapertura.recerrado_por = usuario
+                reapertura.fecha_recierre = timezone.now()
+                reapertura.diferencia_al_recerrar = self.diferencia_efectivo
+                reapertura.save(update_fields=[
+                    'recerrado_por', 'fecha_recierre', 'diferencia_al_recerrar',
+                ])
+
+    @transaction.atomic
+    def reabrir(self, usuario, motivo):
+        """
+        Reabre este turno YA CERRADO para poder corregirlo (una venta
+        mal cargada, un ingreso/egreso de caja diaria que faltaba, un
+        arqueo mal contado, etc.). Queda en estado ABIERTO otra vez —
+        se corrige con las herramientas de siempre y se vuelve a cerrar
+        normalmente, que recalcula todo y vuelve a depositar el efectivo
+        en caja grande.
+
+        Reglas (es una operación delicada, ver docstring del módulo):
+        - Solo se puede si el turno está CERRADO.
+        - Solo si NO hay ningún turno abierto ahora mismo (un turno
+          abierto es "la caja de hoy"; no se mezcla con una corrección).
+        - Hace falta un `motivo` escrito (queda en la auditoría).
+        - Si DESPUÉS del cierre alguna venta de este turno ya volvió a
+          mover plata en caja grande (se editó/anuló desde el Historial),
+          NO se puede reabrir: reabrir la contaría dos veces. Hay que
+          resolver eso primero. Lo mismo para el último turno si hubo
+          ventas o devoluciones nuevas después del cierre.
+
+        Qué hace, atómicamente:
+        1. Registra la reapertura (ReaperturaTurno) con quién/cuándo/por
+           qué y una FOTO COMPLETA del cierre anterior — nunca se pierde.
+        2. SACA de caja grande el efectivo que este turno había
+           depositado al cerrar (el asiento "Cierre turno #N — efectivo"
+           y las líneas de sus ingresos/egresos de caja diaria). NO toca
+           el asiento de apertura: el monto inicial sigue "afuera" de
+           caja grande, igual que en cualquier turno abierto.
+        3. Descongela el turno: estado ABIERTO, borra el snapshot, el
+           monto final y la diferencia. Suma 1 a veces_reabierto.
+
+        Las ventas del turno quedan tal cual: su efectivo estaba diferido
+        (sin asiento propio, sumado en el lump del cierre que ahora se
+        revirtió), así que el próximo cierre lo vuelve a sumar. Los
+        pagos no-efectivo ya estaban en caja grande y ahí quedan (el
+        cierre nunca los tocó). Por eso el chequeo de arriba: si el
+        efectivo de alguna venta SÍ tiene asiento propio posterior al
+        cierre, sumarlo de nuevo en el próximo lump sería contarlo doble.
+
+        Ventana horaria:
+        - Si es el ÚLTIMO turno (no hay ninguno posterior) se le limpia
+          fecha_cierre: vuelve a comportarse como si nunca hubiera
+          cerrado (podés hasta cargar una venta que faltaba).
+        - Si hay turnos posteriores, se mantiene su fecha_cierre: la
+          ventana queda CONGELADA en su día original para no pisar los
+          turnos que vinieron después. Editar/anular sus ventas y tocar
+          su caja diaria funciona igual; una venta nueva cargada ahora
+          quedaría fuera de la ventana (la UI avisa).
+        """
+        from django.db import IntegrityError
+
+        motivo = (motivo or '').strip()
+        if not motivo:
+            raise ValueError('Escribí un motivo para reabrir el turno (queda registrado).')
+
+        turno = TurnoCaja.objects.select_for_update().get(pk=self.pk)
+        if turno.estado != EstadoTurno.CERRADO:
+            raise ValueError(f'El turno #{turno.numero} no está cerrado.')
+
+        abierto = TurnoCaja.turno_actual()
+        if abierto is not None:
+            raise ValueError(
+                f'No se puede reabrir: hay un turno abierto (#{abierto.numero}). '
+                f'Cerralo primero — reabrir un turno viejo es solo para corregirlo, '
+                f'no se puede hacer con la caja del día abierta.'
+            )
+
+        # ¿Es el último turno? (para decidir si la ventana puede avanzar)
+        es_ultimo = not TurnoCaja.objects.filter(
+            fecha_apertura__gt=turno.fecha_apertura,
+        ).exclude(pk=turno.pk).exists()
+
+        ventana_fin_original = turno.fecha_cierre  # antes de tocarla
+
+        # ── Chequeo anti doble-conteo ───────────────────────────────
+        from ventas.models import Venta, EstadoVenta, DevolucionVenta
+
+        ventas_ventana_ids = list(
+            Venta.objects.filter(
+                fecha_alta__gte=turno.fecha_apertura,
+                fecha_alta__lte=ventana_fin_original,
+            ).values_list('pk', flat=True)
+        )
+        # ¿El efectivo de alguna venta del turno ya volvió a caja grande
+        # DESPUÉS del cierre? (editar una venta desde el Historial con el
+        # turno cerrado postea su efectivo al instante — ver
+        # sincronizar_movimiento_venta). Si es así, el próximo cierre lo
+        # sumaría otra vez en el lump: doble conteo. Se bloquea.
+        if ventas_ventana_ids and MovimientoCaja.objects.filter(
+            origen=OrigenMovimiento.VENTA, origen_app='ventas',
+            origen_id__in=ventas_ventana_ids,
+            fecha_alta__gt=ventana_fin_original,
+        ).exists():
+            raise ValueError(
+                f'No se puede reabrir el turno #{turno.numero}: alguna de sus '
+                f'ventas se editó después del cierre y su plata ya volvió a '
+                f'moverse en Caja Grande. Reabrir ahora la contaría dos veces. '
+                f'Revisá el Historial de Ventas de ese turno primero.'
+            )
+        # Para el último turno, la ventana se amplía hasta ahora: una
+        # venta o devolución hecha después del cierre entraría en el
+        # cálculo del re-cierre además de haber impactado caja grande ya.
+        if es_ultimo and (
+            Venta.objects.filter(
+                estado=EstadoVenta.CONFIRMADA,
+                fecha_alta__gt=ventana_fin_original,
+            ).exists()
+            or DevolucionVenta.objects.filter(
+                fecha_alta__gt=ventana_fin_original,
+            ).exists()
+        ):
+            raise ValueError(
+                f'No se puede reabrir el turno #{turno.numero}: hubo ventas o '
+                f'devoluciones después de su cierre. Al ser el último turno, '
+                f'reabrirlo las tomaría en el re-cierre y contaría esa plata dos '
+                f'veces. Abrí un turno nuevo para esos movimientos.'
+            )
+
+        # 1. Auditoría — foto del cierre que se está por deshacer
+        reapertura = ReaperturaTurno.objects.create(
+            turno=turno,
+            numero=turno.veces_reabierto + 1,
+            reabierto_por=usuario,
+            motivo=motivo,
+            efectivo_revertido=turno.monto_final_efectivo or Decimal('0'),
+            era_ultimo_turno=es_ultimo,
+            snapshot_previo={
+                'fecha_cierre': turno.fecha_cierre.isoformat() if turno.fecha_cierre else None,
+                'cerrado_por': str(turno.cerrado_por) if turno.cerrado_por else None,
+                'monto_final_efectivo': str(turno.monto_final_efectivo or 0),
+                'diferencia_efectivo': str(turno.diferencia_efectivo or 0),
+                'totales_cierre': turno.totales_cierre or {},
+                'cajas_fisicas': [
+                    {
+                        'nombre': cf.nombre,
+                        'monto_inicial': str(cf.monto_inicial),
+                        'monto_final': str(cf.monto_final) if cf.monto_final is not None else None,
+                    }
+                    for cf in turno.cajas_fisicas.all()
+                ],
+                'notas': turno.notas,
+            },
+        )
+
+        # 2. Sacar de caja grande lo que el cierre había depositado.
+        #    NO se toca el asiento de "Apertura de turno".
+        MovimientoCaja.objects.filter(
+            origen=OrigenMovimiento.AJUSTE, origen_app='caja', origen_id=turno.pk,
+            concepto__nombre='Cierre de turno - Efectivo',
+        ).delete()
+        gasto_ids = list(turno.movimientos_manuales.values_list('pk', flat=True))
+        if gasto_ids:
+            MovimientoCaja.objects.filter(
+                origen=OrigenMovimiento.MANUAL, origen_app='caja',
+                origen_id__in=gasto_ids,
+            ).delete()
+
+        # 3. Descongelar
+        turno.cajas_fisicas.update(monto_final=None)
+        turno.estado = EstadoTurno.ABIERTO
+        turno.veces_reabierto = turno.veces_reabierto + 1
+        turno.monto_final_efectivo = None
+        turno.diferencia_efectivo = None
+        turno.totales_cierre = None
+        turno.cerrado_por = None
+        if es_ultimo:
+            turno.fecha_cierre = None
+        try:
+            turno.save()
+        except IntegrityError:
+            # unico_turno_abierto: alguien abrió un turno entre el chequeo
+            # y el save. La transacción se revierte sola.
+            raise ValueError(
+                'No se puede reabrir: se abrió un turno en el medio. Probá de nuevo.'
+            )
+
+        # (No hace falta re-sincronizar las ventas: su efectivo ya estaba
+        # diferido y el chequeo anti doble-conteo de arriba garantiza que
+        # ninguna tenga un asiento de efectivo posterior al cierre.)
+
+        # dejar la instancia sobre la que llamaron en sync con la fila
+        self.estado = turno.estado
+        self.veces_reabierto = turno.veces_reabierto
+        self.monto_final_efectivo = turno.monto_final_efectivo
+        self.diferencia_efectivo = turno.diferencia_efectivo
+        self.totales_cierre = turno.totales_cierre
+        self.cerrado_por = turno.cerrado_por
+        self.fecha_cierre = turno.fecha_cierre
+        return reapertura
+
 
 class CajaFisicaTurno(models.Model):
     """
@@ -1657,6 +1876,73 @@ class CajaFisicaTurno(models.Model):
 
     def __str__(self):
         return f'{self.nombre} — Turno #{self.turno.numero}'
+
+
+class ReaperturaTurno(models.Model):
+    """
+    Registro de auditoría de cada vez que un turno YA CERRADO se
+    reabrió para corregirlo (ver TurnoCaja.reabrir()).
+
+    Guarda quién lo hizo, cuándo, por qué, cuánto efectivo se revirtió
+    de caja grande, y una FOTO COMPLETA del cierre que se deshizo
+    (snapshot_previo) — así, aunque el turno se vuelva a cerrar con
+    otros números, siempre se puede ver cómo había cerrado antes.
+
+    `fecha_recierre` queda en null hasta que el turno se vuelve a
+    cerrar; ahí se completa (ver TurnoCaja.cerrar()).
+    """
+    turno = models.ForeignKey(
+        TurnoCaja, on_delete=models.CASCADE, related_name='reaperturas',
+    )
+    numero = models.PositiveIntegerField(
+        help_text='1 = primera vez que se reabrió este turno, 2 = segunda, etc.',
+    )
+
+    reabierto_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='turnos_reabiertos',
+    )
+    fecha_reapertura = models.DateTimeField(auto_now_add=True)
+    motivo = models.TextField(help_text='Por qué se reabrió (obligatorio).')
+
+    efectivo_revertido = models.DecimalField(
+        max_digits=14, decimal_places=2, default=0,
+        help_text='Efectivo que este turno había depositado en caja grande '
+                  'y que la reapertura sacó (se vuelve a depositar al re-cerrar).',
+    )
+    era_ultimo_turno = models.BooleanField(
+        default=True,
+        help_text='Si al reabrirlo era el último turno (su ventana horaria '
+                  'pudo avanzar) o uno viejo (ventana congelada).',
+    )
+    snapshot_previo = models.JSONField(
+        default=dict,
+        help_text='Foto del cierre que se deshizo: totales, arqueo, diferencia, cajas.',
+    )
+
+    # Se completan cuando el turno se vuelve a cerrar
+    recerrado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='turnos_recerrados',
+    )
+    fecha_recierre = models.DateTimeField(null=True, blank=True)
+    diferencia_al_recerrar = models.DecimalField(
+        max_digits=14, decimal_places=2, null=True, blank=True,
+        help_text='Diferencia de efectivo del turno tras el re-cierre.',
+    )
+
+    class Meta:
+        verbose_name = 'Reapertura de turno'
+        verbose_name_plural = 'Reaperturas de turno'
+        ordering = ['-fecha_reapertura']
+
+    def __str__(self):
+        return f'Reapertura #{self.numero} de turno #{self.turno.numero}'
+
+    @property
+    def sigue_abierto(self):
+        """True mientras el turno reabierto todavía no se volvió a cerrar."""
+        return self.fecha_recierre is None
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -3503,7 +3789,21 @@ class CuentaPorCobrar(models.Model):
         # nombrar al cliente (para saber cuál es de varias CxC activas) y
         # decir qué hacer, en vez del genérico "esta cuenta" (que se
         # confunde con una CuentaCaja real).
-        if self.cuotas.filter(estado=EstadoCuota.CONFIRMADA, es_historica=False).exists():
+        cobradas = self.cuotas.filter(estado=EstadoCuota.CONFIRMADA, es_historica=False)
+        if cobradas.exists():
+            # En modo cuenta corriente, el cobro pudo venir de la cascada
+            # FIFO — el mensaje tiene que apuntar a revertir ESE recibo,
+            # no a "resolver la cuota" (que no se cobró sola).
+            cobros_cc = sorted({
+                c for c in cobradas.values_list('cobro_cuenta_corriente_id', flat=True) if c
+            })
+            if cobros_cc:
+                refs = ', '.join(f'#{pk}' for pk in cobros_cc)
+                raise ValueError(
+                    f'No se puede anular ni eliminar esta venta: {self.cliente.get_nombre_display()} '
+                    f'ya pagó parte de ella por su cuenta corriente (cobro {refs}). '
+                    f'Revertí ese cobro primero desde Cuenta corriente.'
+                )
             raise ValueError(
                 f'No se puede anular ni eliminar esta venta: ya se cobró al menos una cuota '
                 f'de la cuenta por cobrar de {self.cliente.get_nombre_display()}. '
@@ -3614,6 +3914,13 @@ class CuotaCobro(models.Model):
     numero_comprobante = models.CharField(
         max_length=100, blank=True,
         help_text='N° del comprobante/recibo entregado al cliente al cobrar esta cuota, si corresponde.',
+    )
+    cobro_cuenta_corriente = models.ForeignKey(
+        'caja.CobroCuentaCorriente', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='cuotas_imputadas',
+        help_text='Si esta cuota/abono lo generó un cobro contra el saldo '
+                   'total del cliente (modo cuenta corriente), acá está ese '
+                   'recibo. Anular el recibo revierte esta imputación.',
     )
 
     class Meta:
@@ -3861,6 +4168,297 @@ class CuentaPorCobrarDocumento(models.Model):
     def es_pdf(self):
         ext = _os.path.splitext(self.archivo.name)[1].lower() if self.archivo else ''
         return ext == '.pdf'
+
+
+# ══════════════════════════════════════════════════════════════════
+#  COBRO POR CUENTA CORRIENTE  (modo core.models.usa_cuenta_corriente)
+#
+#  En modo cuenta corriente el cliente tiene UN saldo (la suma de todas
+#  sus CuentaPorCobrar activas). Cuando paga, no se elige contra qué
+#  deuda: se registra un CobroCuentaCorriente por el monto total y la
+#  cascada FIFO (registrar_cobro_cuenta_corriente) lo imputa a las
+#  deudas más viejas primero, cancelando unas por completo y dejando a
+#  lo sumo una parcial.
+#
+#  El CobroCuentaCorriente NO mueve plata por sí mismo — es el "recibo"
+#  que agrupa las CuotaCobro que generó la cascada. Cada una de esas
+#  CuotaCobro mueve la caja como siempre (ver
+#  sincronizar_movimiento_cuota_cobro) y apunta acá por
+#  `cobro_cuenta_corriente`. Anular el recibo revierte todas.
+# ══════════════════════════════════════════════════════════════════
+
+class EstadoCobroCtaCte(models.TextChoices):
+    ACTIVO  = 'activo',  'Activo'
+    ANULADO = 'anulado', 'Anulado'
+
+
+class CobroCuentaCorriente(models.Model):
+    cliente = models.ForeignKey(
+        Cliente, on_delete=models.PROTECT, related_name='cobros_cuenta_corriente',
+    )
+    fecha  = models.DateField()
+    monto  = models.DecimalField(max_digits=14, decimal_places=2,
+                 help_text='Total cobrado e imputado a las deudas del cliente.')
+    moneda = models.CharField(max_length=5, choices=Moneda.choices, default=Moneda.ARS)
+    cuenta = models.ForeignKey(
+        CuentaCaja, on_delete=models.PROTECT, related_name='cobros_cuenta_corriente',
+        help_text='Cuenta real (efectivo/banco) a la que entró la plata.',
+    )
+    numero_comprobante = models.CharField(max_length=100, blank=True)
+    notas  = models.CharField(max_length=300, blank=True)
+    saldo_posterior = models.DecimalField(
+        max_digits=14, decimal_places=2, default=Decimal('0'),
+        help_text='Saldo total del cliente inmediatamente después de este '
+                   'cobro — snapshot para el recibo (no se recalcula).',
+    )
+    estado = models.CharField(max_length=10, choices=EstadoCobroCtaCte.choices,
+                 default=EstadoCobroCtaCte.ACTIVO)
+
+    creado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='cobros_cuenta_corriente_creados',
+    )
+    fecha_alta         = models.DateTimeField(auto_now_add=True)
+    fecha_modificacion = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name        = 'Cobro por cuenta corriente'
+        verbose_name_plural = 'Cobros por cuenta corriente'
+        ordering            = ['-fecha_alta']
+
+    def __str__(self):
+        return f'Cobro #{self.pk} — {self.cliente} — {self.monto} {self.moneda}'
+
+    @property
+    def imputaciones(self):
+        """
+        Desglose de a qué deuda fue cada peso, para el recibo:
+        [{cuenta_por_cobrar, titulo, monto, cancelo (bool)}].
+        """
+        filas = []
+        for cuota in self.cuotas_imputadas.select_related(
+            'cuenta_por_cobrar', 'cuenta_por_cobrar__pago_venta__venta',
+        ).order_by('cuenta_por_cobrar__fecha_inicio', 'cuenta_por_cobrar_id', 'numero'):
+            cxc = cuota.cuenta_por_cobrar
+            filas.append({
+                'cuenta_por_cobrar_id': cxc.pk,
+                'titulo': (
+                    cxc.descripcion
+                    or (f'Venta {cxc.pago_venta.venta.numero}' if cxc.pago_venta_id else '')
+                    or cxc.numero_comprobante
+                    or f'Cuenta #{cxc.pk}'
+                ),
+                'monto': cuota.monto,
+                'cancelo': cxc.saldo_pendiente <= 0 and cxc.estado == EstadoDeuda.ACTIVA,
+            })
+        # Agrupar por deuda (una deuda FIJA puede recibir varias cuotas).
+        agrupado = {}
+        for f in filas:
+            key = f['cuenta_por_cobrar_id']
+            if key not in agrupado:
+                agrupado[key] = dict(f)
+            else:
+                agrupado[key]['monto'] += f['monto']
+                agrupado[key]['cancelo'] = f['cancelo']
+        return list(agrupado.values())
+
+    @transaction.atomic
+    def anular(self, usuario=None):
+        """
+        Revierte todas las imputaciones de este recibo: cada abono libre
+        que generó se borra (con su MovimientoCaja), cada cuota fija
+        vuelve a PENDIENTE. Bloquea si alguna imputación cayó en un turno
+        de caja ya cerrado — esa plata ya está arqueada, revertirla acá
+        descuadraría el cierre.
+        """
+        if self.estado == EstadoCobroCtaCte.ANULADO:
+            raise ValueError('Este cobro ya está anulado.')
+
+        cuotas = list(self.cuotas_imputadas.select_related('cuenta_por_cobrar').all())
+
+        # Guard: ninguna cuota puede estar en un turno cerrado.
+        for cuota in cuotas:
+            if cuota.fecha_confirmacion and _cuota_en_turno_cerrado(cuota):
+                raise ValueError(
+                    f'No se puede anular el cobro #{self.pk}: parte de esa plata '
+                    f'ya está en un turno de caja cerrado. Hacé un ajuste manual '
+                    f'en su lugar.'
+                )
+
+        for cuota in cuotas:
+            movimiento = MovimientoCaja.objects.filter(
+                origen=OrigenMovimiento.CUOTA_COBRO, origen_app='caja', origen_id=cuota.pk,
+            ).first()
+            if movimiento:
+                movimiento.delete()
+
+            if cuota.cuenta_por_cobrar.modo_cuotas == ModoCuotas.LIBRE:
+                # El abono libre nació de este cobro — se borra entero.
+                cuota.delete()
+            else:
+                cuota.estado = EstadoCuota.PENDIENTE
+                cuota.cuenta_cobro = None
+                cuota.fecha_confirmacion = None
+                cuota.confirmado_por = None
+                cuota.cobro_cuenta_corriente = None
+                cuota.numero_comprobante = ''
+                cuota.save(update_fields=[
+                    'estado', 'cuenta_cobro', 'fecha_confirmacion',
+                    'confirmado_por', 'cobro_cuenta_corriente', 'numero_comprobante',
+                ])
+
+        self.estado = EstadoCobroCtaCte.ANULADO
+        self.save(update_fields=['estado', 'fecha_modificacion'])
+        _recalcular_scoring_pk(self.cliente_id)
+
+
+def _cuota_en_turno_cerrado(cuota):
+    """¿La fecha de confirmación de la cuota cae en un TurnoCaja ya cerrado?"""
+    if not cuota.fecha_confirmacion:
+        return False
+    turno = TurnoCaja.turno_que_contiene(cuota.fecha_confirmacion)
+    return turno is not None and turno.estado != EstadoTurno.ABIERTO
+
+
+def saldo_cuenta_corriente(cliente, moneda=Moneda.ARS):
+    """Suma de los saldos pendientes de todas las CuentaPorCobrar activas
+    del cliente en esa moneda. ES la 'cuenta corriente' del cliente."""
+    total = Decimal('0')
+    for cxc in CuentaPorCobrar.objects.filter(
+        cliente=cliente, estado=EstadoDeuda.ACTIVA, moneda=moneda,
+    ):
+        s = cxc.saldo_pendiente
+        if s > 0:
+            total += s
+    return total
+
+
+@transaction.atomic
+def registrar_cobro_cuenta_corriente(*, cliente, monto, cuenta_pk, usuario,
+                                      fecha=None, numero_comprobante='', notas=''):
+    """
+    Registra un cobro contra el saldo total del cliente e imputa FIFO a
+    sus CuentaPorCobrar activas (más viejas primero). Deudas de cuotas
+    libres: se abona cualquier fracción. Deudas de cuotas fijas: solo
+    cuotas enteras, de la más vieja a la más nueva. Si sobra un resto
+    que no llena ninguna cuota fija, ABORTA toda la operación y avisa
+    (nada queda a medias — está en @transaction.atomic).
+
+    Devuelve el CobroCuentaCorriente creado.
+    """
+    from core.models import usa_cuenta_corriente
+    if not usa_cuenta_corriente():
+        raise ValueError('El modo cuenta corriente no está activado.')
+
+    try:
+        monto = Decimal(str(monto))
+    except Exception:
+        raise ValueError('Monto inválido.')
+    if monto <= 0:
+        raise ValueError('El monto del cobro debe ser mayor a 0.')
+
+    fecha = fecha or timezone.localtime().date()
+    if fecha > timezone.localtime().date():
+        raise ValueError('La fecha del cobro no puede ser futura.')
+
+    cuenta = CuentaCaja.objects.filter(
+        pk=cuenta_pk, caja=TipoCaja.GRANDE, activa=True, es_credito=False,
+    ).first()
+    if not cuenta:
+        raise ValueError('Elegí una cuenta válida para el cobro.')
+
+    # FIFO por antigüedad de la DEUDA (fecha_inicio: la fecha de la venta
+    # o la que el usuario cargó para una deuda manual), no por cuándo se
+    # cargó al sistema — una carga inicial de una deuda vieja tiene que
+    # imputarse antes que una venta reciente. `fecha_alta` y `pk`
+    # desempatan de forma determinística.
+    cuentas = [
+        c for c in CuentaPorCobrar.objects
+        .select_for_update()
+        .filter(cliente=cliente, estado=EstadoDeuda.ACTIVA, moneda=cuenta.moneda)
+        .order_by('fecha_inicio', 'fecha_alta', 'pk')
+        if c.saldo_pendiente > 0
+    ]
+    if not cuentas:
+        raise ValueError(
+            f'{cliente.get_nombre_display()} no tiene deuda pendiente en {cuenta.moneda}.'
+        )
+
+    saldo_total = sum((c.saldo_pendiente for c in cuentas), Decimal('0'))
+    if monto - saldo_total > Decimal('0.01'):
+        raise ValueError(
+            f'El cobro (${monto}) supera el saldo total del cliente (${saldo_total}).'
+        )
+    # Clampear por si el usuario tipeó exactamente el saldo y hay un
+    # centavo de redondeo en las properties.
+    monto = min(monto, saldo_total)
+
+    cobro = CobroCuentaCorriente.objects.create(
+        cliente=cliente, fecha=fecha, monto=monto, moneda=cuenta.moneda,
+        cuenta=cuenta, numero_comprobante=numero_comprobante, notas=notas,
+        creado_por=usuario,
+    )
+
+    restante = monto
+    for cxc in cuentas:
+        if restante <= Decimal('0'):
+            break
+
+        if cxc.modo_cuotas == ModoCuotas.LIBRE:
+            aplicar = min(restante, cxc.saldo_pendiente)
+            if aplicar <= 0:
+                continue
+            cuota = cxc.registrar_abono(
+                monto=aplicar, usuario=usuario, cuenta_pk=cuenta.pk, fecha=fecha,
+                numero_comprobante=numero_comprobante,
+            )
+            cuota.cobro_cuenta_corriente = cobro
+            cuota.save(update_fields=['cobro_cuenta_corriente'])
+            restante -= aplicar
+        else:
+            for cuota in cxc.cuotas.filter(estado=EstadoCuota.PENDIENTE).order_by('numero', 'fecha_vencimiento'):
+                if cuota.cheques.filter(estado__in=(EstadoCheque.PENDIENTE, EstadoCheque.CONFIRMADO)).exists():
+                    break  # cuota con cheque en trámite: no se puede pasar por encima
+                if restante < cuota.monto:
+                    break
+                cuota.confirmar(cuenta.pk, usuario, adelantar=True, numero_comprobante=numero_comprobante)
+                cuota.cobro_cuenta_corriente = cobro
+                cuota.save(update_fields=['cobro_cuenta_corriente'])
+                restante -= cuota.monto
+
+        # FIFO estricto: si esta deuda quedó con saldo y todavía sobra
+        # plata, NO se saltea a una deuda más nueva — se corta acá. Solo
+        # pasa con cuotas fijas (una libre siempre absorbe el resto).
+        if restante > Decimal('0.01') and cxc.saldo_pendiente > Decimal('0.01'):
+            imputado = monto - restante
+            proxima = cxc.cuotas.filter(estado=EstadoCuota.PENDIENTE).order_by('numero').first()
+            monto_proxima = proxima.monto if proxima else cxc.saldo_pendiente
+            etiqueta = cxc.descripcion or cxc.numero_comprobante or f'#{cxc.pk}'
+            raise ValueError(
+                f'Se pueden imputar ${imputado} de los ${monto}: la deuda '
+                f'"{etiqueta}" es de cuotas fijas y su próxima cuota es de '
+                f'${monto_proxima}, no se puede pagar por la mitad. Cobrá '
+                f'${imputado}, o convertí esa deuda a saldo libre desde su detalle.'
+            )
+
+    if restante > Decimal('0.01'):
+        imputado = monto - restante
+        raise ValueError(
+            f'Se pudieron imputar ${imputado} de los ${monto}. '
+            f'Quedan ${restante} sin asignar.'
+        )
+
+    if restante > Decimal('0'):
+        # Resto de centavos por redondeo de properties — ajustar el recibo.
+        cobro.monto = monto - restante
+
+    # Snapshot del saldo del cliente ya con este cobro aplicado (para el
+    # recibo — no se recalcula después).
+    cobro.saldo_posterior = saldo_cuenta_corriente(cliente, cuenta.moneda)
+    cobro.save(update_fields=['monto', 'saldo_posterior', 'fecha_modificacion'])
+
+    _recalcular_scoring_pk(cliente.pk)
+    return cobro
 
 
 # ══════════════════════════════════════════════════════════════════
