@@ -46,6 +46,101 @@ function _pqEsc(str) {
         .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+// ════════════════════════════════════════════════════════════════════
+//  PRECIO — toggle Manual / Automático (suma de componentes)
+// ════════════════════════════════════════════════════════════════════
+function setModoPrecioPaquete(modo) {
+    document.getElementById('pqModoPrecio').value = modo;
+    document.querySelectorAll('#tab-pq-precio .prd-precio-toggle-btn[data-pq-modo]').forEach(btn => {
+        btn.classList.toggle('prd-precio-toggle-btn--active', btn.dataset.pqModo === modo);
+    });
+
+    const esAutomatico = modo === 'automatico';
+    document.getElementById('pqHintModoPrecio').hidden = !esAutomatico;
+    document.getElementById('pqCampoDescuento').hidden = !esAutomatico;
+
+    const inputPrecio = document.getElementById('pqPrecioVenta');
+    inputPrecio.readOnly = esAutomatico;
+    inputPrecio.classList.toggle('prd-input--readonly', esAutomatico);
+
+    _actualizarPreviewPrecioPaquete();
+}
+document.querySelectorAll('#tab-pq-precio .prd-precio-toggle-btn[data-pq-modo]').forEach(btn => {
+    btn.addEventListener('click', () => setModoPrecioPaquete(btn.dataset.pqModo));
+});
+document.getElementById('pqDescuentoPaquete')?.addEventListener('input', _actualizarPreviewPrecioPaquete);
+
+// Con precio automático, "Precio de venta" (readonly) se convierte en el
+// preview en vivo: suma precio_venta × cantidad de cada componente
+// seleccionado, le resta el % de descuento, y muestra el desglose —
+// mismo criterio que Producto.calcular_precio_automatico_paquete() en
+// el backend (ver productos/models.py), para que el número coincida
+// con lo que va a quedar guardado.
+function _actualizarPreviewPrecioPaquete() {
+    const breakdown = document.getElementById('pqPrecioBreakdown');
+    const aviso     = document.getElementById('pqAvisoPrecioAuto');
+
+    if (document.getElementById('pqModoPrecio').value !== 'automatico') {
+        breakdown.hidden = true;
+        aviso.hidden = true;
+        return;
+    }
+
+    if (!_pqComponentesSeleccionados.length) {
+        breakdown.hidden = true;
+        aviso.hidden = false;
+        aviso.textContent = 'Agregá componentes en la pestaña Datos para calcular el precio.';
+        document.getElementById('pqPrecioVenta').value = '';
+        return;
+    }
+
+    let total = 0;
+    let faltante = null;
+    const filas = [];
+    for (const c of _pqComponentesSeleccionados) {
+        const precio = parseFloat(c.precio_venta);
+        if (isNaN(precio)) { faltante = c.nombre; break; }
+        const subtotal = precio * (parseFloat(c.cantidad) || 0);
+        total += subtotal;
+        filas.push(`
+            <div class="pq-precio-breakdown-row">
+                <span class="pq-precio-breakdown-nombre">${_pqEsc(c.nombre)} × ${c.cantidad}</span>
+                <span class="pq-precio-breakdown-monto">${KaiFormat.moneda(subtotal)}</span>
+            </div>`);
+    }
+
+    if (faltante) {
+        breakdown.hidden = true;
+        aviso.hidden = false;
+        aviso.textContent = `"${faltante}" todavía no tiene precio de venta cargado — completalo para calcular el precio automático.`;
+        document.getElementById('pqPrecioVenta').value = '';
+        return;
+    }
+    aviso.hidden = true;
+
+    const descuento = parseFloat(document.getElementById('pqDescuentoPaquete').value) || 0;
+    const descuentoMonto = total * (descuento / 100);
+    const precioFinal = total - descuentoMonto;
+
+    let html = filas.join('');
+    if (descuento > 0) {
+        html += `
+            <div class="pq-precio-breakdown-row pq-precio-breakdown-row--descuento">
+                <span class="pq-precio-breakdown-nombre">Descuento (${descuento}%)</span>
+                <span class="pq-precio-breakdown-monto">-${KaiFormat.moneda(descuentoMonto)}</span>
+            </div>`;
+    }
+    html += `
+        <div class="pq-precio-breakdown-row pq-precio-breakdown-row--total">
+            <span class="pq-precio-breakdown-nombre">Precio de venta</span>
+            <span class="pq-precio-breakdown-monto">${KaiFormat.moneda(precioFinal)}</span>
+        </div>`;
+    breakdown.innerHTML = html;
+    breakdown.hidden = false;
+
+    document.getElementById('pqPrecioVenta').value = precioFinal.toFixed(2);
+}
+
 /** Dibuja el código de barras (Code128) en la vista previa del formulario. */
 function _mostrarBarcodePreview(codigo) {
     const wrap = document.getElementById('pqBarcodePreviewWrap');
@@ -107,6 +202,7 @@ async function _togglePublicadoPaquete(pk, publicadoActual, btn) {
     const nuevoEstado = !publicadoActual;
     const body = {
         pk, nombre: p.nombre, precio_venta: p.precio_venta, descripcion: p.descripcion,
+        modo_precio: p.modo_precio, descuento_paquete: p.descuento_paquete,
         activo: p.activo, publicado: nuevoEstado,
         componentes: p.componentes.map(c => ({ producto_pk: c.producto_pk, cantidad: c.cantidad })),
     };
@@ -164,7 +260,7 @@ function _renderPaquetes() {
 
     cont.innerHTML = _cachePaquetes.map(p => `
         <div class="prd-ld-row ${p.activo ? '' : 'prd-ld-row--inactiva'}">
-            <div class="prd-ld-row-pct">$${p.precio_venta}</div>
+            <div class="prd-ld-row-pct">$${p.precio_venta}${p.modo_precio === 'automatico' ? '<span class="pq-badge-auto">Auto</span>' : ''}</div>
             <div class="prd-ld-row-info">
                 <span class="prd-ld-row-nombre">${p.nombre}</span>
                 <span class="prd-badge ${p.activo ? 'prd-badge--tipo' : ''}">${p.activo ? 'Activo' : 'Inactivo'}</span>
@@ -205,10 +301,12 @@ function _resetFormPaquete() {
     document.getElementById('pqPk').value = '';
     document.getElementById('pqNombre').value = '';
     document.getElementById('pqPrecioVenta').value = '';
+    document.getElementById('pqDescuentoPaquete').value = '';
     document.getElementById('pqCodigoBarras').value = '';
     document.getElementById('pqDescripcion').value = '';
     document.getElementById('pqActivo').checked = true;
     _pqComponentesSeleccionados = [];
+    setModoPrecioPaquete('manual');
     _renderComponentes();
     document.getElementById('pqComponenteBuscar').value = '';
     document.getElementById('pqComponenteDropdown').innerHTML = '';
@@ -362,13 +460,20 @@ function _editarPaquete(pk) {
     if (!p) return;
     document.getElementById('pqPk').value = p.pk;
     document.getElementById('pqNombre').value = p.nombre;
-    document.getElementById('pqPrecioVenta').value = p.precio_venta;
+    document.getElementById('pqDescuentoPaquete').value = p.descuento_paquete || '';
     document.getElementById('pqCodigoBarras').value = p.codigo_barras || '';
     document.getElementById('pqDescripcion').value = p.descripcion || '';
     document.getElementById('pqActivo').checked = p.activo;
+    // El modo (y el % de descuento de arriba) tienen que quedar seteados
+    // ANTES de tocar precio_venta o renderizar componentes: si el modal
+    // quedó en "automático" de una edición anterior, cualquier cálculo
+    // en el medio pisaría este precio manual con la suma de OTRO paquete.
     _pqComponentesSeleccionados = p.componentes.map(c => ({
-        producto_pk: c.producto_pk, nombre: c.nombre, codigo: c.codigo, cantidad: c.cantidad,
+        producto_pk: c.producto_pk, nombre: c.nombre, codigo: c.codigo,
+        cantidad: c.cantidad, precio_venta: c.precio_venta,
     }));
+    document.getElementById('pqPrecioVenta').value = p.precio_venta;
+    setModoPrecioPaquete(p.modo_precio || 'manual');
     _renderComponentes();
     document.getElementById('btnGuardarPaqueteTxt').textContent = 'Guardar cambios';
     document.getElementById('modalPaqueteTitulo').textContent = 'Editar paquete';
@@ -388,6 +493,7 @@ function _renderComponentes() {
     if (!_pqComponentesSeleccionados.length) {
         cont.innerHTML = '';
         empty.style.display = '';
+        _actualizarPreviewPrecioPaquete();
         return;
     }
     empty.style.display = 'none';
@@ -397,6 +503,7 @@ function _renderComponentes() {
                 <span class="pq-componente-nombre">${c.nombre}</span>
                 <span class="pq-componente-codigo">${c.codigo || ''}</span>
             </div>
+            <span class="pq-componente-precio">${c.precio_venta !== undefined && c.precio_venta !== '' && c.precio_venta !== null ? KaiFormat.moneda(c.precio_venta) : 'Sin precio'}</span>
             <input type="number" class="pq-componente-cantidad" min="0.001" step="0.001"
                    value="${c.cantidad}" data-pk="${c.producto_pk}" title="Cantidad de este componente por paquete">
             <button type="button" class="pq-componente-quitar" data-pk="${c.producto_pk}" title="Quitar">✕</button>
@@ -407,6 +514,7 @@ function _renderComponentes() {
         el.addEventListener('input', () => {
             const comp = _pqComponentesSeleccionados.find(c => String(c.producto_pk) === el.dataset.pk);
             if (comp) comp.cantidad = parseFloat(el.value) || 0;
+            _actualizarPreviewPrecioPaquete();
         });
     });
     cont.querySelectorAll('.pq-componente-quitar').forEach(btn => {
@@ -417,6 +525,7 @@ function _renderComponentes() {
             _renderComponentes();
         });
     });
+    _actualizarPreviewPrecioPaquete();
 }
 
 let _pqBuscarTimer;
@@ -438,8 +547,9 @@ document.getElementById('pqComponenteBuscar')?.addEventListener('input', (e) => 
         );
         dropdown.innerHTML = results.length
             ? results.map(p => `
-                <div class="prd-of-dropdown-option" data-pk="${p.pk}" data-nombre="${p.nombre.replace(/"/g, '&quot;')}" data-codigo="${p.codigo}">
-                    [${p.codigo}] ${p.nombre}
+                <div class="prd-of-dropdown-option" data-pk="${p.pk}" data-nombre="${p.nombre.replace(/"/g, '&quot;')}" data-codigo="${p.codigo}" data-precio="${p.precio || ''}">
+                    <span>[${p.codigo}] ${p.nombre}</span>
+                    <span class="pq-of-dropdown-precio">${p.precio ? KaiFormat.moneda(p.precio) : 'Sin precio'}</span>
                 </div>`).join('')
             : '<div class="prd-of-dropdown-option">Sin resultados</div>';
         dropdown.querySelectorAll('.prd-of-dropdown-option[data-pk]').forEach(el => {
@@ -448,6 +558,7 @@ document.getElementById('pqComponenteBuscar')?.addEventListener('input', (e) => 
                     producto_pk: parseInt(el.dataset.pk, 10),
                     nombre: el.dataset.nombre,
                     codigo: el.dataset.codigo,
+                    precio_venta: el.dataset.precio || '',
                     cantidad: 1,
                 });
                 _renderComponentes();
@@ -461,7 +572,9 @@ document.getElementById('pqComponenteBuscar')?.addEventListener('input', (e) => 
 function _payloadPaquete() {
     return {
         nombre:        document.getElementById('pqNombre').value.trim(),
+        modo_precio:   document.getElementById('pqModoPrecio').value,
         precio_venta:  document.getElementById('pqPrecioVenta').value,
+        descuento_paquete: document.getElementById('pqDescuentoPaquete').value,
         descripcion:   document.getElementById('pqDescripcion').value.trim(),
         activo:        document.getElementById('pqActivo').checked,
         componentes:   _pqComponentesSeleccionados.map(c => ({ producto_pk: c.producto_pk, cantidad: c.cantidad })),
@@ -474,13 +587,18 @@ async function guardarPaquete() {
     errBox.style.display = 'none';
 
     const body = _payloadPaquete();
-    if (!body.nombre || body.precio_venta === '') {
-        errBox.textContent   = 'Completá el nombre y el precio de venta.';
+    if (!body.nombre) {
+        errBox.textContent   = 'Completá el nombre del paquete.';
         errBox.style.display = '';
         return;
     }
     if (!body.componentes.length) {
         errBox.textContent   = 'Agregá al menos un producto componente.';
+        errBox.style.display = '';
+        return;
+    }
+    if (body.modo_precio === 'manual' && body.precio_venta === '') {
+        errBox.textContent   = 'Completá el precio de venta.';
         errBox.style.display = '';
         return;
     }
@@ -500,9 +618,13 @@ async function guardarPaquete() {
     }
 
     KaiToast.show(`Paquete "${data.nombre}" ${data.creado ? 'creado' : 'actualizado'}.`, 'success');
+    if (data.aviso) {
+        KaiToast.show(data.aviso, 'warning');
+    }
     // No se cierra el modal solo: se deja el código de barras a la
     // vista (y listo para imprimir) hasta que el usuario lo cierre.
     document.getElementById('pqPk').value = data.pk;
+    document.getElementById('pqPrecioVenta').value = data.data.precio_venta;
     document.getElementById('pqCodigoBarras').value = data.data.codigo_barras || '';
     document.getElementById('btnGuardarPaqueteTxt').textContent = 'Guardar cambios';
     document.getElementById('modalPaqueteTitulo').textContent = 'Editar paquete';

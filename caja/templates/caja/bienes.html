@@ -1,0 +1,150 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Bienes{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'caja/css/bienes.css' %}?v=20260910">
+{% endblock %}
+
+{% block content %}
+<div class="bienes-container">
+    {% if not puede_ver %}
+    <div class="bienes-sin-permiso">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M12 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="12" cy="16.2" r="0.9" fill="currentColor"/>
+        </svg>
+        <p>No tenés permiso para ver los bienes del negocio.</p>
+    </div>
+    {% else %}
+
+    <header class="bienes-header">
+        <div>
+            <h1 class="bienes-title">Bienes</h1>
+            <p class="bienes-subtitle">Muebles, inmuebles, vehículos y demás bienes de valor del negocio — solo para saber qué tenés.</p>
+        </div>
+        {% if puede_crear %}
+        <button type="button" class="btn btn-primary" id="btnNuevoBien">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Nuevo bien
+        </button>
+        {% endif %}
+    </header>
+
+    <div class="bienes-toolbar">
+        <input type="text" id="bienesBuscar" class="bienes-input" placeholder="Buscar por nombre o descripción...">
+        <select id="bienesFiltroTipo" class="bienes-input">
+            <option value="">Todos los tipos</option>
+            {% for t in tipos %}
+            <option value="{{ t }}">{{ t }}</option>
+            {% endfor %}
+        </select>
+        <select id="bienesFiltroEstado" class="bienes-input">
+            <option value="activos" selected>Activos</option>
+            <option value="inactivos">De baja</option>
+            <option value="">Todos</option>
+        </select>
+        <div class="bienes-total-chip">
+            Valor total: <strong id="bienesTotal">$0</strong>
+        </div>
+    </div>
+
+    <div class="bienes-card">
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Tipo</th>
+                        <th>Valor</th>
+                        <th>Descripción</th>
+                        <th>Estado</th>
+                        <th class="col-actions">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="bienesTbody">
+                    <tr><td colspan="6" class="bienes-tabla-loading">Cargando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% endif %}
+</div>
+
+{# ── Modal: crear / editar bien ── #}
+<div class="modal fade" id="bienModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bien-modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="bienModalTitulo">Nuevo bien</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="bienPk">
+
+                <div class="bien-campo">
+                    <label for="bienNombre">Nombre *</label>
+                    <input type="text" id="bienNombre" class="bienes-input" placeholder="Ej: Camioneta Toyota Hilux, Depósito Av. Rivadavia 1234..." maxlength="150">
+                </div>
+
+                <div class="bien-campo-grid">
+                    <div class="bien-campo">
+                        <label for="bienTipo">Tipo <span class="bien-campo-opcional">(opcional)</span></label>
+                        <input type="text" id="bienTipo" class="bienes-input" list="bienTipoSugerencias"
+                               maxlength="60" placeholder="Mueble, vehículo, terreno...">
+                        <datalist id="bienTipoSugerencias">
+                            {% for t in tipos %}<option value="{{ t }}"></option>{% endfor %}
+                        </datalist>
+                    </div>
+                    <div class="bien-campo">
+                        <label for="bienValor">Valor <span class="bien-campo-opcional">(opcional)</span></label>
+                        <div class="bien-input-prefix-wrap">
+                            <span class="bien-input-prefix">$</span>
+                            <input type="number" id="bienValor" class="bienes-input" min="0" step="0.01" placeholder="0.00">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bien-campo">
+                    <label for="bienDescripcion">Descripción <span class="bien-campo-opcional">(opcional)</span></label>
+                    <textarea id="bienDescripcion" class="bienes-input" rows="3" placeholder="Ubicación, estado, marca/modelo, lo que haga falta..."></textarea>
+                </div>
+
+                <label class="bien-activo-check" id="bienActivoWrap" style="display:none;">
+                    <input type="checkbox" id="bienActivo" checked>
+                    <span>Activo <small>(desmarcalo si se vendió o se dio de baja, sin borrar el registro)</small></span>
+                </label>
+
+                <p class="bien-meta" id="bienMeta" style="display:none;"></p>
+                <div id="bienMsg" class="alerta-inline alerta-error" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger btn-sm" id="btnEliminarBien" style="display:none;margin-right:auto;">Eliminar</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary btn-sm" id="btnGuardarBien">Guardar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if puede_ver %}
+<script>
+    const BIENES_URLS = {
+        listar:   "{% url 'caja:bienes_listar' %}",
+        acciones: "{% url 'caja:bien_acciones' %}",
+        eliminar: "{% url 'caja:bien_eliminar' %}",
+    };
+    const BIENES_PUEDE_CREAR    = {{ puede_crear|yesno:"true,false" }};
+    const BIENES_PUEDE_EDITAR   = {{ puede_editar|yesno:"true,false" }};
+    const BIENES_PUEDE_ELIMINAR = {{ puede_eliminar|yesno:"true,false" }};
+</script>
+<script src="{% static 'caja/js/bienes.js' %}?v=20260910"></script>
+{% endif %}
+{% endblock %}

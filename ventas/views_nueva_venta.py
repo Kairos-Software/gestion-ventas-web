@@ -30,6 +30,26 @@ from caja.models import (
 )
 
 
+def _componentes_paquete_payload(producto):
+    """Contenido de un paquete —qué lleva cada unidad— para mostrarlo en
+    el buscador y en el carrito de Nueva Venta. Lista vacía si no es un
+    paquete o si todavía no tiene componentes cargados.
+
+    Requiere que `producto.componentes` (y sus `producto`/`combinacion`)
+    ya estén prefetcheados por el que llama, para no disparar consultas
+    de más por cada fila del resultado."""
+    if not producto or not producto.es_paquete:
+        return []
+    filas = []
+    for comp in producto.componentes.all():
+        if comp.combinacion_id:
+            nombre = f'{comp.producto.nombre} · {comp.combinacion.descripcion_legible()}'
+        else:
+            nombre = comp.producto.nombre
+        filas.append({'nombre': nombre, 'cantidad': float(comp.cantidad)})
+    return filas
+
+
 # ══════════════════════════════════════════════════════════════════
 #  VISTA PRINCIPAL — Nueva Venta
 # ══════════════════════════════════════════════════════════════════
@@ -98,7 +118,12 @@ class NuevaVentaView(LoginRequiredMixin, TemplateView):
             venta = (
                 Venta.objects
                 .filter(pk=editar_pk, estado=EstadoVenta.BORRADOR)
-                .prefetch_related('items__producto', 'items__combinacion', 'items__cliente', 'items__lote_escaneado')
+                .prefetch_related(
+                    'items__producto', 'items__combinacion', 'items__cliente',
+                    'items__lote_escaneado',
+                    'items__producto__componentes__producto',
+                    'items__producto__componentes__combinacion',
+                )
                 .first()
             )
             if venta:
@@ -119,6 +144,8 @@ class NuevaVentaView(LoginRequiredMixin, TemplateView):
                         'combinacion_pk': item.combinacion_id,
                         'nombre':         nombre,
                         'codigo':         item.producto_codigo,
+                        'es_paquete':     bool(item.producto_id and item.producto.es_paquete),
+                        'componentes_paquete': _componentes_paquete_payload(item.producto if item.producto_id else None),
                         'tipo_escaneo':   item.tipo_escaneo,
                         'lote_pk':        item.lote_escaneado_id,
                         'lote_codigo':    item.lote_escaneado.codigo if item.lote_escaneado_id else '',
@@ -168,7 +195,10 @@ class BuscarProductoAjax(LoginRequiredMixin, View):
         base_qs = (
             Producto.objects
             .select_related('categoria', 'tipo')
-            .prefetch_related('combinaciones')
+            .prefetch_related(
+                'combinaciones',
+                'componentes__producto', 'componentes__combinacion',
+            )
             .filter(estado='activo')
         )
 
@@ -265,6 +295,7 @@ class BuscarProductoAjax(LoginRequiredMixin, View):
             'gestiona_variantes':  p.gestiona_variantes,
             'gestiona_stock':      p.gestiona_stock,
             'es_paquete':          p.es_paquete,
+            'componentes_paquete': _componentes_paquete_payload(p),
             'precio_venta':        float(p.precio_venta) if p.precio_venta is not None else None,
             'moneda':              'ARS',
             # Origen del stock: por defecto, se resuelve el lote más

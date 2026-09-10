@@ -138,6 +138,12 @@ PERMISOS_CHOICES = [
     ('eliminar_cheques',   'Eliminar cheques'),
     ('confirmar_cheques',  'Confirmar o rechazar el cobro/pago de un cheque'),
 
+    # ── Módulo: Bienes (patrimonio del negocio) ─────────────────────
+    ('ver_bienes',       'Ver bienes del negocio (muebles, inmuebles, vehículos, etc.)'),
+    ('crear_bienes',     'Cargar bienes nuevos'),
+    ('editar_bienes',    'Editar bienes cargados'),
+    ('eliminar_bienes',  'Eliminar bienes cargados'),
+
     # ── Módulo: Notas (Anotador) ────────────────────────────────────
     ('ver_notas',            'Ver el anotador'),
     ('crear_notas',          'Crear notas'),

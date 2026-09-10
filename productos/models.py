@@ -743,6 +743,19 @@ class Producto(models.Model):
         help_text='Combo armado a partir de otros productos. No tiene stock propio: se calcula de sus componentes.',
     )
 
+    # modo_precio también aplica a un paquete, con otro significado: MANUAL
+    # es el precio fijo de siempre; AUTOMATICO sale de sumar precio_venta ×
+    # cantidad de cada componente (ver calcular_precio_automatico_paquete())
+    # y no de costo + % ganancia — un paquete no tiene costo propio. El
+    # descuento de abajo se resta sobre esa suma.
+    descuento_paquete = models.DecimalField(
+        '% de descuento (paquete automático)', max_digits=6, decimal_places=2,
+        null=True, blank=True,
+        help_text='Solo con modo_precio=automático en un paquete. Se resta sobre la suma de '
+                   'los precios de venta de los componentes. Ej: 10 → 10% más barato que '
+                   'comprar los componentes por separado.',
+    )
+
     # — Estado y visibilidad —
     estado    = models.CharField(max_length=20, choices=EstadoProducto.choices,
                     default=EstadoProducto.ACTIVO)
@@ -869,6 +882,65 @@ class Producto(models.Model):
 
         if update_fields:
             self.save(update_fields=update_fields)
+
+        # Este producto puede ser, a su vez, componente de algún paquete
+        # con precio automático — si su precio_venta cambió (recién arriba,
+        # o ya venía cambiado por una edición manual justo antes de esta
+        # llamada, ver ProductoCrearEditarAjax), esos paquetes quedan
+        # desactualizados hasta la próxima venta si no se propaga ahora.
+        self.propagar_precio_a_paquetes()
+
+    def propagar_precio_a_paquetes(self):
+        """
+        Recalcula el precio de cualquier paquete con modo_precio=AUTOMATICO
+        que use este producto como componente. Se llama al final de
+        actualizar_costo_y_precio() — el punto único por el que termina
+        pasando cualquier cambio de precio_venta de un producto normal,
+        sea manual o automático (ver ese método).
+        """
+        if self.es_paquete or not self.pk:
+            return
+        paquetes_pks = self.usado_en_paquetes.filter(
+            paquete__modo_precio=ModoPrecio.AUTOMATICO,
+        ).values_list('paquete_id', flat=True).distinct()
+        for paquete in Producto.objects.filter(pk__in=list(paquetes_pks)):
+            paquete.actualizar_precio_paquete()
+
+    def calcular_precio_automatico_paquete(self):
+        """
+        Suma precio_venta × cantidad de cada componente actual (ya son
+        precios finales, cada uno con su propio IVA incluido) y le resta
+        descuento_paquete. Devuelve (precio, None) o (None, motivo) si
+        algún componente todavía no tiene precio de venta cargado.
+        """
+        total = Decimal('0')
+        for comp in self.componentes.select_related('producto').all():
+            precio_comp = comp.producto.precio_venta
+            if precio_comp is None:
+                return None, f'"{comp.producto.nombre}" todavía no tiene precio de venta cargado.'
+            total += precio_comp * comp.cantidad
+        descuento = self.descuento_paquete or Decimal('0')
+        precio = (total * (Decimal('1') - descuento / Decimal('100'))).quantize(Decimal('0.01'))
+        return precio, None
+
+    def actualizar_precio_paquete(self):
+        """
+        Solo tiene efecto en un paquete (es_paquete=True) con
+        modo_precio=AUTOMATICO: recalcula precio_venta a partir de los
+        componentes actuales (ver calcular_precio_automatico_paquete()) y
+        lo persiste si cambió. Se llama al guardar el paquete (alta,
+        edición de componentes o de % de descuento) y en cascada desde
+        propagar_precio_a_paquetes() cuando cambia el precio de un
+        componente. Devuelve un mensaje de aviso si no pudo calcularlo
+        (componente sin precio), o None si quedó todo bien.
+        """
+        if not self.es_paquete or self.modo_precio != ModoPrecio.AUTOMATICO:
+            return None
+        nuevo_precio, aviso = self.calcular_precio_automatico_paquete()
+        if nuevo_precio is not None and nuevo_precio != self.precio_venta:
+            self.precio_venta = nuevo_precio
+            self.save(update_fields=['precio_venta'])
+        return aviso
 
     @transaction.atomic
     def activar_costo_referencia(self):

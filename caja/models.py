@@ -5222,3 +5222,63 @@ class TransaccionCaja(models.Model):
             origen_id=self.pk,
         ).delete()
         self.delete()
+
+
+# ══════════════════════════════════════════════════════════════════
+#  BIENES — patrimonio del negocio (muebles, inmuebles, vehículos, etc.)
+# ══════════════════════════════════════════════════════════════════
+
+# Sugerencias para el autocompletado del campo `tipo`. NO es una lista
+# cerrada: el usuario escribe la categoría que quiera (o ninguna). Solo
+# sirve para poblar el desplegable la primera vez, cuando todavía no hay
+# bienes cargados de los que sacar las categorías ya usadas.
+TIPOS_BIEN_SUGERIDOS = [
+    'Mueble', 'Vehículo', 'Terreno', 'Casa', 'Departamento',
+    'Local', 'Maquinaria', 'Herramienta',
+]
+
+
+class Bien(models.Model):
+    """
+    Registro simple de bienes de valor del negocio — muebles, vehículos,
+    terrenos, casas, departamentos, etc. Solo sirve para saber qué tiene
+    el negocio y, opcionalmente, cuánto vale hoy: no mueve stock ni caja,
+    no genera movimientos, no tiene depreciación ni ninguna lógica
+    contable. `valor` es un número suelto que se carga y edita a mano.
+    """
+    nombre = models.CharField(max_length=150)
+    tipo = models.CharField(
+        max_length=60, blank=True,
+        help_text='Categoría libre (mueble, vehículo, terreno…). Se puede '
+                  'escribir cualquiera o dejarla vacía.',
+    )
+    valor = models.DecimalField(
+        max_digits=14, decimal_places=2, null=True, blank=True,
+        help_text='Opcional — valor estimado actual.',
+    )
+    descripcion = models.TextField(
+        blank=True, help_text='Notas libres: ubicación, estado, marca/modelo, lo que haga falta.',
+    )
+    activo = models.BooleanField(
+        default=True,
+        help_text='Desmarcar si se vendió o se dio de baja, sin perder el registro histórico.',
+    )
+
+    creado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='bienes_creados',
+    )
+    modificado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='bienes_modificados',
+    )
+    fecha_alta = models.DateTimeField(auto_now_add=True)
+    fecha_modificacion = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Bien'
+        verbose_name_plural = 'Bienes'
+        ordering = ['-activo', 'nombre']
+
+    def __str__(self):
+        return self.nombre

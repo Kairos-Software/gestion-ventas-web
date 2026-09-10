@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views, views_gastos, views_caja_diaria, views_transacciones, views_deudas, views_cheques, views_cuentas_cobrar, views_cuenta_corriente, views_recargos
+from . import views, views_gastos, views_caja_diaria, views_transacciones, views_deudas, views_cheques, views_cuentas_cobrar, views_cuenta_corriente, views_recargos, views_bienes
 
 app_name = 'caja'
 
@@ -19,6 +19,7 @@ urlpatterns = [
     path('cuenta-corriente/',        views_cuenta_corriente.CuentaCorrienteView.as_view(), name='cuenta_corriente'),
     path('cheques/',                 views_cheques.ChequesView.as_view(),             name='cheques'),
     path('recargos/',                views_recargos.RecargosView.as_view(),           name='recargos'),
+    path('bienes/',                  views_bienes.BienesView.as_view(),               name='bienes'),
 
     # ══════════════════════════════════════════════════════════════════
     #  AJAX — Caja grande
@@ -104,6 +105,13 @@ urlpatterns = [
     path('recargos/tarjetas/guardar/', views_recargos.TarjetaGuardarAjax.as_view(),  name='tarjeta_guardar'),
     path('recargos/tarjetas/medios/',  views_recargos.TarjetaMediosGuardarAjax.as_view(), name='tarjeta_medios_guardar'),
     path('recargos/tarjetas/<int:pk>/baja/', views_recargos.TarjetaBajaAjax.as_view(), name='tarjeta_baja'),
+
+    # ══════════════════════════════════════════════════════════════════
+    #  AJAX — Bienes
+    # ══════════════════════════════════════════════════════════════════
+    path('bienes/listar/',   views_bienes.BienesListarAjax.as_view(),   name='bienes_listar'),
+    path('bienes/acciones/', views_bienes.BienAccionesAjax.as_view(),   name='bien_acciones'),
+    path('bienes/eliminar/', views_bienes.BienEliminarAjax.as_view(),   name='bien_eliminar'),
 
     # ══════════════════════════════════════════════════════════════════
     #  AJAX — Comunes

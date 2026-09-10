@@ -80,6 +80,8 @@ let carrito = (CFG.itemsIniciales || []).map(fila => ({
     combinacion_pk:  fila.combinacion_pk || null,
     nombre:          fila.nombre,
     codigo:          fila.codigo,
+    es_paquete:          !!fila.es_paquete,
+    componentes_paquete: fila.componentes_paquete || [],
     tipo_escaneo:    fila.tipo_escaneo || 'normal',
     lote_pk:         fila.lote_pk || null,
     lote_codigo:     fila.lote_codigo || '',
@@ -253,6 +255,11 @@ function _renderOpciones(filas, { vacioTexto = 'Sin resultados' } = {}) {
                     : `<span class="vta-meta-chip--sin-precio">Sin precio cargado</span>`}
                 ${r.variante_desc ? `<span class="vta-meta-chip vta-meta-chip--colores"><strong>${_esc(r.variante_desc)}</strong></span>` : ''}
             </div>
+            ${r.es_paquete && (r.componentes_paquete || []).length ? `
+            <div class="vta-dropdown-item-pack">
+                <span class="vta-pack-lbl">Incluye</span>
+                <span class="vta-pack-comps">${_paqueteCompsHTML(r.componentes_paquete)}</span>
+            </div>` : ''}
         </div>`
     ).join('');
 
@@ -544,6 +551,8 @@ function _agregarFila(fila) {
         combinacion_pk:  fila.combinacion_pk || null,
         nombre:          fila.nombre,
         codigo:          fila.codigo,
+        es_paquete:          !!fila.es_paquete,
+        componentes_paquete: fila.componentes_paquete || [],
         tipo_escaneo:    fila.tipo_escaneo || 'normal',
         lote_pk:         fila.lote_pk || null,
         lote_codigo:     fila.lote_codigo || '',
@@ -829,6 +838,21 @@ function _chipOrigen(item) {
     return `<span class="vta-origen-chip vta-origen-chip--normal" title="Descuenta del lote más viejo con stock (FIFO)">Más viejo (FIFO)</span>`;
 }
 
+/* Contenido de un paquete: "2× Coca 500 · 1× Alfajor · 1× Servilletas".
+   Es la composición de UNA unidad del paquete (no se multiplica por la
+   cantidad del carrito) — sirve para saber qué se está vendiendo, no
+   para descontar stock. Se usa en el buscador y en la fila del carrito. */
+function _fmtCantComp(n) {
+    const v = parseFloat(n) || 0;
+    return Number.isInteger(v) ? String(v) : v.toLocaleString('es-AR', { maximumFractionDigits: 3 });
+}
+function _paqueteCompsHTML(comps) {
+    if (!Array.isArray(comps) || !comps.length) return '';
+    return comps.map(c =>
+        `<span class="vta-pack-comp"><b>${_fmtCantComp(c.cantidad)}×</b> ${_esc(c.nombre)}</span>`
+    ).join('');
+}
+
 /* Opciones de los desplegables del panel "Descuento / oferta" de cada
    fila (se despliega por ítem, no es una columna siempre visible). */
 function _opcionesListaAdv(item) {
@@ -964,6 +988,11 @@ function _renderCarrito() {
                 <div class="vta-cart-row-name">
                     <b>${_esc(item.nombre)}</b>
                     <span>${_esc(item.codigo)}</span>
+                    ${item.es_paquete && (item.componentes_paquete || []).length ? `
+                    <div class="vta-cart-row-pack">
+                        <span class="vta-pack-lbl">Incluye</span>
+                        <span class="vta-pack-comps">${_paqueteCompsHTML(item.componentes_paquete)}</span>
+                    </div>` : ''}
                 </div>
                 <button type="button" class="vta-cart-row-x" data-act="quitar" title="Quitar">✕</button>
             </div>

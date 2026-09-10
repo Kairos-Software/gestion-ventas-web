@@ -539,6 +539,59 @@
     padding: .12rem .5rem;
     border-radius: .35rem;
 }
+
+/* ── Contenido de un paquete (buscador + fila del carrito) ──────────
+   Línea secundaria, tono apagado: dice qué lleva el paquete sin
+   competir con el nombre ni con los controles de la fila. Los
+   selectores van anclados al contenedor para ganarle en especificidad
+   a `.vta-cart-row-name span/b` (que si no pisa color y display). */
+.vta-cart-row-pack,
+.vta-dropdown-item-pack {
+    margin-top: .3rem;
+    display: flex;
+    align-items: flex-start;
+    gap: .4rem;
+    flex-wrap: wrap;
+}
+.vta-cart-row-pack .vta-pack-lbl,
+.vta-dropdown-item-pack .vta-pack-lbl {
+    flex-shrink: 0;
+    font-size: .6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--brand-orange-dark);
+    background: var(--brand-orange-light);
+    border: 1px solid var(--brand-orange-mid);
+    padding: .05rem .35rem;
+    border-radius: .3rem;
+    line-height: 1.4;
+}
+.vta-cart-row-pack .vta-pack-comps,
+.vta-dropdown-item-pack .vta-pack-comps {
+    min-width: 0;
+    font-size: .7rem;
+    font-weight: 400;
+    line-height: 1.55;
+    color: var(--text-muted);
+}
+.vta-cart-row-pack .vta-pack-comp,
+.vta-dropdown-item-pack .vta-pack-comp { white-space: nowrap; }
+.vta-cart-row-pack .vta-pack-comp b,
+.vta-dropdown-item-pack .vta-pack-comp b {
+    display: inline;
+    font-weight: 700;
+    font-size: inherit;
+    font-family: inherit;
+    color: var(--text-secondary);
+}
+.vta-cart-row-pack .vta-pack-comp:not(:last-child)::after,
+.vta-dropdown-item-pack .vta-pack-comp:not(:last-child)::after {
+    content: "·";
+    margin: 0 .32rem;
+    color: var(--border-strong, #cbd5e1);
+}
+
 .vta-cart-row-edit {
     background: none;
     border: none;

@@ -22,6 +22,8 @@ def _serializar_paquete(p):
         'codigo_barras': p.codigo_barras,
         'descripcion':  p.descripcion,
         'precio_venta': str(p.precio_venta) if p.precio_venta is not None else '',
+        'modo_precio':  p.modo_precio,
+        'descuento_paquete': str(p.descuento_paquete) if p.descuento_paquete is not None else '',
         'activo':       p.estado == EstadoProducto.ACTIVO,
         'publicado':    p.publicado,
         'destacado':    p.destacado,
@@ -37,6 +39,7 @@ def _serializar_paquete(p):
                 'nombre':   comp.producto.nombre,
                 'codigo':   comp.producto.codigo,
                 'cantidad': str(comp.cantidad),
+                'precio_venta': str(comp.producto.precio_venta) if comp.producto.precio_venta is not None else '',
             }
             for comp in p.componentes.select_related('producto').all()
         ],
@@ -90,13 +93,30 @@ class PaqueteAccionesAjax(LoginRequiredMixin, View):
         if not nombre:
             errors['nombre'] = ['El nombre es obligatorio.']
 
-        try:
-            precio_venta = Decimal(str(body.get('precio_venta', '')))
-            if precio_venta < 0:
-                errors['precio_venta'] = ['El precio no puede ser negativo.']
-        except Exception:
-            errors['precio_venta'] = ['El precio es inválido.']
-            precio_venta = None
+        modo_precio = body.get('modo_precio') or ModoPrecio.MANUAL
+        if modo_precio not in ModoPrecio.values:
+            modo_precio = ModoPrecio.MANUAL
+
+        precio_venta = None
+        descuento_paquete = None
+        if modo_precio == ModoPrecio.MANUAL:
+            try:
+                precio_venta = Decimal(str(body.get('precio_venta', '')))
+                if precio_venta < 0:
+                    errors['precio_venta'] = ['El precio no puede ser negativo.']
+            except Exception:
+                errors['precio_venta'] = ['El precio es inválido.']
+                precio_venta = None
+        else:
+            raw_descuento = body.get('descuento_paquete', '')
+            if raw_descuento not in (None, ''):
+                try:
+                    descuento_paquete = Decimal(str(raw_descuento))
+                    if descuento_paquete < 0 or descuento_paquete > 100:
+                        errors['descuento_paquete'] = ['El descuento tiene que estar entre 0 y 100.']
+                except Exception:
+                    errors['descuento_paquete'] = ['El descuento es inválido.']
+                    descuento_paquete = None
 
         componentes_raw = body.get('componentes', [])
         if not componentes_raw:
@@ -159,8 +179,12 @@ class PaqueteAccionesAjax(LoginRequiredMixin, View):
 
         paquete.nombre        = nombre
         paquete.descripcion   = body.get('descripcion', '')
-        paquete.precio_venta  = precio_venta
-        paquete.modo_precio   = ModoPrecio.MANUAL
+        paquete.modo_precio   = modo_precio
+        if modo_precio == ModoPrecio.MANUAL:
+            paquete.precio_venta      = precio_venta
+            paquete.descuento_paquete = None
+        else:
+            paquete.descuento_paquete = descuento_paquete
         paquete.gestiona_stock = False
         paquete.unidad_medida = UnidadMedida.UNIDAD
         paquete.codigo_barras = codigo_barras
@@ -179,11 +203,16 @@ class PaqueteAccionesAjax(LoginRequiredMixin, View):
                 paquete=paquete, producto=c['producto'], cantidad=c['cantidad'],
             )
 
+        # Precio automático: recién ahora que los componentes quedaron
+        # guardados se puede sumar precio_venta × cantidad de cada uno.
+        aviso = paquete.actualizar_precio_paquete() if modo_precio == ModoPrecio.AUTOMATICO else None
+
         return JsonResponse({
             'ok':     True,
             'pk':     paquete.pk,
             'nombre': paquete.nombre,
             'creado': pk is None,
+            'aviso':  aviso,
             'data':   _serializar_paquete(paquete),
         })
 
