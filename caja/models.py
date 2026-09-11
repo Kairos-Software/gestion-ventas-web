@@ -1,5 +1,5 @@
 from datetime import timedelta, date, datetime as dt
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.db import models
 from django.conf import settings
@@ -1293,15 +1293,16 @@ class TurnoCaja(models.Model):
         )
 
     def _cuotas_pagadas_en_turno(self):
-        """CuotaDeuda (cuotas viejas que le debíamos a un proveedor)
-        confirmadas en EFECTIVO dentro de la ventana horaria de este
-        turno — mismo criterio que _cuotas_cobradas_en_turno, en la
-        dirección contraria."""
-        return CuotaDeuda.objects.filter(
-            estado=EstadoCuota.CONFIRMADA,
-            cuenta_pago__tipo=TipoCuenta.EFECTIVO,
-            fecha_confirmacion__gte=self.fecha_apertura,
-            fecha_confirmacion__lte=self.fecha_cierre if self.fecha_cierre else timezone.now(),
+        """Líneas de pago (PagoCuotaDeuda) en EFECTIVO de cuotas de Deuda
+        confirmadas dentro de la ventana horaria de este turno — mismo
+        criterio que _cuotas_cobradas_en_turno, en la dirección contraria.
+        Es por línea de pago (no por cuota) para que una cuota pagada
+        mitad en efectivo y mitad en transferencia cuente solo la mitad."""
+        return PagoCuotaDeuda.objects.filter(
+            cuenta__tipo=TipoCuenta.EFECTIVO,
+            cuota__estado=EstadoCuota.CONFIRMADA,
+            cuota__fecha_confirmacion__gte=self.fecha_apertura,
+            cuota__fecha_confirmacion__lte=self.fecha_cierre if self.fecha_cierre else timezone.now(),
         )
 
     def calcular_efectivo_cuotas_cobradas_en_turno(self):
@@ -2413,14 +2414,24 @@ def generar_instancias_pendientes():
 #  propio al crearse, ni requiere una cuenta propia — no hay tarjeta ni
 #  acreditación), pero pensada para lo que se compró y se va a pagar
 #  con uno o varios cheques propios en vez de tarjeta. Cada cuota se
-#  paga como cualquier otra: con un cheque real (confirmar_con_cheque)
-#  o con una cuenta, ambos ya soportados de forma genérica.
+#  paga SOLO con un cheque real (confirmar_con_cheque).
+#
+#  Otra deuda: cualquier otra cosa que se debe y no encaja en las de
+#  arriba (una compra sin tarjeta, un servicio a pagar en cuotas, etc.).
+#  No requiere ninguna cuenta propia ni genera movimiento al crearse;
+#  cada cuota se paga como en un préstamo — con una o varias cuentas
+#  reales (pago dividido, ver PagoCuotaDeuda) o con un cheque.
+#
+#  Una cuota confirmada con cuentas genera un MovimientoCaja (egreso)
+#  por cada PagoCuotaDeuda — así se puede pagar mitad de una forma y
+#  mitad de otra, igual que en Ventas.
 # ══════════════════════════════════════════════════════════════════
 
 class TipoDeuda(models.TextChoices):
     COMPRA_CREDITO = 'compra_credito', 'Compra con tarjeta de crédito'
     PRESTAMO       = 'prestamo',       'Préstamo'
     CHEQUE         = 'cheque',         'Compra con cheque'
+    OTRO           = 'otro',           'Otra deuda'
 
 
 class EstadoDeuda(models.TextChoices):
@@ -2435,8 +2446,9 @@ class EstadoCuota(models.TextChoices):
 
 
 class ModoCuotas(models.TextChoices):
-    FIJAS = 'fijas', 'Cuotas fijas'
-    LIBRE = 'libre', 'Cuotas libres'
+    FIJAS    = 'fijas',    'Cuotas fijas'
+    LIBRE    = 'libre',    'Cuotas libres'
+    VARIABLE = 'variable', 'Cuotas variables'
 
 
 def _sumar_meses(fecha, n):
@@ -2482,22 +2494,38 @@ class Deuda(models.Model):
         help_text='Cuenta que recibe el dinero del préstamo. Solo para prestamo.',
     )
 
-    monto_original     = models.DecimalField(max_digits=14, decimal_places=2,
-                              help_text='Capital, sin interés.')
-    porcentaje_interes  = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    monto_original     = models.DecimalField(
+        max_digits=14, decimal_places=2, null=True, blank=True,
+        help_text='Capital, sin interés. Puede quedar vacío en modo_cuotas=variable '
+                   'cuando no se conoce cuánto se pidió (ahí no se puede calcular el interés).',
+    )
+    porcentaje_interes  = models.DecimalField(
+        max_digits=6, decimal_places=2, default=0,
+        help_text='modo_cuotas=fijas/libre: lo tipea quien carga la deuda. '
+                   'modo_cuotas=variable: se calcula solo (ver Deuda.interes_implicito) — '
+                   'acá se guarda ese valor, o 0 si todavía no es calculable.',
+    )
     moneda              = models.CharField(max_length=5, choices=Moneda.choices, default=Moneda.ARS)
     modo_cuotas = models.CharField(
         max_length=10, choices=ModoCuotas.choices, default=ModoCuotas.FIJAS,
         help_text='Fijas: plan de N cuotas iguales con vencimiento mensual (como hoy). '
                    'Libre: no hay plan — se van registrando abonos de cualquier monto '
-                   '(ver Deuda.registrar_abono) hasta cubrir el total.',
+                   '(ver Deuda.registrar_abono) hasta cubrir el total. '
+                   'Variable: cuotas de monto distinto que se van cargando a mano, cada una '
+                   'con su fecha y monto (ver Deuda.editar_cuotas_pendientes) — el interés '
+                   'se calcula, el capital es opcional.',
     )
     cantidad_cuotas = models.PositiveSmallIntegerField(
-        null=True, blank=True, help_text='Solo aplica a modo_cuotas=fijas.',
+        null=True, blank=True,
+        help_text='modo_cuotas=fijas: cantidad de cuotas iguales a generar. '
+                   'modo_cuotas=variable: plan total de referencia (ej. 72), opcional — '
+                   'no genera cuotas, solo sirve para mostrar "cuota 18 de 72" y para '
+                   'saber si el plan está completo al calcular el interés.',
     )
     fecha_inicio = models.DateField(
         help_text='modo_cuotas=fijas: vencimiento de la primera cuota (las siguientes son '
-                   'mensuales a partir de acá). modo_cuotas=libre: fecha de origen de la deuda.',
+                   'mensuales a partir de acá). modo_cuotas=libre: fecha de origen de la deuda. '
+                   'modo_cuotas=variable: fecha de la cuota más temprana cargada (o el alta).',
     )
 
     numero_comprobante = models.CharField(
@@ -2563,36 +2591,92 @@ class Deuda(models.Model):
         return self.cuotas.filter(estado=EstadoCuota.PENDIENTE).aggregate(
             total=models.Sum('monto'))['total'] or Decimal('0')
 
+    @property
+    def plan_completo(self):
+        """
+        Solo modo_cuotas=variable: True si ya se cargaron todas las cuotas
+        que dice el plan total (`cantidad_cuotas`). Si no hay plan total
+        definido no se puede saber, así que se asume incompleto (no se
+        puede calcular un interés confiable con cuotas a medio cargar).
+        """
+        if self.modo_cuotas != ModoCuotas.VARIABLE:
+            return True
+        if not self.cantidad_cuotas:
+            return False
+        return self.cuotas.exclude(estado=EstadoCuota.ANULADA).count() >= self.cantidad_cuotas
+
+    @property
+    def interes_implicito(self):
+        """
+        Tasa real de la deuda deducida de los números que sí tenemos:
+        `(monto_total − capital) / capital × 100`. Devuelve None cuando no
+        se puede calcular con confianza:
+          - sin capital (`monto_original`),
+          - modo variable con el plan todavía a medio cargar (`plan_completo`),
+          - total 0 o capital 0.
+        Los bancos no informan la tasa de forma clara (o la que informan no
+        coincide con la suma de las cuotas), así que para modo_cuotas=variable
+        esto es la única fuente de verdad — nunca se tipea a mano.
+        """
+        capital = self.monto_original or Decimal('0')
+        if capital <= 0 or not self.plan_completo:
+            return None
+        total = self.monto_total or Decimal('0')
+        if total <= 0:
+            return None
+        return ((total - capital) / capital * Decimal('100')).quantize(Decimal('0.01'))
+
     @classmethod
     @transaction.atomic
     def crear_con_cuotas(cls, *, tipo, monto_original, porcentaje_interes, cantidad_cuotas=None,
                           fecha_inicio, moneda=Moneda.ARS, descripcion='', notas='',
                           pago_compra=None, cuenta_tarjeta=None, cuenta_acreditacion=None,
                           creado_por=None, numero_comprobante='', modo_cuotas=ModoCuotas.FIJAS,
-                          es_carga_inicial=False, cuotas_historicas=None, abonos_historicos=None):
+                          es_carga_inicial=False, cuotas_historicas=None, abonos_historicos=None,
+                          cuotas_variables=None):
         """
-        Crea la Deuda. Si modo_cuotas=FIJAS, genera de una el plan de N
-        cuotas iguales (comportamiento original). Si modo_cuotas=LIBRE,
-        no genera ninguna cuota — se van creando de a una a medida que
-        se llama a `registrar_abono`. Si tipo=PRESTAMO, además genera de
-        inmediato el ingreso a `cuenta_acreditacion` — salvo que sea
-        carga inicial (ver más abajo).
+        Crea la Deuda.
+          - modo_cuotas=FIJAS: genera de una el plan de N cuotas iguales
+            (comportamiento original).
+          - modo_cuotas=LIBRE: no genera ninguna cuota — se van creando de
+            a una a medida que se llama a `registrar_abono`.
+          - modo_cuotas=VARIABLE: crea exactamente las cuotas de
+            `cuotas_variables` (cada una con su fecha y su monto), sin
+            autogenerar nada; el capital es opcional y el interés se
+            calcula (ver `interes_implicito`). Se amplía/corrige después
+            con `editar_cuotas_pendientes`.
+        Si tipo=PRESTAMO y no es carga inicial, además genera de inmediato
+        el ingreso a `cuenta_acreditacion` (el dinero ya entró).
 
-        `cuotas_historicas` (solo modo_cuotas=FIJAS): lista de
-        {'numero': int, 'fecha_pago': date} para deudas preexistentes
-        con cuotas ya pagadas ANTES de cargar el sistema.
-        `abonos_historicos` (solo modo_cuotas=LIBRE): lista de
-        {'monto': Decimal, 'fecha_pago': date}, mismo propósito pero sin
-        número fijo (se van creando en orden vía `registrar_abono`).
-        En ambos casos, esas cuotas/abonos quedan CONFIRMADA/es_historica=True
-        con `cuenta_pago=None`, así que nunca generan el egreso real de
-        caja (mismo mecanismo que una cuota pagada con cheque, ver
-        sincronizar_movimiento_cuota) — no tenemos registrado el ingreso
-        que las bancó, así que no pueden restar de caja grande hoy.
-        Solo válidos junto con es_carga_inicial=True.
+        `cuotas_historicas` (solo FIJAS): lista de {'numero': int,
+        'fecha_pago': date} para cuotas ya pagadas ANTES de cargar el
+        sistema. `abonos_historicos` (solo LIBRE): lista de
+        {'monto': Decimal, 'fecha_pago': date}, mismo propósito.
+        `cuotas_variables` (solo VARIABLE): lista de {'monto': Decimal,
+        'fecha_vencimiento': date, 'pagada': bool, 'fecha_pago': date, ...
+        + campos de _parsear_pago_historico} — las filas 'pagada'=True se
+        marcan como pago histórico (requiere es_carga_inicial).
+        En todos los casos, lo "ya pagado antes del sistema" queda
+        CONFIRMADA/es_historica=True con `cuenta_pago=None`, así que nunca
+        genera el egreso real de caja (mismo mecanismo que una cuota
+        pagada con cheque, ver sincronizar_movimiento_cuota) — no tenemos
+        registrado el ingreso que las bancó.
         """
-        if monto_original <= 0:
+        cuotas_historicas = cuotas_historicas or []
+        abonos_historicos = abonos_historicos or []
+        cuotas_variables  = cuotas_variables or []
+        es_variable = modo_cuotas == ModoCuotas.VARIABLE
+
+        if monto_original is not None and monto_original <= 0:
             raise ValueError('El monto debe ser mayor a 0.')
+        if not monto_original:
+            # El capital solo puede faltar en un préstamo de cuotas
+            # variables: o es una deuda vieja (esa plata ya entró antes),
+            # o todavía no se sabe cuánto se pidió.
+            if not es_variable or tipo != TipoDeuda.PRESTAMO:
+                raise ValueError('Indicá el monto de la deuda.')
+            if not es_carga_inicial:
+                raise ValueError('Indicá cuánto se prestó — sin capital no se puede acreditar el ingreso.')
         if tipo == TipoDeuda.COMPRA_CREDITO and not cuenta_tarjeta:
             raise ValueError('Elegí la tarjeta con la que se pagó.')
         if tipo == TipoDeuda.PRESTAMO and not cuenta_acreditacion:
@@ -2600,21 +2684,41 @@ class Deuda(models.Model):
         if not pago_compra and not descripcion:
             raise ValueError('La descripción es obligatoria cuando la deuda no viene de una compra.')
 
-        cuotas_historicas = cuotas_historicas or []
-        abonos_historicos = abonos_historicos or []
-        if (cuotas_historicas or abonos_historicos) and not es_carga_inicial:
+        hay_historicos = bool(
+            cuotas_historicas or abonos_historicos
+            or any(f.get('pagada') for f in cuotas_variables)
+        )
+        if hay_historicos and not es_carga_inicial:
             raise ValueError('Solo se pueden marcar cuotas/abonos ya pagados en una deuda de carga inicial.')
         hoy = timezone.localtime().date()
 
         if modo_cuotas == ModoCuotas.LIBRE:
-            if cuotas_historicas:
-                raise ValueError('Una deuda de cuotas libres no usa cuotas_historicas — usá abonos_historicos.')
+            if cuotas_historicas or cuotas_variables:
+                raise ValueError('Una deuda de cuotas libres solo usa abonos_historicos.')
             for ab in abonos_historicos:
                 if ab['monto'] <= 0:
                     raise ValueError('El monto de un abono histórico debe ser mayor a 0.')
                 if ab['fecha_pago'] > hoy:
                     raise ValueError('La fecha de pago de un abono histórico no puede ser futura.')
             cantidad_cuotas = None
+        elif es_variable:
+            if cuotas_historicas or abonos_historicos:
+                raise ValueError('Una deuda de cuotas variables solo usa cuotas_variables.')
+            for fila in cuotas_variables:
+                if fila['monto'] <= 0:
+                    raise ValueError('El monto de cada cuota debe ser mayor a 0.')
+                if fila.get('pagada'):
+                    if not fila.get('fecha_pago'):
+                        raise ValueError('Indicá la fecha de pago de las cuotas ya pagadas.')
+                    if fila['fecha_pago'] > hoy:
+                        raise ValueError('La fecha de pago de una cuota ya pagada no puede ser futura.')
+            if cantidad_cuotas is not None:
+                if cantidad_cuotas < 1:
+                    raise ValueError('El plan total de cuotas debe ser al menos 1.')
+                if cantidad_cuotas < len(cuotas_variables):
+                    raise ValueError('El plan total no puede ser menor a las cuotas que estás cargando.')
+            fechas = [f['fecha_vencimiento'] for f in cuotas_variables]
+            fecha_inicio = min(fechas) if fechas else hoy
         else:
             if not cantidad_cuotas or cantidad_cuotas < 1:
                 raise ValueError('La cantidad de cuotas debe ser al menos 1.')
@@ -2631,7 +2735,8 @@ class Deuda(models.Model):
         deuda = cls.objects.create(
             tipo=tipo, pago_compra=pago_compra, descripcion=descripcion,
             cuenta_tarjeta=cuenta_tarjeta, cuenta_acreditacion=cuenta_acreditacion,
-            monto_original=monto_original, porcentaje_interes=porcentaje_interes,
+            monto_original=(monto_original or None),
+            porcentaje_interes=(porcentaje_interes or Decimal('0')),
             moneda=moneda, modo_cuotas=modo_cuotas, cantidad_cuotas=cantidad_cuotas,
             fecha_inicio=fecha_inicio, notas=notas, creado_por=creado_por,
             numero_comprobante=numero_comprobante, es_carga_inicial=es_carga_inicial,
@@ -2645,6 +2750,8 @@ class Deuda(models.Model):
                     medio_pago_historico=ab.get('medio_pago', ''),
                     cheque_historico=ab.get('cheque_historico'),
                 )
+        elif es_variable:
+            deuda._crear_cuotas_variables(cuotas_variables, usuario=creado_por)
         else:
             generar_cuotas(deuda)
             for ch in cuotas_historicas:
@@ -2663,6 +2770,31 @@ class Deuda(models.Model):
             sincronizar_movimiento_deuda_tarjeta(deuda)
 
         return deuda
+
+    def _crear_cuotas_variables(self, filas, *, usuario):
+        """
+        Crea las CuotaDeuda de una deuda modo_cuotas=variable a partir de
+        `filas` (ver `crear_con_cuotas`). Se numeran 1..N por orden de
+        vencimiento; el capital, si se conoce, se prorratea por monto
+        (`_prorratear_capital`). Las filas 'pagada'=True se marcan como
+        pago histórico. Deja guardado el interés implícito.
+        """
+        filas = sorted(filas, key=lambda f: f['fecha_vencimiento'])
+        capitales = _prorratear_capital([f['monto'] for f in filas], self.monto_original)
+        for i, (fila, cap) in enumerate(zip(filas, capitales), start=1):
+            cuota = CuotaDeuda.objects.create(
+                deuda=self, numero=i, monto=fila['monto'], monto_capital=cap,
+                fecha_vencimiento=fila['fecha_vencimiento'],
+            )
+            if fila.get('pagada'):
+                self._aplicar_pago_historico(
+                    cuota, fecha_pago=fila['fecha_pago'], usuario=usuario,
+                    cuenta_pago_historica=fila.get('cuenta_pago_historica'),
+                    medio_pago_historico=fila.get('medio_pago', ''),
+                    cheque_historico=fila.get('cheque_historico'),
+                )
+        self.porcentaje_interes = self.interes_implicito or Decimal('0')
+        self.save(update_fields=['porcentaje_interes'])
 
     def _aplicar_pago_historico(self, cuota, *, fecha_pago, usuario, cuenta_pago_historica=None,
                                  medio_pago_historico='', cheque_historico=None):
@@ -2697,11 +2829,13 @@ class Deuda(models.Model):
         return cuota
 
     @transaction.atomic
-    def registrar_abono(self, *, monto, usuario, cuenta_pk=None, cheque_data=None,
+    def registrar_abono(self, *, monto, usuario, cuenta_pk=None, pagos=None, cheque_data=None,
                          fecha=None, es_historica=False, cuenta_pago_historica=None,
                          medio_pago_historico='', cheque_historico=None):
         """
         Solo para modo_cuotas=LIBRE: registra un pago de monto libre.
+        `pagos` (lista `[{cuenta_pk, monto}]`) permite repartir el abono
+        en varias cuentas; `cuenta_pk` es el atajo para una sola.
         A diferencia de una cuota fija (que se genera de antemano y se
         confirma después), acá la CuotaDeuda se crea recién ahora y
         queda CONFIRMADA al instante — un abono libre no se "programa",
@@ -2746,27 +2880,151 @@ class Deuda(models.Model):
         elif cheque_data:
             cuota.confirmar_con_cheque(cheque_data, usuario, adelantar=True)
         else:
-            cuota.confirmar(cuenta_pk, usuario, adelantar=True)
+            cuota.confirmar(pagos or cuenta_pk, usuario, adelantar=True)
 
         return cuota
+
+    def _reprorratear_capital(self):
+        """
+        Solo modo_cuotas=variable. Reparte monto_original (capital) entre
+        TODAS las cuotas no anuladas en proporción a su monto y actualiza
+        su `monto_capital`, para que `Σ monto_capital == monto_original`
+        aunque el cronograma o el capital hayan cambiado. Para
+        compra_credito, re-sincroniza el crédito a la tarjeta de las
+        cuotas ya confirmadas (su capital pudo moverse) y el débito de
+        cabecera. Para préstamo el `monto_capital` es solo informativo.
+        """
+        cuotas = list(self.cuotas.exclude(estado=EstadoCuota.ANULADA).order_by('numero'))
+        if not cuotas:
+            return
+        capitales = _prorratear_capital([c.monto for c in cuotas], self.monto_original)
+        for cuota, cap in zip(cuotas, capitales):
+            if cuota.monto_capital != cap:
+                cuota.monto_capital = cap
+                cuota.save(update_fields=['monto_capital'])
+                if self.tipo == TipoDeuda.COMPRA_CREDITO and cuota.estado == EstadoCuota.CONFIRMADA:
+                    sincronizar_movimiento_cuota_tarjeta(cuota)
+        if self.tipo == TipoDeuda.COMPRA_CREDITO:
+            sincronizar_movimiento_deuda_tarjeta(self)
+
+    @transaction.atomic
+    def editar_cuotas_pendientes(self, filas, usuario):
+        """
+        Solo modo_cuotas=variable. Reemplaza el conjunto de cuotas
+        PENDIENTE "limpias" (sin un cheque en trámite o ya cobrado) por
+        `filas` = lista de {'monto': Decimal, 'fecha_vencimiento': date}.
+        NO toca las cuotas ya pagadas (reales o históricas), las anuladas,
+        ni las que tienen un cheque emitido esperando — esas mantienen su
+        número. Las nuevas se numeran a continuación del último número que
+        quedó, ordenadas por vencimiento.
+
+        Este es el mecanismo para ir cargando las cuotas que faltan de un
+        préstamo del que al principio solo se conocían algunas (típico:
+        el banco te muestra 18 de 72 y después te va informando el resto),
+        y también para corregir o quitar cuotas futuras mal cargadas.
+        """
+        if self.modo_cuotas != ModoCuotas.VARIABLE:
+            raise ValueError('Solo las deudas de cuotas variables se editan así.')
+        if self.estado != EstadoDeuda.ACTIVA:
+            raise ValueError('La deuda no está activa.')
+        if self.pago_compra_id:
+            raise ValueError('Esta deuda nació de una compra — se edita desde el historial de Compras.')
+
+        hoy = timezone.localtime().date()
+        normalizadas = []
+        for fila in filas:
+            try:
+                monto = Decimal(str(fila['monto']))
+            except (InvalidOperation, KeyError, TypeError):
+                raise ValueError('Monto de cuota inválido.')
+            if monto <= 0:
+                raise ValueError('El monto de cada cuota debe ser mayor a 0.')
+            fv = fila['fecha_vencimiento']
+            if not isinstance(fv, date):
+                try:
+                    fv = date.fromisoformat(str(fv))
+                except ValueError:
+                    raise ValueError('Fecha de cuota inválida.')
+            normalizadas.append({'monto': monto, 'fecha_vencimiento': fv})
+        normalizadas.sort(key=lambda x: x['fecha_vencimiento'])
+
+        # Cuotas que quedan fijas: todo lo que no sea una PENDIENTE sin
+        # cheque en trámite/cobrado.
+        con_cheque_vivo = self.cuotas.filter(
+            cheques__estado__in=(EstadoCheque.PENDIENTE, EstadoCheque.CONFIRMADO)
+        ).values('pk')
+        fijas = self.cuotas.filter(
+            models.Q(estado__in=(EstadoCuota.CONFIRMADA, EstadoCuota.ANULADA))
+            | models.Q(pk__in=con_cheque_vivo)
+        ).distinct()
+        editables = self.cuotas.exclude(pk__in=fijas.values('pk'))
+
+        editables.delete()
+
+        max_numero = self.cuotas.aggregate(models.Max('numero'))['numero__max'] or 0
+        for offset, nueva in enumerate(normalizadas, start=1):
+            CuotaDeuda.objects.create(
+                deuda=self, numero=max_numero + offset,
+                monto=nueva['monto'], monto_capital=Decimal('0'),
+                fecha_vencimiento=nueva['fecha_vencimiento'],
+            )
+
+        # El plan total nunca puede quedar por debajo de lo realmente
+        # cargado — si se pasó, se ajusta para arriba en silencio.
+        cargadas = self.cuotas.exclude(estado=EstadoCuota.ANULADA).count()
+        if self.cantidad_cuotas and self.cantidad_cuotas < cargadas:
+            self.cantidad_cuotas = cargadas
+            self.save(update_fields=['cantidad_cuotas'])
+
+        self._reprorratear_capital()
+        self.porcentaje_interes = self.interes_implicito or Decimal('0')
+        self.save(update_fields=['porcentaje_interes'])
+
+        from asistencia.services.eventos import notificar_cuotas_deuda_si_proximas, enviar_en_background
+        enviar_en_background(notificar_cuotas_deuda_si_proximas, self)
 
     @transaction.atomic
     def editar(self, *, descripcion=None, notas=None, numero_comprobante=None,
                monto_original=None, porcentaje_interes=None, cantidad_cuotas=None,
                fecha_inicio=None, moneda=None, cuenta_tarjeta=None, cuenta_acreditacion=None):
         """
-        Edita una deuda existente. `descripcion`/`notas`/`numero_comprobante`
-        se pueden tocar siempre. El resto (todo lo que define el plan de
-        pago: monto, interés, cuotas, fecha, moneda, cuenta) solo se
-        puede tocar si TODAVÍA no se confirmó ninguna cuota — ni real ni
-        histórica —, porque cambiar esos datos después desalinearía lo
-        que ya se registró (y, en el caso de cuotas reales, lo que ya
-        se imprimió/mostró como pagado) — y solo si la deuda no nació de
-        una compra real (`pago_compra`): el monto/interés/cuotas de una
-        compra a crédito ya confirmada no se tocan a mano, solo los de
-        un préstamo o una carga inicial (mismo criterio que
-        CuentaPorCobrar.editar() con `pago_venta`).
+        Edita una deuda existente. `notas` se puede tocar siempre. El
+        resto (todo lo que define el plan de pago: monto, interés, cuotas,
+        fecha, moneda, cuenta) solo se puede tocar si TODAVÍA no se
+        confirmó ninguna cuota — ni real ni histórica —, porque cambiar
+        esos datos después desalinearía lo que ya se registró.
+
+        Si la deuda nació de una compra real (`pago_compra`): NADA de esto
+        es editable acá salvo las notas — la descripción y el N° de
+        comprobante espejan la compra, y el plan de pago se rehace desde
+        Compras (editar la compra reconstruye la deuda). Editarlos por
+        este lado dejaba la deuda distinta de la compra.
+
+        modo_cuotas=variable tiene reglas propias (ver `_editar_variable`).
         """
+        if self.pago_compra_id:
+            campos_bloqueados = any(v is not None for v in (
+                descripcion, numero_comprobante, monto_original, porcentaje_interes,
+                cantidad_cuotas, fecha_inicio, moneda, cuenta_tarjeta, cuenta_acreditacion,
+            ))
+            if campos_bloqueados:
+                raise ValueError(
+                    'Esta deuda nació de una compra — solo se pueden editar las notas. '
+                    'Para cambiar el resto, editá la compra desde su historial.'
+                )
+            if notas is not None:
+                self.notas = notas
+                self.save(update_fields=['notas'])
+            return
+
+        if self.modo_cuotas == ModoCuotas.VARIABLE:
+            return self._editar_variable(
+                descripcion=descripcion, notas=notas, numero_comprobante=numero_comprobante,
+                monto_original=monto_original, porcentaje_interes=porcentaje_interes,
+                cantidad_cuotas=cantidad_cuotas, fecha_inicio=fecha_inicio, moneda=moneda,
+                cuenta_tarjeta=cuenta_tarjeta, cuenta_acreditacion=cuenta_acreditacion,
+            )
+
         toca_plan = any(v is not None for v in (
             monto_original, porcentaje_interes, cantidad_cuotas, fecha_inicio,
             moneda, cuenta_tarjeta, cuenta_acreditacion,
@@ -2853,6 +3111,118 @@ class Deuda(models.Model):
                 sincronizar_movimiento_deuda_tarjeta(self)
 
     @transaction.atomic
+    def _editar_variable(self, *, descripcion=None, notas=None, numero_comprobante=None,
+                         monto_original=None, porcentaje_interes=None, cantidad_cuotas=None,
+                         fecha_inicio=None, moneda=None, cuenta_tarjeta=None, cuenta_acreditacion=None):
+        """
+        Edición de una deuda modo_cuotas=variable. A diferencia de
+        fijas/libre:
+          - el capital (`monto_original`) y el plan total (`cantidad_cuotas`)
+            se pueden corregir SIEMPRE, aunque ya haya cuotas pagadas —
+            solo re-derivan el interés y re-prorratean el capital de las
+            cuotas que siguen pendientes, no cambian nada de lo ya
+            registrado;
+          - el interés no se acepta (se calcula, ver `interes_implicito`)
+            y la fecha de inicio tampoco (sale de la cuota más temprana);
+          - la moneda y la cuenta solo si no hay ninguna cuota confirmada.
+        Las cuotas en sí se agregan/editan/quitan con `editar_cuotas_pendientes`.
+        """
+        if self.estado != EstadoDeuda.ACTIVA:
+            raise ValueError('No se puede editar una deuda anulada.')
+        if porcentaje_interes is not None:
+            raise ValueError('En cuotas variables el interés se calcula solo, no se edita.')
+        if fecha_inicio is not None:
+            raise ValueError('En cuotas variables la fecha de inicio sale de las cuotas cargadas.')
+
+        hay_confirmadas = self.cuotas.filter(estado=EstadoCuota.CONFIRMADA).exists()
+
+        cambia_comprobante = (
+            numero_comprobante is not None and numero_comprobante != self.numero_comprobante
+        )
+        if descripcion is not None:
+            self.descripcion = descripcion
+        if notas is not None:
+            self.notas = notas
+        if numero_comprobante is not None:
+            self.numero_comprobante = numero_comprobante
+
+        if moneda is not None and moneda != self.moneda:
+            if hay_confirmadas:
+                raise ValueError('Ya hay cuotas confirmadas — no se puede cambiar la moneda.')
+            self.moneda = moneda
+        if cuenta_tarjeta is not None:
+            if self.tipo != TipoDeuda.COMPRA_CREDITO:
+                raise ValueError('La tarjeta solo aplica a compras a crédito.')
+            self.cuenta_tarjeta = cuenta_tarjeta
+        if cuenta_acreditacion is not None:
+            if self.tipo != TipoDeuda.PRESTAMO:
+                raise ValueError('La cuenta de acreditación solo aplica a préstamos.')
+            self.cuenta_acreditacion = cuenta_acreditacion
+
+        if cantidad_cuotas is not None:
+            cargadas = self.cuotas.exclude(estado=EstadoCuota.ANULADA).count()
+            if cantidad_cuotas and cantidad_cuotas < cargadas:
+                raise ValueError('El plan total no puede ser menor a las cuotas ya cargadas.')
+            self.cantidad_cuotas = cantidad_cuotas or None
+
+        if monto_original is not None:
+            monto_original = monto_original or None
+            if monto_original is not None and monto_original <= 0:
+                raise ValueError('El capital debe ser mayor a 0.')
+            if not monto_original and self.tipo != TipoDeuda.PRESTAMO:
+                raise ValueError('Indicá el monto de la deuda.')
+            if (not monto_original and self.tipo == TipoDeuda.PRESTAMO
+                    and not self.es_carga_inicial):
+                raise ValueError('Sin capital no se puede acreditar el ingreso del préstamo.')
+            self.monto_original = monto_original
+
+        self.save()
+
+        if cambia_comprobante:
+            Cheque.objects.filter(cuota_deuda__deuda=self).update(
+                numero_factura=self.numero_comprobante or f'Deuda #{self.pk}'
+            )
+
+        self._reprorratear_capital()
+        self.porcentaje_interes = self.interes_implicito or Decimal('0')
+        self.save(update_fields=['porcentaje_interes'])
+        if self.tipo == TipoDeuda.PRESTAMO:
+            if not self.es_carga_inicial:
+                sincronizar_movimiento_deuda(self)
+        else:
+            sincronizar_movimiento_deuda_tarjeta(self)
+
+    @transaction.atomic
+    def convertir_a_variable(self, usuario=None):
+        """
+        Pasa una deuda de modo_cuotas=FIJAS a VARIABLE conservando TODAS
+        las cuotas como están. Después se pueden agregar/corregir las
+        cuotas pendientes con `editar_cuotas_pendientes` o de a una con
+        `CuotaDeuda.editar/eliminar`. Sirve para deudas viejas cargadas
+        como plan fijo a las que hay que sumarles cuotas que faltan.
+
+        Solo desde FIJAS, activa y NO nacida de una compra (esas espejan
+        la compra y se editan desde Compras). `cantidad_cuotas` pasa a
+        ser el "plan total de referencia" (se conserva).
+        """
+        if self.modo_cuotas != ModoCuotas.FIJAS:
+            raise ValueError('Solo se puede convertir una deuda de cuotas fijas.')
+        if self.estado != EstadoDeuda.ACTIVA:
+            raise ValueError('La deuda no está activa.')
+        if self.pago_compra_id:
+            raise ValueError('Esta deuda nació de una compra — se edita desde el historial de Compras.')
+
+        self.modo_cuotas = ModoCuotas.VARIABLE
+        primera = (
+            self.cuotas.exclude(estado=EstadoCuota.ANULADA)
+            .aggregate(models.Min('fecha_vencimiento'))['fecha_vencimiento__min']
+        )
+        if primera:
+            self.fecha_inicio = primera
+        self.porcentaje_interes = self.interes_implicito or Decimal('0')
+        self.save(update_fields=['modo_cuotas', 'fecha_inicio', 'porcentaje_interes'])
+
+    @transaction.atomic
     def anular(self):
         if self.estado == EstadoDeuda.ANULADA:
             raise ValueError('La deuda ya está anulada.')
@@ -2912,15 +3282,18 @@ class Deuda(models.Model):
             )
             for movimiento in movimientos:
                 movimiento.delete()
-            # Nivel cuota: el egreso real (CUOTA_DEUDA) de una cuota que
-            # sí se pagó de verdad, y el crédito de tarjeta (CUOTA_DEUDA_
-            # TARJETA) de cualquier cuota confirmada — hay que limpiarlos
-            # antes del CASCADE, que borra las CuotaDeuda pero no sabe
-            # nada de MovimientoCaja.
+            # Nivel cuota: el/los egresos reales (CUOTA_DEUDA, uno por
+            # PagoCuotaDeuda) de las cuotas que sí se pagaron, y el crédito
+            # de tarjeta (CUOTA_DEUDA_TARJETA, uno por cuota confirmada) —
+            # hay que limpiarlos antes del CASCADE, que borra las
+            # CuotaDeuda / PagoCuotaDeuda pero no sabe nada de MovimientoCaja.
             cuota_pks = list(self.cuotas.values_list('pk', flat=True))
-            cuota_movimientos = MovimientoCaja.objects.filter(
-                origen__in=(OrigenMovimiento.CUOTA_DEUDA, OrigenMovimiento.CUOTA_DEUDA_TARJETA),
-                origen_app='caja', origen_id__in=cuota_pks,
+            pago_pks = list(
+                PagoCuotaDeuda.objects.filter(cuota_id__in=cuota_pks).values_list('pk', flat=True)
+            )
+            cuota_movimientos = MovimientoCaja.objects.filter(origen_app='caja').filter(
+                models.Q(origen=OrigenMovimiento.CUOTA_DEUDA, origen_id__in=pago_pks or [0])
+                | models.Q(origen=OrigenMovimiento.CUOTA_DEUDA_TARJETA, origen_id__in=cuota_pks or [0])
             )
             for movimiento in cuota_movimientos:
                 movimiento.delete()
@@ -3016,9 +3389,18 @@ class CuotaDeuda(models.Model):
         return timezone.localtime().date() >= self.fecha_vencimiento - timedelta(days=DIAS_HABILITACION_CUOTA)
 
     @transaction.atomic
-    def confirmar(self, cuenta_pk, usuario, adelantar=False):
-        # Una deuda tipo Cheque se paga SOLO con cheque — no admite
-        # ningún otro medio, ni siquiera de una cuenta propia.
+    def confirmar(self, pagos, usuario, adelantar=False):
+        """
+        Confirma el pago de la cuota repartido en una o varias cuentas
+        reales: `pagos = [{'cuenta_pk': int, 'monto': Decimal}, ...]`,
+        cuya suma debe igualar `self.monto`. Genera un MovimientoCaja de
+        egreso por cada línea (ver sincronizar_movimiento_cuota) — así se
+        puede pagar mitad en efectivo y mitad en transferencia, igual que
+        una venta. Para pagar con cheque, usar `confirmar_con_cheque`.
+        Acepta también un `cuenta_pk` simple (retrocompatibilidad): se
+        toma como una única línea por el monto total.
+        """
+        # Una deuda tipo Cheque se paga SOLO con cheque.
         if self.deuda.tipo == TipoDeuda.CHEQUE:
             raise ValueError('Esta deuda se paga solo con cheque — usá "Pagar con cheque".')
         # select_for_update(): mismo guard que en Venta/Compra.confirmar()
@@ -3035,18 +3417,18 @@ class CuotaDeuda(models.Model):
                 f'Esta cuota se habilita para pagar a partir del {fecha_habilitacion.strftime("%d/%m/%Y")}.'
             )
 
-        cuenta = CuentaCaja.objects.filter(
-            pk=cuenta_pk, caja=TipoCaja.GRANDE, activa=True,
-            es_credito=False, moneda=self.deuda.moneda,
-        ).first()
-        if not cuenta:
-            raise ValueError('Elegí una cuenta válida para pagar la cuota.')
+        if not isinstance(pagos, (list, tuple)):
+            pagos = [{'cuenta_pk': pagos, 'monto': self.monto}]
+        lineas = _resolver_pagos_cuenta(pagos, self.deuda.moneda, self.monto)
 
-        self.cuenta_pago = cuenta
         self.estado = EstadoCuota.CONFIRMADA
         self.fecha_confirmacion = timezone.now()
         self.confirmado_por = usuario
+        self.cuenta_pago = lineas[0]['cuenta'] if len(lineas) == 1 else None
         self.save(update_fields=['cuenta_pago', 'estado', 'fecha_confirmacion', 'confirmado_por'])
+
+        for ln in lineas:
+            PagoCuotaDeuda.objects.create(cuota=self, cuenta=ln['cuenta'], monto=ln['monto'])
 
         sincronizar_movimiento_cuota(self)
         sincronizar_movimiento_cuota_tarjeta(self)
@@ -3139,6 +3521,261 @@ class CuotaDeuda(models.Model):
         if financiadora:
             fondear_chequera(financiadora, cuenta_origen, monto_cheque, timezone.localtime().date(), cheque, usuario)
 
+    @transaction.atomic
+    def editar(self, *, monto=None, fecha_vencimiento=None, usuario=None):
+        """
+        Corrige una cuota puntual, para arreglar un error de carga:
+          - PENDIENTE: cambia monto y/o fecha de vencimiento libremente.
+          - CONFIRMADA: la fecha siempre; el monto solo si el pago fue de
+            UNA sola forma (una cuenta, o histórico) — se escala esa
+            línea de pago y se re-sincroniza su MovimientoCaja. Si se
+            pagó con cheque o repartido en varias cuentas, hay que borrar
+            la cuota y volver a cargarla.
+        Bloqueada si la deuda nació de una compra real (`pago_compra`) —
+        esas cuotas espejan la compra y se editan desde Compras.
+        """
+        deuda = self.deuda
+        if deuda.pago_compra_id:
+            raise ValueError('Esta cuota es de una deuda nacida de una compra — se edita desde el historial de Compras.')
+        if deuda.estado != EstadoDeuda.ACTIVA:
+            raise ValueError('La deuda no está activa.')
+        if self.estado == EstadoCuota.ANULADA:
+            raise ValueError('No se puede editar una cuota anulada.')
+
+        if fecha_vencimiento is not None and not isinstance(fecha_vencimiento, date):
+            fecha_vencimiento = date.fromisoformat(str(fecha_vencimiento))
+        if fecha_vencimiento is not None:
+            self.fecha_vencimiento = fecha_vencimiento
+
+        if monto is not None:
+            monto = Decimal(str(monto))
+            if monto <= 0:
+                raise ValueError('El monto de la cuota debe ser mayor a 0.')
+            if self.estado == EstadoCuota.CONFIRMADA:
+                pagos = list(self.pagos.all())
+                if len(pagos) > 1:
+                    raise ValueError(
+                        'Esta cuota se pagó repartida en varias cuentas — no se puede cambiar el '
+                        'monto acá. Borrá la cuota y volvé a cargarla.'
+                    )
+                if self.cheques.exclude(estado=EstadoCheque.ANULADO).exists() and not self.es_historica:
+                    raise ValueError(
+                        'Esta cuota se pagó con cheque — resolvé el cheque desde Cheques antes de '
+                        'cambiar el monto, o borrá la cuota y volvé a cargarla.'
+                    )
+                if pagos:
+                    pagos[0].monto = monto
+                    pagos[0].save(update_fields=['monto'])
+            self.monto = monto
+
+        self.save(update_fields=['monto', 'fecha_vencimiento'])
+
+        if self.estado == EstadoCuota.CONFIRMADA:
+            sincronizar_movimiento_cuota(self)
+            sincronizar_movimiento_cuota_tarjeta(self)
+        if deuda.modo_cuotas == ModoCuotas.VARIABLE:
+            deuda._reprorratear_capital()
+            deuda.porcentaje_interes = deuda.interes_implicito or Decimal('0')
+            deuda.save(update_fields=['porcentaje_interes'])
+
+    @transaction.atomic
+    def marcar_pagada(self, *, fecha_pago, usuario=None, cuenta_pago_historica=None,
+                       medio_pago_historico='', cheque_historico=None):
+        """
+        Tilda como ya pagada (histórica, sin egreso real) una cuota que
+        había quedado PENDIENTE — para corregir una carga inicial después
+        del hecho (ej: te olvidaste de marcarla, o el banco te confirmó
+        que sí estaba paga). Mismo mecanismo que una cuota 'ya pagada' al
+        crear la deuda (ver Deuda._aplicar_pago_historico): no genera
+        movimiento de caja, no se acredita nada — esa plata ya salió antes
+        de tener registro acá. Bloqueada si la deuda nació de una compra.
+        """
+        deuda = self.deuda
+        if deuda.pago_compra_id:
+            raise ValueError('Esta cuota es de una deuda nacida de una compra — se edita desde el historial de Compras.')
+        if deuda.estado != EstadoDeuda.ACTIVA:
+            raise ValueError('La deuda no está activa.')
+        if self.estado != EstadoCuota.PENDIENTE:
+            raise ValueError('Esta cuota ya está pagada.')
+        if self.cheques.filter(estado__in=(EstadoCheque.PENDIENTE, EstadoCheque.CONFIRMADO)).exists():
+            raise ValueError('Esta cuota ya tiene un cheque en trámite o cobrado — resolvelo antes.')
+
+        if not isinstance(fecha_pago, date):
+            fecha_pago = date.fromisoformat(str(fecha_pago))
+
+        deuda._aplicar_pago_historico(
+            self, fecha_pago=fecha_pago, usuario=usuario,
+            cuenta_pago_historica=cuenta_pago_historica,
+            medio_pago_historico=medio_pago_historico,
+            cheque_historico=cheque_historico,
+        )
+
+        if deuda.modo_cuotas == ModoCuotas.VARIABLE:
+            deuda._reprorratear_capital()
+            deuda.porcentaje_interes = deuda.interes_implicito or Decimal('0')
+            deuda.save(update_fields=['porcentaje_interes'])
+
+    @transaction.atomic
+    def revertir_a_pendiente(self, *, usuario=None):
+        """
+        Deshace el pago de una cuota confirmada (real o histórica) SIN
+        borrarla — vuelve a PENDIENTE con el mismo número, monto y fecha
+        de vencimiento. Revierte su MovimientoCaja real si lo había (o
+        rechaza el cheque si se pagó con uno — misma limpieza que
+        eliminar()) y borra sus PagoCuotaDeuda. Para corregir una cuota
+        que se marcó pagada por error, sin perder su lugar en el plan.
+        Bloqueada si la deuda nació de una compra.
+        """
+        deuda = self.deuda
+        if deuda.pago_compra_id:
+            raise ValueError('Esta cuota es de una deuda nacida de una compra — se edita desde el historial de Compras.')
+        if deuda.estado != EstadoDeuda.ACTIVA:
+            raise ValueError('La deuda no está activa.')
+        if self.estado != EstadoCuota.CONFIRMADA:
+            raise ValueError('Esta cuota no está pagada.')
+
+        for cheque in Cheque.objects.filter(cuota_deuda=self):
+            if cheque.estado == EstadoCheque.CONFIRMADO and not cheque.es_historico:
+                cheque.rechazar()
+            cheque.delete()
+        _limpiar_movimientos_cuota(self)
+        self.pagos.all().delete()
+
+        self.estado = EstadoCuota.PENDIENTE
+        self.fecha_confirmacion = None
+        self.confirmado_por = None
+        self.cuenta_pago = None
+        self.es_historica = False
+        self.cuenta_pago_historica = None
+        self.medio_pago_historico = ''
+        self.save(update_fields=[
+            'estado', 'fecha_confirmacion', 'confirmado_por', 'cuenta_pago',
+            'es_historica', 'cuenta_pago_historica', 'medio_pago_historico',
+        ])
+
+        if deuda.modo_cuotas == ModoCuotas.VARIABLE:
+            deuda._reprorratear_capital()
+            deuda.porcentaje_interes = deuda.interes_implicito or Decimal('0')
+            deuda.save(update_fields=['porcentaje_interes'])
+
+    @transaction.atomic
+    def eliminar(self, usuario=None):
+        """
+        Borra una cuota puntual, revirtiendo sus MovimientoCaja y sus
+        cheques (misma limpieza que Deuda.delete(), pero de a una). Las
+        cuotas siguientes se renumeran y el plan total (`cantidad_cuotas`)
+        baja si corresponde. Bloqueada si la deuda nació de una compra.
+        """
+        deuda = self.deuda
+        if deuda.pago_compra_id:
+            raise ValueError('Esta cuota es de una deuda nacida de una compra — se edita desde el historial de Compras.')
+        if deuda.estado != EstadoDeuda.ACTIVA:
+            raise ValueError('La deuda no está activa.')
+
+        for cheque in Cheque.objects.filter(cuota_deuda=self):
+            if cheque.estado == EstadoCheque.CONFIRMADO and not cheque.es_historico:
+                cheque.rechazar()
+            cheque.delete()
+        _limpiar_movimientos_cuota(self)
+
+        numero_borrado = self.numero
+        self.delete()  # CASCADE borra los PagoCuotaDeuda
+
+        for c in deuda.cuotas.filter(numero__gt=numero_borrado).order_by('numero'):
+            c.numero -= 1
+            c.save(update_fields=['numero'])
+
+        vivas = deuda.cuotas.exclude(estado=EstadoCuota.ANULADA).count()
+        if deuda.cantidad_cuotas and deuda.cantidad_cuotas > vivas:
+            deuda.cantidad_cuotas = max(vivas, 1) if deuda.modo_cuotas == ModoCuotas.FIJAS else (vivas or None)
+            deuda.save(update_fields=['cantidad_cuotas'])
+
+        if deuda.modo_cuotas == ModoCuotas.VARIABLE:
+            deuda._reprorratear_capital()
+            deuda.porcentaje_interes = deuda.interes_implicito or Decimal('0')
+            deuda.save(update_fields=['porcentaje_interes'])
+
+
+class PagoCuotaDeuda(models.Model):
+    """
+    Una línea de pago de una CuotaDeuda pagada con cuentas reales. Una
+    cuota confirmada tiene 1..N filas que suman `cuota.monto` — así se
+    puede pagar mitad en efectivo y mitad en transferencia, igual que una
+    venta con pago dividido. Cada fila genera su propio MovimientoCaja de
+    egreso (ver sincronizar_movimiento_cuota).
+
+    Una cuota pagada con cheque no tiene filas acá (el cheque tiene su
+    propio movimiento); una cuota histórica (carga inicial) tampoco (no
+    generó movimiento real — ver CuotaDeuda.cuenta_pago_historica).
+    """
+    cuota  = models.ForeignKey(CuotaDeuda, on_delete=models.CASCADE, related_name='pagos')
+    cuenta = models.ForeignKey(
+        CuentaCaja, on_delete=models.PROTECT, related_name='pagos_cuota_deuda',
+        help_text='Cuenta real (banco/efectivo) de donde sale la plata. Nunca una tarjeta.',
+    )
+    monto     = models.DecimalField(max_digits=14, decimal_places=2)
+    creado_el = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name        = 'Pago de cuota de deuda'
+        verbose_name_plural = 'Pagos de cuota de deuda'
+        ordering            = ['cuota', 'pk']
+
+    def __str__(self):
+        return f'{self.cuota} — {self.monto} ({self.cuenta})'
+
+
+def _resolver_pagos_cuenta(pagos, moneda, objetivo):
+    """
+    Valida una lista de líneas de pago con cuenta real para una cuota o
+    un abono libre: `[{'cuenta_pk', 'monto'}, ...]`. Devuelve
+    `[{'cuenta': CuentaCaja, 'monto': Decimal}]`. La suma debe igualar
+    `objetivo` (tolerancia 0.01 — la última línea absorbe el redondeo).
+    Mismo criterio que _resolver_pagos_compra en compras.
+    """
+    if not pagos:
+        raise ValueError('Indicá con qué cuenta se paga.')
+    lineas = []
+    total = Decimal('0')
+    for p in pagos:
+        try:
+            monto = Decimal(str(p.get('monto')))
+        except (InvalidOperation, TypeError):
+            raise ValueError('Monto de pago inválido.')
+        if monto <= 0:
+            raise ValueError('Cada línea de pago debe ser mayor a 0.')
+        cuenta = CuentaCaja.objects.filter(
+            pk=p.get('cuenta_pk'), caja=TipoCaja.GRANDE, activa=True,
+            es_credito=False, moneda=moneda,
+        ).first()
+        if not cuenta:
+            raise ValueError('Elegí una cuenta válida para pagar.')
+        lineas.append({'cuenta': cuenta, 'monto': monto})
+        total += monto
+    diferencia = Decimal(str(objetivo)) - total
+    if abs(diferencia) > Decimal('0.01'):
+        raise ValueError(f'Las líneas de pago suman {total}, tienen que sumar {objetivo}.')
+    if diferencia:
+        lineas[-1]['monto'] += diferencia
+    return lineas
+
+
+def _limpiar_movimientos_cuota(cuota):
+    """
+    Borra los MovimientoCaja de una cuota: el/los egresos de nivel pago
+    (origen=CUOTA_DEUDA, uno por PagoCuotaDeuda) y el crédito de tarjeta
+    (origen=CUOTA_DEUDA_TARJETA, uno por cuota). Se itera instancia por
+    instancia a propósito (ver feedback: nada de QuerySet.delete() masivo
+    sobre MovimientoCaja).
+    """
+    pago_pks = list(cuota.pagos.values_list('pk', flat=True))
+    movimientos = MovimientoCaja.objects.filter(origen_app='caja').filter(
+        models.Q(origen=OrigenMovimiento.CUOTA_DEUDA, origen_id__in=pago_pks or [0])
+        | models.Q(origen=OrigenMovimiento.CUOTA_DEUDA_TARJETA, origen_id=cuota.pk)
+    )
+    for movimiento in movimientos:
+        movimiento.delete()
+
 
 def _calcular_plan_cuotas(monto_original, porcentaje_interes, cantidad_cuotas, fecha_inicio):
     """
@@ -3189,6 +3826,32 @@ def generar_cuotas(deuda):
         )
 
 
+def _prorratear_capital(montos, capital):
+    """
+    Reparte `capital` (Decimal o None) entre una lista de cuotas de monto
+    `montos` en proporción a cada una; la última absorbe el resto del
+    redondeo (misma técnica que `_calcular_plan_cuotas`). Si no hay
+    capital conocido, todo va a 0. Devuelve una lista de Decimal alineada
+    con `montos`. Se usa en modo_cuotas=variable, donde el capital es
+    opcional y las cuotas tienen montos distintos.
+    """
+    capital = capital or Decimal('0')
+    total = sum(montos, Decimal('0'))
+    if capital <= 0 or total <= 0:
+        return [Decimal('0') for _ in montos]
+    salida = []
+    acumulado = Decimal('0')
+    ultimo = len(montos) - 1
+    for i, monto in enumerate(montos):
+        if i < ultimo:
+            cap = (monto * capital / total).quantize(Decimal('0.01'))
+            acumulado += cap
+        else:
+            cap = capital - acumulado
+        salida.append(cap)
+    return salida
+
+
 @transaction.atomic
 def sincronizar_movimiento_deuda(deuda):
     """
@@ -3200,7 +3863,12 @@ def sincronizar_movimiento_deuda(deuda):
         origen=OrigenMovimiento.DEUDA, origen_app='caja', origen_id=deuda.pk,
     ).first()
 
-    if deuda.tipo != TipoDeuda.PRESTAMO or deuda.estado != EstadoDeuda.ACTIVA:
+    # es_carga_inicial: esa plata entró antes de usar el sistema, no hay
+    # ingreso que registrar hoy. modo_cuotas=variable puede además no
+    # tener capital cargado todavía (no se sabe cuánto se pidió) — sin
+    # monto no se puede acreditar nada.
+    if (deuda.tipo != TipoDeuda.PRESTAMO or deuda.estado != EstadoDeuda.ACTIVA
+            or deuda.es_carga_inicial or not deuda.monto_original):
         if movimiento:
             movimiento.delete()
         return
@@ -3228,56 +3896,67 @@ def sincronizar_movimiento_deuda(deuda):
 
 @transaction.atomic
 def sincronizar_movimiento_cuota(cuota):
-    """Sincroniza el MovimientoCaja (egreso) de una CuotaDeuda con su estado actual."""
-    movimiento = MovimientoCaja.objects.filter(
-        origen=OrigenMovimiento.CUOTA_DEUDA, origen_app='caja', origen_id=cuota.pk,
-    ).first()
+    """
+    Sincroniza los MovimientoCaja (egresos) de una CuotaDeuda: uno por
+    cada PagoCuotaDeuda (pago dividido). Una cuota que no está CONFIRMADA,
+    o que se pagó solo con cheque / históricamente (0 filas de pago), no
+    genera ninguno — se limpian los que hubiera.
 
-    # cuenta_pago=None con estado CONFIRMADA es una cuota pagada con
-    # cheque (ver confirmar_con_cheque) — el egreso real recién ocurre
-    # cuando ESE cheque se confirma por separado, no acá.
-    if cuota.estado != EstadoCuota.CONFIRMADA or cuota.cuenta_pago_id is None:
-        if movimiento:
-            movimiento.delete()
+    NO limpia movimientos huérfanos de filas de pago ya borradas: eso lo
+    hace _limpiar_movimientos_cuota() antes de tocar las filas (en
+    Deuda.delete / CuotaDeuda.eliminar). Una cuota sin filas de pago
+    (cheque / histórica / pendiente) nunca tuvo un egreso de nivel pago.
+    """
+    deuda = cuota.deuda
+    pagos = list(cuota.pagos.select_related('cuenta')) if cuota.estado == EstadoCuota.CONFIRMADA else []
+
+    if not pagos:
         return
 
-    # Efectivo: igual criterio que una venta o una devolución. Si hay un
-    # turno de caja ABIERTO que la vaya a conciliar, el egreso se difiere
-    # hasta su cierre — esa plata sale físicamente del mismo cajón que el
-    # cajero está manejando ese turno, así que el cierre tiene que
-    # esperarla (ver TurnoCaja._componentes_efectivo_esperado) en vez de
-    # mostrar un faltante sin explicación. Si no hay turno abierto que la
-    # cubra, se banca de inmediato como cualquier otro egreso — igual que
-    # sincronizar_movimiento_venta cuando no hay turno.
-    if cuota.cuenta_pago.tipo == TipoCuenta.EFECTIVO:
-        turno = TurnoCaja.turno_que_contiene(cuota.fecha_confirmacion)
-        if turno is not None and turno.estado == EstadoTurno.ABIERTO:
-            if movimiento:
-                movimiento.delete()
-            return
+    turno_abierto = None
+    if cuota.fecha_confirmacion:
+        t = TurnoCaja.turno_que_contiene(cuota.fecha_confirmacion)
+        if t is not None and t.estado == EstadoTurno.ABIERTO:
+            turno_abierto = t
 
-    deuda = cuota.deuda
     entidad = deuda.descripcion or (deuda.cuenta_tarjeta.nombre if deuda.cuenta_tarjeta else '')
     concepto = _concepto_default('Pago de cuota (deuda)', TipoMovimientoCaja.EGRESO)
-    descripcion = f'Cuota {cuota.numero}/{deuda.cantidad_cuotas} — {entidad}'.strip(' —')
+    plan_txt = f'{cuota.numero}/{deuda.cantidad_cuotas}' if deuda.cantidad_cuotas else str(cuota.numero)
+    descripcion = f'Cuota {plan_txt} — {entidad}'.strip(' —')
 
-    if movimiento:
-        movimiento.cuenta = cuota.cuenta_pago
-        movimiento.concepto = concepto
-        movimiento.tipo = TipoMovimientoCaja.EGRESO
-        movimiento.monto = cuota.monto
-        movimiento.moneda = deuda.moneda
-        movimiento.fecha = cuota.fecha_confirmacion.date()
-        movimiento.descripcion = descripcion
-        movimiento.save()
-    else:
-        MovimientoCaja.objects.create(
-            caja=TipoCaja.GRANDE, cuenta=cuota.cuenta_pago, concepto=concepto,
-            tipo=TipoMovimientoCaja.EGRESO, monto=cuota.monto, moneda=deuda.moneda,
-            fecha=cuota.fecha_confirmacion.date(), descripcion=descripcion,
-            referencia=f'Deuda #{deuda.pk}', origen=OrigenMovimiento.CUOTA_DEUDA,
-            origen_app='caja', origen_id=cuota.pk, creado_por=cuota.confirmado_por,
-        )
+    for pago in pagos:
+        movimiento = MovimientoCaja.objects.filter(
+            origen=OrigenMovimiento.CUOTA_DEUDA, origen_app='caja', origen_id=pago.pk,
+        ).first()
+
+        # Efectivo: igual criterio que una venta o una devolución. Si hay
+        # un turno de caja ABIERTO que la vaya a conciliar, este egreso se
+        # difiere hasta su cierre — esa plata sale del mismo cajón que el
+        # cajero maneja ese turno, así que el cierre tiene que esperarla
+        # (ver TurnoCaja._componentes_efectivo_esperado). Si no, se banca
+        # de inmediato como cualquier otro egreso.
+        if pago.cuenta.tipo == TipoCuenta.EFECTIVO and turno_abierto is not None:
+            if movimiento:
+                movimiento.delete()
+            continue
+
+        if movimiento:
+            movimiento.cuenta = pago.cuenta
+            movimiento.concepto = concepto
+            movimiento.tipo = TipoMovimientoCaja.EGRESO
+            movimiento.monto = pago.monto
+            movimiento.moneda = deuda.moneda
+            movimiento.fecha = cuota.fecha_confirmacion.date()
+            movimiento.descripcion = descripcion
+            movimiento.save()
+        else:
+            MovimientoCaja.objects.create(
+                caja=TipoCaja.GRANDE, cuenta=pago.cuenta, concepto=concepto,
+                tipo=TipoMovimientoCaja.EGRESO, monto=pago.monto, moneda=deuda.moneda,
+                fecha=cuota.fecha_confirmacion.date(), descripcion=descripcion,
+                referencia=f'Deuda #{deuda.pk}', origen=OrigenMovimiento.CUOTA_DEUDA,
+                origen_app='caja', origen_id=pago.pk, creado_por=cuota.confirmado_por,
+            )
 
 
 @transaction.atomic
@@ -4731,15 +5410,16 @@ def sincronizar_movimiento_cheque(cheque):
 def _estado_rechazo_cuota(modo_cuotas):
     """
     Qué le pasa a una cuota cuyo cheque rebotó, según el tipo de plan:
-    - FIJAS: la cuota es un lugar fijo del plan (ej. "cuota 2/3") que
-      igual hay que terminar de pagar — vuelve a PENDIENTE para poder
-      reintentarla con otro medio u otro cheque.
+    - FIJAS / VARIABLE: la cuota es un lugar fijo del cronograma (ej.
+      "cuota 2/3") que igual hay que terminar de pagar — vuelve a
+      PENDIENTE para poder reintentarla con otro medio u otro cheque.
     - LIBRE: un abono no es un lugar fijo, es el registro de un pago
       puntual — si ese pago no se concretó, no tiene sentido "reintentar
       esa misma fila": queda ANULADA (no cuenta, no se puede volver a
       tocar) y para seguir pagando se registra un abono nuevo.
     """
-    return EstadoCuota.PENDIENTE if modo_cuotas == ModoCuotas.FIJAS else EstadoCuota.ANULADA
+    return (EstadoCuota.PENDIENTE if modo_cuotas in (ModoCuotas.FIJAS, ModoCuotas.VARIABLE)
+            else EstadoCuota.ANULADA)
 
 
 @transaction.atomic

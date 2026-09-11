@@ -39,7 +39,7 @@ function _diEstadoLabel(c) {
  *   Si no se pasa, la abre acá mismo (caso de uso sin async de por medio).
  */
 function deudaImprimir(deuda, ventanaPrevia) {
-    const tieneCuentaPropia = deuda.tipo !== 'cheque';
+    const tieneCuentaPropia = deuda.tipo === 'compra_credito' || deuda.tipo === 'prestamo';
     const cuentaLabel = deuda.tipo === 'compra_credito' ? 'Tarjeta' : 'Cuenta acreditada';
     const cuentaValor = deuda.tipo === 'compra_credito'
         ? (deuda.cuenta_tarjeta_nombre || '-')
@@ -83,11 +83,11 @@ function deudaImprimir(deuda, ventanaPrevia) {
     <div class="di-resumen">
         ${deuda.numero_comprobante ? `<div><span>N° de comprobante</span><strong>${_diEsc(deuda.numero_comprobante)}</strong></div>` : ''}
         ${tieneCuentaPropia ? `<div><span>${cuentaLabel}</span><strong>${_diEsc(cuentaValor)}</strong></div>` : ''}
-        <div><span>Monto original</span><strong>${_diFmtMoneda(deuda.monto_original, deuda.moneda)}</strong></div>
-        <div><span>Interés</span><strong>${_diEsc(deuda.porcentaje_interes)}%</strong></div>
-        <div><span>Monto total</span><strong>${_diFmtMoneda(deuda.monto_total, deuda.moneda)}</strong></div>
+        ${deuda.modo_cuotas === 'variable' && !deuda.capital_conocido ? '' : `<div><span>${deuda.modo_cuotas === 'variable' ? 'Capital' : 'Monto original'}</span><strong>${_diFmtMoneda(deuda.monto_original, deuda.moneda)}</strong></div>`}
+        <div><span>Interés${deuda.modo_cuotas === 'variable' ? ' (calculado)' : ''}</span><strong>${deuda.modo_cuotas === 'variable' ? (deuda.interes_implicito != null ? _diEsc(deuda.interes_implicito) + '%' : '—') : _diEsc(deuda.porcentaje_interes) + '%'}</strong></div>
+        <div><span>${deuda.modo_cuotas === 'variable' ? 'Total a pagar' : 'Monto total'}</span><strong>${_diFmtMoneda(deuda.monto_total, deuda.moneda)}</strong></div>
         <div><span>Saldo pendiente</span><strong>${_diFmtMoneda(deuda.saldo_pendiente, deuda.moneda)}</strong></div>
-        <div><span>Cuotas pagadas</span><strong>${deuda.cuotas_pagadas}/${deuda.cantidad_cuotas}</strong></div>
+        <div><span>Cuotas pagadas</span><strong>${deuda.cuotas_pagadas}/${deuda.cantidad_cuotas || (deuda.cuotas_cargadas != null ? deuda.cuotas_cargadas : '?')}</strong></div>
         <div><span>Estado</span><strong>${_diEsc(deuda.estado_display)}</strong></div>
     </div>
     <table>

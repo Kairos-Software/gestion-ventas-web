@@ -5,7 +5,7 @@
 {% block title %}Créditos y préstamos{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'caja/css/deudas.css' %}">
+<link rel="stylesheet" href="{% static 'caja/css/deudas.css' %}?v=20260926">
 {% endblock %}
 
 {% block content %}
@@ -128,148 +128,340 @@
 ══════════════════════════════════ -->
 <div class="modal" id="modalDeuda" hidden>
     <div class="modal-backdrop" id="modalBackdrop"></div>
-    <div class="modal-content modal-content--ancho">
+    <div class="modal-content modal-content--ancho deudas-alta-modal">
         <div class="modal-header">
-            <h2 class="modal-title">Nueva deuda</h2>
+            <div class="deudas-modal-heading">
+                <span class="deudas-modal-icon" aria-hidden="true">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                        <path d="M4 8.5h16M6.5 4.5h11A2.5 2.5 0 0 1 20 7v10a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 17V7a2.5 2.5 0 0 1 2.5-2.5Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+                        <path d="M8 13h4M8 16h2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+                    </svg>
+                </span>
+                <div>
+                    <h2 class="modal-title" id="modalDeudaTitle">Nueva deuda</h2>
+                    <p class="deudas-modal-subtitle" id="modalDeudaSubtitle">Completá los datos para registrar la deuda.</p>
+                </div>
+            </div>
             <button type="button" class="modal-close" id="btnCerrarModal" aria-label="Cerrar">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                     <path d="M5 5L15 15M5 15L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
             </button>
         </div>
-        <form id="formDeuda" class="modal-body">
-            <div class="deudas-form-section-header">
-                <h3 class="deudas-form-section-title">Datos generales</h3>
-                <div class="deudas-tipo-toggle">
-                    <button type="button" class="deudas-tipo-btn deudas-tipo-btn--credito deudas-tipo-btn--active" data-tipo="compra_credito">Compra a crédito</button>
-                    <button type="button" class="deudas-tipo-btn deudas-tipo-btn--prestamo" data-tipo="prestamo">Préstamo</button>
-                    <button type="button" class="deudas-tipo-btn deudas-tipo-btn--cheque" data-tipo="cheque">Cheque</button>
+        <form id="formDeuda" class="modal-body deudas-form">
+            <div class="deudas-form-layout">
+                <div class="deudas-form-main">
+
+            <section class="deudas-fs">
+                <div class="deudas-fs-head">
+                    <div class="deudas-step-heading">
+                        <span class="deudas-step-number">1</span>
+                        <div>
+                            <h3 class="deudas-fs-title">¿Qué vas a registrar?</h3>
+                            <p class="deudas-step-subtitle">Elegí el tipo y completá los datos principales.</p>
+                        </div>
+                    </div>
+                    <button type="button" class="kai-help-btn" data-help-target="dTipoHint" aria-label="Qué significa este tipo">?</button>
+                </div>
+                <div class="deudas-tipo-toggle" role="group" aria-label="Tipo de deuda">
+                    <button type="button" class="deudas-tipo-btn deudas-tipo-btn--credito deudas-tipo-btn--active" data-tipo="compra_credito" aria-pressed="true">
+                        <span class="deudas-choice-icon" aria-hidden="true">T</span>
+                        <span class="deudas-choice-copy"><strong>Compra con tarjeta</strong><small>Consumo financiado</small></span>
+                        <span class="deudas-choice-check" aria-hidden="true">✓</span>
+                    </button>
+                    <button type="button" class="deudas-tipo-btn deudas-tipo-btn--prestamo" data-tipo="prestamo" aria-pressed="false">
+                        <span class="deudas-choice-icon" aria-hidden="true">P</span>
+                        <span class="deudas-choice-copy"><strong>Préstamo</strong><small>Dinero recibido</small></span>
+                        <span class="deudas-choice-check" aria-hidden="true">✓</span>
+                    </button>
+                    <button type="button" class="deudas-tipo-btn deudas-tipo-btn--cheque" data-tipo="cheque" aria-pressed="false">
+                        <span class="deudas-choice-icon" aria-hidden="true">Ch</span>
+                        <span class="deudas-choice-copy"><strong>Compra con cheque</strong><small>Pago diferido</small></span>
+                        <span class="deudas-choice-check" aria-hidden="true">✓</span>
+                    </button>
+                    <button type="button" class="deudas-tipo-btn deudas-tipo-btn--otro" data-tipo="otro" aria-pressed="false">
+                        <span class="deudas-choice-icon" aria-hidden="true">+</span>
+                        <span class="deudas-choice-copy"><strong>Otra deuda</strong><small>Otro compromiso</small></span>
+                        <span class="deudas-choice-check" aria-hidden="true">✓</span>
+                    </button>
                 </div>
                 <input type="hidden" id="dTipo" name="tipo" value="compra_credito">
-            </div>
+                <p class="kai-help-popover" id="dTipoHint">Una compra pagada con tarjeta de crédito.</p>
 
-            <div class="deudas-form-grid deudas-form-grid--2-1">
-                <div class="form-campo">
-                    <label for="dDescripcion">Descripción *</label>
-                    <input type="text" id="dDescripcion" name="descripcion" placeholder="Ej: Notebook oficina, Préstamo Banco Nación…">
-                </div>
-                <div class="form-campo">
-                    <label for="dNumeroComprobante">N° de factura / comprobante</label>
-                    <input type="text" id="dNumeroComprobante" name="numero_comprobante" placeholder="Opcional">
-                </div>
-            </div>
-
-            <div class="deudas-form-grid">
-                <div class="form-campo" id="campoTarjeta">
-                    <label for="dCuentaTarjeta">Tarjeta *</label>
-                    <select id="dCuentaTarjeta" name="cuenta_tarjeta_pk">
-                        <option value="">— Elegí una tarjeta —</option>
-                    </select>
-                </div>
-
-                <div class="form-campo" id="campoAcreditacion" hidden>
-                    <label for="dCuentaAcreditacion">Cuenta que recibe el préstamo *</label>
-                    <select id="dCuentaAcreditacion" name="cuenta_acreditacion_pk">
-                        <option value="">— Elegí una cuenta —</option>
-                    </select>
-                </div>
-
-                <div class="form-campo">
-                    <label for="dMoneda">Moneda</label>
-                    <select id="dMoneda" name="moneda">
-                        {% for moneda, label in monedas %}
-                        <option value="{{ moneda }}">{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-            </div>
-
-            <div class="deudas-form-section-header">
-                <h3 class="deudas-form-section-title">Plan de pago</h3>
-                <label class="deudas-modo-cuotas-inline">
-                    <span>Cuotas libres</span>
-                    <span class="toggle-switch">
-                        <input type="checkbox" id="dModoCuotas" name="modo_cuotas" value="libre">
-                        <span class="toggle-track"></span>
-                    </span>
-                </label>
-            </div>
-            <p class="deudas-modo-hint" id="dModoCuotasHint">Cuotas fijas: se reparte el total en N cuotas iguales con vencimiento mensual.</p>
-
-            <div class="deudas-form-grid">
-                <div class="form-campo">
-                    <label for="dMonto">Monto *</label>
-                    <input type="number" id="dMonto" name="monto_original" step="0.01" min="0.01" required>
-                </div>
-                <div class="form-campo">
-                    <label for="dInteres">Interés %</label>
-                    <input type="number" id="dInteres" name="porcentaje_interes" step="0.01" min="0" value="0">
-                </div>
-            </div>
-
-            <p class="deudas-total-libre-preview" id="dTotalLibrePreview" hidden></p>
-
-            <div class="deudas-form-grid" id="gridPlanFijo">
-                <div class="form-campo">
-                    <label for="dCuotas">Cantidad de cuotas *</label>
-                    <input type="number" id="dCuotas" name="cantidad_cuotas" step="1" min="1" value="1" required>
-                </div>
-                <div class="form-campo">
-                    <label for="dFechaInicio">Inicio de débito *</label>
-                    <input type="date" id="dFechaInicio" name="fecha_inicio" required>
-                </div>
-            </div>
-
-            <div class="form-campo deudas-carga-inicial-campo">
-                <label class="deudas-checkbox-label kai-label-help">
-                    <input type="checkbox" id="dCargaInicial" name="es_carga_inicial">
-                    Es una deuda que ya existía antes de usar el sistema
-                    <button type="button" class="kai-help-btn" data-help-target="ayuda_carga_inicial" aria-label="Ayuda">?</button>
-                </label>
-                <div class="kai-help-popover" id="ayuda_carga_inicial">
-                    Marcá esto para cargar una deuda que ya tenías (préstamo, compra a crédito o compra con cheque) con algunas cuotas
-                    ya pagadas antes de usar Kairos. Esas cuotas ya pagadas NO van a descontarse de la caja grande
-                    — no tenemos registrado el ingreso real que las bancó, así que restarlas dejaría el balance
-                    negativo sin motivo. Si es un préstamo, tampoco se acredita el ingreso de hoy: esa plata ya
-                    entró (o se gastó) en el pasado. Las cuotas que todavía no se pagaron siguen funcionando
-                    exactamente igual que en cualquier otra deuda: cuando las confirmes de acá en adelante, sí
-                    van a impactar la caja.
-                </div>
-                <div class="deudas-cuotas-historicas" id="deudasCuotasHistoricas" hidden>
-                    <p class="deudas-cuotas-historicas-hint">Tildá las cuotas que ya están pagadas y su fecha real de pago:</p>
-                    <div class="deudas-cuotas-historicas-wrap">
-                        <table class="deudas-cuotas-tabla">
-                            <thead>
-                                <tr>
-                                    <th>#</th>
-                                    <th>Vencimiento</th>
-                                    <th class="th-monto">Monto</th>
-                                    <th>Ya pagada</th>
-                                    <th>Fecha de pago</th>
-                                    <th>Medio</th>
-                                    <th>Detalle</th>
-                                </tr>
-                            </thead>
-                            <tbody id="deudasCuotasHistoricasBody"></tbody>
-                        </table>
+                <div class="deudas-data-grid">
+                    <div class="form-campo">
+                        <label for="dDescripcion">Descripción *</label>
+                        <input type="text" id="dDescripcion" name="descripcion" placeholder="Ej: Notebook para la oficina" required autocomplete="off">
+                    </div>
+                    <div class="form-campo" id="campoTarjeta">
+                        <label for="dCuentaTarjeta">Tarjeta *</label>
+                        <select id="dCuentaTarjeta" name="cuenta_tarjeta_pk">
+                            <option value="">— Elegí una tarjeta —</option>
+                        </select>
+                    </div>
+                    <div class="form-campo" id="campoAcreditacion" hidden>
+                        <label for="dCuentaAcreditacion">Cuenta que recibe el préstamo *</label>
+                        <select id="dCuentaAcreditacion" name="cuenta_acreditacion_pk">
+                            <option value="">— Elegí una cuenta —</option>
+                        </select>
+                    </div>
+                    <div class="form-campo">
+                        <label for="dNumeroComprobante">N° de comprobante</label>
+                        <input type="text" id="dNumeroComprobante" name="numero_comprobante" placeholder="Opcional">
+                    </div>
+                    <div class="form-campo">
+                        <label for="dMoneda">Moneda</label>
+                        <select id="dMoneda" name="moneda">
+                            {% for moneda, label in monedas %}
+                            <option value="{{ moneda }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
                 </div>
-                <div class="deudas-abonos-historicos" id="deudasAbonosHistoricos" hidden>
-                    <p class="deudas-cuotas-historicas-hint">Agregá los abonos que ya se pagaron antes de cargar la deuda:</p>
-                    <div class="deudas-abonos-historicos-wrap" id="deudasAbonosHistoricosWrap"></div>
-                    <button type="button" class="btn btn-ghost btn-sm" id="btnAgregarAbonoHistorico">+ Agregar abono ya pagado</button>
-                    <p class="deudas-abonos-historicos-total" id="deudasAbonosHistoricosTotal"></p>
-                </div>
-            </div>
+            </section>
 
-            <div class="form-campo">
-                <label for="dNotas">Notas</label>
-                <input type="text" id="dNotas" name="notas" placeholder="Observaciones (opcional)">
+            <section class="deudas-fs">
+                <div class="deudas-fs-head">
+                    <div class="deudas-step-heading">
+                        <span class="deudas-step-number">2</span>
+                        <div>
+                            <h3 class="deudas-fs-title">Armá el plan de pago</h3>
+                            <p class="deudas-step-subtitle">Indicá cuánto y cómo lo vas a pagar.</p>
+                        </div>
+                    </div>
+                    <button type="button" class="kai-help-btn" data-help-target="dModoCuotasHint" aria-label="¿Cuál elijo?">?</button>
+                </div>
+                <div class="deudas-modo-seg" role="group" aria-label="Tipo de plan de pago">
+                    <button type="button" class="deudas-modo-seg-btn deudas-modo-seg-btn--active" data-modo="fijas" aria-pressed="true"><strong>Cuotas fijas</strong><small>Mismo monto cada mes</small></button>
+                    <button type="button" class="deudas-modo-seg-btn" data-modo="variable" aria-pressed="false"><strong>Cuotas variables</strong><small>Cargás lo que sepas, sumás el resto después</small></button>
+                    <button type="button" class="deudas-modo-seg-btn" data-modo="libre" aria-pressed="false"><strong>Abonos libres</strong><small>Sin un cronograma fijo</small></button>
+                </div>
+                <input type="hidden" id="dModoCuotas" name="modo_cuotas" value="fijas">
+                <p class="kai-help-popover" id="dModoCuotasHint">Se reparte el total en N cuotas iguales con vencimiento mensual.</p>
+
+                <div class="deudas-cost-grid">
+                    <div class="form-campo deudas-monto-campo">
+                        <label for="dMonto" class="kai-label-help"><span id="dMontoLabel">Monto *</span>
+                            <button type="button" class="kai-help-btn" id="dMontoHintBtn" data-help-target="dMontoHint" hidden aria-label="No sé este monto">?</button>
+                        </label>
+                        <div class="deudas-money-input">
+                            <span aria-hidden="true">$</span>
+                            <input type="number" id="dMonto" name="monto_original" step="0.01" min="0.01" required placeholder="0,00" inputmode="decimal">
+                        </div>
+                        <p class="kai-help-popover" id="dMontoHint">Lo que te prestaron en total. Si todavía no lo sabés, o esa plata nunca entró a tus cuentas, dejalo vacío — lo completás más adelante.</p>
+                    </div>
+
+                    <div class="form-campo deudas-interest-card" id="bloqueInteres">
+                        <label class="kai-label-help">¿Qué dato tenés del costo?
+                            <button type="button" class="kai-help-btn" data-help-target="ayuda_interes" aria-label="No sé ninguno de estos datos">?</button>
+                        </label>
+                        <div class="kai-help-popover" id="ayuda_interes">
+                            Elegí el que tengas — con uno solo alcanza, el resto se calcula. Si no sabés
+                            <strong>ninguno</strong> de los tres (ni el interés, ni el total, ni la cuota), pasate
+                            a <strong>Cuotas variables</strong> arriba: ahí cargás las cuotas como las vayas
+                            teniendo y el interés se calcula solo, sin que lo tengas que saber de antemano.
+                        </div>
+                        <div class="deudas-interes-seg" role="group" aria-label="Qué dato del interés tenés">
+                            <button type="button" class="deudas-interes-seg-btn deudas-interes-seg-btn--active" data-int="pct" aria-pressed="true">Interés %</button>
+                            <button type="button" class="deudas-interes-seg-btn" data-int="total" aria-pressed="false">Total a pagar</button>
+                            <button type="button" class="deudas-interes-seg-btn" data-int="cuota" aria-pressed="false">Valor de cuota</button>
+                        </div>
+                        <div class="deudas-interes-campos">
+                            <input type="number" id="dInteres" name="porcentaje_interes" step="0.01" min="0" value="0" placeholder="Interés %" inputmode="decimal">
+                            <input type="number" id="dTotalPagar" step="0.01" min="0" placeholder="Total que vas a devolver" inputmode="decimal" hidden>
+                            <input type="number" id="dMontoCuota" step="0.01" min="0" placeholder="Cuánto pagás por cuota" inputmode="decimal" hidden>
+                        </div>
+                        <p class="deudas-campo-hint" id="interesCalcHint"></p>
+                    </div>
+
+                    <div class="deudas-form-grid" id="gridPlanFijo">
+                        <div class="form-campo">
+                            <label for="dCuotas">Cantidad de cuotas *</label>
+                            <input type="number" id="dCuotas" name="cantidad_cuotas" step="1" min="1" value="1" required>
+                        </div>
+                        <div class="form-campo">
+                            <label for="dFechaInicio">Vencimiento de la 1ª cuota *</label>
+                            <input type="date" id="dFechaInicio" name="fecha_inicio" required>
+                        </div>
+                    </div>
+                </div>
+                <p class="deudas-edicion-nota" id="notaBloqueoEdicion" hidden></p>
+
+                <div id="gridPlanVariable" hidden>
+                    <div id="bloqueGenerarCuotasVar">
+                        <div class="deudas-form-grid deudas-form-grid--3">
+                            <div class="form-campo">
+                                <label for="dCuotasVarN" class="kai-label-help">Cantidad de cuotas
+                                    <button type="button" class="kai-help-btn" data-help-target="ayuda_generar_cuotas" aria-label="Cómo funciona esto">?</button>
+                                </label>
+                                <input type="number" id="dCuotasVarN" step="1" min="1" placeholder="ej: 36">
+                            </div>
+                            <div class="form-campo">
+                                <label for="dCuotasVarFecha">Vencimiento de la 1ª cuota</label>
+                                <input type="date" id="dCuotasVarFecha">
+                            </div>
+                            <div class="form-campo">
+                                <label for="dCuotasVarMonto">Monto de cada cuota <span class="deudas-label-opt">· opcional</span></label>
+                                <input type="number" id="dCuotasVarMonto" step="0.01" min="0.01" placeholder="si arrancan iguales">
+                            </div>
+                        </div>
+                        <div class="kai-help-popover" id="ayuda_generar_cuotas">
+                            Escribí cuántas cuotas tenés y se generan todas de una — después vas completando fecha
+                            y monto de cada una. La fecha de la primera completa las demás mensuales (podés cambiar
+                            cualquiera a mano). Si todas arrancan con el mismo monto, cargalo en "Monto de cada
+                            cuota" y se completa en las que estén vacías.
+                            <br><br>
+                            <strong>Cantidad total de cuotas del préstamo</strong> es aparte: usalo si el banco te
+                            muestra menos cuotas de las que tiene en total (ej: te muestra 18 de 72). Ahí el interés
+                            se calcula recién cuando estén cargadas las 72.
+                        </div>
+                    </div>
+                    <div class="form-campo">
+                        <label for="dPlanTotal">Cantidad total de cuotas del préstamo <span class="deudas-label-opt">· opcional</span></label>
+                        <input type="number" id="dPlanTotal" step="1" min="1" placeholder="ej: 72">
+                    </div>
+                </div>
+
+                <div class="deudas-cuotas-variables" id="deudasCuotasVariables" hidden>
+                    <div class="deudas-cv-cabecera">
+                        <span class="deudas-cv-cabecera-num">#</span>
+                        <span>Vencimiento</span>
+                        <span>Monto</span>
+                        <span class="deudas-cv-cabecera-pago">Ya pagada</span>
+                        <span></span>
+                    </div>
+                    <div class="deudas-cuotas-variables-wrap" id="deudasCuotasVariablesWrap"></div>
+                    <button type="button" class="btn btn-ghost btn-sm" id="btnAgregarCuotaVariable">+ Agregar cuota</button>
+                    <p class="deudas-cuotas-variables-resumen" id="deudasCuotasVariablesResumen"></p>
+                </div>
+            </section>
+
+            <section class="deudas-fs">
+                <div class="deudas-fs-head">
+                    <div class="deudas-step-heading">
+                        <span class="deudas-step-number deudas-step-number--optional">3</span>
+                        <div>
+                            <h3 class="deudas-fs-title">Detalles opcionales</h3>
+                            <p class="deudas-step-subtitle">Usalos solo si esta deuda ya existía o necesitás aclarar algo.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="deudas-optional-grid">
+                    <div id="bloqueCargaInicialCreacion" class="deudas-existing-card">
+                        <label class="deudas-checkbox-label kai-label-help">
+                            <input type="checkbox" id="dCargaInicial" name="es_carga_inicial">
+                            <span><strong>Esta deuda ya tenía pagos realizados</strong><small>Cargá las cuotas o abonos anteriores sin afectar la caja actual.</small></span>
+                            <button type="button" class="kai-help-btn" data-help-target="ayuda_carga_inicial" aria-label="Más información sobre pagos anteriores">?</button>
+                        </label>
+                    </div>
+                    <div class="form-campo">
+                        <label for="dNotas">Notas</label>
+                        <input type="text" id="dNotas" name="notas" placeholder="Observaciones (opcional)">
+                    </div>
+                </div>
+                <div class="kai-help-popover" id="ayuda_carga_inicial">
+                    Las cuotas que marques como ya pagadas no descuentan de la caja grande — esa plata salió
+                    antes de tener registro acá. Si es un préstamo, tampoco se acredita el ingreso de hoy.
+                    Las cuotas que falten funcionan normal: al confirmarlas de acá en adelante sí impactan la caja.
+                    Según el plan de pago, vas a poder tildar cada cuota ya pagada (con su fecha real) o cargar
+                    los pagos sueltos que ya hiciste.
+                </div>
+                <div class="deudas-carga-inicial-campo">
+                    <div class="deudas-cuotas-historicas" id="deudasCuotasHistoricas" hidden>
+                        <div class="deudas-cuotas-historicas-wrap">
+                            <table class="deudas-cuotas-tabla">
+                                <thead>
+                                    <tr>
+                                        <th>#</th><th>Vencimiento</th><th class="th-monto">Monto</th>
+                                        <th>Ya pagada</th><th>Fecha de pago</th><th>Medio</th><th>Detalle</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="deudasCuotasHistoricasBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="deudas-abonos-historicos" id="deudasAbonosHistoricos" hidden>
+                        <div class="deudas-abonos-historicos-wrap" id="deudasAbonosHistoricosWrap"></div>
+                        <button type="button" class="btn btn-ghost btn-sm" id="btnAgregarAbonoHistorico">+ Agregar pago ya hecho</button>
+                        <p class="deudas-abonos-historicos-total" id="deudasAbonosHistoricosTotal"></p>
+                    </div>
+                </div>
+
+            </section>
+
+            <section class="deudas-fs" id="bloqueCuotasEdicion" hidden>
+                <div class="deudas-cuotas-headrow">
+                    <div>
+                        <h3 class="deudas-fs-title">Cuotas de esta deuda</h3>
+                        <p class="deudas-step-subtitle">Tildá una cuota como pagada o pendiente, editala o quitala.</p>
+                    </div>
+                    <div class="deudas-cuotas-headrow-actions" id="bloqueConvertirVariable" hidden>
+                        <button type="button" class="btn btn-ghost btn-sm" id="btnConvertirVariable">Pasar a cuotas variables</button>
+                        <button type="button" class="kai-help-btn" id="btnAyudaConvertirVariable" data-help-target="ayuda_convertir_variable" aria-label="¿Para qué sirve esto?">?</button>
+                    </div>
+                </div>
+                <div class="kai-help-popover" id="ayuda_convertir_variable">
+                    Usalo cuando cargaste esta deuda como "cuotas fijas" pero después resultó que las cuotas
+                    no son todas iguales, o te faltan cargar algunas (por ejemplo, el banco solo te mostraba
+                    una parte del plan). Convierte esta deuda a "cuotas variables" sin tocar lo que ya pagaste;
+                    después agregás o corregís las que falten desde el panel de abajo.
+                </div>
+                <div class="deudas-cuotas-wrap">
+                    <table class="deudas-cuotas-tabla deudas-cuotas-tabla--detalle">
+                        <thead>
+                            <tr>
+                                <th>Cuota</th>
+                                <th>Vencimiento</th>
+                                <th class="th-monto">Monto</th>
+                                <th>Estado</th>
+                                <th class="th-acciones">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dCuotasActualesBody"></tbody>
+                    </table>
+                </div>
+
+                <div class="deudas-editar-cuotas" id="deudasEditarCuotas" hidden>
+                    <div class="deudas-cuotas-headrow-actions">
+                        <h3 class="deudas-cuotas-title">Agregar o editar cuotas pendientes</h3>
+                        <button type="button" class="kai-help-btn" data-help-target="ayuda_editar_cuotas" aria-label="Cómo funciona esto">?</button>
+                    </div>
+                    <div class="kai-help-popover" id="ayuda_editar_cuotas">
+                        Las cuotas ya pagadas de antes no se modifican acá (usá la tabla de arriba para esas).
+                        Editá las pendientes (fecha o monto) o agregá las que falten, de a una o con "Generar N
+                        cuotas más" — y si alguna de las que agregás ya la pagaste, tildá "ya pagada" y
+                        completá cuándo, para que quede registrada así de una vez.
+                    </div>
+                    <div class="deudas-ec-generar">
+                        <label for="ecGenerarN">Generar</label>
+                        <input type="number" id="ecGenerarN" step="1" min="1" placeholder="N">
+                        <span>cuotas más (mensuales, desde la última)</span>
+                        <button type="button" class="btn btn-ghost btn-sm" id="btnEcGenerar">Generar</button>
+                    </div>
+                    <div class="deudas-cv-cabecera">
+                        <span class="deudas-cv-cabecera-num">#</span>
+                        <span>Vencimiento</span>
+                        <span>Monto</span>
+                        <span class="deudas-cv-cabecera-pago">Ya pagada</span>
+                        <span></span>
+                    </div>
+                    <div class="deudas-cuotas-variables-wrap" id="deudasEditarCuotasWrap"></div>
+                    <button type="button" class="btn btn-ghost btn-sm" id="btnAgregarCuotaPendiente">+ Agregar cuota</button>
+                    <p class="deudas-cuotas-variables-resumen" id="deudasEditarCuotasResumen"></p>
+                    <div id="ecMsg" class="deudas-inline-msg"></div>
+                    <div class="deudas-registrar-abono-acciones">
+                        <button type="button" class="btn btn-primary" id="btnGuardarCuotas">Guardar cuotas pendientes</button>
+                    </div>
+                </div>
+            </section>
+
+                </div>
+
             </div>
 
             <div class="modal-footer">
                 <button type="button" class="btn btn-ghost" id="btnCancelarModal">Cancelar</button>
-                <button type="submit" class="btn btn-primary" id="btnGuardarDeuda">Guardar</button>
+                <button type="submit" class="btn btn-primary deudas-submit-btn" id="btnGuardarDeuda"><span id="btnGuardarDeudaTexto">Crear deuda</span> <span aria-hidden="true">→</span></button>
             </div>
         </form>
     </div>
@@ -280,75 +472,137 @@
 ══════════════════════════════════ -->
 <div class="modal" id="modalDetalle" hidden>
     <div class="modal-backdrop" id="modalDetalleBackdrop"></div>
-    <div class="modal-content modal-content--ancho">
+    <div class="modal-content modal-content--ancho deudas-detalle-modal">
         <div class="modal-header">
-            <h2 class="modal-title" id="detalleTitle">Detalle de deuda</h2>
+            <div class="deudas-modal-heading">
+                <span class="deudas-modal-icon deudas-modal-icon--detail" aria-hidden="true">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                        <path d="M7 3.5h10A2.5 2.5 0 0 1 19.5 6v12A2.5 2.5 0 0 1 17 20.5H7A2.5 2.5 0 0 1 4.5 18V6A2.5 2.5 0 0 1 7 3.5Z" stroke="currentColor" stroke-width="1.7"/>
+                        <path d="M8 8h8M8 12h8M8 16h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+                    </svg>
+                </span>
+                <div>
+                    <h2 class="modal-title" id="detalleTitle">Detalle de deuda</h2>
+                    <p class="deudas-modal-subtitle" id="detalleSubtitle">Información y plan de pagos</p>
+                </div>
+            </div>
             <button type="button" class="modal-close" id="btnCerrarDetalle" aria-label="Cerrar">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                     <path d="M5 5L15 15M5 15L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
             </button>
         </div>
-        <div class="modal-body">
+        <div class="modal-body deudas-detalle-body">
             <div class="deudas-detalle-resumen" id="detalleResumen"></div>
 
             <div class="deudas-detalle-notas form-campo">
-                <label for="detNotas">Notas</label>
-                <input type="text" id="detNotas" placeholder="Observaciones (opcional)">
+                <span class="deudas-resumen-label">Notas y observaciones</span>
+                <p id="detNotas" class="deudas-resumen-value deudas-resumen-value--texto"></p>
             </div>
 
-            <h3 class="deudas-cuotas-title" id="cuotasTitle">Cuotas</h3>
-            <div class="deudas-cuotas-wrap">
-                <table class="deudas-cuotas-tabla">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Vencimiento</th>
-                            <th class="th-monto">Monto</th>
-                            <th>Estado</th>
-                            <th class="th-acciones">Confirmar</th>
-                        </tr>
-                    </thead>
-                    <tbody id="cuotasBody"></tbody>
-                </table>
+            <section class="deudas-detail-section deudas-detail-section--payments">
+                <div class="deudas-cuotas-headrow">
+                    <div>
+                        <h3 class="deudas-cuotas-title" id="cuotasTitle">Plan de pagos</h3>
+                        <p class="deudas-section-meta" id="cuotasMeta"></p>
+                    </div>
+                </div>
+                <div class="deudas-cuotas-wrap">
+                    <table class="deudas-cuotas-tabla deudas-cuotas-tabla--detalle">
+                        <thead>
+                            <tr>
+                                <th>Cuota</th>
+                                <th>Vencimiento</th>
+                                <th class="th-monto">Monto</th>
+                                <th>Estado</th>
+                                <th class="th-acciones">Acción / medio de pago</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cuotasBody"></tbody>
+                    </table>
+                </div>
+
+                <div class="deudas-registrar-abono" id="deudasRegistrarAbono" hidden>
+                    <div>
+                        <span>Saldo pendiente</span>
+                        <strong id="raSaldoLabel"></strong>
+                    </div>
+                    <div class="deudas-registrar-abono-acciones">
+                        <button type="button" class="btn btn-primary" id="btnAbonar">Registrar un pago</button>
+                    </div>
+                </div>
+            </section>
+
+            <section class="deudas-detail-section deudas-detail-section--documents">
+                <div class="deudas-cuotas-headrow">
+                    <div>
+                        <h3 class="deudas-cuotas-title">Documentos adjuntos</h3>
+                        <p class="deudas-section-meta">Comprobantes, contratos y archivos relacionados.</p>
+                    </div>
+                </div>
+                <div class="deudas-documentos" id="deudasDocumentos"></div>
+            </section>
+
+        </div>
+        <div class="modal-footer">
+            {% if puede_eliminar %}
+            <button type="button" class="btn btn-ghost deudas-btn-danger" id="btnEliminarDeuda">Eliminar deuda</button>
+            {% endif %}
+            <button type="button" class="btn btn-ghost" id="btnImprimirDeuda">Imprimir</button>
+            {% if puede_editar %}
+            <button type="button" class="btn btn-primary" id="btnEditarDeuda">Editar deuda</button>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════
+     MODAL PAGAR CUOTA / ABONO (pago dividido)
+══════════════════════════════════ -->
+<div class="modal" id="modalPagoCuota" hidden>
+    <div class="modal-backdrop" id="modalPagoCuotaBackdrop"></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title" id="pagoCuotaTitle">Registrar pago</h2>
+            <button type="button" class="modal-close" id="btnCerrarPagoCuota" aria-label="Cerrar">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M5 5L15 15M5 15L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="deudas-pago-objetivo" id="pagoCuotaObjetivoFijo">
+                <span>A pagar</span>
+                <strong id="pagoCuotaObjetivo">$ 0,00</strong>
             </div>
 
-            <div class="deudas-registrar-abono" id="deudasRegistrarAbono" hidden>
-                <h3 class="deudas-cuotas-title">Registrar abono</h3>
-                <div class="deudas-form-grid">
-                    <div class="form-campo">
-                        <label for="raMonto">Monto *</label>
-                        <input type="number" id="raMonto" step="0.01" min="0.01">
-                    </div>
-                    <div class="form-campo">
-                        <label for="raFecha">Fecha *</label>
-                        <input type="date" id="raFecha">
-                    </div>
+            <div class="deudas-form-grid" id="pagoCuotaCamposAbono" hidden>
+                <div class="form-campo">
+                    <label for="pagoCuotaMonto">Monto a pagar *</label>
+                    <input type="number" id="pagoCuotaMonto" step="0.01" min="0.01">
                 </div>
                 <div class="form-campo">
-                    <label for="raCuenta">Cuenta *</label>
-                    <select id="raCuenta">
-                        <option value="">— Elegí una cuenta —</option>
-                    </select>
-                </div>
-                <div id="raMsg" style="color:#dc2626; font-size:.8125rem; margin-bottom:.5rem;"></div>
-                <div class="deudas-registrar-abono-acciones">
-                    <button type="button" class="btn btn-ghost" id="btnAbonarCheque">Pagar con cheque</button>
-                    <button type="button" class="btn btn-primary" id="btnAbonar">Pagar</button>
+                    <label for="pagoCuotaFecha">Fecha del pago *</label>
+                    <input type="date" id="pagoCuotaFecha">
                 </div>
             </div>
 
-            <h3 class="deudas-cuotas-title">Documentos adjuntos</h3>
-            <div class="deudas-documentos" id="deudasDocumentos"></div>
+            <div class="deudas-pago-lineas" id="pagoCuotaLineas"></div>
+            <div class="deudas-cuotas-headrow-actions">
+                <button type="button" class="btn btn-ghost btn-sm" id="btnAgregarLineaPago">+ Agregar medio de pago</button>
+                <button type="button" class="kai-help-btn" data-help-target="ayuda_pago_dividido" aria-label="¿Para qué sirve esto?">?</button>
+            </div>
+            <div class="kai-help-popover" id="ayuda_pago_dividido">
+                Podés repartir este pago entre varias cuentas — por ejemplo, mitad en efectivo y mitad por
+                transferencia. Cada línea que agregues resta del total; cuando sumen exacto, se habilita
+                confirmar.
+            </div>
+            <p class="deudas-pago-resumen" id="pagoCuotaResumen"></p>
+            <div id="pagoCuotaMsg" class="deudas-inline-msg"></div>
 
             <div class="modal-footer">
-                {% if puede_eliminar %}
-                <button type="button" class="btn btn-ghost deudas-btn-danger" id="btnEliminarDeuda">Eliminar deuda</button>
-                {% endif %}
-                <button type="button" class="btn btn-ghost" id="btnImprimirDeuda">Imprimir</button>
-                {% if puede_editar %}
-                <button type="button" class="btn btn-primary" id="btnGuardarNotas">Guardar cambios</button>
-                {% endif %}
+                <button type="button" class="btn btn-ghost" id="btnPagarConCheque">Pagar con cheque</button>
+                <button type="button" class="btn btn-primary" id="btnConfirmarPagoCuota">Confirmar pago</button>
             </div>
         </div>
     </div>
@@ -430,6 +684,12 @@
         detalle: '{{ url_detalle }}',
         confirmarCuota: '{{ url_confirmar_cuota }}',
         registrarAbono: '{{ url_registrar_abono }}',
+        editarCuotas: '{{ url_editar_cuotas }}',
+        convertirVariable: '{{ url_convertir_variable }}',
+        editarCuota: '{{ url_editar_cuota }}',
+        eliminarCuota: '{{ url_eliminar_cuota }}',
+        marcarPagada: '{{ url_marcar_cuota_pagada }}',
+        revertirPendiente: '{{ url_revertir_cuota_pendiente }}',
         previsualizarCuotas: '{{ url_previsualizar_cuotas }}',
         documentoSubir: '{{ url_documento_subir }}',
         documentoEliminar: '{{ url_documento_eliminar }}',
@@ -438,7 +698,7 @@
     window.deudasPuedeConfirmar = {{ puede_confirmar|yesno:"true,false" }};
     window.deudasPuedeEditar = {{ puede_editar|yesno:"true,false" }};
 </script>
-<script src="{% static 'caja/js/deudas.js' %}?v=20260910"></script>
+<script src="{% static 'caja/js/deudas.js' %}?v=20260929"></script>
 <script src="{% static 'caja/js/deudas_documentos.js' %}"></script>
-<script src="{% static 'caja/js/deudas_imprimir.js' %}"></script>
+<script src="{% static 'caja/js/deudas_imprimir.js' %}?v=20260913"></script>
 {% endblock %}
