@@ -128,7 +128,7 @@ class AbrirTurnoAjax(LoginRequiredMixin, View):
                 'ok': True,
                 'turno': {
                     'numero': turno.numero,
-                    'fecha_apertura': turno.fecha_apertura.strftime('%d/%m/%Y %H:%M'),
+                    'fecha_apertura': timezone.localtime(turno.fecha_apertura).strftime('%d/%m/%Y %H:%M'),
                     'monto_inicial_efectivo': str(turno.monto_inicial_efectivo),
                     'cajas': [
                         {'id': cf.pk, 'nombre': cf.nombre, 'monto_inicial': str(cf.monto_inicial)}
@@ -234,7 +234,7 @@ class CerrarTurnoAjax(LoginRequiredMixin, View):
                 'ok': True,
                 'turno': {
                     'numero': turno.numero,
-                    'fecha_cierre': turno.fecha_cierre.strftime('%d/%m/%Y %H:%M'),
+                    'fecha_cierre': timezone.localtime(turno.fecha_cierre).strftime('%d/%m/%Y %H:%M'),
                     'monto_final_efectivo': str(turno.monto_final_efectivo),
                     'diferencia_efectivo': str(turno.diferencia_efectivo) if turno.diferencia_efectivo else '0',
                     'cajas': [
@@ -341,7 +341,7 @@ class EstadoCajaDiariaAjax(LoginRequiredMixin, View):
             'hay_turno': True,
             'turno': {
                 'numero': turno.numero,
-                'fecha_apertura': turno.fecha_apertura.strftime('%d/%m/%Y %H:%M'),
+                'fecha_apertura': timezone.localtime(turno.fecha_apertura).strftime('%d/%m/%Y %H:%M'),
                 'monto_inicial_efectivo': str(turno.monto_inicial_efectivo),
                 'abierto_por': turno.abierto_por.get_full_name() if turno.abierto_por else 'N/A',
                 'efectivo_total': str(turno.efectivo_total),
@@ -387,8 +387,8 @@ class HistorialTurnosAjax(LoginRequiredMixin, View):
             data.append({
                 'numero': turno.numero,
                 'estado': turno.get_estado_display(),
-                'fecha_apertura': turno.fecha_apertura.strftime('%d/%m/%Y %H:%M'),
-                'fecha_cierre': turno.fecha_cierre.strftime('%d/%m/%Y %H:%M') if turno.fecha_cierre else None,
+                'fecha_apertura': timezone.localtime(turno.fecha_apertura).strftime('%d/%m/%Y %H:%M'),
+                'fecha_cierre': timezone.localtime(turno.fecha_cierre).strftime('%d/%m/%Y %H:%M') if turno.fecha_cierre else None,
                 'monto_inicial_efectivo': str(turno.monto_inicial_efectivo),
                 'monto_final_efectivo': str(turno.monto_final_efectivo) if turno.monto_final_efectivo else None,
                 'diferencia_efectivo': str(turno.diferencia_efectivo) if turno.diferencia_efectivo else None,

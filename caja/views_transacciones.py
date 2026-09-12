@@ -17,6 +17,7 @@ from django.db import transaction
 from django.http import JsonResponse
 from django.views import View
 from django.views.generic import TemplateView
+from django.utils import timezone
 
 from core.permisos import chequear_permiso
 
@@ -87,7 +88,7 @@ def _serializar_transaccion(t):
         'fecha':             t.fecha.strftime('%Y-%m-%d'),
         'descripcion':       t.descripcion,
         'creado_por':        t.creado_por.get_full_name() or t.creado_por.username if t.creado_por else '—',
-        'fecha_alta':        t.fecha_alta.strftime('%d/%m/%Y %H:%M'),
+        'fecha_alta':        timezone.localtime(t.fecha_alta).strftime('%d/%m/%Y %H:%M'),
     }
 
 

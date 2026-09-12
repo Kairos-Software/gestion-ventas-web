@@ -3,6 +3,7 @@ from django.views.generic import TemplateView
 from django.views import View
 from django.http import JsonResponse
 from django.db.models import Q
+from django.utils import timezone
 
 from .models import Compra, EstadoCompra, MedioPagoCompra
 from core.permisos import chequear_permiso
@@ -118,7 +119,7 @@ class ListarComprasAjax(LoginRequiredMixin, View):
                     'url':         doc.archivo.url if doc.archivo else '',
                     'es_imagen':   doc.es_imagen,
                     'es_pdf':      doc.es_pdf,
-                    'subido_el':   doc.subido_el.strftime('%d/%m/%Y %H:%M'),
+                    'subido_el':   timezone.localtime(doc.subido_el).strftime('%d/%m/%Y %H:%M'),
                 })
 
             # — Pagos — con el vínculo real a la Deuda/Cheque que generó

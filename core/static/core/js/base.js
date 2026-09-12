@@ -131,6 +131,17 @@ document.addEventListener('DOMContentLoaded', function () {
             return div.innerHTML;
         }
 
+        // Íconos calcados de catalogo/pedidos_historial.html (Descartar / Reactivar)
+        // — mismo gesto visual que ya conoce quien usa el historial completo.
+        const ICONO_DESCARTAR = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3"/>
+            <path d="M5.5 5.5L10.5 10.5M10.5 5.5L5.5 10.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+        </svg>`;
+        const ICONO_REACTIVAR = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <path d="M13 8A5 5 0 1 1 11.5 4.3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+            <path d="M13 3.5V6.5H10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>`;
+
         function renderLista(pedidos) {
             if (!pedidos.length) {
                 lista.innerHTML = '<p class="notif-menu-vacio">Todavía no llegó ningún pedido del catálogo.</p>';
@@ -138,8 +149,17 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             lista.innerHTML = pedidos.map(function (p) {
                 const vendido = p.estado === 'vendido';
+                const descartado = p.estado === 'descartado';
+                // Un pedido descartado no se vende desde acá — se reactiva
+                // primero (mismo criterio que el historial completo).
+                const btnVenderOReactivar = descartado
+                    ? `<button type="button" class="notif-btn notif-btn--icon" title="Reactivar pedido" data-pedido-reactivar="${p.pk}">${ICONO_REACTIVAR}</button>`
+                    : `<button type="button" class="notif-btn notif-btn--vender" data-pedido-vender="${p.pk}">${vendido ? 'Ver venta' : 'Vender'}</button>`;
+                const btnCancelar = (!vendido && !descartado)
+                    ? `<button type="button" class="notif-btn notif-btn--icon" title="Cancelar pedido" data-pedido-descartar="${p.pk}">${ICONO_DESCARTAR}</button>`
+                    : '';
                 return `
-                    <div class="notif-item ${!p.leido ? 'notif-item--no-leido' : ''} ${vendido ? 'notif-item--vendido' : ''}">
+                    <div class="notif-item ${!p.leido ? 'notif-item--no-leido' : ''} ${vendido ? 'notif-item--vendido' : ''} ${descartado ? 'notif-item--descartado' : ''}">
                         <div class="notif-item-top">
                             <span class="notif-item-contacto">${p.contacto_nombre || p.contacto_telefono}</span>
                             <span class="notif-item-fecha">${fmtFecha(p.fecha_alta)}</span>
@@ -147,13 +167,13 @@ document.addEventListener('DOMContentLoaded', function () {
                         <div class="notif-item-resumen">
                             ${p.cantidad_items} producto${p.cantidad_items === 1 ? '' : 's'} · <span class="notif-item-total">${fmtMoneda(p.total)}</span>
                             ${vendido ? ' · Ya convertido en venta' : ''}
+                            ${descartado ? ' · Pedido cancelado' : ''}
                         </div>
                         ${p.notas ? `<div class="notif-item-notas">📝 ${escapeHtml(p.notas)}</div>` : ''}
                         <div class="notif-item-acciones">
                             <a class="notif-btn" href="${p.wa_link}" target="_blank" rel="noopener">Hablar por WhatsApp</a>
-                            <button type="button" class="notif-btn notif-btn--vender" data-pedido-vender="${p.pk}">
-                                ${vendido ? 'Ver venta' : 'Vender'}
-                            </button>
+                            ${btnVenderOReactivar}
+                            ${btnCancelar}
                         </div>
                     </div>`;
             }).join('');
@@ -218,26 +238,66 @@ document.addEventListener('DOMContentLoaded', function () {
 
         lista.addEventListener('click', async function (e) {
             const venderBtn = e.target.closest('[data-pedido-vender]');
-            if (!venderBtn) return;
-            const pk = venderBtn.dataset.pedidoVender;
-            venderBtn.disabled = true;
+            if (venderBtn) {
+                const pk = venderBtn.dataset.pedidoVender;
+                venderBtn.disabled = true;
+                try {
+                    const res = await fetch(window.PEDIDOS_URLS.venderBase + pk + '/vender/', {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                    });
+                    const data = await res.json();
+                    if (data.ok) {
+                        window.location.href = data.redirect;
+                    } else {
+                        KaiToast.show(data.error || 'No se pudo cargar el pedido en Nueva Venta.', 'danger');
+                        venderBtn.disabled = false;
+                    }
+                } catch (e) {
+                    KaiToast.show('Error de conexión.', 'danger');
+                    venderBtn.disabled = false;
+                }
+                return;
+            }
+
+            const descartarBtn = e.target.closest('[data-pedido-descartar]');
+            if (descartarBtn) {
+                const okConfirm = await KaiConfirm(
+                    '¿Cancelar este pedido? Vas a poder reactivarlo después si te arrepentís.',
+                    { title: 'Cancelar pedido' },
+                );
+                if (!okConfirm) return;
+                await cambiarEstado(descartarBtn.dataset.pedidoDescartar, 'descartar', 'Pedido cancelado.');
+                return;
+            }
+
+            const reactivarBtn = e.target.closest('[data-pedido-reactivar]');
+            if (reactivarBtn) {
+                await cambiarEstado(reactivarBtn.dataset.pedidoReactivar, 'reactivar', 'Pedido reactivado.');
+            }
+        });
+
+        // Cancelar/reactivar un pedido sin cerrar la campanita — refresca la
+        // lista en el lugar en vez del recargue completo que hace el
+        // historial (acá es un desplegable, no una pantalla propia).
+        async function cambiarEstado(pk, accion, mensajeOk) {
             try {
-                const res = await fetch(window.PEDIDOS_URLS.venderBase + pk + '/vender/', {
+                const res = await fetch(window.PEDIDOS_URLS.cambiarEstadoBase + pk + '/cambiar-estado/', {
                     method: 'POST',
-                    headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                    body: JSON.stringify({ accion }),
                 });
                 const data = await res.json();
                 if (data.ok) {
-                    window.location.href = data.redirect;
+                    KaiToast.show(mensajeOk, 'success');
+                    abrirLista();
                 } else {
-                    KaiToast.show(data.error || 'No se pudo cargar el pedido en Nueva Venta.', 'danger');
-                    venderBtn.disabled = false;
+                    KaiToast.show(data.error || 'No se pudo actualizar el pedido.', 'danger');
                 }
             } catch (e) {
                 KaiToast.show('Error de conexión.', 'danger');
-                venderBtn.disabled = false;
             }
-        });
+        }
 
         actualizarBadge();
         setInterval(actualizarBadge, 15000);

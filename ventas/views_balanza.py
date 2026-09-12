@@ -133,7 +133,7 @@ class BalanzaGenerarAjax(LoginRequiredMixin, View):
             'cantidad': str(etiqueta.cantidad),
             'precio_unitario': str(etiqueta.precio_unitario),
             'precio_total': str(etiqueta.precio_total),
-            'fecha': etiqueta.fecha_alta.strftime('%d/%m/%Y %H:%M'),
+            'fecha': timezone.localtime(etiqueta.fecha_alta).strftime('%d/%m/%Y %H:%M'),
             'aviso_stock': aviso_stock,
         })
 
@@ -168,7 +168,7 @@ class BalanzaListarAjax(LoginRequiredMixin, View):
             'estado':           e.estado,
             'estado_display':   e.get_estado_display(),
             'creado_por':       e.creado_por.get_full_name() if e.creado_por else '—',
-            'fecha_alta':       e.fecha_alta.strftime('%d/%m/%Y %H:%M'),
+            'fecha_alta':       timezone.localtime(e.fecha_alta).strftime('%d/%m/%Y %H:%M'),
             'puede_anular':     puede_anular and e.estado == EstadoEtiquetaBalanza.DISPONIBLE,
         } for e in qs[:200]]
 

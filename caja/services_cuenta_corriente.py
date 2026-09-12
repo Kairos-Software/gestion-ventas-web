@@ -115,7 +115,7 @@ def resumen_cliente(cliente):
             'estado': c.estado,
             'saldo_posterior': str(c.saldo_posterior),
             'creado_por': str(c.creado_por) if c.creado_por else '',
-            'fecha_alta': c.fecha_alta.isoformat(),
+            'fecha_alta': timezone.localtime(c.fecha_alta).isoformat(),
             'imputaciones': [
                 {
                     'cuenta_por_cobrar_id': i['cuenta_por_cobrar_id'],

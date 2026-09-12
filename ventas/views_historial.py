@@ -5,6 +5,7 @@ from django.views.generic import TemplateView
 from django.views import View
 from django.http import JsonResponse
 from django.db.models import Q
+from django.utils import timezone
 
 from .models import Venta, EstadoVenta, DevolucionVenta, medios_pago_choices
 from core.permisos import chequear_permiso
@@ -35,9 +36,9 @@ class HistorialVentasView(LoginRequiredMixin, TemplateView):
         from caja.models import TurnoCaja
         opciones = []
         for t in TurnoCaja.objects.order_by('-fecha_apertura')[:limite]:
-            rango = t.fecha_apertura.strftime('%d/%m/%y %H:%M')
+            rango = timezone.localtime(t.fecha_apertura).strftime('%d/%m/%y %H:%M')
             if t.fecha_cierre:
-                rango += t.fecha_cierre.strftime(' → %d/%m %H:%M')
+                rango += timezone.localtime(t.fecha_cierre).strftime(' → %d/%m %H:%M')
             else:
                 rango += ' → (abierto)'
             opciones.append({'pk': t.pk, 'label': f'#{t.numero} · {rango}'})
@@ -142,7 +143,7 @@ class ListarVentasAjax(LoginRequiredMixin, View):
         def _fmt_dt(dt):
             if not dt:
                 return None
-            return dt.strftime('%d/%m/%Y %H:%M')
+            return timezone.localtime(dt).strftime('%d/%m/%Y %H:%M')
 
         data = []
         for v in ventas:
@@ -203,7 +204,7 @@ class ListarVentasAjax(LoginRequiredMixin, View):
                     'url':         doc.archivo.url if doc.archivo else '',
                     'es_imagen':   doc.es_imagen,
                     'es_pdf':      doc.es_pdf,
-                    'subido_el':   doc.subido_el.strftime('%d/%m/%Y %H:%M'),
+                    'subido_el':   timezone.localtime(doc.subido_el).strftime('%d/%m/%Y %H:%M'),
                 })
 
             # Borrador con fecha_anulacion = edición sin terminar (ver el

@@ -5,7 +5,7 @@
 {% block title %}Créditos y préstamos{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'caja/css/deudas.css' %}?v=20260926">
+<link rel="stylesheet" href="{% static 'caja/css/deudas.css' %}?v=20261001">
 {% endblock %}
 
 {% block content %}
@@ -240,6 +240,7 @@
                 <p class="kai-help-popover" id="dModoCuotasHint">Se reparte el total en N cuotas iguales con vencimiento mensual.</p>
 
                 <div class="deudas-cost-grid">
+                    <div class="deudas-loan-amounts">
                     <div class="form-campo deudas-monto-campo">
                         <label for="dMonto" class="kai-label-help"><span id="dMontoLabel">Monto *</span>
                             <button type="button" class="kai-help-btn" id="dMontoHintBtn" data-help-target="dMontoHint" hidden aria-label="No sé este monto">?</button>
@@ -249,6 +250,26 @@
                             <input type="number" id="dMonto" name="monto_original" step="0.01" min="0.01" required placeholder="0,00" inputmode="decimal">
                         </div>
                         <p class="kai-help-popover" id="dMontoHint">Lo que te prestaron en total. Si todavía no lo sabés, o esa plata nunca entró a tus cuentas, dejalo vacío — lo completás más adelante.</p>
+                    </div>
+
+                    <div class="form-campo deudas-descuento-campo" id="campoDescuentoAcreditacion" hidden>
+                        <label for="dDescuentoAcreditacion" class="kai-label-help"><span>Gastos de otorgamiento</span>
+                            <button type="button" class="kai-help-btn" data-help-target="ayuda_descuento_acreditacion" aria-label="Qué incluyen estos gastos">?</button>
+                        </label>
+                        <div class="deudas-money-input">
+                            <span aria-hidden="true">$</span>
+                            <input type="number" id="dDescuentoAcreditacion" name="descuento_acreditacion" step="0.01" min="0" placeholder="0,00" inputmode="decimal">
+                        </div>
+                        <p class="kai-help-popover" id="ayuda_descuento_acreditacion">
+                            Son el sellado, seguro, comisiones u otros cargos vinculados con la entrega
+                            del préstamo. No cambian el monto solicitado ni cómo se calculan el interés
+                            y las cuotas. Solo se restan del dinero que se acredita en la cuenta elegida.
+                            Dejalo en blanco si no hay gastos. Si
+                            esta deuda es de carga inicial, no tiene efecto: no se acredita nada de todos
+                            modos.
+                        </p>
+                        <p class="deudas-campo-hint" id="montoAcreditadoHint"></p>
+                    </div>
                     </div>
 
                     <div class="form-campo deudas-interest-card" id="bloqueInteres">
@@ -698,7 +719,7 @@
     window.deudasPuedeConfirmar = {{ puede_confirmar|yesno:"true,false" }};
     window.deudasPuedeEditar = {{ puede_editar|yesno:"true,false" }};
 </script>
-<script src="{% static 'caja/js/deudas.js' %}?v=20260929"></script>
+<script src="{% static 'caja/js/deudas.js' %}?v=20261001"></script>
 <script src="{% static 'caja/js/deudas_documentos.js' %}"></script>
 <script src="{% static 'caja/js/deudas_imprimir.js' %}?v=20260913"></script>
 {% endblock %}

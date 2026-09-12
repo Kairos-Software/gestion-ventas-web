@@ -145,7 +145,7 @@ def _serializar_cuota(c):
         'cheque_numero': (cheque.numero_cheque or 's/n') if cheque else '',
         'cheque_estado': cheque.estado if cheque else '',
         'cheque_es_historico': cheque.es_historico if cheque else False,
-        'fecha_confirmacion': c.fecha_confirmacion.isoformat() if c.fecha_confirmacion else '',
+        'fecha_confirmacion': timezone.localtime(c.fecha_confirmacion).isoformat() if c.fecha_confirmacion else '',
         'confirmado_por': str(c.confirmado_por) if c.confirmado_por else '',
     }
 
@@ -160,7 +160,7 @@ def _serializar_documento(doc):
         'descripcion': doc.descripcion,
         'es_imagen': doc.es_imagen,
         'es_pdf': doc.es_pdf,
-        'subido_el': doc.subido_el.strftime('%d/%m/%Y %H:%M'),
+        'subido_el': timezone.localtime(doc.subido_el).strftime('%d/%m/%Y %H:%M'),
     }
 
 
@@ -180,6 +180,8 @@ def _serializar_deuda(d, con_cuotas=False):
         'cuenta_acreditacion_nombre': d.cuenta_acreditacion.nombre if d.cuenta_acreditacion_id else '',
         'monto_original': str(d.monto_original) if d.monto_original is not None else '',
         'capital_conocido': d.monto_original is not None,
+        'descuento_acreditacion': str(d.descuento_acreditacion) if d.descuento_acreditacion else '0',
+        'monto_acreditado': str(d.monto_acreditado) if d.monto_acreditado is not None else '',
         'porcentaje_interes': str(d.porcentaje_interes),
         'interes_implicito': str(d.interes_implicito) if d.interes_implicito is not None else None,
         'plan_completo': d.plan_completo,
@@ -195,7 +197,7 @@ def _serializar_deuda(d, con_cuotas=False):
         'notas': d.notas,
         'compra_numero': d.pago_compra.compra.numero if d.pago_compra_id else '',
         'creado_por': str(d.creado_por) if d.creado_por else '',
-        'fecha_alta': d.fecha_alta.isoformat(),
+        'fecha_alta': timezone.localtime(d.fecha_alta).isoformat(),
     }
     if con_cuotas:
         data['cuotas'] = [_serializar_cuota(c) for c in d.cuotas.all()]
@@ -432,6 +434,7 @@ class CrearDeudaAjax(LoginRequiredMixin, View):
                     return JsonResponse({'error': 'Fecha de inicio inválida.'}, status=400)
 
             cuenta_tarjeta = cuenta_acreditacion = None
+            descuento_acreditacion = Decimal('0')
             if tipo == TipoDeuda.COMPRA_CREDITO:
                 cuenta_tarjeta = _cuenta_valida(data.get('cuenta_tarjeta_pk'), es_credito=True)
                 if not cuenta_tarjeta:
@@ -444,6 +447,18 @@ class CrearDeudaAjax(LoginRequiredMixin, View):
                     return JsonResponse({'error': 'Elegí la cuenta que recibe el préstamo.'}, status=400)
                 if not descripcion:
                     return JsonResponse({'error': 'La descripción es obligatoria.'}, status=400)
+                # Sellado, seguro de vida u otros importes que el banco
+                # descuenta antes de depositar — no afecta el capital de
+                # la deuda ni el interés/cuotas, solo lo que se acredita
+                # (ver Deuda.monto_acreditado).
+                desc_raw = data.get('descuento_acreditacion')
+                if desc_raw not in (None, '', 'null'):
+                    try:
+                        descuento_acreditacion = Decimal(str(desc_raw))
+                    except (InvalidOperation, ValueError, TypeError):
+                        return JsonResponse({'error': 'El importe de gastos de otorgamiento es inválido.'}, status=400)
+                    if descuento_acreditacion < 0:
+                        return JsonResponse({'error': 'Los gastos de otorgamiento no pueden ser negativos.'}, status=400)
             else:  # CHEQUE / OTRO — sin cuenta propia; cada cuota se paga sola después
                 if not descripcion:
                     return JsonResponse({'error': 'La descripción es obligatoria.'}, status=400)
@@ -484,6 +499,7 @@ class CrearDeudaAjax(LoginRequiredMixin, View):
                 cantidad_cuotas=cantidad_cuotas, fecha_inicio=fecha_inicio, moneda=moneda,
                 descripcion=descripcion, notas=notas, numero_comprobante=numero_comprobante,
                 cuenta_tarjeta=cuenta_tarjeta, cuenta_acreditacion=cuenta_acreditacion,
+                descuento_acreditacion=descuento_acreditacion,
                 creado_por=request.user, modo_cuotas=modo_cuotas,
                 es_carga_inicial=es_carga_inicial, cuotas_historicas=cuotas_historicas,
                 abonos_historicos=abonos_historicos, cuotas_variables=cuotas_variables,
@@ -566,6 +582,15 @@ class EditarDeudaAjax(LoginRequiredMixin, View):
                 if not cuenta_acreditacion:
                     return JsonResponse({'error': 'Elegí la cuenta que recibe el préstamo.'}, status=400)
                 kwargs['cuenta_acreditacion'] = cuenta_acreditacion
+            if 'descuento_acreditacion' in data:
+                desc_raw = data.get('descuento_acreditacion')
+                if desc_raw in (None, '', 'null'):
+                    kwargs['descuento_acreditacion'] = Decimal('0')
+                else:
+                    try:
+                        kwargs['descuento_acreditacion'] = Decimal(str(desc_raw))
+                    except (InvalidOperation, ValueError, TypeError):
+                        return JsonResponse({'error': 'El importe de gastos de otorgamiento es inválido.'}, status=400)
 
             deuda.editar(**kwargs)
 

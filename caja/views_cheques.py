@@ -50,10 +50,10 @@ def _serializar_cheque(c):
         'estado': c.estado,
         'estado_display': c.get_estado_display(),
         'notas': c.notas,
-        'fecha_confirmacion': c.fecha_confirmacion.isoformat() if c.fecha_confirmacion else '',
+        'fecha_confirmacion': timezone.localtime(c.fecha_confirmacion).isoformat() if c.fecha_confirmacion else '',
         'confirmado_por': str(c.confirmado_por) if c.confirmado_por else '',
         'creado_por': str(c.creado_por) if c.creado_por else '',
-        'fecha_alta': c.fecha_alta.isoformat(),
+        'fecha_alta': timezone.localtime(c.fecha_alta).isoformat(),
         # Si nació de una venta/compra/cuota (no cargado a mano), eliminarlo
         # directo borra el historial de esa operación — el frontend usa esto
         # para sugerir "Rechazar" en su lugar antes de confirmar el borrado.

@@ -67,13 +67,13 @@ def comportamiento_pago(cliente):
         .filter(cuenta_por_cobrar__cliente=cliente, estado=EstadoCuota.CONFIRMADA, es_historica=False)
         .exclude(fecha_confirmacion__isnull=True)
     )
-    a_termino = [c for c in confirmadas if c.fecha_confirmacion.date() <= c.fecha_vencimiento]
-    con_atraso = [c for c in confirmadas if c.fecha_confirmacion.date() > c.fecha_vencimiento]
+    a_termino = [c for c in confirmadas if timezone.localtime(c.fecha_confirmacion).date() <= c.fecha_vencimiento]
+    con_atraso = [c for c in confirmadas if timezone.localtime(c.fecha_confirmacion).date() > c.fecha_vencimiento]
     evaluadas = len(a_termino) + len(con_atraso)
 
     pct_a_termino = round(len(a_termino) / evaluadas * 100, 1) if evaluadas else None
     atraso_promedio_dias = (
-        round(sum((c.fecha_confirmacion.date() - c.fecha_vencimiento).days for c in con_atraso) / len(con_atraso), 1)
+        round(sum((timezone.localtime(c.fecha_confirmacion).date() - c.fecha_vencimiento).days for c in con_atraso) / len(con_atraso), 1)
         if con_atraso else 0
     )
 
@@ -190,7 +190,7 @@ def historial_cliente(cliente):
         for cuota in cxc.cuotas.all():
             fechas.append(cuota.fecha_vencimiento)
             if cuota.fecha_confirmacion:
-                fechas.append(cuota.fecha_confirmacion.date())
+                fechas.append(timezone.localtime(cuota.fecha_confirmacion).date())
         eventos.append({
             'fecha': min(fechas),
             'descripcion': f'Deuda cargada: {cxc.descripcion or cxc.numero_comprobante or f"#{cxc.pk}"}',
@@ -210,7 +210,7 @@ def historial_cliente(cliente):
     cobros_cc = {}   # cobro_id -> {fecha, monto}
     for cuota in cuotas:
         cxc = cuota.cuenta_por_cobrar
-        fecha = cuota.fecha_confirmacion.date() if cuota.fecha_confirmacion else cuota.fecha_vencimiento
+        fecha = timezone.localtime(cuota.fecha_confirmacion).date() if cuota.fecha_confirmacion else cuota.fecha_vencimiento
         if cuota.cobro_cuenta_corriente_id:
             acc = cobros_cc.setdefault(
                 cuota.cobro_cuenta_corriente_id, {'fecha': fecha, 'monto': Decimal('0')})

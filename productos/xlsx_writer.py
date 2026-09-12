@@ -21,6 +21,8 @@ import zipfile
 from datetime import date, datetime
 from decimal import Decimal
 
+from django.utils import timezone
+
 # Caracteres de control que XML 1.0 no admite (rompen el archivo en Excel).
 # Se conservan tab (\x09), LF (\x0a) y CR (\x0d).
 _CONTROL_RE = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f]')
@@ -73,6 +75,11 @@ def _valor_para_celda(valor):
         return ('num', repr(valor))
 
     if isinstance(valor, datetime):
+        # Un datetime "aware" (DateTimeField auto_now_add, etc.) llega acá
+        # en UTC — sin convertir a la zona local, la planilla mostraría la
+        # hora de UTC en vez de la de Argentina.
+        if timezone.is_aware(valor):
+            valor = timezone.localtime(valor)
         return ('str', _escapar(valor.strftime('%d/%m/%Y %H:%M')))
     if isinstance(valor, date):
         return ('str', _escapar(valor.strftime('%d/%m/%Y')))

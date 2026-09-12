@@ -166,7 +166,7 @@ def _serializar_pedido(p):
         'oferta_global_nombre': p.oferta_global_nombre,
         'total': str(p.total),
         'cantidad_items': p.items.count(),
-        'fecha_alta': p.fecha_alta.isoformat(),
+        'fecha_alta': timezone.localtime(p.fecha_alta).isoformat(),
         'venta_pk': p.venta_id,
         'wa_link': wa_link_ar(p.contacto_telefono),
     }
@@ -219,6 +219,12 @@ class PedidoVenderAjax(LoginRequiredMixin, View):
             return JsonResponse({'error': 'Sin permiso.'}, status=403)
 
         pedido = get_object_or_404(Pedido, pk=pk)
+
+        if pedido.estado == EstadoPedido.DESCARTADO:
+            return JsonResponse(
+                {'error': 'Este pedido está cancelado — reactivalo primero para poder venderlo.'},
+                status=400,
+            )
 
         if pedido.venta_id and pedido.venta.estado == EstadoVenta.BORRADOR:
             venta = pedido.venta

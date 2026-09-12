@@ -777,6 +777,20 @@ button, input, select, textarea {
 .notif-btn--vender { background: var(--brand-orange); color: #fff; border-color: var(--brand-orange); }
 .notif-btn--vender:hover { background: var(--brand-orange-dark); }
 .notif-item--vendido { opacity: 0.6; }
+.notif-item--descartado { opacity: 0.6; }
+
+/* Botón chico solo-ícono (cancelar/reactivar pedido) — no comparte el
+   flex:1 de los botones de texto, así no les come espacio. */
+.notif-btn--icon {
+    flex: 0 0 auto;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.notif-btn--icon:hover { color: var(--brand-orange); }
 
 .user-dropdown-menu {
     position: absolute;

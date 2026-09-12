@@ -10,6 +10,7 @@ from django.views import View
 from django.http import JsonResponse
 from django.shortcuts import render, get_object_or_404
 from django.db.models import Q
+from django.utils import timezone
 
 from .models import Nota
 from .permisos import chequear_permiso
@@ -55,8 +56,8 @@ class NotasListarAjax(LoginRequiredMixin, View):
                 'es_propia':          es_propia,
                 'creado_por':         _nombre(n.creado_por),
                 'modificado_por':     _nombre(n.modificado_por) if n.modificado_por else '',
-                'fecha_alta':         n.fecha_alta.strftime('%d/%m/%Y %H:%M'),
-                'fecha_modificacion': n.fecha_modificacion.strftime('%d/%m/%Y %H:%M'),
+                'fecha_alta':         timezone.localtime(n.fecha_alta).strftime('%d/%m/%Y %H:%M'),
+                'fecha_modificacion': timezone.localtime(n.fecha_modificacion).strftime('%d/%m/%Y %H:%M'),
                 'puede_editar':       puede_editar and (es_propia or not n.es_privada),
                 'puede_eliminar':     puede_eliminar and (es_propia or not n.es_privada),
             })

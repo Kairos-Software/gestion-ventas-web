@@ -46,7 +46,7 @@ def _serializar_gasto(g):
         'cuenta_pk': g.cuenta_id,
         'cuenta_nombre': g.cuenta.nombre if g.cuenta_id else '',
         'creado_por': str(g.creado_por) if g.creado_por else '',
-        'fecha_alta': g.fecha_alta.isoformat() if hasattr(g.fecha_alta, 'isoformat') else str(g.fecha_alta),
+        'fecha_alta': timezone.localtime(g.fecha_alta).isoformat() if hasattr(g.fecha_alta, 'isoformat') else str(g.fecha_alta),
         # Movimiento de caja diaria (efectivo del cajón de un turno): se
         # carga y se borra desde la pantalla de Caja Diaria, solo con el
         # turno abierto. Acá se muestra pero no se edita/borra.

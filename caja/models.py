@@ -682,7 +682,10 @@ def sincronizar_movimiento_compra(compra):
       aunque sí tienen `cuenta` (la chequera), el egreso real recién
       ocurre cuando se confirma cada Cheque por separado (ver
       sincronizar_movimiento_cheque) — la compra solo deja el cheque
-      cargado como PENDIENTE.
+      cargado como PENDIENTE. Tampoco las de cuenta corriente con el
+      proveedor (medio=CUENTA_CORRIENTE): no tienen `cuenta` (ya las
+      excluye el `.exclude(cuenta__isnull=True)` de abajo), la deuda
+      queda directo con el proveedor sin ningún movimiento de caja.
     - ANULADA: no debe quedar movimiento (se revirtió, no hubo gasto neto).
 
     Se llama desde Compra.confirmar(), Compra.anular(), Compra.reactivar()
@@ -701,7 +704,9 @@ def sincronizar_movimiento_compra(compra):
     pagos_caja = (
         compra.pagos
         .exclude(cuenta__isnull=True)
-        .exclude(medio__in=[MedioPagoCompra.CREDITO, MedioPagoCompra.CHEQUE])
+        .exclude(medio__in=[
+            MedioPagoCompra.CREDITO, MedioPagoCompra.CHEQUE, MedioPagoCompra.CUENTA_CORRIENTE,
+        ])
         .select_related('cuenta')
     )
     for pago in pagos_caja:
@@ -831,7 +836,7 @@ class TurnoCaja(models.Model):
         ]
     
     def __str__(self):
-        return f'Turno #{self.numero} - {self.fecha_apertura:%d/%m/%Y %H:%M}'
+        return f'Turno #{self.numero} - {timezone.localtime(self.fecha_apertura):%d/%m/%Y %H:%M}'
 
     # Medios de pago que NO meten plata real en caja en el momento de la
     # venta: cheque (hasta que se cobra) y cuotas (financiación propia,
@@ -1186,7 +1191,7 @@ class TurnoCaja(models.Model):
                     tipo=TipoMovimientoCaja.EGRESO,
                     monto=monto_inicial_total,
                     moneda=Moneda.ARS,
-                    fecha=turno.fecha_apertura.date(),
+                    fecha=timezone.localtime(turno.fecha_apertura).date(),
                     descripcion=f'Apertura turno #{turno.numero}' + detalle_cajas,
                     referencia=f'Turno #{turno.numero}',
                     origen=OrigenMovimiento.AJUSTE,
@@ -1561,7 +1566,7 @@ class TurnoCaja(models.Model):
                     )
                     siguiente_orden += 1
 
-            fecha_cierre = self.fecha_cierre.date()
+            fecha_cierre = timezone.localtime(self.fecha_cierre).date()
 
             # ── 1. Efectivo: vuelve a caja grande ───────────────────
             # Se acredita el BRUTO del cajón (lo contado + lo que se
@@ -1777,7 +1782,7 @@ class TurnoCaja(models.Model):
             efectivo_revertido=turno.monto_final_efectivo or Decimal('0'),
             era_ultimo_turno=es_ultimo,
             snapshot_previo={
-                'fecha_cierre': turno.fecha_cierre.isoformat() if turno.fecha_cierre else None,
+                'fecha_cierre': timezone.localtime(turno.fecha_cierre).isoformat() if turno.fecha_cierre else None,
                 'cerrado_por': str(turno.cerrado_por) if turno.cerrado_por else None,
                 'monto_final_efectivo': str(turno.monto_final_efectivo or 0),
                 'diferencia_efectivo': str(turno.diferencia_efectivo or 0),
@@ -2493,6 +2498,15 @@ class Deuda(models.Model):
         related_name='deudas_acreditadas',
         help_text='Cuenta que recibe el dinero del préstamo. Solo para prestamo.',
     )
+    descuento_acreditacion = models.DecimalField(
+        max_digits=14, decimal_places=2, default=Decimal('0'),
+        help_text='Solo prestamo: sellado, seguro u otros importes que el banco descuenta '
+                   'antes de depositar. No afecta el capital de la deuda (`monto_original`) '
+                   'ni el cálculo de interés/cuotas, que siguen siendo sobre el monto pedido '
+                   'completo — solo se resta al acreditar (ver `monto_acreditado` y '
+                   'sincronizar_movimiento_deuda). En una deuda de carga inicial no tiene '
+                   'efecto: esa plata ya entró antes de tener registro acá.',
+    )
 
     monto_original     = models.DecimalField(
         max_digits=14, decimal_places=2, null=True, blank=True,
@@ -2592,6 +2606,20 @@ class Deuda(models.Model):
             total=models.Sum('monto'))['total'] or Decimal('0')
 
     @property
+    def monto_acreditado(self):
+        """
+        Solo prestamo: lo que realmente entra a `cuenta_acreditacion`, una
+        vez descontados sellado/seguro/etc. (`descuento_acreditacion`) del
+        monto pedido. El capital de la deuda y el interés/cuotas se siguen
+        calculando sobre `monto_original` completo — esto es solo para
+        saber/mostrar cuánto se deposita de verdad (ver
+        sincronizar_movimiento_deuda). None si no se conoce el capital.
+        """
+        if not self.monto_original:
+            return None
+        return max(self.monto_original - (self.descuento_acreditacion or Decimal('0')), Decimal('0'))
+
+    @property
     def plan_completo(self):
         """
         Solo modo_cuotas=variable: True si ya se cargaron todas las cuotas
@@ -2633,7 +2661,7 @@ class Deuda(models.Model):
                           pago_compra=None, cuenta_tarjeta=None, cuenta_acreditacion=None,
                           creado_por=None, numero_comprobante='', modo_cuotas=ModoCuotas.FIJAS,
                           es_carga_inicial=False, cuotas_historicas=None, abonos_historicos=None,
-                          cuotas_variables=None):
+                          cuotas_variables=None, descuento_acreditacion=None):
         """
         Crea la Deuda.
           - modo_cuotas=FIJAS: genera de una el plan de N cuotas iguales
@@ -2646,7 +2674,9 @@ class Deuda(models.Model):
             calcula (ver `interes_implicito`). Se amplía/corrige después
             con `editar_cuotas_pendientes`.
         Si tipo=PRESTAMO y no es carga inicial, además genera de inmediato
-        el ingreso a `cuenta_acreditacion` (el dinero ya entró).
+        el ingreso a `cuenta_acreditacion` (el dinero ya entró) — por
+        `monto_acreditado` (monto pedido menos `descuento_acreditacion`,
+        ver ese campo), no por `monto_original` completo.
 
         `cuotas_historicas` (solo FIJAS): lista de {'numero': int,
         'fecha_pago': date} para cuotas ya pagadas ANTES de cargar el
@@ -2683,6 +2713,15 @@ class Deuda(models.Model):
             raise ValueError('Elegí la cuenta que recibe el préstamo.')
         if not pago_compra and not descripcion:
             raise ValueError('La descripción es obligatoria cuando la deuda no viene de una compra.')
+
+        descuento_acreditacion = descuento_acreditacion or Decimal('0')
+        if descuento_acreditacion:
+            if tipo != TipoDeuda.PRESTAMO:
+                raise ValueError('El descuento antes de acreditar solo aplica a préstamos.')
+            if descuento_acreditacion < 0:
+                raise ValueError('El descuento antes de acreditar no puede ser negativo.')
+            if monto_original and descuento_acreditacion >= monto_original:
+                raise ValueError('El descuento no puede ser mayor o igual al monto pedido.')
 
         hay_historicos = bool(
             cuotas_historicas or abonos_historicos
@@ -2735,6 +2774,7 @@ class Deuda(models.Model):
         deuda = cls.objects.create(
             tipo=tipo, pago_compra=pago_compra, descripcion=descripcion,
             cuenta_tarjeta=cuenta_tarjeta, cuenta_acreditacion=cuenta_acreditacion,
+            descuento_acreditacion=descuento_acreditacion,
             monto_original=(monto_original or None),
             porcentaje_interes=(porcentaje_interes or Decimal('0')),
             moneda=moneda, modo_cuotas=modo_cuotas, cantidad_cuotas=cantidad_cuotas,
@@ -2986,13 +3026,17 @@ class Deuda(models.Model):
     @transaction.atomic
     def editar(self, *, descripcion=None, notas=None, numero_comprobante=None,
                monto_original=None, porcentaje_interes=None, cantidad_cuotas=None,
-               fecha_inicio=None, moneda=None, cuenta_tarjeta=None, cuenta_acreditacion=None):
+               fecha_inicio=None, moneda=None, cuenta_tarjeta=None, cuenta_acreditacion=None,
+               descuento_acreditacion=None):
         """
         Edita una deuda existente. `notas` se puede tocar siempre. El
         resto (todo lo que define el plan de pago: monto, interés, cuotas,
         fecha, moneda, cuenta) solo se puede tocar si TODAVÍA no se
         confirmó ninguna cuota — ni real ni histórica —, porque cambiar
         esos datos después desalinearía lo que ya se registró.
+        `descuento_acreditacion` es la excepción: no forma parte del plan
+        de pago (no cambia capital, interés ni cronograma), así que se
+        puede tocar siempre — solo ajusta cuánto se acreditó/acredita.
 
         Si la deuda nació de una compra real (`pago_compra`): NADA de esto
         es editable acá salvo las notas — la descripción y el N° de
@@ -3006,6 +3050,7 @@ class Deuda(models.Model):
             campos_bloqueados = any(v is not None for v in (
                 descripcion, numero_comprobante, monto_original, porcentaje_interes,
                 cantidad_cuotas, fecha_inicio, moneda, cuenta_tarjeta, cuenta_acreditacion,
+                descuento_acreditacion,
             ))
             if campos_bloqueados:
                 raise ValueError(
@@ -3023,6 +3068,7 @@ class Deuda(models.Model):
                 monto_original=monto_original, porcentaje_interes=porcentaje_interes,
                 cantidad_cuotas=cantidad_cuotas, fecha_inicio=fecha_inicio, moneda=moneda,
                 cuenta_tarjeta=cuenta_tarjeta, cuenta_acreditacion=cuenta_acreditacion,
+                descuento_acreditacion=descuento_acreditacion,
             )
 
         toca_plan = any(v is not None for v in (
@@ -3057,6 +3103,16 @@ class Deuda(models.Model):
             self.notas = notas
         if numero_comprobante is not None:
             self.numero_comprobante = numero_comprobante
+
+        if descuento_acreditacion is not None:
+            if self.tipo != TipoDeuda.PRESTAMO:
+                raise ValueError('El descuento antes de acreditar solo aplica a préstamos.')
+            if descuento_acreditacion < 0:
+                raise ValueError('El descuento antes de acreditar no puede ser negativo.')
+            monto_ref = monto_original if monto_original is not None else self.monto_original
+            if monto_ref and descuento_acreditacion >= monto_ref:
+                raise ValueError('El descuento no puede ser mayor o igual al monto pedido.')
+            self.descuento_acreditacion = descuento_acreditacion
 
         if toca_plan:
             if monto_original is not None:
@@ -3109,11 +3165,18 @@ class Deuda(models.Model):
                     sincronizar_movimiento_deuda(self)
             else:
                 sincronizar_movimiento_deuda_tarjeta(self)
+        elif descuento_acreditacion is not None and not self.es_carga_inicial:
+            # No se tocó el plan, pero sí el descuento — el movimiento de
+            # acreditación ya generado tiene que reflejar el monto neto
+            # nuevo (sincronizar_movimiento_deuda es idempotente: ajusta
+            # el mismo movimiento en vez de duplicarlo).
+            sincronizar_movimiento_deuda(self)
 
     @transaction.atomic
     def _editar_variable(self, *, descripcion=None, notas=None, numero_comprobante=None,
                          monto_original=None, porcentaje_interes=None, cantidad_cuotas=None,
-                         fecha_inicio=None, moneda=None, cuenta_tarjeta=None, cuenta_acreditacion=None):
+                         fecha_inicio=None, moneda=None, cuenta_tarjeta=None, cuenta_acreditacion=None,
+                         descuento_acreditacion=None):
         """
         Edición de una deuda modo_cuotas=variable. A diferencia de
         fijas/libre:
@@ -3124,7 +3187,9 @@ class Deuda(models.Model):
             registrado;
           - el interés no se acepta (se calcula, ver `interes_implicito`)
             y la fecha de inicio tampoco (sale de la cuota más temprana);
-          - la moneda y la cuenta solo si no hay ninguna cuota confirmada.
+          - la moneda y la cuenta solo si no hay ninguna cuota confirmada;
+          - `descuento_acreditacion` (solo préstamo) se puede corregir
+            siempre, igual que el capital — no es parte del cronograma.
         Las cuotas en sí se agregan/editan/quitan con `editar_cuotas_pendientes`.
         """
         if self.estado != EstadoDeuda.ACTIVA:
@@ -3175,6 +3240,15 @@ class Deuda(models.Model):
                     and not self.es_carga_inicial):
                 raise ValueError('Sin capital no se puede acreditar el ingreso del préstamo.')
             self.monto_original = monto_original
+
+        if descuento_acreditacion is not None:
+            if self.tipo != TipoDeuda.PRESTAMO:
+                raise ValueError('El descuento antes de acreditar solo aplica a préstamos.')
+            if descuento_acreditacion < 0:
+                raise ValueError('El descuento antes de acreditar no puede ser negativo.')
+            if self.monto_original and descuento_acreditacion >= self.monto_original:
+                raise ValueError('El descuento no puede ser mayor o igual al monto pedido.')
+            self.descuento_acreditacion = descuento_acreditacion
 
         self.save()
 
@@ -3866,29 +3940,38 @@ def sincronizar_movimiento_deuda(deuda):
     # es_carga_inicial: esa plata entró antes de usar el sistema, no hay
     # ingreso que registrar hoy. modo_cuotas=variable puede además no
     # tener capital cargado todavía (no se sabe cuánto se pidió) — sin
-    # monto no se puede acreditar nada.
+    # monto no se puede acreditar nada. Se acredita `monto_acreditado`
+    # (monto pedido menos sellado/seguro/etc. — ver `descuento_acreditacion`),
+    # no `monto_original`: eso solo cambia cuánto entra a la cuenta, el
+    # capital de la deuda y sus cuotas siguen siendo por el monto pedido.
+    monto_acreditado = deuda.monto_acreditado
     if (deuda.tipo != TipoDeuda.PRESTAMO or deuda.estado != EstadoDeuda.ACTIVA
-            or deuda.es_carga_inicial or not deuda.monto_original):
+            or deuda.es_carga_inicial or not monto_acreditado):
         if movimiento:
             movimiento.delete()
         return
 
     concepto = _concepto_default('Préstamo recibido', TipoMovimientoCaja.INGRESO)
+    nota_descuento = (
+        f' (neto — se descontaron {deuda.descuento_acreditacion} de sellado/seguro/etc.)'
+        if deuda.descuento_acreditacion else ''
+    )
+    descripcion = f'Préstamo — {deuda.descripcion}{nota_descuento}'
 
     if movimiento:
         movimiento.cuenta = deuda.cuenta_acreditacion
         movimiento.concepto = concepto
         movimiento.tipo = TipoMovimientoCaja.INGRESO
-        movimiento.monto = deuda.monto_original
+        movimiento.monto = monto_acreditado
         movimiento.moneda = deuda.moneda
-        movimiento.fecha = deuda.fecha_alta.date()
-        movimiento.descripcion = f'Préstamo — {deuda.descripcion}'
+        movimiento.fecha = timezone.localtime(deuda.fecha_alta).date()
+        movimiento.descripcion = descripcion
         movimiento.save()
     else:
         MovimientoCaja.objects.create(
             caja=TipoCaja.GRANDE, cuenta=deuda.cuenta_acreditacion, concepto=concepto,
-            tipo=TipoMovimientoCaja.INGRESO, monto=deuda.monto_original, moneda=deuda.moneda,
-            fecha=deuda.fecha_alta.date(), descripcion=f'Préstamo — {deuda.descripcion}',
+            tipo=TipoMovimientoCaja.INGRESO, monto=monto_acreditado, moneda=deuda.moneda,
+            fecha=timezone.localtime(deuda.fecha_alta).date(), descripcion=descripcion,
             referencia=f'Deuda #{deuda.pk}', origen=OrigenMovimiento.DEUDA,
             origen_app='caja', origen_id=deuda.pk, creado_por=deuda.creado_por,
         )
@@ -3946,14 +4029,14 @@ def sincronizar_movimiento_cuota(cuota):
             movimiento.tipo = TipoMovimientoCaja.EGRESO
             movimiento.monto = pago.monto
             movimiento.moneda = deuda.moneda
-            movimiento.fecha = cuota.fecha_confirmacion.date()
+            movimiento.fecha = timezone.localtime(cuota.fecha_confirmacion).date()
             movimiento.descripcion = descripcion
             movimiento.save()
         else:
             MovimientoCaja.objects.create(
                 caja=TipoCaja.GRANDE, cuenta=pago.cuenta, concepto=concepto,
                 tipo=TipoMovimientoCaja.EGRESO, monto=pago.monto, moneda=deuda.moneda,
-                fecha=cuota.fecha_confirmacion.date(), descripcion=descripcion,
+                fecha=timezone.localtime(cuota.fecha_confirmacion).date(), descripcion=descripcion,
                 referencia=f'Deuda #{deuda.pk}', origen=OrigenMovimiento.CUOTA_DEUDA,
                 origen_app='caja', origen_id=pago.pk, creado_por=cuota.confirmado_por,
             )
@@ -3990,14 +4073,14 @@ def sincronizar_movimiento_deuda_tarjeta(deuda):
         movimiento.tipo = TipoMovimientoCaja.EGRESO
         movimiento.monto = deuda.monto_original
         movimiento.moneda = deuda.moneda
-        movimiento.fecha = deuda.fecha_alta.date()
+        movimiento.fecha = timezone.localtime(deuda.fecha_alta).date()
         movimiento.descripcion = descripcion
         movimiento.save()
     else:
         MovimientoCaja.objects.create(
             caja=TipoCaja.GRANDE, cuenta=deuda.cuenta_tarjeta, concepto=concepto,
             tipo=TipoMovimientoCaja.EGRESO, monto=deuda.monto_original, moneda=deuda.moneda,
-            fecha=deuda.fecha_alta.date(), descripcion=descripcion,
+            fecha=timezone.localtime(deuda.fecha_alta).date(), descripcion=descripcion,
             referencia=f'Deuda #{deuda.pk}', origen=OrigenMovimiento.DEUDA_TARJETA,
             origen_app='caja', origen_id=deuda.pk, creado_por=deuda.creado_por,
         )
@@ -4033,14 +4116,14 @@ def sincronizar_movimiento_cuota_tarjeta(cuota):
         movimiento.tipo = TipoMovimientoCaja.INGRESO
         movimiento.monto = cuota.monto_capital
         movimiento.moneda = deuda.moneda
-        movimiento.fecha = cuota.fecha_confirmacion.date()
+        movimiento.fecha = timezone.localtime(cuota.fecha_confirmacion).date()
         movimiento.descripcion = descripcion
         movimiento.save()
     else:
         MovimientoCaja.objects.create(
             caja=TipoCaja.GRANDE, cuenta=deuda.cuenta_tarjeta, concepto=concepto,
             tipo=TipoMovimientoCaja.INGRESO, monto=cuota.monto_capital, moneda=deuda.moneda,
-            fecha=cuota.fecha_confirmacion.date(), descripcion=descripcion,
+            fecha=timezone.localtime(cuota.fecha_confirmacion).date(), descripcion=descripcion,
             referencia=f'Deuda #{deuda.pk}', origen=OrigenMovimiento.CUOTA_DEUDA_TARJETA,
             origen_app='caja', origen_id=cuota.pk, creado_por=cuota.confirmado_por,
         )
@@ -4785,14 +4868,14 @@ def sincronizar_movimiento_cuota_cobro(cuota):
         movimiento.tipo = TipoMovimientoCaja.INGRESO
         movimiento.monto = cuota.monto
         movimiento.moneda = cxc.moneda
-        movimiento.fecha = cuota.fecha_confirmacion.date()
+        movimiento.fecha = timezone.localtime(cuota.fecha_confirmacion).date()
         movimiento.descripcion = descripcion
         movimiento.save()
     else:
         MovimientoCaja.objects.create(
             caja=TipoCaja.GRANDE, cuenta=cuota.cuenta_cobro, concepto=concepto,
             tipo=TipoMovimientoCaja.INGRESO, monto=cuota.monto, moneda=cxc.moneda,
-            fecha=cuota.fecha_confirmacion.date(), descripcion=descripcion,
+            fecha=timezone.localtime(cuota.fecha_confirmacion).date(), descripcion=descripcion,
             referencia=f'Cuenta por cobrar #{cxc.pk}', origen=OrigenMovimiento.CUOTA_COBRO,
             origen_app='caja', origen_id=cuota.pk, creado_por=cuota.confirmado_por,
         )
@@ -5394,14 +5477,14 @@ def sincronizar_movimiento_cheque(cheque):
         movimiento.tipo = tipo_mov
         movimiento.monto = cheque.monto
         movimiento.moneda = cheque.moneda
-        movimiento.fecha = cheque.fecha_confirmacion.date()
+        movimiento.fecha = timezone.localtime(cheque.fecha_confirmacion).date()
         movimiento.descripcion = descripcion
         movimiento.save()
     else:
         MovimientoCaja.objects.create(
             caja=TipoCaja.GRANDE, cuenta=cuenta, concepto=concepto,
             tipo=tipo_mov, monto=cheque.monto, moneda=cheque.moneda,
-            fecha=cheque.fecha_confirmacion.date(), descripcion=descripcion,
+            fecha=timezone.localtime(cheque.fecha_confirmacion).date(), descripcion=descripcion,
             referencia=f'Cheque #{cheque.pk}', origen=OrigenMovimiento.CHEQUE,
             origen_app='caja', origen_id=cheque.pk, creado_por=cheque.confirmado_por,
         )
@@ -5488,7 +5571,7 @@ def _crear_cheque_historico(deuda, cuota, datos, usuario):
     # fijas puede no coincidir con la fecha real en que se pagó) —
     # fecha_confirmacion sí es la fecha real de pago que se cargó, ya
     # seteada por _aplicar_pago_historico antes de llamar acá.
-    fecha_cobro = cuota.fecha_confirmacion.date()
+    fecha_cobro = timezone.localtime(cuota.fecha_confirmacion).date()
 
     origen_desc = deuda.pago_compra.compra.numero if deuda.pago_compra_id else f'Deuda #{deuda.pk}'
     numero_factura = deuda.numero_comprobante or origen_desc
@@ -5546,7 +5629,7 @@ def _crear_cheque_historico_cobro(cxc, cuota, datos, usuario):
     # fijas puede no coincidir con la fecha real en que se cobró) —
     # fecha_confirmacion sí es la fecha real de cobro que se cargó, ya
     # seteada por _aplicar_pago_historico antes de llamar acá.
-    fecha_cobro = cuota.fecha_confirmacion.date()
+    fecha_cobro = timezone.localtime(cuota.fecha_confirmacion).date()
 
     origen_desc = cxc.pago_venta.venta.numero if cxc.pago_venta_id else f'Cuenta por cobrar #{cxc.pk}'
     numero_factura = cxc.numero_comprobante or origen_desc

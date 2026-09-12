@@ -1767,6 +1767,38 @@
     grid-template-columns: minmax(220px, 0.35fr) 1fr;
 }
 
+/* En préstamos, los dos importes principales forman una pareja simétrica.
+   El costo financiero y el calendario quedan ordenados debajo. */
+.deudas-cost-grid:has(#campoDescuentoAcreditacion:not([hidden])) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.deudas-loan-amounts {
+    display: contents;
+}
+
+.deudas-cost-grid:has(#campoDescuentoAcreditacion:not([hidden])) .deudas-loan-amounts {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 0.7rem;
+}
+
+.deudas-cost-grid:has(#campoDescuentoAcreditacion:not([hidden])) .deudas-loan-amounts > .form-campo {
+    min-width: 0;
+    margin-bottom: 0;
+}
+
+.deudas-cost-grid:has(#campoDescuentoAcreditacion:not([hidden])) .deudas-loan-amounts > .form-campo > label {
+    min-height: 1.25rem;
+    margin: 0;
+}
+
+.deudas-cost-grid:has(#campoDescuentoAcreditacion:not([hidden])):not(:has(#gridPlanFijo:not([hidden]))) #bloqueInteres {
+    grid-column: 1 / -1;
+}
+
 .deudas-money-input {
     display: flex;
     align-items: center;
@@ -1903,8 +1935,13 @@
     #modalDeuda .deudas-tipo-toggle { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .deudas-cost-grid,
     .deudas-cost-grid:not(:has(#gridPlanFijo:not([hidden]))),
-    .deudas-cost-grid:has(#bloqueInteres[hidden]) { grid-template-columns: 1fr; }
+    .deudas-cost-grid:has(#bloqueInteres[hidden]),
+    .deudas-cost-grid:has(#campoDescuentoAcreditacion:not([hidden])) { grid-template-columns: 1fr; }
     .deudas-cost-grid #gridPlanFijo { grid-column: auto; }
+    .deudas-cost-grid:has(#campoDescuentoAcreditacion:not([hidden])) #bloqueInteres { grid-column: auto; }
+    .deudas-cost-grid:has(#campoDescuentoAcreditacion:not([hidden])) .deudas-loan-amounts {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (max-width: 640px) {
@@ -1968,6 +2005,12 @@
 .deudas-modal-icon--detail {
     color: var(--success, #059669);
     background: rgba(16, 185, 129, 0.11);
+}
+
+/* La regla global de controles compactos no debe agrandar los íconos de
+   ayuda: si uno se estira, desplaza únicamente el campo que lo contiene. */
+#modalDeuda .kai-help-btn {
+    min-height: 15px;
 }
 
 #detalleSubtitle {

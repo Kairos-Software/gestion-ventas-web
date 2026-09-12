@@ -15,6 +15,7 @@ from decimal import Decimal
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Q, Sum
+from django.utils import timezone
 
 from productos.models import Producto, MovimientoStock
 from compras.models import LoteCompra, ItemCompra, Fraccionamiento
@@ -135,7 +136,7 @@ class Command(BaseCommand):
         for m in movs:
             signo = '+' if m.es_entrada else '-'
             quien = getattr(m.usuario, 'username', None) or '-'
-            w(f'   {m.fecha:%d/%m/%Y %H:%M}  {m.get_tipo_display():24}  '
+            w(f'   {timezone.localtime(m.fecha):%d/%m/%Y %H:%M}  {m.get_tipo_display():24}  '
               f'{signo}{_dec(m.cantidad):>10}   {_dec(m.stock_anterior)} -> {_dec(m.stock_posterior)}   '
               f'por {quien}')
             if m.motivo or m.referencia:

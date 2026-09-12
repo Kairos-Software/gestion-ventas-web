@@ -133,6 +133,14 @@ function _cdtEsTarjeta(cuentaPk) {
     return _cdtTarjetasDisponibles().some(t => String(t.pk) === String(cuentaPk));
 }
 
+/** Opción sentinel (no es el pk de ninguna CuentaCaja real): la compra
+ *  queda a deber directo con el proveedor, sin tarjeta ni cuenta real
+ *  involucrada — ver MedioPagoCompra.CUENTA_CORRIENTE en el backend. */
+const CDT_CUENTA_CORRIENTE = 'cuenta_corriente';
+function _cdtEsCuentaCorriente(cuentaPk) {
+    return cuentaPk === CDT_CUENTA_CORRIENTE;
+}
+
 /** Plata que se termina pagando de más sobre el costo de los productos:
  *  el interés de una línea con tarjeta (compra a crédito) o con cheque
  *  a cuotas, sea modo fijas o libre. Compras no tiene recargo por medio
@@ -173,12 +181,13 @@ function _cdtLineaEsCheque(l) {
     return _cdtCuentaEsBanco(l.cuenta) && !!l.esCheque;
 }
 
-/** Tarjeta (crédito) y cheque comparten el mismo plan de pago: cuotas
- *  fijas o libres + interés opcional. El cheque real de cada cuota se
- *  carga después, desde el detalle de la Deuda en Créditos y préstamos
- *  — acá solo se define el plan. */
+/** Tarjeta (crédito), cheque y cuenta corriente con el proveedor
+ *  comparten el mismo plan de pago: cuotas fijas o libres + interés
+ *  opcional. El cheque real de cada cuota se carga después, desde el
+ *  detalle de la Deuda en Créditos y préstamos — acá solo se define
+ *  el plan. */
 function _cdtLineaUsaPlanCuotas(l) {
-    return _cdtEsTarjeta(l.cuenta) || _cdtLineaEsCheque(l);
+    return _cdtEsTarjeta(l.cuenta) || _cdtLineaEsCheque(l) || _cdtEsCuentaCorriente(l.cuenta);
 }
 
 /** Cuenta o tarjeta elegida en una línea (ambas listas juntas). */
@@ -233,7 +242,14 @@ function _cdtPagoCuentaOpts(seleccionada) {
     const tarjetasOpts = tarjetas.length ? `<optgroup label="Tarjeta de crédito">${tarjetas.map(t =>
         `<option value="${t.pk}" ${String(t.pk) === String(seleccionada) ? 'selected' : ''}>${t.nombre}${t.titular ? ' · ' + t.titular : ''}${t.terminada_en ? ' ·· ' + t.terminada_en : ''} (${t.moneda})</option>`
     ).join('')}</optgroup>` : '';
-    return '<option value="">— Elegí cuenta o Efectivo —</option>' + otrasOpts + bancosOpts + tarjetasOpts;
+    // Sin cuenta real: la compra queda a deber directo con el
+    // proveedor (Deuda tipo "Otra deuda", cuotas fijas o libres) —
+    // ver CDT_CUENTA_CORRIENTE.
+    const ccSelected = _cdtEsCuentaCorriente(seleccionada) ? 'selected' : '';
+    const cuentaCorrienteOpts = `<optgroup label="Sin cuenta — queda a deber">
+        <option value="${CDT_CUENTA_CORRIENTE}" ${ccSelected}>Cuenta corriente con el proveedor (a pagar después)</option>
+    </optgroup>`;
+    return '<option value="">— Elegí cuenta o Efectivo —</option>' + otrasOpts + bancosOpts + tarjetasOpts + cuentaCorrienteOpts;
 }
 
 function _cdtPagoRenderLineas() {
@@ -251,7 +267,8 @@ function _cdtPagoRenderLineas() {
 
     contenedor.innerHTML = cdtPagoState.lineas.map(l => {
         const esTarjeta = _cdtEsTarjeta(l.cuenta);
-        const puedeCheque = !esTarjeta && _cdtCuentaEsBanco(l.cuenta);
+        const esCC = _cdtEsCuentaCorriente(l.cuenta);
+        const puedeCheque = !esTarjeta && !esCC && _cdtCuentaEsBanco(l.cuenta);
         const esCheque = _cdtLineaEsCheque(l);
         const usaPlanCuotas = _cdtLineaUsaPlanCuotas(l);
         return `
@@ -270,7 +287,7 @@ function _cdtPagoRenderLineas() {
                 </svg>
             </button>
         </div>
-        ${!esTarjeta ? `
+        ${!esTarjeta && !esCC ? `
         <label class="vdt-cheque-toggle${puedeCheque ? '' : ' vdt-cheque-toggle--disabled'}">
             <input type="checkbox" data-campo="esCheque" data-id="${l.id}" ${l.esCheque ? 'checked' : ''} ${puedeCheque ? '' : 'disabled'}>
             Pagar con cheque (en vez de transferencia)
@@ -291,6 +308,9 @@ function _cdtPagoRenderLineas() {
         </label>
         ${esCheque ? `<p class="vdt-cheque-plan-nota">Acá se define el plan de cuotas. Los cheques reales de cada
             cuota se cargan después, desde el detalle de esta deuda en Créditos y préstamos.</p>` : ''}
+        ${esCC ? `<p class="vdt-cheque-plan-nota">Esta compra no impacta la caja ahora: queda registrada como
+            deuda con el proveedor. Se va pagando después, desde Créditos y préstamos, con cualquier cuenta
+            real o cheque.</p>` : ''}
         <div class="vdt-pago-credito-extra">
             ${l.modoCuotas === 'libre' ? '' : `
             <div>
@@ -309,7 +329,7 @@ function _cdtPagoRenderLineas() {
                 <strong>${_cdtFmtARS((l.monto || 0) * (1 + (l.interesPct || 0) / 100))}</strong>
             </div>` : `
             <div>
-                <span class="vdt-pago-credito-label">${esCheque ? 'Fecha de la 1° cuota' : 'Inicio débito'}</span>
+                <span class="vdt-pago-credito-label">${esCheque ? 'Fecha de la 1° cuota' : esCC ? 'Vencimiento de la 1° cuota' : 'Inicio débito'}</span>
                 <input type="date" class="vdt-pago-select"
                        value="${l.fechaInicioDebito || ''}" data-campo="fechaInicioDebito" data-id="${l.id}">
             </div>`}
@@ -531,6 +551,20 @@ function _cdtGetPagoPayload() {
                 monto: l.monto,
                 cuenta_pk: l.cuenta || null,
                 cotizacion: l.cotizacion || null,
+                modo_cuotas: l.modoCuotas === 'libre' ? 'libre' : 'fijas',
+                cuotas: l.modoCuotas === 'libre' ? null : l.cuotas,
+                interes_pct: l.interesPct != null ? l.interesPct : 0,
+                fecha_inicio_debito: l.modoCuotas === 'libre' ? null : (l.fechaInicioDebito || null),
+            };
+        }
+        if (_cdtEsCuentaCorriente(l.cuenta)) {
+            // Sin cuenta real: la deuda queda directo con el proveedor
+            // (Deuda tipo "Otra deuda") — ver MedioPagoCompra.CUENTA_CORRIENTE.
+            return {
+                medio: 'cuenta_corriente',
+                monto: l.monto,
+                cuenta_pk: null,
+                cotizacion: null,
                 modo_cuotas: l.modoCuotas === 'libre' ? 'libre' : 'fijas',
                 cuotas: l.modoCuotas === 'libre' ? null : l.cuotas,
                 interes_pct: l.interesPct != null ? l.interesPct : 0,

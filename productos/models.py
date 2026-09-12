@@ -1410,7 +1410,7 @@ class MovimientoStock(models.Model):
         signo = '+' if self.tipo in MOVIMIENTOS_ENTRADA else '-'
         return (
             f'{self.producto.codigo} | {signo}{self.cantidad} | '
-            f'{self.get_tipo_display()} | {self.fecha:%d/%m/%Y}'
+            f'{self.get_tipo_display()} | {timezone.localtime(self.fecha):%d/%m/%Y}'
         )
 
     @property

@@ -87,8 +87,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const dMoneda = document.getElementById('dMoneda');
     const dCuentaTarjeta = document.getElementById('dCuentaTarjeta');
     const dCuentaAcreditacion = document.getElementById('dCuentaAcreditacion');
+    const dDescuentoAcreditacion = document.getElementById('dDescuentoAcreditacion');
     const campoTarjeta = document.getElementById('campoTarjeta');
     const campoAcreditacion = document.getElementById('campoAcreditacion');
+    const campoDescuentoAcreditacion = document.getElementById('campoDescuentoAcreditacion');
+    const montoAcreditadoHint = document.getElementById('montoAcreditadoHint');
     const botonesTipo = document.querySelectorAll('.deudas-tipo-btn[data-tipo]');
     const dCargaInicial = document.getElementById('dCargaInicial');
     const deudasCuotasHistoricas = document.getElementById('deudasCuotasHistoricas');
@@ -162,6 +165,15 @@ document.addEventListener('DOMContentLoaded', function () {
         otro: 'Cualquier otra cosa que debas y pagues en cuotas (una compra sin tarjeta, un servicio…).',
     };
     const dTipoHint = document.getElementById('dTipoHint');
+    function actualizarEtiquetaMonto() {
+        if (!dMontoLabel) return;
+        const variable = dModoCuotas?.value === 'variable';
+        if (dTipo.value === 'prestamo') {
+            dMontoLabel.textContent = variable ? 'Monto del préstamo / capital' : 'Monto del préstamo *';
+        } else {
+            dMontoLabel.textContent = variable ? 'Capital / cuánto se pidió' : 'Monto *';
+        }
+    }
     function setTipo(tipo) {
         dTipo.value = tipo;
         botonesTipo.forEach(btn => {
@@ -173,12 +185,31 @@ document.addEventListener('DOMContentLoaded', function () {
         // Cheque y "otra deuda" no: cada cuota se paga sola después.
         campoTarjeta.hidden = tipo !== 'compra_credito';
         campoAcreditacion.hidden = tipo !== 'prestamo';
+        if (campoDescuentoAcreditacion) campoDescuentoAcreditacion.hidden = tipo !== 'prestamo';
         if (dTipoHint) dTipoHint.textContent = HINT_TIPO[tipo] || '';
+        actualizarEtiquetaMonto();
         poblarSelectsCuentas();
+        actualizarMontoAcreditadoHint();
     }
     botonesTipo.forEach(btn => {
         btn.addEventListener('click', () => setTipo(btn.dataset.tipo));
     });
+
+    // Cuánto entra de verdad a la cuenta elegida (capital pedido menos
+    // sellado/seguro/etc.) — solo informativo, el cálculo real lo hace
+    // el modelo (Deuda.monto_acreditado).
+    function actualizarMontoAcreditadoHint() {
+        if (!montoAcreditadoHint) return;
+        if (dTipo.value !== 'prestamo') { montoAcreditadoHint.textContent = ''; return; }
+        const capital = parseFloat(dMonto.value) || 0;
+        const descuento = parseFloat(dDescuentoAcreditacion?.value) || 0;
+        if (!capital || !descuento) { montoAcreditadoHint.textContent = ''; return; }
+        const neto = capital - descuento;
+        montoAcreditadoHint.textContent = neto > 0
+            ? `Se van a acreditar ${fmtMoneda(neto, dMoneda.value)}.`
+            : 'Los gastos no pueden ser mayores o iguales al monto solicitado.';
+    }
+    [dMonto, dDescuentoAcreditacion].forEach(el => el?.addEventListener('input', actualizarMontoAcreditadoHint));
 
     function poblarSelectsCuentas(tarjetaPk, acreditacionPk) {
         poblarSelect(dCuentaTarjeta, cuentasPorMoneda(dMoneda.value, true), tarjetaPk);
@@ -189,6 +220,7 @@ document.addEventListener('DOMContentLoaded', function () {
     dMoneda?.addEventListener('change', () => {
         poblarSelectsCuentas();
         recalcularInteres();
+        actualizarMontoAcreditadoHint();
     });
 
     // ── Modo de plan: fijas / variables / libres ─────────────────────
@@ -290,7 +322,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // El capital es obligatorio salvo en cuotas variables.
         dMonto.required = !variable;
-        dMontoLabel.textContent = variable ? 'Capital / cuánto se pidió' : 'Monto *';
+        actualizarEtiquetaMonto();
         // El "?" de "no sé este monto" solo tiene sentido (y solo se muestra) en variable.
         if (dMontoHintBtn) dMontoHintBtn.hidden = !variable;
         dMontoHint.classList.remove('is-visible');
@@ -1041,6 +1073,10 @@ document.addEventListener('DOMContentLoaded', function () {
             dCuotas.value = d.cantidad_cuotas || '';
             dFechaInicio.value = d.fecha_inicio || today;
         }
+        if (dDescuentoAcreditacion) {
+            dDescuentoAcreditacion.value = parseFloat(d.descuento_acreditacion) > 0 ? d.descuento_acreditacion : '';
+        }
+        actualizarMontoAcreditadoHint();
 
         aplicarBloqueosEdicion(d);
         renderizarCuotasEdicion(d);
@@ -1104,6 +1140,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (dTipo.value === 'compra_credito' && !dCuentaTarjeta.disabled) payload.cuenta_tarjeta_pk = dCuentaTarjeta.value;
         if (dTipo.value === 'prestamo' && !dCuentaAcreditacion.disabled) payload.cuenta_acreditacion_pk = dCuentaAcreditacion.value;
+        if (dTipo.value === 'prestamo' && dDescuentoAcreditacion) payload.descuento_acreditacion = dDescuentoAcreditacion.value;
 
         btnGuardarDeuda.disabled = true;
         try {
@@ -1241,6 +1278,9 @@ document.addEventListener('DOMContentLoaded', function () {
             ? (d.cuenta_tarjeta_nombre || '-')
             : (d.cuenta_acreditacion_nombre || '-');
         const esVariable = d.modo_cuotas === 'variable';
+        // Sellado/seguro/etc.: solo tiene sentido mostrarlo si es un
+        // préstamo con algo cargado ahí (ver Deuda.monto_acreditado).
+        const mostrarDescuento = d.tipo === 'prestamo' && parseFloat(d.descuento_acreditacion || 0) > 0;
 
         const item = (label, valor, wide, highlight) => `<div class="deudas-resumen-item${wide ? ' deudas-resumen-item--wide' : ''}${highlight ? ' deudas-resumen-item--highlight' : ''}"><span class="deudas-resumen-label">${label}</span><div class="deudas-resumen-value">${valor}</div></div>`;
         const totalNum = parseFloat(d.monto_total) || 0;
@@ -1295,6 +1335,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     ${item('Descripción', d.descripcion || '-', true)}
                     ${item('N° de comprobante', d.numero_comprobante || '-')}
                     ${tieneCuentaPropia ? item(cuentaLabel, cuentaValor) : ''}
+                    ${mostrarDescuento ? item('Gastos de otorgamiento', fmtMoneda(d.descuento_acreditacion, d.moneda)) : ''}
+                    ${mostrarDescuento ? item('Monto acreditado', d.monto_acreditado ? fmtMoneda(d.monto_acreditado, d.moneda) : '—') : ''}
                     ${item('Moneda', d.moneda)}
                     ${item('Capital', d.capital_conocido ? fmtMoneda(d.monto_original, d.moneda) : '<span class="deudas-resumen-muted">sin especificar</span>')}
                     ${item('Plan total de cuotas', d.cantidad_cuotas || '—')}
@@ -1311,6 +1353,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 ${item('Descripción', d.descripcion || d.compra_numero || '-', true)}
                 ${item('N° de comprobante', d.numero_comprobante || '-')}
                 ${tieneCuentaPropia ? item(cuentaLabel, cuentaValor) : ''}
+                ${mostrarDescuento ? item('Gastos de otorgamiento', fmtMoneda(d.descuento_acreditacion, d.moneda)) : ''}
+                ${mostrarDescuento ? item('Monto acreditado', d.monto_acreditado ? fmtMoneda(d.monto_acreditado, d.moneda) : '—') : ''}
                 ${item('Moneda', d.moneda)}
                 ${item('Monto original', fmtMoneda(d.monto_original, d.moneda))}
                 ${item('Interés %', `${d.porcentaje_interes}%`)}

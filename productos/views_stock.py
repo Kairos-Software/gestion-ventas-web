@@ -134,7 +134,7 @@ class StockHistorialAjax(LoginRequiredMixin, View):
                     'motivo':          m.motivo,
                     'referencia':      m.referencia,
                     'usuario':         (m.usuario.get_full_name() or m.usuario.username) if m.usuario else '—',
-                    'fecha':           m.fecha.strftime('%d/%m/%Y %H:%M'),
+                    'fecha':           timezone.localtime(m.fecha).strftime('%d/%m/%Y %H:%M'),
                 }
                 for m in pag
             ],

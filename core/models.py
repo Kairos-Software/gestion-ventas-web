@@ -433,7 +433,7 @@ class CodigoRecuperacionPassword(models.Model):
         ordering = ['-creado']
 
     def __str__(self):
-        return f'{self.usuario.username} · {self.creado:%d/%m/%Y %H:%M}'
+        return f'{self.usuario.username} · {timezone.localtime(self.creado):%d/%m/%Y %H:%M}'
 
     def expirado(self):
         limite = self.creado + timezone.timedelta(minutes=VIGENCIA_CODIGO_RECUPERACION)

@@ -1199,7 +1199,7 @@ class VentaDocumentoSubirAjax(LoginRequiredMixin, View):
                 'descripcion': doc.descripcion,
                 'es_imagen':   doc.es_imagen,
                 'es_pdf':      doc.es_pdf,
-                'subido_el':   doc.subido_el.strftime('%d/%m/%Y %H:%M'),
+                'subido_el':   timezone.localtime(doc.subido_el).strftime('%d/%m/%Y %H:%M'),
             },
         })
 

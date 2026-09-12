@@ -90,6 +90,12 @@ class EliminarCompraAjax(LoginRequiredMixin, View):
 
         try:
             compra.delete()
+        except ValueError as e:
+            # Rechazo esperado (ej: la Deuda ligada ya tiene cuotas
+            # confirmadas, o hay un cheque pendiente/cobrado sin resolver)
+            # — es una validación de negocio, no una falla del servidor.
+            # Mismo criterio que AnularCompraAjax más arriba.
+            return JsonResponse({'error': str(e)}, status=400)
         except Exception as e:
             return JsonResponse({'error': f'Error al eliminar: {str(e)}'}, status=500)
 

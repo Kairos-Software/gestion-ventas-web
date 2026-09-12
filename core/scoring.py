@@ -237,7 +237,7 @@ def calcular_scoring(cliente):
     atrasos_dias = []
     penal_atraso = 0
     for c in confirmadas:
-        pagada = c.fecha_confirmacion.date()
+        pagada = timezone.localtime(c.fecha_confirmacion).date()
         if pagada < limite:
             continue  # fuera de ventana
         dias = (pagada - c.fecha_vencimiento).days

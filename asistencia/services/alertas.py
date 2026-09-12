@@ -108,7 +108,7 @@ def deudas_pagadas_recientemente(dentro_de_dias, hoy=None):
             'descripcion': cuota.deuda.descripcion or cuota.deuda.get_tipo_display(),
             'numero': cuota.numero,
             'total_cuotas': cuota.deuda.cantidad_cuotas,
-            'fecha_confirmacion': cuota.fecha_confirmacion.strftime('%d/%m/%Y'),
+            'fecha_confirmacion': timezone.localtime(cuota.fecha_confirmacion).strftime('%d/%m/%Y'),
             'monto_fmt': _fmt(cuota.monto),
             'referencia': cuota.pk,
         })
@@ -146,7 +146,7 @@ def cuotas_cobro_pagadas_recientemente(dentro_de_dias, hoy=None):
             'cliente': cliente.get_nombre_display() if cliente else '(cliente eliminado)',
             'numero': cuota.numero,
             'total_cuotas': cuota.cuenta_por_cobrar.cantidad_cuotas,
-            'fecha_confirmacion': cuota.fecha_confirmacion.strftime('%d/%m/%Y'),
+            'fecha_confirmacion': timezone.localtime(cuota.fecha_confirmacion).strftime('%d/%m/%Y'),
             'monto_fmt': _fmt(cuota.monto),
             'referencia': cuota.pk,
         })

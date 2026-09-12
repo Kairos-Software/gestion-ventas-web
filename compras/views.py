@@ -742,11 +742,11 @@ class ConfirmarCompraAjax(LoginRequiredMixin, View):
                 'cuenta_pk': p.get('cuenta_pk'),
                 'cotizacion': cotizacion_p,
             }
-            # Crédito y cheque comparten el mismo plan de cuotas — el/los
-            # cheque reales de cada cuota de una deuda tipo cheque se
-            # cargan después, desde su detalle en Créditos y préstamos
-            # (no acá).
-            if es_credito or medio_p == MedioPagoCompra.CHEQUE:
+            # Crédito, cheque y cuenta corriente comparten el mismo plan
+            # de cuotas — el/los cheque reales de cada cuota de una deuda
+            # tipo cheque se cargan después, desde su detalle en Créditos
+            # y préstamos (no acá).
+            if es_credito or medio_p in (MedioPagoCompra.CHEQUE, MedioPagoCompra.CUENTA_CORRIENTE):
                 linea['modo_cuotas'] = p.get('modo_cuotas')
                 linea['cuotas'] = p.get('cuotas')
                 linea['interes_pct'] = p.get('interes_pct')
@@ -930,7 +930,7 @@ class CompraDocumentoSubirAjax(LoginRequiredMixin, View):
                 'descripcion': doc.descripcion,
                 'es_imagen':   doc.es_imagen,
                 'es_pdf':      doc.es_pdf,
-                'subido_el':   doc.subido_el.strftime('%d/%m/%Y %H:%M'),
+                'subido_el':   timezone.localtime(doc.subido_el).strftime('%d/%m/%Y %H:%M'),
             },
         })
 

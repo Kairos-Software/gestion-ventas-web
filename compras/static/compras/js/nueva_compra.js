@@ -724,6 +724,7 @@ const _MEDIO_ICONOS = {
     qr:            '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="3" y="3" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="11" y="3" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="3" y="11" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.4"/><path d="M11 11h3v3M17 11.5V17h-5.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     credito:       '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="2.5" y="4.5" width="15" height="11" rx="1.8" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 8.5h15" stroke="currentColor" stroke-width="1.4"/><path d="M5 12h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
     cheque:        '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="3" y="3.5" width="14" height="13" rx="1.6" stroke="currentColor" stroke-width="1.4"/><path d="M6 8h8M6 11h8M6 14h5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+    cuenta_corriente: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.4"/><path d="M10 6v4l2.6 2.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
 };
 const _MEDIOS = [
     { v: 'efectivo',      label: 'Efectivo' },
@@ -732,6 +733,7 @@ const _MEDIOS = [
     { v: 'qr',            label: 'QR' },
     { v: 'credito',       label: 'Crédito' },
     { v: 'cheque',        label: 'Cheque' },
+    { v: 'cuenta_corriente', label: 'Cuenta corriente', corto: 'Cta. cte.' },
 ];
 
 function _cuentas()  { return CFG.cuentas || []; }
@@ -746,7 +748,7 @@ function _cuentasParaMedio(medio) {
     // transferencia / débito / qr → cualquier cuenta real menos las de "Efectivo"
     return _cuentas().filter(c => c.nombre !== 'Efectivo');
 }
-function _usaPlanCuotas(l) { return l.medio === 'credito' || l.medio === 'cheque'; }
+function _usaPlanCuotas(l) { return l.medio === 'credito' || l.medio === 'cheque' || l.medio === 'cuenta_corriente'; }
 function _montoArsLinea(l) {
     const info = _cuentaInfo(l.cuenta);
     if (info && info.moneda !== 'ARS') return (parseFloat(l.monto) || 0) * (parseFloat(l.cotizacion) || 0);
@@ -764,6 +766,8 @@ function _aplicarMedio(l, medio) {
     if (medio === 'efectivo') {
         const e = _cuentaEfectivo();
         l.cuenta = e ? String(e.pk) : '';
+    } else if (medio === 'cuenta_corriente') {
+        // Sin cuenta real: la deuda queda directo con el proveedor.
     } else {
         const posibles = _cuentasParaMedio(medio);
         const enLista = pk => posibles.some(c => String(c.pk) === String(pk));
@@ -787,6 +791,7 @@ function _pagoBotonera(l, idx) {
 
 function _cuentaSelectHTML(l, idx) {
     if (l.medio === 'efectivo') return `<div class="cmp-pago-efectivo">Efectivo — caja grande</div>`;
+    if (l.medio === 'cuenta_corriente') return `<div class="cmp-pago-efectivo">Sin cuenta — queda como deuda con el proveedor</div>`;
     const posibles = _cuentasParaMedio(l.medio);
     if (!posibles.length) {
         const que = l.medio === 'credito' ? 'tarjetas de crédito' : l.medio === 'cheque' ? 'cuentas bancarias (chequera)' : 'cuentas';
@@ -835,6 +840,7 @@ function _pagoRenderLineas() {
             </span>
         </label>
         ${l.medio === 'cheque' ? `<p class="vdt-cheque-plan-nota">Acá se define el plan de cuotas. Los cheques de cada cuota se cargan después, desde la deuda en Créditos y préstamos.</p>` : ''}
+        ${l.medio === 'cuenta_corriente' ? `<p class="vdt-cheque-plan-nota">Esta compra no impacta la caja ahora: queda registrada como deuda con el proveedor. Se va pagando después, desde Créditos y préstamos, con cualquier cuenta real o cheque.</p>` : ''}
         <div class="vdt-pago-credito-extra">
             ${l.modoCuotas === 'libre' ? '' : `<div>
                 <span class="vdt-pago-credito-label">Cuotas</span>
@@ -850,7 +856,7 @@ function _pagoRenderLineas() {
                 <span class="vdt-pago-credito-label">Total con interés</span>
                 <strong>${_fmtPeso((parseFloat(l.monto) || 0) * (1 + (parseFloat(l.interesPct) || 0) / 100))}</strong>
             </div>` : `<div>
-                <span class="vdt-pago-credito-label">${l.medio === 'cheque' ? 'Fecha 1° cuota' : 'Inicio débito'}</span>
+                <span class="vdt-pago-credito-label">${l.medio === 'cheque' ? 'Fecha 1° cuota' : l.medio === 'cuenta_corriente' ? 'Vencimiento 1° cuota' : 'Inicio débito'}</span>
                 <input type="date" class="vdt-pago-select" value="${l.fechaInicioDebito || ''}"
                        data-campo="fechaInicioDebito" data-i="${idx}">
             </div>`}
@@ -951,7 +957,8 @@ function _pagoCubierto() {
 
 function _pagoFaltanDatos() {
     return cobroState.lineas.some(l => {
-        if (!l.cuenta) return true;
+        // cuenta_corriente no tiene ninguna cuenta real que elegir.
+        if (!l.cuenta && l.medio !== 'cuenta_corriente') return true;
         const info = _cuentaInfo(l.cuenta);
         if (info && info.moneda !== 'ARS' && !(parseFloat(l.cotizacion) > 0)) return true;
         if (_usaPlanCuotas(l) && l.modoCuotas !== 'libre') {
@@ -976,9 +983,9 @@ function _getPagoPayload() {
     });
 }
 
-/* Atajos 1..6 → medio de la última línea de pago (si el foco no está en un campo). */
+/* Atajos 1..7 → medio de la última línea de pago (si el foco no está en un campo). */
 document.addEventListener('keydown', e => {
-    if (_confirmada || e.key < '1' || e.key > '6') return;
+    if (_confirmada || e.key < '1' || e.key > '7') return;
     const a = document.activeElement;
     if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable)) return;
     if (!cobroState.lineas.length) return;

@@ -81,7 +81,7 @@ def _serializar_cuota(c):
         'cheque_numero': (cheque.numero_cheque or 's/n') if cheque else '',
         'cheque_estado': cheque.estado if cheque else '',
         'cheque_es_historico': cheque.es_historico if cheque else False,
-        'fecha_confirmacion': c.fecha_confirmacion.isoformat() if c.fecha_confirmacion else '',
+        'fecha_confirmacion': timezone.localtime(c.fecha_confirmacion).isoformat() if c.fecha_confirmacion else '',
         'confirmado_por': str(c.confirmado_por) if c.confirmado_por else '',
         'numero_comprobante': c.numero_comprobante,
     }
@@ -97,7 +97,7 @@ def _serializar_documento(doc):
         'descripcion': doc.descripcion,
         'es_imagen': doc.es_imagen,
         'es_pdf': doc.es_pdf,
-        'subido_el': doc.subido_el.strftime('%d/%m/%Y %H:%M'),
+        'subido_el': timezone.localtime(doc.subido_el).strftime('%d/%m/%Y %H:%M'),
     }
 
 
@@ -125,7 +125,7 @@ def _serializar_cxc(cxc, con_cuotas=False):
         'notas': cxc.notas,
         'venta_numero': cxc.pago_venta.venta.numero if cxc.pago_venta_id else '',
         'creado_por': str(cxc.creado_por) if cxc.creado_por else '',
-        'fecha_alta': cxc.fecha_alta.isoformat(),
+        'fecha_alta': timezone.localtime(cxc.fecha_alta).isoformat(),
     }
     if con_cuotas:
         data['cuotas'] = [_serializar_cuota(c) for c in cxc.cuotas.all()]

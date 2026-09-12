@@ -22,17 +22,27 @@ class EstadoCompra(models.TextChoices):
 
 class MedioPagoCompra(models.TextChoices):
     """
-    CREDITO ('crédito con tarjeta') no impacta caja al confirmar la
-    compra: genera una Deuda con cuotas (ver caja.models.Deuda) que
-    se van confirmando y debitando una por una. El resto de los
-    medios sigue impactando caja grande de inmediato, como siempre.
+    CREDITO ('crédito con tarjeta'), CHEQUE y CUENTA_CORRIENTE no
+    impactan caja al confirmar la compra: generan una Deuda con
+    cuotas (ver caja.models.Deuda) que se van confirmando y
+    debitando una por una. El resto de los medios sigue impactando
+    caja grande de inmediato, como siempre.
+
+    CUENTA_CORRIENTE es para una compra que queda a deber directo con
+    el proveedor, SIN pasar por una tarjeta de crédito propia (ej:
+    "pedimos mercadería y la pagamos después") — no tiene una cuenta
+    real asociada (no sale plata de ningún lado todavía), genera una
+    Deuda tipo `otro` en vez de `compra_credito`, y sus cuotas se
+    pagan después con cualquier cuenta real o cheque desde Créditos y
+    préstamos, igual que cualquier otra deuda tipo "Otra deuda".
     """
-    EFECTIVO      = 'efectivo',      'Efectivo'
-    TRANSFERENCIA = 'transferencia', 'Transferencia'
-    DEBITO        = 'debito',        'Débito'
-    QR            = 'qr',            'QR'
-    CREDITO       = 'credito',       'Crédito (tarjeta)'
-    CHEQUE        = 'cheque',        'Cheque'
+    EFECTIVO         = 'efectivo',         'Efectivo'
+    TRANSFERENCIA    = 'transferencia',    'Transferencia'
+    DEBITO           = 'debito',           'Débito'
+    QR               = 'qr',               'QR'
+    CREDITO          = 'credito',          'Crédito (tarjeta)'
+    CHEQUE           = 'cheque',           'Cheque'
+    CUENTA_CORRIENTE = 'cuenta_corriente', 'A pagar después (cuenta corriente)'
 
 
 class TipoDocumentoCompra(models.TextChoices):
@@ -182,15 +192,17 @@ def _resolver_pagos_compra(compra, pagos):
     compra. Devuelve una lista de dicts [{'medio', 'monto', 'cuenta',
     'cuotas', 'interes_pct', 'fecha_inicio_debito', 'modo_cuotas'}]
     lista para crear PagoCompra (los últimos 4 campos son None salvo
-    medio=CREDITO o medio=CHEQUE, que comparten el mismo plan de
-    cuotas), o None si `pagos` es None (no se tocan los pagos
+    medio=CREDITO, CHEQUE o CUENTA_CORRIENTE, que comparten el mismo
+    plan de cuotas), o None si `pagos` es None (no se tocan los pagos
     existentes).
 
     Para medio=CHEQUE esto solo define el PLAN de pago (cuotas fijas o
     libres) — no pide ningún cheque concreto todavía. El/los cheques
     reales de cada cuota se cargan después, desde el detalle de la
     Deuda en Créditos y préstamos (ver `_crear_deudas_desde_pagos` y
-    `caja.models.CuotaDeuda.confirmar_con_cheque`).
+    `caja.models.CuotaDeuda.confirmar_con_cheque`). medio=CUENTA_CORRIENTE
+    tampoco pide cuenta: no hay ninguna real involucrada, la línea
+    queda sin `cuenta` (None).
 
     Usado por Compra.confirmar() y Compra.editar_completa() — misma
     validación en los dos lugares donde se puede confirmar una compra.
@@ -211,7 +223,9 @@ def _resolver_pagos_compra(compra, pagos):
             continue
 
         es_credito = medio == MedioPagoCompra.CREDITO
-        usa_plan_cuotas = medio in (MedioPagoCompra.CREDITO, MedioPagoCompra.CHEQUE)
+        usa_plan_cuotas = medio in (
+            MedioPagoCompra.CREDITO, MedioPagoCompra.CHEQUE, MedioPagoCompra.CUENTA_CORRIENTE,
+        )
 
         if medio == MedioPagoCompra.CHEQUE:
             # La chequera de la que van a salir los cheques de esta deuda
@@ -220,6 +234,10 @@ def _resolver_pagos_compra(compra, pagos):
             cuenta = cuenta_chequera_valida(p.get('cuenta_pk'))
             if not cuenta:
                 raise ValueError('Elegí la cuenta bancaria (chequera) desde la que se van a emitir los cheques.')
+        elif medio == MedioPagoCompra.CUENTA_CORRIENTE:
+            # Queda a deber directo con el proveedor: no hay ninguna
+            # cuenta real involucrada todavía (ver Deuda tipo `otro`).
+            cuenta = None
         else:
             # La compra en sí siempre está en pesos, pero se puede pagar
             # con una cuenta en cualquier moneda (transferencia/efectivo/
@@ -235,7 +253,7 @@ def _resolver_pagos_compra(compra, pagos):
                 )
 
         cotizacion = None
-        if cuenta.moneda != Moneda.ARS:
+        if cuenta and cuenta.moneda != Moneda.ARS:
             try:
                 cotizacion = Decimal(str(p.get('cotizacion')))
                 if cotizacion <= 0:
@@ -310,10 +328,10 @@ def _guardar_pagos_compra(compra, pagos_resueltos):
 
 def _crear_deudas_desde_pagos(compra, pagos_resueltos, pagos_creados):
     """
-    Para cada línea de pago con medio=CREDITO o medio=CHEQUE, crea la
-    Deuda con su plan de cuotas (fijas o libres) vinculada a esa línea.
-    Se llama después de _guardar_pagos_compra(), que ya devolvió los
-    PagoCompra reales.
+    Para cada línea de pago con medio=CREDITO, CHEQUE o
+    CUENTA_CORRIENTE, crea la Deuda con su plan de cuotas (fijas o
+    libres) vinculada a esa línea. Se llama después de
+    _guardar_pagos_compra(), que ya devolvió los PagoCompra reales.
 
     CHEQUE se comporta exactamente igual que CREDITO: acá solo se
     arma el PLAN (cuotas + interés opcional) — no se emite ningún
@@ -322,6 +340,14 @@ def _crear_deudas_desde_pagos(compra, pagos_resueltos, pagos_creados):
     préstamos (mismo botón "Pagar con cheque" que ya usan las cuotas
     de una deuda de crédito/préstamo pagadas con cheque — ver
     caja.models.CuotaDeuda.confirmar_con_cheque).
+
+    CUENTA_CORRIENTE crea una Deuda tipo `otro` en vez de
+    `compra_credito`: no hay tarjeta ni cuenta involucrada (por eso no
+    se le pasa `cuenta_tarjeta` ni se usa `p['cuenta'].moneda` — va
+    siempre en pesos, igual que la compra), y no genera ningún
+    movimiento de caja al crearse (ver sincronizar_movimiento_deuda_tarjeta,
+    que no hace nada para tipo != compra_credito). Sus cuotas se pagan
+    con cualquier cuenta real o cheque desde Créditos y préstamos.
     """
     if not pagos_resueltos:
         return
@@ -354,6 +380,20 @@ def _crear_deudas_desde_pagos(compra, pagos_resueltos, pagos_creados):
                 fecha_inicio=p['fecha_inicio_debito'] or compra.fecha,
                 modo_cuotas=p['modo_cuotas'],
                 moneda=p['cuenta'].moneda,
+                descripcion=f'Compra {compra.numero}',
+                numero_comprobante=compra.numero_comprobante,
+                creado_por=compra.creado_por,
+            )
+        elif p['medio'] == MedioPagoCompra.CUENTA_CORRIENTE:
+            Deuda.crear_con_cuotas(
+                tipo=TipoDeuda.OTRO,
+                pago_compra=pago_obj,
+                monto_original=p['monto'],
+                porcentaje_interes=p['interes_pct'],
+                cantidad_cuotas=p['cuotas'],
+                fecha_inicio=p['fecha_inicio_debito'] or compra.fecha,
+                modo_cuotas=p['modo_cuotas'],
+                moneda=Moneda.ARS,
                 descripcion=f'Compra {compra.numero}',
                 numero_comprobante=compra.numero_comprobante,
                 creado_por=compra.creado_por,
@@ -1079,7 +1119,10 @@ class PagoCompra(models.Model):
     es_credito=True) usada, no a una cuenta real de caja — esa línea
     no impacta caja al confirmar, genera una Deuda con cuotas (ver
     `deuda` en el related_name de caja.models.Deuda.pago_compra) que
-    van impactando de a una a medida que se confirman.
+    van impactando de a una a medida que se confirman. Para
+    medio=CUENTA_CORRIENTE queda directamente en None: no hay ninguna
+    cuenta real ni tarjeta involucrada, la deuda es directo con el
+    proveedor (Deuda tipo `otro`).
 
     `cotizacion`: solo se completa cuando `cuenta` NO es en pesos —
     cuántos pesos vale 1 unidad de esa moneda, según lo acordado en

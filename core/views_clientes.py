@@ -116,8 +116,8 @@ def _cliente_a_dict(c):
             for img in c.imagenes.all()
         ],
         # Auditoría
-        'fecha_alta':         c.fecha_alta.strftime('%d/%m/%Y %H:%M'),
-        'fecha_modificacion': c.fecha_modificacion.strftime('%d/%m/%Y %H:%M'),
+        'fecha_alta':         timezone.localtime(c.fecha_alta).strftime('%d/%m/%Y %H:%M'),
+        'fecha_modificacion': timezone.localtime(c.fecha_modificacion).strftime('%d/%m/%Y %H:%M'),
         'creado_por':         c.creado_por.username if c.creado_por else '',
     }
 
@@ -351,8 +351,8 @@ class ClienteScoringAjax(LoginRequiredMixin, View):
             'override': cliente.scoring_override,
             'override_motivo': cliente.scoring_override_motivo,
             'override_por': cliente.scoring_override_por.get_full_name() or cliente.scoring_override_por.username if cliente.scoring_override_por else '',
-            'override_el': cliente.scoring_override_el.strftime('%d/%m/%Y %H:%M') if cliente.scoring_override_el else '',
-            'actualizado_el': cliente.scoring_actualizado_el.strftime('%d/%m/%Y %H:%M') if cliente.scoring_actualizado_el else '',
+            'override_el': timezone.localtime(cliente.scoring_override_el).strftime('%d/%m/%Y %H:%M') if cliente.scoring_override_el else '',
+            'actualizado_el': timezone.localtime(cliente.scoring_actualizado_el).strftime('%d/%m/%Y %H:%M') if cliente.scoring_actualizado_el else '',
             'desglose': cliente.scoring_desglose or [],
         })
 

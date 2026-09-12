@@ -14,6 +14,7 @@ from django.views import View
 from django.http import JsonResponse
 from django.shortcuts import render, get_object_or_404
 from django.db.models import Q, Sum
+from django.utils import timezone
 
 from .models import Bien, TIPOS_BIEN_SUGERIDOS
 from core.permisos import chequear_permiso
@@ -83,8 +84,8 @@ class BienesListarAjax(LoginRequiredMixin, View):
                 'activo':             b.activo,
                 'creado_por':         _nombre(b.creado_por),
                 'modificado_por':     _nombre(b.modificado_por) if b.modificado_por else '',
-                'fecha_alta':         b.fecha_alta.strftime('%d/%m/%Y %H:%M'),
-                'fecha_modificacion': b.fecha_modificacion.strftime('%d/%m/%Y %H:%M'),
+                'fecha_alta':         timezone.localtime(b.fecha_alta).strftime('%d/%m/%Y %H:%M'),
+                'fecha_modificacion': timezone.localtime(b.fecha_modificacion).strftime('%d/%m/%Y %H:%M'),
             }
             for b in qs
         ]
