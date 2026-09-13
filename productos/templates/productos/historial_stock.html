@@ -1,0 +1,130 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Historial{% if producto %} — {{ producto.nombre }}{% endif %}{% endblock %}
+
+{% block breadcrumb %}
+Catálogo &rsaquo; <a href="{% url 'productos:stock' %}">Mi Stock</a> &rsaquo; <strong>Historial</strong>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'productos/css/historial_stock.css' %}?v=20260913">
+{% endblock %}
+
+{% block content %}
+{% if sin_permiso %}
+<div style="max-width:460px; margin:4rem auto; text-align:center; color:var(--text-secondary);">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" style="color:var(--text-muted);">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M12 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="12" cy="16.2" r="0.9" fill="currentColor"/>
+    </svg>
+    <p style="margin-top:1rem;">No tenés permiso para ver el stock.</p>
+</div>
+{% else %}
+
+<div class="historial-header">
+    <div class="historial-title">
+        <a href="{% url 'productos:stock' %}" class="historial-volver">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                <path d="M10 3L5 8L10 13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Volver a Stock
+        </a>
+        <h1>{{ producto.nombre }}</h1>
+        <p>
+            {{ producto.codigo }}
+            · Stock actual: <strong>{{ producto.stock_actual|floatformat:"-3" }} {{ producto.get_unidad_medida_display }}</strong>
+        </p>
+    </div>
+</div>
+
+<!-- ── Filtros ── -->
+<div class="filtros-card">
+    <div class="filtro-group" style="max-width:220px;">
+        <label>Buscar</label>
+        <input type="text" id="filtroQ" placeholder="Comprobante, motivo, usuario…">
+    </div>
+    <div class="filtro-group" style="max-width:190px;">
+        <label>Tipo de movimiento</label>
+        <select id="filtroCategoria">
+            <option value="">Todos</option>
+            {% for val, label in categorias %}
+            <option value="{{ val }}">{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="filtro-group" style="max-width:150px;">
+        <label>Entrada/Salida</label>
+        <select id="filtroEntradaSalida">
+            <option value="">Todos</option>
+            <option value="entrada">Entradas</option>
+            <option value="salida">Salidas</option>
+        </select>
+    </div>
+    {% if combinaciones %}
+    <div class="filtro-group" style="max-width:190px;">
+        <label>Combinación</label>
+        <select id="filtroCombinacion">
+            <option value="">Todas</option>
+            {% for c in combinaciones %}
+            <option value="{{ c.pk }}">{{ c.descripcion }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    {% endif %}
+    <div class="filtro-group" style="max-width:145px;">
+        <label>Desde</label>
+        <input type="date" id="filtroDesde">
+    </div>
+    <div class="filtro-group" style="max-width:145px;">
+        <label>Hasta</label>
+        <input type="date" id="filtroHasta">
+    </div>
+    <button class="btn-filtrar" id="btnFiltrar">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="margin-right:4px;vertical-align:middle;">
+            <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M11 11L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        Buscar
+    </button>
+    <button class="btn-limpiar" id="btnLimpiar">Limpiar</button>
+</div>
+
+<!-- ── Conciliación ── -->
+<div id="reconciliacionContainer"></div>
+
+<!-- ── Resumen ── -->
+<div class="resumen-bar" id="resumenBar" style="display:none;">
+    <div class="resumen-chip">Resultados: <strong id="resumenTotal">—</strong></div>
+    <div class="resumen-chip">Página <strong id="resumenPag">—</strong></div>
+</div>
+
+<!-- ── Lista ── -->
+<div id="listaContainer">
+    <div class="loading-state">
+        <span class="spinner"></span> Cargando movimientos…
+    </div>
+</div>
+
+<!-- ── Paginación ── -->
+<div class="paginacion" id="paginacion" style="display:none;">
+    <button class="btn-pag" id="btnAnterior">← Anterior</button>
+    <span class="pag-info" id="pagInfo"></span>
+    <button class="btn-pag" id="btnSiguiente">Siguiente →</button>
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if not sin_permiso %}
+<script>
+const PRODUCTO_PK = {{ producto.pk }};
+const URLS = {
+    historial: "{% url 'productos:stock_historial' %}",
+};
+</script>
+<script src="{% static 'productos/js/historial_stock.js' %}?v=20260913"></script>
+{% endif %}
+{% endblock %}

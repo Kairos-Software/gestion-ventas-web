@@ -204,6 +204,13 @@
 }
 
 /* Código de lote */
+/* Fila resaltada al llegar por acceso directo (ej: desde historial de Stock) */
+.inv-row-resaltada {
+    background: var(--brand-orange-light) !important;
+    outline: 2px solid var(--brand-orange-mid);
+    outline-offset: -2px;
+}
+
 .inv-codigo-lote {
     font-family: 'Plus Jakarta Sans', monospace;
     font-size: .7rem;

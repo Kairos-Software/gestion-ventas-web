@@ -350,6 +350,7 @@
     font-size: 0.75rem;
     color: var(--text-secondary);
     cursor: pointer;
+    text-decoration: none;
     transition: all 0.15s;
     font-family: var(--font-body);
 }
@@ -562,43 +563,7 @@
     overflow: hidden;
 }
 
-.mov-list { padding: 0.25rem 0; }
-
-.mov-item {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.75rem 1.25rem;
-    border-bottom: 1px solid var(--border-color);
-    transition: background 0.12s;
-}
-
-.mov-item:last-child { border-bottom: none; }
-.mov-item:hover { background: var(--bg-secondary); }
-
-.mov-dot {
-    width: 28px; height: 28px;
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
-    font-size: 0.7rem;
-    font-weight: 700;
-}
-
-.mov-dot.entrada { background: rgba(16,185,129,0.12); color: var(--success); }
-.mov-dot.salida  { background: rgba(239,68,68,0.12);  color: var(--danger); }
-
-.mov-body { flex: 1; min-width: 0; }
-.mov-tipo { font-size: 0.78rem; font-weight: 600; color: var(--text-primary); }
-.mov-prod { font-size: 0.7rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-.mov-right { text-align: right; flex-shrink: 0; }
-.mov-qty   { font-size: 0.85rem; font-weight: 700; font-family: var(--font-heading); }
-.mov-qty.entrada { color: var(--success); }
-.mov-qty.salida  { color: var(--danger); }
-.mov-fecha { font-size: 0.67rem; color: var(--text-muted); }
-
-/* ── Modal historial ── */
+/* ── Modal historial (ver historial_stock.css: el historial ahora es una página propia) ── */
 .modal-overlay {
     position: fixed; inset: 0;
     background: rgba(13,27,42,0.55);

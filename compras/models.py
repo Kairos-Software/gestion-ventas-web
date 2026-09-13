@@ -1511,11 +1511,12 @@ def registrar_perdida(lote, cantidad, motivo, motivo_detalle='', usuario=None,
 
     if producto is not None:
         mov = MovimientoStock(
-            producto = producto,
-            tipo     = TipoMovimiento.MERMA,
-            cantidad = cantidad,
-            motivo   = motivo_detalle or dict(MotivoPerdida.choices).get(motivo, motivo),
-            usuario  = usuario,
+            producto    = producto,
+            combinacion = combinacion,
+            tipo        = TipoMovimiento.MERMA,
+            cantidad    = cantidad,
+            motivo      = motivo_detalle or dict(MotivoPerdida.choices).get(motivo, motivo),
+            usuario     = usuario,
         )
         mov.save()  # ajusta Producto.stock_actual internamente
 

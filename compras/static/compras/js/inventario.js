@@ -470,9 +470,12 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    function cargarListadoPerdidas() {
+    function cargarListadoPerdidas(pkResaltar) {
         perdidasTbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">Cargando...</td></tr>`;
-        fetch(window.INVENTARIO_URLS.listarPerdidas)
+        const url = pkResaltar
+            ? `${window.INVENTARIO_URLS.listarPerdidas}?pk=${encodeURIComponent(pkResaltar)}`
+            : window.INVENTARIO_URLS.listarPerdidas;
+        fetch(url)
             .then(r => r.json())
             .then(data => {
                 if (data.error) {
@@ -484,7 +487,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     return;
                 }
                 perdidasTbody.innerHTML = data.results.map(p => `
-                    <tr>
+                    <tr${pkResaltar && String(p.pk) === String(pkResaltar) ? ' class="inv-row-resaltada"' : ''}>
                         <td>${p.fecha}</td>
                         <td>
                             ${escapeHtml(p.producto_nombre)}
@@ -827,9 +830,12 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    function cargarListadoFraccionamientos() {
+    function cargarListadoFraccionamientos(pkResaltar) {
         fraccionamientosTbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">Cargando...</td></tr>`;
-        fetch(window.INVENTARIO_URLS.listarFraccionamientos)
+        const url = pkResaltar
+            ? `${window.INVENTARIO_URLS.listarFraccionamientos}?pk=${encodeURIComponent(pkResaltar)}`
+            : window.INVENTARIO_URLS.listarFraccionamientos;
+        fetch(url)
             .then(r => r.json())
             .then(data => {
                 if (data.error) {
@@ -841,7 +847,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     return;
                 }
                 fraccionamientosTbody.innerHTML = data.results.map(f => `
-                    <tr>
+                    <tr${pkResaltar && String(f.pk) === String(pkResaltar) ? ' class="inv-row-resaltada"' : ''}>
                         <td>${f.fecha}</td>
                         <td>${escapeHtml(f.producto_origen)} <span class="inv-unidad-medida">(${KaiFormat.cantidad(f.cantidad_total_origen)} ${escapeHtml(f.unidad_origen)})</span></td>
                         <td>${escapeHtml(f.producto_destino)} <span class="inv-unidad-medida">(${KaiFormat.cantidad(f.cantidad_paquetes)} ${escapeHtml(f.unidad_destino)})</span></td>
@@ -853,5 +859,19 @@ document.addEventListener('DOMContentLoaded', function () {
             .catch(() => {
                 fraccionamientosTbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-4">Error al cargar fraccionamientos.</td></tr>`;
             });
+    }
+
+    // ── Acceso directo desde otra pantalla (ej: historial de Stock) ──
+    // ?perdida=<pk> o ?fraccionamiento=<pk> abre el modal correspondiente
+    // ya filtrado a esa fila puntual, resaltada.
+    const _paramsUrl = new URLSearchParams(window.location.search);
+    const _perdidaPk = _paramsUrl.get('perdida');
+    const _fraccionamientoPk = _paramsUrl.get('fraccionamiento');
+    if (_perdidaPk) {
+        modalPerdidas.show();
+        cargarListadoPerdidas(_perdidaPk);
+    } else if (_fraccionamientoPk && modalFraccionamientos) {
+        modalFraccionamientos.show();
+        cargarListadoFraccionamientos(_fraccionamientoPk);
     }
 });

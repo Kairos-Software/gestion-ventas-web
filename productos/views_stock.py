@@ -11,6 +11,7 @@ from django.db.models import Q, F
 from django.utils import timezone
 
 from .models import Producto, MovimientoStock, TipoMovimiento, MOVIMIENTOS_ENTRADA, CombinacionVariante, cantidad_valida_para_unidad
+from .services_historial import construir_historial_stock, CATEGORIAS_HISTORIAL
 from core.permisos import chequear_permiso
 
 TIPOS_AJUSTE = {
@@ -19,17 +20,11 @@ TIPOS_AJUSTE = {
 }
 
 
-def _serializar_combinaciones(producto):
-    """
-    Devuelve un string JSON con las combinaciones activas del producto,
-    listo para inyectar en data-combinaciones del <tr>.
-    Igual que hace BuscarProductoAjax en compras.
-    Ejemplo: '[{"pk":1,"descripcion":"Color:Rojo | Talle:M","stock_actual":"3"}]'
-    Si el producto no tiene variantes devuelve '[]'.
-    """
+def _combinaciones_activas(producto):
+    """Lista (no serializada) de combinaciones activas de un producto. [] si no tiene variantes."""
     if not producto.gestiona_variantes:
-        return '[]'
-    combinaciones = [
+        return []
+    return [
         {
             'pk':                    c.pk,
             'descripcion':           c.descripcion_legible(),
@@ -40,7 +35,17 @@ def _serializar_combinaciones(producto):
         for c in producto.combinaciones.all()
         if c.activo
     ]
-    return json.dumps(combinaciones, ensure_ascii=False)
+
+
+def _serializar_combinaciones(producto):
+    """
+    Devuelve un string JSON con las combinaciones activas del producto,
+    listo para inyectar en data-combinaciones del <tr>.
+    Igual que hace BuscarProductoAjax en compras.
+    Ejemplo: '[{"pk":1,"descripcion":"Color:Rojo | Talle:M","stock_actual":"3"}]'
+    Si el producto no tiene variantes devuelve '[]'.
+    """
+    return json.dumps(_combinaciones_activas(producto), ensure_ascii=False)
 
 
 class StockView(LoginRequiredMixin, TemplateView):
@@ -103,8 +108,70 @@ class StockView(LoginRequiredMixin, TemplateView):
         return ctx
 
 
+def _formatear_fecha(valor):
+    """Un date se muestra tal cual; un datetime aware se pasa antes por hora local."""
+    from datetime import datetime, date
+    if isinstance(valor, datetime):
+        return timezone.localtime(valor).strftime('%d/%m/%Y %H:%M')
+    if isinstance(valor, date):
+        return valor.strftime('%d/%m/%Y')
+    return str(valor)
+
+
+def _parsear_fecha(valor):
+    from datetime import datetime
+    if not valor:
+        return None
+    try:
+        return datetime.strptime(valor, '%Y-%m-%d').date()
+    except ValueError:
+        return None
+
+
+def _fmt_num(valor):
+    """
+    '23.000' -> '23', '1.500' -> '1.5'. Sin esto, un DecimalField(decimal_places=3)
+    manda siempre las 3 decimales y "23.000" se lee como "23 mil" — el mismo
+    recorte de ceros que ya hace `floatformat:"-3"` en los templates, pero
+    para valores que salen por JSON en vez de por un template de Django.
+    """
+    s = format(Decimal(str(valor)), 'f')
+    if '.' in s:
+        s = s.rstrip('0').rstrip('.')
+    return s or '0'
+
+
+class HistorialStockView(LoginRequiredMixin, TemplateView):
+    """
+    Página propia del historial de un producto (antes era un modal
+    dentro de Stock). Los datos se cargan por AJAX vía StockHistorialAjax
+    — ver historial_stock.js.
+    """
+    template_name = 'productos/historial_stock.html'
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        if not chequear_permiso(self.request.user, 'ver_stock'):
+            ctx['sin_permiso'] = True
+            return ctx
+
+        producto = get_object_or_404(Producto, pk=kwargs['pk'], gestiona_stock=True)
+        ctx.update({
+            'producto':       producto,
+            'combinaciones':  _combinaciones_activas(producto),
+            'categorias':     CATEGORIAS_HISTORIAL,
+        })
+        return ctx
+
+
 class StockHistorialAjax(LoginRequiredMixin, View):
-    """GET ?producto_pk=<pk>&page=<n> — historial paginado de movimientos."""
+    """
+    GET ?producto_pk=<pk>&combinacion_pk=&categoria=&es_entrada=&
+        fecha_desde=&fecha_hasta=&q=&page=<n>
+    — historial unificado de movimientos (compras, facturas iniciales,
+    ajustes, mermas, fraccionamientos, ventas y devoluciones) +
+    conciliación contra el stock real. Ver productos/services_historial.py.
+    """
 
     def get(self, request):
         if not chequear_permiso(request.user, 'ver_stock'):
@@ -115,34 +182,59 @@ class StockHistorialAjax(LoginRequiredMixin, View):
             return JsonResponse({'error': 'producto_pk requerido.'}, status=400)
 
         producto = get_object_or_404(Producto, pk=pk, gestiona_stock=True)
-        qs = MovimientoStock.objects.filter(
-            producto=producto
-        ).select_related('usuario').order_by('-fecha')
 
-        paginator = Paginator(qs, 20)
-        pag       = paginator.get_page(request.GET.get('page', 1))
+        combinacion_pk = request.GET.get('combinacion_pk') or None
+        if combinacion_pk is not None:
+            combinacion = CombinacionVariante.objects.filter(pk=combinacion_pk, producto=producto).first()
+            if combinacion is None:
+                return JsonResponse({'error': 'La combinación no pertenece a este producto.'}, status=400)
+
+        categoria = request.GET.get('categoria') or None
+        if categoria and categoria not in dict(CATEGORIAS_HISTORIAL):
+            return JsonResponse({'error': 'Categoría inválida.'}, status=400)
+
+        es_entrada_raw = request.GET.get('es_entrada') or ''
+        es_entrada = {'entrada': True, 'salida': False}.get(es_entrada_raw)
+
+        fecha_desde = _parsear_fecha(request.GET.get('fecha_desde'))
+        fecha_hasta = _parsear_fecha(request.GET.get('fecha_hasta'))
+        q = request.GET.get('q', '').strip()
+
+        try:
+            page = int(request.GET.get('page', 1))
+        except (TypeError, ValueError):
+            page = 1
+
+        resultado = construir_historial_stock(
+            producto, combinacion_pk=combinacion_pk, categoria=categoria, es_entrada=es_entrada,
+            fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, q=q, page=page,
+        )
 
         return JsonResponse({
             'movimientos': [
                 {
-                    'pk':              m.pk,
-                    'tipo_display':    m.get_tipo_display(),
-                    'es_entrada':      m.es_entrada,
-                    'cantidad':        str(m.cantidad),
-                    'stock_anterior':  str(m.stock_anterior),
-                    'stock_posterior': str(m.stock_posterior),
-                    'motivo':          m.motivo,
-                    'referencia':      m.referencia,
-                    'usuario':         (m.usuario.get_full_name() or m.usuario.username) if m.usuario else '—',
-                    'fecha':           timezone.localtime(m.fecha).strftime('%d/%m/%Y %H:%M'),
+                    'tipo_display':    e['tipo_label'],
+                    'es_entrada':      e['es_entrada'],
+                    'cantidad':        _fmt_num(e['cantidad']),
+                    'combinacion':     e['combinacion_desc'],
+                    'origen_label':    e['origen_label'],
+                    'origen_url':      e['origen_url'],
+                    'usuario':         e['usuario'],
+                    'detalle':         e['detalle'],
+                    'activo':          e['activo'],
+                    'fecha':           _formatear_fecha(e['fecha_display']),
                 }
-                for m in pag
+                for e in resultado['eventos']
             ],
-            'total':           paginator.count,
-            'paginas':         paginator.num_pages,
-            'pagina':          pag.number,
-            'tiene_siguiente': pag.has_next(),
-            'tiene_anterior':  pag.has_previous(),
+            'total':              resultado['total'],
+            'paginas':            resultado['paginas'],
+            'pagina':             resultado['pagina'],
+            'tiene_siguiente':    resultado['tiene_siguiente'],
+            'tiene_anterior':     resultado['tiene_anterior'],
+            'stock_actual':       _fmt_num(resultado['stock_actual']),
+            'stock_reconstruido': _fmt_num(resultado['stock_reconstruido']),
+            'diferencia':         _fmt_num(resultado['diferencia']),
+            'combinaciones':      _combinaciones_activas(producto),
         })
 
 
@@ -254,6 +346,7 @@ class StockAjusteAjax(LoginRequiredMixin, View):
             with transaction.atomic():
                 mov = MovimientoStock(
                     producto=producto,
+                    combinacion=combinacion,
                     tipo=tipo,
                     cantidad=cantidad,
                     motivo=motivo,

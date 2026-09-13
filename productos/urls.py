@@ -98,7 +98,8 @@ urlpatterns = [
     # ══════════════════════════════════════════════════════════════════
     #  STOCK
     # ══════════════════════════════════════════════════════════════════
-    path('stock/',           views_stock.StockView.as_view(),          name='stock'),
-    path('stock/ajuste/',    views_stock.StockAjusteAjax.as_view(),    name='stock_ajuste'),
-    path('stock/historial/', views_stock.StockHistorialAjax.as_view(), name='stock_historial'),
+    path('stock/',                    views_stock.StockView.as_view(),          name='stock'),
+    path('stock/ajuste/',             views_stock.StockAjusteAjax.as_view(),    name='stock_ajuste'),
+    path('stock/historial/',          views_stock.StockHistorialAjax.as_view(), name='stock_historial'),
+    path('stock/historial/<int:pk>/', views_stock.HistorialStockView.as_view(), name='historial_stock'),
 ]

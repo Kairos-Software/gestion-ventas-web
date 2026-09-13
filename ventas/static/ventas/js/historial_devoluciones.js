@@ -129,4 +129,12 @@ btnLimpiar.addEventListener('click', () => {
 btnAnterior.addEventListener('click',  () => { if (currentPage > 1) fetchDevoluciones(currentPage - 1); });
 btnSiguiente.addEventListener('click', () => { if (lastData && lastData.has_next) fetchDevoluciones(currentPage + 1); });
 
-fetchDevoluciones(1);
+// Acceso directo desde otra pantalla (ej: historial de Stock) con
+// ?q=<numero> — precarga el buscador y filtra directo a esa devolución.
+const _qInicial = new URLSearchParams(window.location.search).get('q');
+if (_qInicial && filtroQ) {
+    filtroQ.value = _qInicial;
+    aplicarFiltros();
+} else {
+    fetchDevoluciones(1);
+}

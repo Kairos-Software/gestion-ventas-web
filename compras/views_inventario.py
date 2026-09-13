@@ -252,13 +252,23 @@ class RegistrarPerdidaAjax(LoginRequiredMixin, View):
 # ══════════════════════════════════════════════════════════════════
 
 class ListarPerdidasAjax(LoginRequiredMixin, View):
-    """GET — últimas pérdidas registradas, más nuevas primero."""
+    """
+    GET ?pk=<id> — últimas pérdidas registradas, más nuevas primero.
+    Con `pk`: acceso directo a una pérdida puntual (ej: desde el
+    historial de Stock de un producto) — devuelve solo esa fila.
+    """
 
     def get(self, request):
         if not chequear_permiso(request.user, 'crear_compras'):
             return JsonResponse({'error': 'Sin permiso.'}, status=403)
 
-        qs = Perdida.objects.select_related('registrado_por', 'producto')[:100]
+        qs = Perdida.objects.select_related('registrado_por', 'producto')
+
+        pk = request.GET.get('pk', '').strip()
+        if pk:
+            qs = qs.filter(pk=pk)
+        else:
+            qs = qs[:100]
 
         resultados = [{
             'pk':               p.pk,
@@ -395,13 +405,23 @@ class FraccionarAjax(LoginRequiredMixin, View):
 
 
 class ListarFraccionamientosAjax(LoginRequiredMixin, View):
-    """GET — historial de fraccionamientos, más nuevos primero."""
+    """
+    GET ?pk=<id> — historial de fraccionamientos, más nuevos primero.
+    Con `pk`: acceso directo a un fraccionamiento puntual (ej: desde el
+    historial de Stock de un producto) — devuelve solo esa fila.
+    """
 
     def get(self, request):
         if not chequear_permiso(request.user, 'crear_compras'):
             return JsonResponse({'error': 'Sin permiso.'}, status=403)
 
-        qs = Fraccionamiento.objects.select_related('creado_por', 'producto_origen', 'producto_destino')[:100]
+        qs = Fraccionamiento.objects.select_related('creado_por', 'producto_origen', 'producto_destino')
+
+        pk = request.GET.get('pk', '').strip()
+        if pk:
+            qs = qs.filter(pk=pk)
+        else:
+            qs = qs[:100]
 
         resultados = [{
             'pk':                       f.pk,

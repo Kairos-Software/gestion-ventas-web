@@ -539,4 +539,13 @@ $h('fihProdSearch').addEventListener('input', e => {
 });
 $h('fihMoreBtn').addEventListener('click', () => { _page++; _cargar(false); });
 
+// Acceso directo desde otra pantalla (ej: historial de Stock) con
+// ?producto=<código o nombre> — precarga el buscador por producto y
+// abre de una la(s) factura(s) que lo contienen (ver _cargar arriba).
+const _prodQInicial = new URLSearchParams(window.location.search).get('producto');
+if (_prodQInicial) {
+    _prodQ = _prodQInicial.trim();
+    $h('fihProdSearch').value = _prodQ;
+}
+
 _cargar(true);
