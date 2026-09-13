@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views, views_gastos, views_caja_diaria, views_transacciones, views_deudas, views_cheques, views_cuentas_cobrar, views_cuenta_corriente, views_recargos, views_bienes
+from . import views, views_gastos, views_caja_diaria, views_transacciones, views_deudas, views_cheques, views_cuentas_cobrar, views_cuenta_corriente, views_recargos, views_bienes, views_celulares
 
 app_name = 'caja'
 
@@ -20,6 +20,7 @@ urlpatterns = [
     path('cheques/',                 views_cheques.ChequesView.as_view(),             name='cheques'),
     path('recargos/',                views_recargos.RecargosView.as_view(),           name='recargos'),
     path('bienes/',                  views_bienes.BienesView.as_view(),               name='bienes'),
+    path('celulares/',               views_celulares.CelularesView.as_view(),         name='celulares'),
 
     # ══════════════════════════════════════════════════════════════════
     #  AJAX — Caja grande
@@ -118,6 +119,16 @@ urlpatterns = [
     path('bienes/listar/',   views_bienes.BienesListarAjax.as_view(),   name='bienes_listar'),
     path('bienes/acciones/', views_bienes.BienAccionesAjax.as_view(),   name='bien_acciones'),
     path('bienes/eliminar/', views_bienes.BienEliminarAjax.as_view(),   name='bien_eliminar'),
+
+    # ══════════════════════════════════════════════════════════════════
+    #  AJAX — Celulares + recargas
+    # ══════════════════════════════════════════════════════════════════
+    path('celulares/listar/',                        views_celulares.CelularesListarAjax.as_view(), name='celulares_listar'),
+    path('celulares/acciones/',                       views_celulares.CelularAccionesAjax.as_view(), name='celular_acciones'),
+    path('celulares/eliminar/',                       views_celulares.CelularEliminarAjax.as_view(), name='celular_eliminar'),
+    path('celulares/<int:celular_pk>/recargas/',      views_celulares.RecargasListarAjax.as_view(),  name='recargas_listar'),
+    path('celulares/<int:celular_pk>/recargas/acciones/', views_celulares.RecargaAccionesAjax.as_view(), name='recarga_acciones'),
+    path('celulares/<int:celular_pk>/recargas/eliminar/', views_celulares.RecargaEliminarAjax.as_view(), name='recarga_eliminar'),
 
     # ══════════════════════════════════════════════════════════════════
     #  AJAX — Comunes

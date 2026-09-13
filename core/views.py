@@ -14,7 +14,7 @@ from .services_estadisticas.ventas import resumen_ganancia
 
 from caja.models import (
     CuentaCaja, TipoCaja, TipoCuenta, CUENTA_EFECTIVO_DEFAULT_NOMBRE, TurnoCaja,
-    CuentaPredeterminadaMedio,
+    CuentaPredeterminadaMedio, Celular,
 )
 from compras.models import LoteCompra
 from productos.models import CategoriaProducto, EstadoProducto, Moneda, Producto
@@ -56,6 +56,7 @@ def home(request):
         'caja':         chequear_permiso(user, 'ver_caja'),
         'clientes':     chequear_permiso(user, 'ver_clientes'),
         'usuarios':     chequear_permiso(user, 'ver_usuarios'),
+        'celulares':    chequear_permiso(user, 'ver_celulares'),
     }
 
     ctx = {
@@ -119,6 +120,26 @@ def home(request):
     pendientes.sort(key=lambda p: -1 if p['dias_restantes'] is None else p['dias_restantes'])
     ctx['pendientes'] = pendientes[:6]
     ctx['pendientes_restantes'] = max(0, len(pendientes) - 6)
+
+    # ── Recordatorio de recargas de celular (Herramientas) ───────────
+    # Aparte de "Pendientes de mercadería": no es stock, y solo lo ve
+    # quien tiene el permiso de la herramienta (a pedido, no es algo
+    # que le corresponda ver a cualquier usuario).
+    if permisos['celulares']:
+        vencidas_o_proximas = [
+            c for c in Celular.objects.filter(activo=True, frecuencia_recarga_dias__isnull=False)
+            if c.dias_para_recarga is not None and c.dias_para_recarga <= 7
+        ]
+        vencidas_o_proximas.sort(key=lambda c: c.dias_para_recarga)
+        ctx['recargas_pendientes'] = [
+            {
+                'numero': c.numero,
+                'titular': c.titular,
+                'dias_para_recarga': c.dias_para_recarga,
+            }
+            for c in vencidas_o_proximas[:6]
+        ]
+        ctx['recargas_pendientes_url'] = reverse('caja:celulares')
 
     return render(request, 'core/home.html', ctx)
 

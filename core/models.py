@@ -150,6 +150,12 @@ PERMISOS_CHOICES = [
     ('editar_notas',         'Editar notas'),
     ('eliminar_notas',       'Eliminar notas'),
     ('crear_notas_privadas', 'Marcar notas propias como privadas'),
+
+    # ── Módulo: Celulares (PIN/PUK + recordatorio de recargas) ──────
+    ('ver_celulares',      'Ver los celulares y sus recargas'),
+    ('crear_celulares',    'Cargar celulares y registrar recargas'),
+    ('editar_celulares',   'Editar celulares y recargas existentes'),
+    ('eliminar_celulares', 'Eliminar celulares y recargas'),
 ]
 
 CODIGOS_PERMISOS = {codigo for codigo, _ in PERMISOS_CHOICES}

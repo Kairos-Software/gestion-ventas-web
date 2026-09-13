@@ -108,9 +108,13 @@ document.addEventListener('DOMContentLoaded', function () {
         gastosBody.innerHTML = gastos.map(g => {
             const cuentaCol = g.es_caja_diaria
                 ? `<span class="gastos-badge-origen">Caja diaria · turno #${g.turno_numero}</span>`
+                : g.recarga_celular_numero
+                ? `<span class="gastos-badge-origen">Recarga · ${g.recarga_celular_numero}</span>`
                 : (g.cuenta_nombre || '-');
             const accionesCol = g.es_caja_diaria
                 ? `<span class="gastos-acciones-nota" title="Se gestiona desde Caja Diaria">en Caja Diaria</span>`
+                : g.recarga_celular_numero
+                ? `<span class="gastos-acciones-nota" title="Se gestiona desde Herramientas → Celulares">en Celulares</span>`
                 : `<div class="gastos-tabla-acciones">
                         <button type="button" class="icon-btn" onclick="editarGasto(${g.pk})" title="Editar">
                             <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
@@ -444,6 +448,10 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             if (gasto.es_caja_diaria) {
                 KaiToast.show('Es un ingreso/egreso de caja diaria — se edita desde Caja Diaria, con el turno abierto.', 'warning');
+                return;
+            }
+            if (gasto.recarga_celular_numero) {
+                KaiToast.show(`Es el egreso de una recarga (${gasto.recarga_celular_numero}) — se edita desde Herramientas → Celulares.`, 'warning');
                 return;
             }
 

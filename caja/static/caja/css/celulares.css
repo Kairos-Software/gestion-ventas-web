@@ -1,0 +1,311 @@
+/* ══════════════════════════════════════════════════════════════════
+   CELULARES — estilos (SIM + control de recargas)
+   Usa las variables del sistema base.css para consistencia visual.
+   ══════════════════════════════════════════════════════════════════ */
+
+.celulares-container {
+    font-family: var(--font-body);
+    color: var(--text-primary);
+    padding-bottom: 2rem;
+}
+
+.celulares-sin-permiso {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 4rem 2rem;
+    color: var(--text-secondary);
+}
+.celulares-sin-permiso svg { color: var(--text-muted); }
+
+/* ── Encabezado ───────────────────────────────────────────────── */
+.celulares-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.celulares-header-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 0.9rem;
+    background: var(--brand-orange-light);
+    color: var(--brand-orange-dark, var(--brand-orange));
+    flex-shrink: 0;
+}
+
+.celulares-header-text { flex: 1 1 auto; min-width: 200px; }
+
+.celulares-title {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 1.5rem;
+    margin: 0 0 0.25rem;
+}
+
+.celulares-subtitle {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin: 0;
+    max-width: 560px;
+}
+
+/* ── Barra de filtros ─────────────────────────────────────────── */
+.celulares-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 1.25rem;
+}
+
+.celulares-chip {
+    margin-left: auto;
+    padding: 0.5rem 0.9rem;
+    border-radius: 0.6rem;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.celulares-chip--alerta {
+    background: rgba(239, 68, 68, 0.08);
+    color: var(--danger, #EF4444);
+}
+
+.celulares-input {
+    padding: 0.55rem 0.8rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.6rem;
+    background: var(--bg-white);
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    font-family: var(--font-body);
+}
+.celulares-input:focus {
+    outline: none;
+    border-color: var(--brand-orange);
+    box-shadow: 0 0 0 3px var(--brand-orange-light);
+}
+
+#celularesBuscar { flex: 1 1 220px; min-width: 180px; }
+#celularesFiltroEstado { flex: 0 0 auto; }
+
+/* ── Tabla ────────────────────────────────────────────────────── */
+.celulares-card {
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: 1rem;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+}
+
+.celulares-tabla-loading {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 2rem 1rem;
+}
+
+.celular-numero-cell { font-weight: 600; color: var(--text-primary); white-space: nowrap; }
+
+.celular-sin-dato { color: var(--text-muted); font-style: italic; }
+
+.celular-fila-inactiva { opacity: 0.55; }
+.celular-fila-inactiva:hover { opacity: 0.85; }
+
+.celulares-badge-activo {
+    display: inline-block;
+    padding: 0.18rem 0.55rem;
+    border-radius: 1rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    background: rgba(16, 185, 129, 0.1);
+    color: #059669;
+}
+
+.celulares-badge-inactivo {
+    display: inline-block;
+    padding: 0.18rem 0.55rem;
+    border-radius: 1rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    background: rgba(239, 68, 68, 0.08);
+    color: var(--danger, #EF4444);
+}
+
+.celular-acciones-cell {
+    display: flex;
+    gap: 0.35rem;
+    justify-content: flex-end;
+    /* Con varios íconos, el ancho automático de la columna de tabla no
+       siempre se ajusta al contenido real del flex interno (queda corta
+       y los botones terminan flotando fuera de la celda). Ancho mínimo
+       explícito para 3 botones de 28px + gaps, con margen. */
+    min-width: 108px;
+}
+/* Un reset global (responsive-interno.css) le pone max-width:100% a todo
+   input/button para que no desborden en mobile. Con varios botones en
+   una celda flex de ancho automático, esa regla entra en un empate de
+   especificidad que a veces gana por orden de carga y los deja casi en
+   0px (ping-pong de tamaño en flexbox). Subimos la especificidad acá,
+   sin tocar el reset global, y fijamos el tamaño para que no se achique. */
+.celular-acciones-cell .btn-ghost-sm {
+    flex: none;
+    max-width: 28px;
+}
+
+/* ── Badges de recordatorio de recarga ───────────────────────── */
+.celular-badge {
+    display: inline-block;
+    padding: 0.18rem 0.55rem;
+    border-radius: 1rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.celular-badge--danger  { background: rgba(239, 68, 68, 0.08);  color: var(--danger, #EF4444); }
+.celular-badge--warning { background: rgba(245, 158, 11, 0.12); color: #B45309; }
+.celular-badge--ok      { background: rgba(16, 185, 129, 0.1);  color: #059669; }
+
+/* ── Botones ──────────────────────────────────────────────────── */
+.btn-ghost-sm {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+    width: 28px;
+    height: 28px;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+/* Hover neutro por default (Bienes solo tenía un ícono, el de eliminar,
+   por eso ahí el hover rojo genérico tenía sentido). Acá conviven
+   historial/editar/eliminar en la misma celda, así que el rojo queda
+   reservado solo para el que realmente borra algo. */
+.btn-ghost-sm:hover { background: var(--bg-secondary); border-color: var(--text-muted); color: var(--text-primary); }
+.btn-eliminar-celular:hover, .btn-eliminar-recarga:hover {
+    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.35);
+    color: var(--danger);
+}
+
+/* ── Alertas inline (mensaje de error dentro del modal) ──────── */
+.alerta-inline { padding: 0.7rem 0.9rem; border-radius: 0.65rem; margin-top: 0.75rem; font-size: 0.85rem; }
+.alerta-error { background: rgba(239, 68, 68, 0.06); border: 1px solid rgba(239, 68, 68, 0.2); color: var(--danger); }
+
+/* ── Modal — datos del celular ────────────────────────────────── */
+.celular-modal-content { border-radius: 1rem; border: 1px solid var(--border-color); }
+
+.celular-campo { margin-bottom: 1rem; }
+.celular-campo label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 0.35rem;
+}
+.celular-campo-opcional { font-weight: 400; color: var(--text-muted); }
+
+.celular-campo-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+@media (max-width: 480px) {
+    .celular-campo-grid { grid-template-columns: 1fr; }
+}
+
+.celular-campo .celulares-input,
+.celular-campo select.celulares-input,
+.celular-campo textarea.celulares-input {
+    width: 100%;
+    box-sizing: border-box;
+}
+.celular-campo textarea.celulares-input { resize: vertical; }
+
+.celular-input-prefix-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+.celular-input-prefix {
+    position: absolute;
+    left: 0.8rem;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    pointer-events: none;
+}
+.celular-input-prefix-wrap .celulares-input { padding-left: 1.6rem; }
+
+.celular-campo-secreto { position: relative; display: flex; align-items: center; }
+.celular-campo-secreto .celulares-input { padding-right: 2.3rem; }
+.celular-btn-ver {
+    position: absolute;
+    right: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0;
+}
+.celular-btn-ver:hover { color: var(--text-secondary); }
+
+.celular-activo-check {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 0.625rem;
+    padding: 0.6rem 0.85rem;
+    margin-bottom: 0.5rem;
+    cursor: pointer;
+}
+.celular-activo-check input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--brand-orange); flex-shrink: 0; }
+.celular-activo-check small { display: block; font-weight: 400; color: var(--text-muted); }
+
+.celular-meta { font-size: 0.76rem; color: var(--text-muted); margin: 0.25rem 0 0; }
+
+/* ── Modal B — historial y carga de recargas ─────────────────── */
+#recargasModal .modal-header { align-items: flex-start; }
+.recarga-proxima-badge { display: block; margin-top: 0.35rem; }
+.recarga-proxima-badge:empty { display: none; }
+
+.recarga-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr auto;
+    gap: 0.75rem;
+    align-items: end;
+    margin-bottom: 0.75rem;
+}
+.recarga-form-grid .celular-campo { margin-bottom: 0; }
+.recarga-form-btn { display: flex; gap: 0.5rem; }
+@media (max-width: 600px) {
+    .recarga-form-grid { grid-template-columns: 1fr 1fr; }
+    .recarga-form-btn { grid-column: 1 / -1; }
+}
+
+.recargas-historial { max-height: 320px; overflow-y: auto; margin-top: 0.5rem; }
+.recargas-historial .table { margin-bottom: 0; font-size: 0.83rem; }
+
+@media (max-width: 600px) {
+    .celulares-header { flex-direction: column; }
+}

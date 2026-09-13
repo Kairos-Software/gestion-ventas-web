@@ -11,7 +11,7 @@ from django.utils import timezone
 from productos.models import Moneda
 from core.permisos import chequear_permiso
 
-from django.db.models import Count
+from django.db.models import Count, ProtectedError
 
 from .models import (
     Gasto, CuentaCaja, TipoCaja, TipoMovimientoCaja, sincronizar_movimiento_gasto,
@@ -35,6 +35,7 @@ def _cuenta_valida(cuenta_pk):
 
 
 def _serializar_gasto(g):
+    recarga_celular = getattr(g, 'recarga_celular', None)
     return {
         'pk': g.pk,
         'tipo': g.tipo,
@@ -53,6 +54,11 @@ def _serializar_gasto(g):
         'es_caja_diaria': g.turno_id is not None,
         'turno_numero': g.turno.numero if g.turno_id else None,
         'turno_abierto': (g.turno.estado == 'abierto') if g.turno_id else False,
+        # Egreso generado por una recarga de celular (ver Celular/
+        # RecargaCelular en models.py): se edita/borra desde Herramientas
+        # → Celulares, nunca desde acá — EditarGastoAjax/EliminarGastoAjax
+        # lo rechazan igual si se intenta por API directa.
+        'recarga_celular_numero': recarga_celular.celular.numero if recarga_celular else None,
         'concepto': g.concepto.nombre if g.concepto_id else '',
     }
 
@@ -134,7 +140,9 @@ class ListarGastosAjax(LoginRequiredMixin, View):
         if not chequear_permiso(request.user, PERMISO_VER):
             return JsonResponse({'error': 'Sin permiso.'}, status=403)
 
-        qs = Gasto.objects.all().select_related('creado_por', 'cuenta', 'turno', 'concepto')
+        qs = Gasto.objects.all().select_related(
+            'creado_por', 'cuenta', 'turno', 'concepto', 'recarga_celular', 'recarga_celular__celular',
+        )
 
         # Filtros
         desde = request.GET.get('desde', '').strip()
@@ -252,6 +260,11 @@ class EditarGastoAjax(LoginRequiredMixin, View):
                 'error': 'Este es un ingreso/egreso de caja diaria — se edita desde la '
                          'pantalla de Caja Diaria, y solo mientras el turno está abierto.'
             }, status=400)
+        if getattr(gasto, 'recarga_celular', None):
+            return JsonResponse({
+                'error': 'Este egreso corresponde a una recarga de celular — se edita desde '
+                         'Herramientas → Celulares, así el monto no queda desincronizado.'
+            }, status=400)
 
         try:
             data = json.loads(request.body)
@@ -315,10 +328,23 @@ class EliminarGastoAjax(LoginRequiredMixin, View):
                 'error': 'Este es un ingreso/egreso de caja diaria — se elimina desde la '
                          'pantalla de Caja Diaria, y solo mientras el turno está abierto.'
             }, status=400)
+        if getattr(gasto, 'recarga_celular', None):
+            return JsonResponse({
+                'error': 'Este egreso corresponde a una recarga de celular — se elimina desde '
+                         'Herramientas → Celulares (se borran los dos juntos).'
+            }, status=400)
 
         try:
             gasto.delete()
             return JsonResponse({'success': True})
+        except ProtectedError:
+            # No debería llegar acá con el chequeo de arriba, pero si en el
+            # futuro algo más referencia Gasto con PROTECT, mejor este
+            # mensaje que un 500 con la traza cruda de Django.
+            return JsonResponse({
+                'error': 'No se puede eliminar: hay otro registro que depende de este '
+                         'egreso.'
+            }, status=400)
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
 

@@ -1640,6 +1640,36 @@ class TurnoCaja(models.Model):
             #      porque recién ahí existe un conteo físico contra el
             #      cual conciliar.
 
+            # ── 3. Cuotas de deuda/cobro pagadas en efectivo durante ESTE
+            #      turno: sincronizar_movimiento_cuota()/_cobro() las venía
+            #      difiriendo mientras el turno seguía abierto (ver esas
+            #      funciones) — nunca generaron su egreso/ingreso real,
+            #      solo restaron/sumaron al efectivo esperado del cierre.
+            #      Ahora que el turno ya quedó CERRADO (guardado arriba),
+            #      volver a sincronizarlas genera por fin su movimiento
+            #      real, con la fecha original — así queda un rastro
+            #      concreto en Caja Grande de a dónde fue esa plata, en
+            #      vez de perderse dentro del monto declarado. A partir de
+            #      acá, si alguien quiere tocar esa cuota, los métodos de
+            #      CuotaDeuda/CuotaCobro la van a encontrar con su turno ya
+            #      cerrado y van a pedir reabrirlo primero (ver
+            #      _cuota_efectivo_en_turno_cerrado).
+            for cuota_deuda in CuotaDeuda.objects.filter(
+                estado=EstadoCuota.CONFIRMADA,
+                fecha_confirmacion__gte=self.fecha_apertura,
+                fecha_confirmacion__lte=self.fecha_cierre,
+                pagos__cuenta__tipo=TipoCuenta.EFECTIVO,
+            ).distinct():
+                sincronizar_movimiento_cuota(cuota_deuda)
+
+            for cuota_cobro in CuotaCobro.objects.filter(
+                estado=EstadoCuota.CONFIRMADA,
+                fecha_confirmacion__gte=self.fecha_apertura,
+                fecha_confirmacion__lte=self.fecha_cierre,
+                cuenta_cobro__tipo=TipoCuenta.EFECTIVO,
+            ):
+                sincronizar_movimiento_cuota_cobro(cuota_cobro)
+
             # ── Cerrar la ficha de reapertura abierta (si esto es un
             #    re-cierre después de reabrir para corregir) ──────────
             reapertura = (
@@ -3349,6 +3379,20 @@ class Deuda(models.Model):
                 'Esta deuda nació de una compra real — no se puede eliminar directamente. '
                 'Si querés deshacerte de ella, eliminá la compra completa desde su historial.'
             )
+        # Fail fast, antes de tocar nada: si alguna cuota se pagó en
+        # efectivo dentro de un turno que ya cerró, borrar toda la deuda
+        # de un tirón se llevaría puesto ese movimiento igual que
+        # CuotaDeuda.eliminar() — mismo chequeo, ver
+        # _turno_cerrado_de_cuota_efectivo.
+        for cuota in self.cuotas.filter(estado=EstadoCuota.CONFIRMADA):
+            turno_bloqueante = _turno_cerrado_de_cuota_efectivo(cuota)
+            if turno_bloqueante:
+                raise ValueError(
+                    f'La cuota {cuota.numero} se pagó en efectivo dentro del turno '
+                    f'#{turno_bloqueante.numero}, que ya está '
+                    f'{turno_bloqueante.get_estado_display().lower()} — reabrilo desde Caja '
+                    f'Diaria (Historial de turnos → Reabrir) para poder eliminar esta deuda.'
+                )
         with transaction.atomic():
             movimientos = MovimientoCaja.objects.filter(
                 origen__in=(OrigenMovimiento.DEUDA, OrigenMovimiento.DEUDA_TARJETA),
@@ -3637,6 +3681,9 @@ class CuotaDeuda(models.Model):
                         'Esta cuota se pagó con cheque — resolvé el cheque desde Cheques antes de '
                         'cambiar el monto, o borrá la cuota y volvé a cargarla.'
                     )
+                turno_bloqueante = _turno_cerrado_de_cuota_efectivo(self)
+                if turno_bloqueante:
+                    raise ValueError(_mensaje_turno_cerrado_cuota(turno_bloqueante, 'cambiarle el monto'))
                 if pagos:
                     pagos[0].monto = monto
                     pagos[0].save(update_fields=['monto'])
@@ -3707,6 +3754,9 @@ class CuotaDeuda(models.Model):
             raise ValueError('La deuda no está activa.')
         if self.estado != EstadoCuota.CONFIRMADA:
             raise ValueError('Esta cuota no está pagada.')
+        turno_bloqueante = _turno_cerrado_de_cuota_efectivo(self)
+        if turno_bloqueante:
+            raise ValueError(_mensaje_turno_cerrado_cuota(turno_bloqueante, 'revertirla'))
 
         for cheque in Cheque.objects.filter(cuota_deuda=self):
             if cheque.estado == EstadoCheque.CONFIRMADO and not cheque.es_historico:
@@ -3745,6 +3795,9 @@ class CuotaDeuda(models.Model):
             raise ValueError('Esta cuota es de una deuda nacida de una compra — se edita desde el historial de Compras.')
         if deuda.estado != EstadoDeuda.ACTIVA:
             raise ValueError('La deuda no está activa.')
+        turno_bloqueante = _turno_cerrado_de_cuota_efectivo(self)
+        if turno_bloqueante:
+            raise ValueError(_mensaje_turno_cerrado_cuota(turno_bloqueante, 'borrarla'))
 
         for cheque in Cheque.objects.filter(cuota_deuda=self):
             if cheque.estado == EstadoCheque.CONFIRMADO and not cheque.es_historico:
@@ -3849,6 +3902,57 @@ def _limpiar_movimientos_cuota(cuota):
     )
     for movimiento in movimientos:
         movimiento.delete()
+
+
+def _turno_cerrado_de_cuota_efectivo(cuota):
+    """
+    Si esta CuotaDeuda se pagó (al menos en parte) en efectivo y esa fecha
+    de confirmación cae dentro de un turno que ya no está abierto, devuelve
+    ESE turno. Si no aplica (no es efectivo, o el turno sigue abierto, o
+    nunca hubo turno), devuelve None.
+
+    Mientras el turno seguía abierto, ese pago nunca generó su propio
+    MovimientoCaja (ver sincronizar_movimiento_cuota) — solo restó del
+    efectivo esperado del cierre. Al cerrar el turno (ver TurnoCaja.
+    cerrar), ese movimiento recién se materializa, y el cierre queda
+    congelado (totales_cierre, diferencia_efectivo) dando por hecho que
+    esa plata salió. Editar el monto, revertir o borrar la cuota después
+    de eso — sin este chequeo — desincronizaría ese cierre ya
+    "arqueado" sin que nadie se entere: el turno seguiría diciendo que
+    salió esa plata aunque la cuota ya no exista o valga otra cosa.
+    Mismo criterio que ya usa CobroCuentaCorriente.anular() (ver
+    _cuota_en_turno_cerrado) para el cobro en cuenta corriente.
+    """
+    if not cuota.fecha_confirmacion:
+        return None
+    if not cuota.pagos.filter(cuenta__tipo=TipoCuenta.EFECTIVO).exists():
+        return None
+    turno = TurnoCaja.turno_que_contiene(cuota.fecha_confirmacion)
+    if turno is not None and turno.estado != EstadoTurno.ABIERTO:
+        return turno
+    return None
+
+
+def _mensaje_turno_cerrado_cuota(turno, accion):
+    return (
+        f'Esta cuota se pagó en efectivo dentro del turno #{turno.numero}, que ya está '
+        f'{turno.get_estado_display().lower()} — reabrilo desde Caja Diaria (Historial de '
+        f'turnos → Reabrir) para poder {accion}.'
+    )
+
+
+def _turno_cerrado_de_cuota_cobro_efectivo(cuota):
+    """Igual que _turno_cerrado_de_cuota_efectivo, para CuotaCobro (el
+    espejo en Cuentas por cobrar) — una CuotaCobro cobra contra una única
+    `cuenta_cobro`, no reparte en varias como PagoCuotaDeuda."""
+    if not cuota.fecha_confirmacion or not cuota.cuenta_cobro_id:
+        return None
+    if cuota.cuenta_cobro.tipo != TipoCuenta.EFECTIVO:
+        return None
+    turno = TurnoCaja.turno_que_contiene(cuota.fecha_confirmacion)
+    if turno is not None and turno.estado != EstadoTurno.ABIERTO:
+        return turno
+    return None
 
 
 def _calcular_plan_cuotas(monto_original, porcentaje_interes, cantidad_cuotas, fecha_inicio):
@@ -4608,6 +4712,17 @@ class CuentaPorCobrar(models.Model):
                 'Esta cuenta por cobrar nació de una venta real — no se puede eliminar directamente. '
                 'Si querés deshacerte de ella, eliminá la venta completa desde su historial.'
             )
+        # Fail fast: mismo chequeo que Deuda.delete(), ver
+        # _turno_cerrado_de_cuota_cobro_efectivo.
+        for cuota in self.cuotas.filter(estado=EstadoCuota.CONFIRMADA):
+            turno_bloqueante = _turno_cerrado_de_cuota_cobro_efectivo(cuota)
+            if turno_bloqueante:
+                raise ValueError(
+                    f'La cuota {cuota.numero} se cobró en efectivo dentro del turno '
+                    f'#{turno_bloqueante.numero}, que ya está '
+                    f'{turno_bloqueante.get_estado_display().lower()} — reabrilo desde Caja '
+                    f'Diaria (Historial de turnos → Reabrir) para poder eliminar esta cuenta.'
+                )
         cliente_id = self.cliente_id
         with transaction.atomic():
             cuota_pks = list(self.cuotas.values_list('pk', flat=True))
@@ -6045,3 +6160,149 @@ class Bien(models.Model):
 
     def __str__(self):
         return self.nombre
+
+
+# ══════════════════════════════════════════════════════════════════
+#  CELULARES (Herramientas) — SIM + recordatorio de recargas
+# ══════════════════════════════════════════════════════════════════
+
+class Celular(models.Model):
+    """
+    Registro de líneas de celular del negocio: datos de la SIM (PIN,
+    PUK, fecha de activación) + un recordatorio de "hay que recargar
+    esta línea cada tantos días". No es de uso frecuente — vive en
+    Herramientas, mismo patrón chico y autocontenido que Nota/Bien.
+    """
+    numero = models.CharField(max_length=30)
+    titular = models.CharField(
+        max_length=120, blank=True,
+        help_text='Para qué/quién se usa esta línea (ej: "Vendedor", "Depósito").',
+    )
+    compania = models.CharField(max_length=60, blank=True, help_text='Movistar, Personal, Claro, etc.')
+    pin = models.CharField(max_length=20, blank=True, verbose_name='PIN')
+    puk = models.CharField(max_length=20, blank=True, verbose_name='PUK')
+    fecha_activacion = models.DateField(null=True, blank=True)
+    frecuencia_recarga_dias = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text='Cada cuántos días recordar recargar crédito. Vacío = sin recordatorio.',
+    )
+    notas = models.TextField(blank=True)
+    activo = models.BooleanField(default=True)
+
+    creado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='celulares_creados',
+    )
+    modificado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='celulares_modificados',
+    )
+    fecha_alta = models.DateTimeField(auto_now_add=True)
+    fecha_modificacion = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Celular'
+        verbose_name_plural = 'Celulares'
+        ordering = ['-activo', 'numero']
+
+    def __str__(self):
+        return self.numero
+
+    @property
+    def ultima_recarga(self):
+        return self.recargas.order_by('-fecha', '-fecha_alta').first()
+
+    @property
+    def proxima_fecha_recarga(self):
+        """None si no hay frecuencia configurada, o si nunca se cargó
+        crédito y tampoco hay fecha de activación de la que partir."""
+        if not self.frecuencia_recarga_dias:
+            return None
+        ultima = self.ultima_recarga
+        base = ultima.fecha if ultima else self.fecha_activacion
+        if not base:
+            return None
+        return base + timedelta(days=self.frecuencia_recarga_dias)
+
+    @property
+    def dias_para_recarga(self):
+        """Negativo = vencida hace esos días. None = sin recordatorio."""
+        proxima = self.proxima_fecha_recarga
+        if proxima is None:
+            return None
+        return (proxima - timezone.localtime().date()).days
+
+    @transaction.atomic
+    def delete(self, *args, **kwargs):
+        # El FK RecargaCelular.celular es CASCADE a nivel de Django, pero
+        # un cascade de verdad borra las recargas con SQL directo y NUNCA
+        # llama a RecargaCelular.delete() — así que sus Gasto quedarían
+        # huérfanos (protegidos, ni siquiera se podrían borrar después).
+        # Por eso este Celular nunca se borra "solo": primero se borra
+        # cada recarga de a una (dispara su limpieza del Gasto) y recién
+        # después el celular. Así queda blindado sin importar por dónde
+        # se dispare el borrado (la vista, el admin, una shell).
+        for recarga in list(self.recargas.all()):
+            recarga.delete()
+        super().delete(*args, **kwargs)
+
+
+class RecargaCelular(models.Model):
+    """
+    Una carga de crédito a un Celular. Al guardarse genera, en el mismo
+    paso, un Gasto (egreso) en caja grande — así la plata de la recarga
+    se carga UNA sola vez y ya queda reflejada en caja, en vez de tener
+    que anotar la recarga acá y encima cargar el gasto a mano en
+    Ingresos y egresos (ver RecargaCelularAccionesAjax).
+
+    La descripción del Gasto queda genérica ("Recarga celular" +
+    titular de la línea si tiene) a propósito, no con el número —
+    así todas las recargas de una misma línea comparten un solo
+    ConceptoGasto y se pueden sumar en Estadísticas en vez de generar
+    un concepto nuevo por cada número distinto.
+
+    `gasto` es PROTECT (no SET_NULL) a propósito: borrar el egreso desde
+    Ingresos y egresos mientras esta recarga lo sigue referenciando dejaba
+    el historial diciendo "recarga hecha" sin ningún movimiento de caja
+    detrás — plata que en los papeles nunca salió. Con PROTECT, Django
+    directamente impide borrar ese Gasto desde cualquier lado (esta
+    herramienta, Ingresos y egresos, el admin) hasta que la recarga se
+    borre primero acá — ver EditarGastoAjax/EliminarGastoAjax en
+    views_gastos.py, que además explican el motivo con un mensaje claro
+    en vez de dejar reventar el ProtectedError en la cara del usuario.
+    """
+    celular = models.ForeignKey(Celular, on_delete=models.CASCADE, related_name='recargas')
+    fecha = models.DateField()
+    monto = models.DecimalField(max_digits=10, decimal_places=2)
+    gasto = models.OneToOneField(
+        Gasto, on_delete=models.PROTECT,
+        null=True, blank=True, related_name='recarga_celular',
+    )
+
+    creado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='recargas_celular_creadas',
+    )
+    fecha_alta = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Recarga de celular'
+        verbose_name_plural = 'Recargas de celular'
+        ordering = ['-fecha', '-fecha_alta']
+
+    def __str__(self):
+        return f'{self.celular.numero} — ${self.monto} ({self.fecha})'
+
+    @transaction.atomic
+    def delete(self, *args, **kwargs):
+        # Igual que Gasto.delete(): al borrar la recarga se borra también
+        # el egreso que generó, para no dejar un movimiento de caja
+        # huérfano. Si se borra un Celular con recargas, hay que iterar
+        # e ir borrando cada RecargaCelular así (nunca un queryset.delete()
+        # masivo, que no dispara esto) — ver CelularEliminarAjax. Atómico
+        # para que, si algo falla a mitad de camino, no quede la recarga
+        # borrada con el gasto todavía vivo (o viceversa).
+        gasto = self.gasto
+        super().delete(*args, **kwargs)
+        if gasto:
+            gasto.delete()

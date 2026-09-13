@@ -1,0 +1,246 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Celulares{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'caja/css/celulares.css' %}?v=20260914c">
+{% endblock %}
+
+{% block content %}
+<div class="celulares-container">
+    {% if not puede_ver %}
+    <div class="celulares-sin-permiso">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M12 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="12" cy="16.2" r="0.9" fill="currentColor"/>
+        </svg>
+        <p>No tenés permiso para ver los celulares.</p>
+    </div>
+    {% else %}
+
+    <header class="celulares-header">
+        <div class="celulares-header-icon">
+            <svg width="26" height="26" viewBox="0 0 20 20" fill="none">
+                <rect x="5" y="1.5" width="10" height="17" rx="1.6" stroke="currentColor" stroke-width="1.4"/>
+                <path d="M8 15.3H12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+            </svg>
+        </div>
+        <div class="celulares-header-text">
+            <h1 class="celulares-title">Celulares</h1>
+            <p class="celulares-subtitle">Datos de línea (PIN, PUK, activación) y control de recargas de crédito, con recordatorio.</p>
+        </div>
+        {% if puede_crear %}
+        <button type="button" class="btn btn-primary" id="btnNuevoCelular">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Nuevo celular
+        </button>
+        {% endif %}
+    </header>
+
+    <div class="celulares-toolbar">
+        <input type="text" id="celularesBuscar" class="celulares-input" placeholder="Buscar por número, titular o compañía...">
+        <select id="celularesFiltroEstado" class="celulares-input">
+            <option value="activos" selected>Activos</option>
+            <option value="inactivos">De baja</option>
+            <option value="">Todos</option>
+        </select>
+        <div class="celulares-chip celulares-chip--alerta" id="celularesChipPendientes" style="display:none;"></div>
+    </div>
+
+    <div class="celulares-card">
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Número</th>
+                        <th>Titular</th>
+                        <th>Compañía</th>
+                        <th>Última recarga</th>
+                        <th>Recordatorio</th>
+                        <th>Estado</th>
+                        <th class="col-actions">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="celularesTbody">
+                    <tr><td colspan="7" class="celulares-tabla-loading">Cargando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% endif %}
+</div>
+
+{# ── Modal A: datos del celular (SIM) ── #}
+<div class="modal fade" id="celularModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content celular-modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="celularModalTitulo">Nuevo celular</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="celularPk">
+
+                <div class="celular-campo-grid">
+                    <div class="celular-campo">
+                        <label for="celularNumero">Número *</label>
+                        <input type="text" id="celularNumero" class="celulares-input" placeholder="Ej: 11 2233-4455" maxlength="30">
+                    </div>
+                    <div class="celular-campo">
+                        <label for="celularTitular">Para qué/quién <span class="celular-campo-opcional">(opcional)</span></label>
+                        <input type="text" id="celularTitular" class="celulares-input" placeholder="Ej: Vendedor, Depósito..." maxlength="120">
+                    </div>
+                </div>
+
+                <div class="celular-campo-grid">
+                    <div class="celular-campo">
+                        <label for="celularCompania">Compañía <span class="celular-campo-opcional">(opcional)</span></label>
+                        <input type="text" id="celularCompania" class="celulares-input" placeholder="Movistar, Personal, Claro..." maxlength="60">
+                    </div>
+                    <div class="celular-campo">
+                        <label for="celularFechaActivacion">Fecha de activación <span class="celular-campo-opcional">(opcional)</span></label>
+                        <input type="date" id="celularFechaActivacion" class="celulares-input">
+                    </div>
+                </div>
+
+                <div class="celular-campo-grid">
+                    <div class="celular-campo">
+                        <label for="celularPin">PIN <span class="celular-campo-opcional">(opcional)</span></label>
+                        <div class="celular-campo-secreto">
+                            <input type="password" id="celularPin" class="celulares-input" maxlength="20" autocomplete="off">
+                            <button type="button" class="celular-btn-ver" data-target="celularPin" title="Mostrar/ocultar">
+                                <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M1 8C1 8 3.5 3 8 3S15 8 15 8 12.5 13 8 13 1 8 1 8Z" stroke="currentColor" stroke-width="1.2"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.2"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="celular-campo">
+                        <label for="celularPuk">PUK <span class="celular-campo-opcional">(opcional)</span></label>
+                        <div class="celular-campo-secreto">
+                            <input type="password" id="celularPuk" class="celulares-input" maxlength="20" autocomplete="off">
+                            <button type="button" class="celular-btn-ver" data-target="celularPuk" title="Mostrar/ocultar">
+                                <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M1 8C1 8 3.5 3 8 3S15 8 15 8 12.5 13 8 13 1 8 1 8Z" stroke="currentColor" stroke-width="1.2"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.2"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="celular-campo">
+                    <label for="celularFrecuencia">Recordar recargar cada <span class="celular-campo-opcional">(en días, opcional)</span></label>
+                    <input type="number" id="celularFrecuencia" class="celulares-input" min="1" step="1" placeholder="Ej: 30" style="max-width:140px;">
+                </div>
+
+                <div class="celular-campo">
+                    <label for="celularNotas">Notas <span class="celular-campo-opcional">(opcional)</span></label>
+                    <textarea id="celularNotas" class="celulares-input" rows="2" placeholder="Lo que haga falta..."></textarea>
+                </div>
+
+                <label class="celular-activo-check" id="celularActivoWrap" style="display:none;">
+                    <input type="checkbox" id="celularActivo" checked>
+                    <span>Activo <small>(desmarcalo si se dio de baja la línea, sin borrar el registro)</small></span>
+                </label>
+
+                <p class="celular-meta" id="celularMeta" style="display:none;"></p>
+                <div id="celularMsg" class="alerta-inline alerta-error" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger btn-sm" id="btnEliminarCelular" style="display:none;margin-right:auto;">Eliminar</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary btn-sm" id="btnGuardarCelular">Guardar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ── Modal B: historial y carga de recargas ── #}
+<div class="modal fade" id="recargasModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content celular-modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title" id="recargasModalTitulo">Recargas</h5>
+                    <span class="recarga-proxima-badge" id="recargaProximaBadge"></span>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="recargaCelularPk">
+                <input type="hidden" id="recargaPk">
+
+                <div class="recarga-form-grid" id="recargaFormGrid">
+                    <div class="celular-campo">
+                        <label for="recargaFecha">Fecha</label>
+                        <input type="date" id="recargaFecha" class="celulares-input">
+                    </div>
+                    <div class="celular-campo">
+                        <label for="recargaMonto">Monto</label>
+                        <div class="celular-input-prefix-wrap">
+                            <span class="celular-input-prefix">$</span>
+                            <input type="number" id="recargaMonto" class="celulares-input" min="0" step="0.01" placeholder="0.00">
+                        </div>
+                    </div>
+                    <div class="celular-campo">
+                        <label for="recargaCuenta">Sale de</label>
+                        <select id="recargaCuenta" class="celulares-input">
+                            {% for c in cuentas %}
+                            <option value="{{ c.pk }}">{{ c.nombre }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="celular-campo recarga-form-btn">
+                        <button type="button" class="btn btn-primary btn-sm" id="btnGuardarRecarga">Registrar</button>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btnCancelarEdicionRecarga" style="display:none;">Cancelar</button>
+                    </div>
+                </div>
+                <div id="recargaMsg" class="alerta-inline alerta-error" style="display:none;"></div>
+
+                <div class="recargas-historial">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Monto</th>
+                                <th>Cuenta</th>
+                                <th>Cargado por</th>
+                                <th class="col-actions"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="recargasTbody">
+                            <tr><td colspan="5" class="celulares-tabla-loading">Cargando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if puede_ver %}
+<script>
+    const CELULARES_URLS = {
+        listar:   "{% url 'caja:celulares_listar' %}",
+        acciones: "{% url 'caja:celular_acciones' %}",
+        eliminar: "{% url 'caja:celular_eliminar' %}",
+        // 999999999 es un pk-sentinela improbable: se arma la URL real
+        // en JS reemplazándolo por el pk del celular (ver celulares.js).
+        recargasListarTpl:   "{% url 'caja:recargas_listar' celular_pk=999999999 %}",
+        recargaAccionesTpl:  "{% url 'caja:recarga_acciones' celular_pk=999999999 %}",
+        recargaEliminarTpl:  "{% url 'caja:recarga_eliminar' celular_pk=999999999 %}",
+    };
+    const CELULARES_PUEDE_CREAR    = {{ puede_crear|yesno:"true,false" }};
+    const CELULARES_PUEDE_EDITAR   = {{ puede_editar|yesno:"true,false" }};
+    const CELULARES_PUEDE_ELIMINAR = {{ puede_eliminar|yesno:"true,false" }};
+    const CELULARES_HOY            = "{{ today }}";
+</script>
+<script src="{% static 'caja/js/celulares.js' %}?v=20260914"></script>
+{% endif %}
+{% endblock %}
