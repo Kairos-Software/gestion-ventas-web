@@ -308,9 +308,6 @@ function _cdtPagoRenderLineas() {
         </label>
         ${esCheque ? `<p class="vdt-cheque-plan-nota">Acá se define el plan de cuotas. Los cheques reales de cada
             cuota se cargan después, desde el detalle de esta deuda en Créditos y préstamos.</p>` : ''}
-        ${esCC ? `<p class="vdt-cheque-plan-nota">Esta compra no impacta la caja ahora: queda registrada como
-            deuda con el proveedor. Se va pagando después, desde Créditos y préstamos, con cualquier cuenta
-            real o cheque.</p>` : ''}
         <div class="vdt-pago-credito-extra">
             ${l.modoCuotas === 'libre' ? '' : `
             <div>

@@ -840,7 +840,6 @@ function _pagoRenderLineas() {
             </span>
         </label>
         ${l.medio === 'cheque' ? `<p class="vdt-cheque-plan-nota">Acá se define el plan de cuotas. Los cheques de cada cuota se cargan después, desde la deuda en Créditos y préstamos.</p>` : ''}
-        ${l.medio === 'cuenta_corriente' ? `<p class="vdt-cheque-plan-nota">Esta compra no impacta la caja ahora: queda registrada como deuda con el proveedor. Se va pagando después, desde Créditos y préstamos, con cualquier cuenta real o cheque.</p>` : ''}
         <div class="vdt-pago-credito-extra">
             ${l.modoCuotas === 'libre' ? '' : `<div>
                 <span class="vdt-pago-credito-label">Cuotas</span>

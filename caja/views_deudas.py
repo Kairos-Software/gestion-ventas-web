@@ -132,7 +132,7 @@ def _serializar_cuota(c):
         # Una cuota confirmada tiene 0 filas (cheque / histórica) o 1..N
         # (pago dividido en cuentas — ver PagoCuotaDeuda).
         'pagos': [
-            {'cuenta_nombre': p.cuenta.nombre, 'monto': str(p.monto)}
+            {'cuenta_pk': p.cuenta_id, 'cuenta_nombre': p.cuenta.nombre, 'monto': str(p.monto)}
             for p in c.pagos.select_related('cuenta').all()
         ] if c.estado == EstadoCuota.CONFIRMADA else [],
         'es_historica': c.es_historica,
@@ -803,9 +803,11 @@ class ConvertirDeudaVariableAjax(LoginRequiredMixin, View):
 
 class EditarCuotaDeudaAjax(LoginRequiredMixin, View):
     """
-    POST { monto?, fecha_vencimiento?, fecha_pago?, medio_pago_historico? }
-    → CuotaDeuda.editar(). Los últimos dos solo aplican a una cuota
-    pagada históricamente (carga inicial) — ver CuotaDeuda.editar().
+    POST { monto?, fecha_vencimiento?, fecha_pago?, medio_pago_historico?,
+    cuenta_pago_historica_pk?, cuenta_pago_pk? } → CuotaDeuda.editar().
+    Los del medio solo aplican a una cuota pagada históricamente (carga
+    inicial); `cuenta_pago_pk` solo a una con un pago real — ver
+    CuotaDeuda.editar() para los detalles y bloqueos de cada uno.
     """
 
     def post(self, request, pk):
@@ -833,6 +835,20 @@ class EditarCuotaDeudaAjax(LoginRequiredMixin, View):
                     return JsonResponse({'error': 'Fecha de pago inválida.'}, status=400)
             if data.get('medio_pago_historico') is not None:
                 kwargs['medio_pago_historico'] = data.get('medio_pago_historico')
+            if 'cuenta_pago_historica_pk' in data:
+                cuenta_pk = data.get('cuenta_pago_historica_pk')
+                if cuenta_pk:
+                    cuenta = _cuenta_valida(cuenta_pk, es_credito=False)
+                    if not cuenta:
+                        return JsonResponse({'error': 'Cuenta inválida.'}, status=400)
+                    kwargs['cuenta_pago_historica'] = cuenta
+                else:
+                    kwargs['cuenta_pago_historica'] = None
+            if data.get('cuenta_pago_pk'):
+                cuenta = _cuenta_valida(data.get('cuenta_pago_pk'), es_credito=False)
+                if not cuenta:
+                    return JsonResponse({'error': 'Elegí una cuenta válida.'}, status=400)
+                kwargs['cuenta_pago'] = cuenta
 
             cuota.editar(**kwargs)
             return JsonResponse({

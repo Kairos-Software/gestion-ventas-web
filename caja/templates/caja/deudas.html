@@ -5,7 +5,7 @@
 {% block title %}Créditos y préstamos{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'caja/css/deudas.css' %}?v=20260914c">
+<link rel="stylesheet" href="{% static 'caja/css/deudas.css' %}?v=20260914d">
 {% endblock %}
 
 {% block content %}
@@ -479,72 +479,6 @@
 
             </section>
 
-            <section class="deudas-fs" id="bloqueCuotasEdicion" hidden>
-                <div class="deudas-cuotas-headrow">
-                    <div>
-                        <h3 class="deudas-fs-title">Cuotas de esta deuda</h3>
-                        <p class="deudas-step-subtitle">Tildá una cuota como pagada o pendiente, editala o quitala.</p>
-                    </div>
-                    <div class="deudas-cuotas-headrow-actions" id="bloqueConvertirVariable" hidden>
-                        <button type="button" class="btn btn-ghost btn-sm" id="btnConvertirVariable">Pasar a cuotas variables</button>
-                        <button type="button" class="kai-help-btn" id="btnAyudaConvertirVariable" data-help-target="ayuda_convertir_variable" aria-label="¿Para qué sirve esto?">?</button>
-                    </div>
-                </div>
-                <div class="kai-help-popover" id="ayuda_convertir_variable">
-                    Usalo cuando cargaste esta deuda como "cuotas fijas" pero después resultó que las cuotas
-                    no son todas iguales, o te faltan cargar algunas (por ejemplo, el banco solo te mostraba
-                    una parte del plan). Convierte esta deuda a "cuotas variables" sin tocar lo que ya pagaste;
-                    después agregás o corregís las que falten desde el panel de abajo.
-                </div>
-                <div class="deudas-cuotas-wrap">
-                    <table class="deudas-cuotas-tabla deudas-cuotas-tabla--detalle">
-                        <thead>
-                            <tr>
-                                <th>Cuota</th>
-                                <th>Vencimiento</th>
-                                <th class="th-monto">Monto</th>
-                                <th>Estado</th>
-                                <th class="th-acciones">Acción</th>
-                            </tr>
-                        </thead>
-                        <tbody id="dCuotasActualesBody"></tbody>
-                    </table>
-                </div>
-
-                <div class="deudas-editar-cuotas" id="deudasEditarCuotas" hidden>
-                    <div class="deudas-cuotas-headrow-actions">
-                        <h3 class="deudas-cuotas-title">Agregar o editar cuotas pendientes</h3>
-                        <button type="button" class="kai-help-btn" data-help-target="ayuda_editar_cuotas" aria-label="Cómo funciona esto">?</button>
-                    </div>
-                    <div class="kai-help-popover" id="ayuda_editar_cuotas">
-                        Las cuotas ya pagadas de antes no se modifican acá (usá la tabla de arriba para esas).
-                        Editá las pendientes (fecha o monto) o agregá las que falten, de a una o con "Generar N
-                        cuotas más" — y si alguna de las que agregás ya la pagaste, tildá "ya pagada" y
-                        completá cuándo, para que quede registrada así de una vez.
-                    </div>
-                    <div class="deudas-ec-generar">
-                        <label for="ecGenerarN">Generar</label>
-                        <input type="number" id="ecGenerarN" step="1" min="1" placeholder="N">
-                        <span>cuotas más (mensuales, desde la última)</span>
-                        <button type="button" class="btn btn-ghost btn-sm" id="btnEcGenerar">Generar</button>
-                    </div>
-                    <div class="deudas-cv-cabecera">
-                        <span class="deudas-cv-cabecera-num">#</span>
-                        <span>Vencimiento</span>
-                        <span>Monto</span>
-                        <span class="deudas-cv-cabecera-pago">Ya pagada</span>
-                        <span></span>
-                    </div>
-                    <div class="deudas-cuotas-variables-wrap" id="deudasEditarCuotasWrap"></div>
-                    <button type="button" class="btn btn-ghost btn-sm" id="btnAgregarCuotaPendiente">+ Agregar cuota</button>
-                    <p class="deudas-cuotas-variables-resumen" id="deudasEditarCuotasResumen"></p>
-                    <div id="ecMsg" class="deudas-inline-msg"></div>
-                    <div class="deudas-registrar-abono-acciones">
-                        <button type="button" class="btn btn-primary" id="btnGuardarCuotas">Guardar cuotas pendientes</button>
-                    </div>
-                </div>
-            </section>
-
                 </div>
 
             </div>
@@ -699,6 +633,88 @@
 </div>
 
 <!-- ══════════════════════════════════
+     MODAL EDITAR CUOTA (formulario, no prompts del navegador)
+══════════════════════════════════ -->
+<div class="modal" id="modalEditarCuota" hidden>
+    <div class="modal-backdrop" id="modalEditarCuotaBackdrop"></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title" id="ecTitle">Editar cuota</h2>
+            <button type="button" class="modal-close" id="btnCerrarEditarCuota" aria-label="Cerrar">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M5 5L15 15M5 15L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="deudas-form-grid">
+                <div class="form-campo">
+                    <label for="ecVencimiento">Vencimiento *</label>
+                    <input type="date" id="ecVencimiento" required>
+                </div>
+                <div class="form-campo">
+                    <label for="ecMonto">Monto *</label>
+                    <input type="number" id="ecMonto" step="0.01" min="0.01" required>
+                </div>
+            </div>
+
+            <div id="ecBloquePago" hidden>
+                <div class="deudas-form-grid">
+                    <div class="form-campo" id="ecCampoFechaPago" hidden>
+                        <label for="ecFechaPago">Fecha real de pago</label>
+                        <input type="date" id="ecFechaPago">
+                    </div>
+                    <div class="form-campo" id="ecCampoCuenta" hidden>
+                        <label for="ecCuenta" id="ecCuentaLabel">Cuenta</label>
+                        <select id="ecCuenta"></select>
+                    </div>
+                </div>
+                <div class="form-campo" id="ecCampoNota" hidden>
+                    <label for="ecNota">Nota de cómo se pagó</label>
+                    <input type="text" id="ecNota" maxlength="100" placeholder="Ej: transferencia, permuta (opcional)">
+                </div>
+                <p class="deudas-edicion-nota" id="ecNotaBloqueoPago" hidden></p>
+            </div>
+
+            <div id="ecmMsg" class="deudas-inline-msg"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-ghost" id="btnCancelarEditarCuota">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnGuardarEditarCuota">Guardar cambios</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════
+     MODAL MARCAR CUOTA COMO PAGADA (carga inicial)
+══════════════════════════════════ -->
+<div class="modal" id="modalMarcarPagada" hidden>
+    <div class="modal-backdrop" id="modalMarcarPagadaBackdrop"></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title" id="mpTitle">Marcar como pagada</h2>
+            <button type="button" class="modal-close" id="btnCerrarMarcarPagada" aria-label="Cerrar">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M5 5L15 15M5 15L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <p class="deudas-edicion-nota">No genera ningún movimiento de caja — se asume que esa plata ya salió antes de cargar el sistema.</p>
+            <div class="form-campo">
+                <label for="mpFecha">¿Qué día se pagó esta cuota? *</label>
+                <input type="date" id="mpFecha" required>
+            </div>
+            <div id="mpMsg" class="deudas-inline-msg"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-ghost" id="btnCancelarMarcarPagada">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnConfirmarMarcarPagada">Marcar como pagada</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════
      MODAL PAGAR CUOTA CON CHEQUE
 ══════════════════════════════════ -->
 <div class="modal" id="modalChequeCuota" hidden>
@@ -788,7 +804,7 @@
     window.deudasPuedeConfirmar = {{ puede_confirmar|yesno:"true,false" }};
     window.deudasPuedeEditar = {{ puede_editar|yesno:"true,false" }};
 </script>
-<script src="{% static 'caja/js/deudas.js' %}?v=20260914c"></script>
+<script src="{% static 'caja/js/deudas.js' %}?v=20260914d"></script>
 <script src="{% static 'caja/js/deudas_documentos.js' %}"></script>
 <script src="{% static 'caja/js/deudas_imprimir.js' %}?v=20260913"></script>
 {% endblock %}

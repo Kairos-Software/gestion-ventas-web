@@ -3432,6 +3432,11 @@ class Deuda(models.Model):
 
 DIAS_HABILITACION_CUOTA = 2
 
+# Sentinel para distinguir "no tocar este campo" de "poner este campo en
+# None" en CuotaDeuda.editar() — cuenta_pago_historica=None es un valor
+# válido (borrar la cuenta informativa), así que no sirve como default.
+_SIN_CAMBIO = object()
+
 
 class CuotaDeuda(models.Model):
     """
@@ -3641,7 +3646,8 @@ class CuotaDeuda(models.Model):
 
     @transaction.atomic
     def editar(self, *, monto=None, fecha_vencimiento=None, fecha_pago=None,
-               medio_pago_historico=None, usuario=None):
+               medio_pago_historico=None, cuenta_pago_historica=_SIN_CAMBIO,
+               cuenta_pago=None, usuario=None):
         """
         Corrige una cuota puntual, para arreglar un error de carga:
           - PENDIENTE: cambia monto y/o fecha de vencimiento libremente.
@@ -3651,26 +3657,29 @@ class CuotaDeuda(models.Model):
             Si se pagó con cheque o repartido en varias cuentas, hay que
             borrar la cuota y volver a cargarla.
           - CONFIRMADA y es_historica: además se puede corregir `fecha_pago`
-            (cuándo se pagó realmente — distinto de fecha_vencimiento) y
-            `medio_pago_historico` (la nota de cómo se pagó). Son datos
+            (cuándo se pagó realmente — distinto de fecha_vencimiento),
+            `medio_pago_historico` (la nota de cómo se pagó) y
+            `cuenta_pago_historica` (la cuenta informativa). Son datos
             puramente informativos de una carga inicial: no hay ningún
             MovimientoCaja ni turno de por medio (ver
             _aplicar_pago_historico), así que no hace falta ningún chequeo
             de caja/turno para tocarlos.
+          - CONFIRMADA y con un pago REAL (no histórico, una sola cuenta,
+            sin cheque): `cuenta_pago` sí se puede reasignar — por ejemplo,
+            corregir que se cargó "Efectivo" cuando en realidad fue por
+            transferencia. Bloqueado si la cuenta ACTUAL es efectivo y su
+            turno ya cerró (se movería plata de un cierre ya congelado), o
+            si la cuenta NUEVA es efectivo y el turno de esa fecha ya cerró
+            (introduciría una salida de efectivo que ese cierre nunca
+            contempló). Fuera de esos casos es seguro: se re-sincroniza el
+            MovimientoCaja con la cuenta nueva (ver
+            sincronizar_movimiento_cuota).
 
-            Para reasignar la cuenta informativa (`cuenta_pago_historica`)
-            no hay edición directa acá — revertí la cuota a pendiente y
-            volvé a marcarla como pagada con la cuenta correcta (ver
-            revertir_a_pendiente / marcar_pagada), que sí la deja elegir.
-
-            Para una cuota con un pago REAL (no histórico): ni la cuenta de
-            pago ni la fecha en que se confirmó se pueden tocar acá — esa
-            fecha es la que define a qué turno de caja pertenece el
-            movimiento ya materializado, y cambiarla a mano podría
-            desincronizar un cierre ya congelado. Para corregir eso,
-            revertí la cuota a pendiente (bloqueado si su turno ya cerró,
-            ver _turno_cerrado_de_cuota_efectivo) y confirmala de nuevo con
-            los datos correctos.
+            La fecha en que se confirmó un pago REAL no se puede tocar acá
+            — es la que define a qué turno pertenece el movimiento ya
+            materializado, y cambiarla podría desincronizar un cierre ya
+            congelado. Para corregirla, revertí la cuota a pendiente
+            (bloqueado si su turno ya cerró) y confirmala de nuevo.
         Bloqueada si la deuda nació de una compra real (`pago_compra`) —
         esas cuotas espejan la compra y se editan desde Compras.
         """
@@ -3682,11 +3691,22 @@ class CuotaDeuda(models.Model):
         if self.estado == EstadoCuota.ANULADA:
             raise ValueError('No se puede editar una cuota anulada.')
 
-        if (fecha_pago is not None or medio_pago_historico is not None) \
+        es_pago_real_simple = (
+            self.estado == EstadoCuota.CONFIRMADA and not self.es_historica
+            and self.pagos.count() <= 1
+            and not self.cheques.exclude(estado=EstadoCheque.ANULADO).exists()
+        )
+
+        if (fecha_pago is not None or medio_pago_historico is not None or cuenta_pago_historica is not _SIN_CAMBIO) \
                 and not (self.estado == EstadoCuota.CONFIRMADA and self.es_historica):
             raise ValueError(
-                'La fecha real de pago y la nota de cómo se pagó solo se pueden corregir en una '
-                'cuota pagada históricamente (carga inicial).'
+                'La fecha real de pago, la cuenta y la nota de cómo se pagó solo se pueden corregir '
+                'en una cuota pagada históricamente (carga inicial).'
+            )
+        if cuenta_pago is not None and not es_pago_real_simple:
+            raise ValueError(
+                'La cuenta de pago solo se puede reasignar en una cuota con un único pago real '
+                '(sin cheque, sin repartir en varias cuentas).'
             )
 
         if fecha_vencimiento is not None and not isinstance(fecha_vencimiento, date):
@@ -3731,6 +3751,28 @@ class CuotaDeuda(models.Model):
         if medio_pago_historico is not None:
             self.medio_pago_historico = str(medio_pago_historico).strip()[:100]
             campos.append('medio_pago_historico')
+
+        if cuenta_pago_historica is not _SIN_CAMBIO:
+            self.cuenta_pago_historica = cuenta_pago_historica
+            campos.append('cuenta_pago_historica')
+
+        if cuenta_pago is not None:
+            turno_bloqueante = _turno_cerrado_de_cuota_efectivo(self)
+            if turno_bloqueante:
+                raise ValueError(_mensaje_turno_cerrado_cuota(turno_bloqueante, 'cambiarle la cuenta'))
+            turno_bloqueante_nuevo = _bloqueo_turno_por_cuenta(self, cuenta_pago)
+            if turno_bloqueante_nuevo:
+                raise ValueError(
+                    f'No se puede pasar a "{cuenta_pago.nombre}": el turno #{turno_bloqueante_nuevo.numero} '
+                    f'de esa fecha ya está {turno_bloqueante_nuevo.get_estado_display().lower()} y no '
+                    f'contempló ese efectivo — reabrilo desde Caja Diaria primero.'
+                )
+            pagos = list(self.pagos.all())
+            if pagos:
+                pagos[0].cuenta = cuenta_pago
+                pagos[0].save(update_fields=['cuenta'])
+            self.cuenta_pago = cuenta_pago
+            campos.append('cuenta_pago')
 
         self.save(update_fields=campos)
 
@@ -3969,6 +4011,25 @@ def _turno_cerrado_de_cuota_efectivo(cuota):
     if not cuota.fecha_confirmacion:
         return None
     if not cuota.pagos.filter(cuenta__tipo=TipoCuenta.EFECTIVO).exists():
+        return None
+    turno = TurnoCaja.turno_que_contiene(cuota.fecha_confirmacion)
+    if turno is not None and turno.estado != EstadoTurno.ABIERTO:
+        return turno
+    return None
+
+
+def _bloqueo_turno_por_cuenta(cuota, cuenta):
+    """
+    Análogo a _turno_cerrado_de_cuota_efectivo, pero para una cuenta
+    HIPOTÉTICA (la que se le quiere asignar a la cuota, no la que ya
+    tiene) — usado al reasignar `cuenta_pago` en CuotaDeuda.editar(). Si
+    esa cuenta es efectivo y el turno de la fecha de confirmación ya
+    cerró, devuelve ese turno: asignar efectivo ahí introduciría una
+    salida de caja que ese cierre nunca contempló.
+    """
+    if cuenta is None or cuenta.tipo != TipoCuenta.EFECTIVO:
+        return None
+    if not cuota.fecha_confirmacion:
         return None
     turno = TurnoCaja.turno_que_contiene(cuota.fecha_confirmacion)
     if turno is not None and turno.estado != EstadoTurno.ABIERTO:

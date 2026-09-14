@@ -1497,7 +1497,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 <div class="deudas-cuota-iconos">
                     ${iconPago}
                     <button type="button" class="deudas-cuota-icono" title="Editar monto, fecha y otros datos de esta cuota"
-                            onclick='editarCuotaPrompt(${JSON.stringify(c)})'>✎ Editar</button>
+                            onclick='abrirModalEditarCuota(${JSON.stringify(c)})'>✎ Editar</button>
                     <button type="button" class="deudas-cuota-icono deudas-cuota-icono--danger" title="Eliminar cuota"
                             onclick='eliminarCuotaPrompt(${JSON.stringify(c)})'>🗑 Eliminar</button>
                 </div>`;
@@ -2076,23 +2076,108 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // ── Editar / eliminar una cuota puntual ──────────────────────────
+    // ── Editar una cuota puntual: modal con formulario real, nada de
+    //    prompt()/confirm() del navegador ────────────────────────────
     // Para una cuota pagada históricamente (carga inicial) se puede
     // corregir todo lo que se cargó de ella: vencimiento, monto, la fecha
-    // en que realmente se pagó y la nota de cómo — ninguno de esos datos
-    // mueve caja ni turno (ver CuotaDeuda.editar). Para una cuota con pago
-    // real, en cambio, la fecha de confirmación y la cuenta no se tocan
-    // acá a propósito (definen a qué turno pertenece su movimiento ya
-    // materializado) — si están mal, hay que revertir la cuota a
-    // pendiente (revertirCuotaPendientePrompt) y volver a confirmarla.
-    window.editarCuotaPrompt = async function (c) {
-        const nuevaFecha = window.prompt('Vencimiento de la cuota (AAAA-MM-DD):', c.fecha_vencimiento);
-        if (nuevaFecha === null) return;
-        const nuevoMonto = window.prompt('Monto de la cuota:', c.monto);
-        if (nuevoMonto === null) return;
+    // en que realmente se pagó, la cuenta informativa y la nota — ninguno
+    // de esos datos mueve caja ni turno (ver CuotaDeuda.editar). Para una
+    // cuota con un pago REAL de una sola cuenta (sin cheque, sin repartir)
+    // también se puede reasignar la cuenta de pago — bloqueado del lado
+    // del servidor si el turno de esa fecha ya cerró, de un lado o del
+    // otro (ver _turno_cerrado_de_cuota_efectivo / _bloqueo_turno_por_
+    // cuenta). La fecha en que se confirmó un pago real NO se puede tocar
+    // acá — para eso hay que revertir la cuota a pendiente (bloqueado si
+    // su turno ya cerró) y confirmarla de nuevo con el dato correcto.
+    const modalEditarCuota = document.getElementById('modalEditarCuota');
+    const btnCerrarEditarCuota = document.getElementById('btnCerrarEditarCuota');
+    const btnCancelarEditarCuota = document.getElementById('btnCancelarEditarCuota');
+    const btnGuardarEditarCuota = document.getElementById('btnGuardarEditarCuota');
+    const ecTitle = document.getElementById('ecTitle');
+    const ecVencimiento = document.getElementById('ecVencimiento');
+    const ecMonto = document.getElementById('ecMonto');
+    const ecBloquePago = document.getElementById('ecBloquePago');
+    const ecCampoFechaPago = document.getElementById('ecCampoFechaPago');
+    const ecFechaPago = document.getElementById('ecFechaPago');
+    const ecCampoCuenta = document.getElementById('ecCampoCuenta');
+    const ecCuentaLabel = document.getElementById('ecCuentaLabel');
+    const ecCuenta = document.getElementById('ecCuenta');
+    const ecCampoNota = document.getElementById('ecCampoNota');
+    const ecNota = document.getElementById('ecNota');
+    const ecNotaBloqueoPago = document.getElementById('ecNotaBloqueoPago');
+    const ecmMsg = document.getElementById('ecmMsg');
+
+    let cuotaEditandoActual = null;
+
+    function cerrarModalEditarCuota() {
+        modalEditarCuota.hidden = true;
+        document.body.style.overflow = '';
+        cuotaEditandoActual = null;
+    }
+    btnCerrarEditarCuota.addEventListener('click', cerrarModalEditarCuota);
+    btnCancelarEditarCuota.addEventListener('click', cerrarModalEditarCuota);
+
+    function _pobrarSelectCuentaCuota(cuentas, seleccionarPk, conNinguna) {
+        ecCuenta.innerHTML = (conNinguna ? '<option value="">— Ninguna —</option>' : '')
+            + cuentas.map(cu => `<option value="${cu.pk}">${cu.nombre}${cu.titular ? ' · ' + cu.titular : ''}</option>`).join('');
+        ecCuenta.value = seleccionarPk ? String(seleccionarPk) : '';
+    }
+
+    window.abrirModalEditarCuota = function (c) {
+        cuotaEditandoActual = c;
+        ecTitle.textContent = `Editar cuota ${c.numero}`;
+        ecVencimiento.value = c.fecha_vencimiento;
+        ecMonto.value = c.monto;
+        ecmMsg.textContent = '';
+
         const pagada = c.estado === 'confirmada';
-        const cambioMonto = pagada && nuevoMonto !== '' && Number(nuevoMonto) !== Number(c.monto);
-        if (cambioMonto) {
+        ecBloquePago.hidden = !pagada;
+
+        if (pagada) {
+            const pagoUnico = !c.es_historica && (c.pagos || []).length <= 1 && !c.cheque_pk;
+
+            ecCampoFechaPago.hidden = !c.es_historica;
+            if (c.es_historica) ecFechaPago.value = c.fecha_confirmacion ? c.fecha_confirmacion.slice(0, 10) : '';
+
+            ecCampoNota.hidden = !c.es_historica;
+            if (c.es_historica) ecNota.value = c.medio_pago_historico || '';
+
+            ecCampoCuenta.hidden = !(c.es_historica || pagoUnico);
+            const cuentas = cuentasPorMoneda(deudaDetalleActual.moneda, false);
+            if (c.es_historica) {
+                ecCuentaLabel.textContent = 'Cuenta (informativa)';
+                _pobrarSelectCuentaCuota(cuentas, c.cuenta_pago_historica_pk, true);
+            } else if (pagoUnico) {
+                ecCuentaLabel.textContent = 'Cuenta de pago *';
+                _pobrarSelectCuentaCuota(cuentas, (c.pagos || [])[0]?.cuenta_pk, false);
+            }
+
+            ecNotaBloqueoPago.hidden = c.es_historica || pagoUnico;
+            if (!c.es_historica && !pagoUnico) {
+                ecNotaBloqueoPago.textContent = c.cheque_pk
+                    ? 'Esta cuota se pagó con cheque — la cuenta se maneja desde Cheques.'
+                    : 'Esta cuota se pagó repartida en varias cuentas — no se puede reasignar la cuenta acá. '
+                      + 'Borrá la cuota y volvé a cargarla si hace falta corregirla.';
+            }
+        }
+
+        modalEditarCuota.hidden = false;
+        document.body.style.overflow = 'hidden';
+    };
+
+    btnGuardarEditarCuota.addEventListener('click', async () => {
+        const c = cuotaEditandoActual;
+        if (!c) return;
+        ecmMsg.textContent = '';
+
+        const nuevoMonto = parseFloat(ecMonto.value);
+        if (!ecVencimiento.value || !nuevoMonto || nuevoMonto <= 0) {
+            ecmMsg.textContent = 'Completá vencimiento y monto.';
+            return;
+        }
+
+        const pagada = c.estado === 'confirmada';
+        if (pagada && Number(ecMonto.value) !== Number(c.monto)) {
             const msg = c.es_historica
                 ? 'Esta cuota está marcada como pagada de antes de cargar el sistema (carga inicial) — '
                   + 'no tiene un movimiento de caja real detrás, así que corregir el monto NO afecta tu '
@@ -2102,24 +2187,28 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!await KaiConfirm(msg, { danger: !c.es_historica })) return;
         }
 
-        const body = { fecha_vencimiento: nuevaFecha || null, monto: nuevoMonto || null };
+        const body = { fecha_vencimiento: ecVencimiento.value, monto: ecMonto.value };
 
         if (pagada && c.es_historica) {
-            const fechaPagoActual = c.fecha_confirmacion ? c.fecha_confirmacion.slice(0, 10) : '';
-            const nuevaFechaPago = window.prompt(
-                '¿Qué día se pagó realmente esta cuota? (AAAA-MM-DD) — distinto del vencimiento, '
-                + 'es el dato de la carga inicial:', fechaPagoActual,
-            );
-            if (nuevaFechaPago === null) return;
-            const nuevaNota = window.prompt(
-                'Nota de cómo se pagó (opcional, ej. "transferencia", "efectivo antes de cargar el sistema"):',
-                c.medio_pago_historico || '',
-            );
-            if (nuevaNota === null) return;
-            body.fecha_pago = nuevaFechaPago || null;
-            body.medio_pago_historico = nuevaNota;
+            body.fecha_pago = ecFechaPago.value || null;
+            body.medio_pago_historico = ecNota.value;
+            body.cuenta_pago_historica_pk = ecCuenta.value || null;
+        } else if (pagada && !ecCampoCuenta.hidden) {
+            if (!ecCuenta.value) {
+                ecmMsg.textContent = 'Elegí una cuenta de pago.';
+                return;
+            }
+            const cuentaActualPk = String((c.pagos || [])[0]?.cuenta_pk || '');
+            if (String(ecCuenta.value) !== cuentaActualPk) {
+                if (!await KaiConfirm(
+                    '¿Cambiar la cuenta con la que se pagó esta cuota? Se ajusta el movimiento de caja real.',
+                    { danger: true },
+                )) return;
+                body.cuenta_pago_pk = ecCuenta.value;
+            }
         }
 
+        btnGuardarEditarCuota.disabled = true;
         try {
             const r = await fetch(urls.editarCuota.replace('/0/', `/${c.pk}/`), {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
@@ -2128,47 +2217,78 @@ document.addEventListener('DOMContentLoaded', function () {
             const result = await r.json();
             if (result.success) {
                 KaiToast.show('Cuota actualizada.', 'success');
+                cerrarModalEditarCuota();
                 deudaDetalleActual = result.deuda;
                 renderizarCuotasEdicion(result.deuda);
                 cargarDeudas();
             } else {
-                KaiToast.show(result.error || 'No se pudo editar la cuota.', 'danger');
+                ecmMsg.textContent = result.error || 'No se pudo editar la cuota.';
             }
         } catch (e) {
             console.error(e);
-            KaiToast.show('No se pudo editar la cuota.', 'danger');
+            ecmMsg.textContent = 'No se pudo editar la cuota.';
+        } finally {
+            btnGuardarEditarCuota.disabled = false;
         }
-    };
+    });
 
     // Corregir una carga inicial después del hecho: tildar como ya pagada
     // una cuota que quedó pendiente por error. No genera egreso de caja —
-    // mismo mecanismo que una cuota "ya pagada" al crear la deuda.
-    window.marcarCuotaPagadaPrompt = async function (c) {
-        const fecha = window.prompt('¿Qué día se pagó esta cuota? (AAAA-MM-DD)', c.fecha_vencimiento < today ? c.fecha_vencimiento : today);
-        if (!fecha) return;
-        if (!await KaiConfirm(
-            `¿Marcar la cuota ${c.numero} como ya pagada el ${fmtFecha(fecha)}? No genera ningún movimiento `
-            + `de caja — se asume que esa plata ya salió antes de cargar el sistema.`
-        )) return;
+    // mismo mecanismo que una cuota "ya pagada" al crear la deuda. Modal
+    // propio (no window.prompt) para pedir la fecha.
+    const modalMarcarPagada = document.getElementById('modalMarcarPagada');
+    const btnCerrarMarcarPagada = document.getElementById('btnCerrarMarcarPagada');
+    const btnCancelarMarcarPagada = document.getElementById('btnCancelarMarcarPagada');
+    const btnConfirmarMarcarPagada = document.getElementById('btnConfirmarMarcarPagada');
+    const mpFecha = document.getElementById('mpFecha');
+    const mpMsg = document.getElementById('mpMsg');
+    let cuotaMarcandoPagadaPk = null;
+
+    function cerrarModalMarcarPagada() {
+        modalMarcarPagada.hidden = true;
+        document.body.style.overflow = '';
+        cuotaMarcandoPagadaPk = null;
+    }
+    btnCerrarMarcarPagada.addEventListener('click', cerrarModalMarcarPagada);
+    btnCancelarMarcarPagada.addEventListener('click', cerrarModalMarcarPagada);
+
+    window.marcarCuotaPagadaPrompt = function (c) {
+        cuotaMarcandoPagadaPk = c.pk;
+        mpFecha.value = c.fecha_vencimiento < today ? c.fecha_vencimiento : today;
+        mpFecha.max = today;
+        mpMsg.textContent = '';
+        modalMarcarPagada.hidden = false;
+        document.body.style.overflow = 'hidden';
+    };
+
+    btnConfirmarMarcarPagada.addEventListener('click', async () => {
+        if (!cuotaMarcandoPagadaPk || !mpFecha.value) {
+            mpMsg.textContent = 'Indicá la fecha de pago.';
+            return;
+        }
+        btnConfirmarMarcarPagada.disabled = true;
         try {
-            const r = await fetch(urls.marcarPagada.replace('/0/', `/${c.pk}/`), {
+            const r = await fetch(urls.marcarPagada.replace('/0/', `/${cuotaMarcandoPagadaPk}/`), {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
-                body: JSON.stringify({ fecha_pago: fecha }),
+                body: JSON.stringify({ fecha_pago: mpFecha.value }),
             });
             const result = await r.json();
             if (result.success) {
                 KaiToast.show('Cuota marcada como pagada.', 'success');
+                cerrarModalMarcarPagada();
                 deudaDetalleActual = result.deuda;
                 renderizarCuotasEdicion(result.deuda);
                 cargarDeudas();
             } else {
-                KaiToast.show(result.error || 'No se pudo marcar la cuota como pagada.', 'danger');
+                mpMsg.textContent = result.error || 'No se pudo marcar la cuota como pagada.';
             }
         } catch (e) {
             console.error(e);
-            KaiToast.show('No se pudo marcar la cuota como pagada.', 'danger');
+            mpMsg.textContent = 'No se pudo marcar la cuota como pagada.';
+        } finally {
+            btnConfirmarMarcarPagada.disabled = false;
         }
-    };
+    });
 
     // Deshacer el pago de una cuota (real o histórico) sin borrarla — para
     // corregir una que se marcó pagada por error, sin perder su lugar en
