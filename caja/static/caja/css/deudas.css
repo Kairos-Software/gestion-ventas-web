@@ -606,32 +606,21 @@
     border-top: 1px dashed var(--border-color);
 }
 
-.deudas-edicion-nota-link {
-    display: block;
-    width: 100%;
-    text-align: left;
+.deudas-plan-toggle {
+    margin-left: auto;
     font-size: 0.75rem;
     font-weight: 600;
     color: var(--accent-primary);
     background: none;
-    border: none;
-    padding: 0.35rem 0 0;
-    margin: 0;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.3rem 0.6rem;
     cursor: pointer;
+    white-space: nowrap;
 }
 
-.deudas-edicion-nota-link:hover {
-    text-decoration: underline;
-}
-
-.deudas-cuotas-destacado {
-    animation: deudasCuotasFlash 1.6s ease-out;
-    border-radius: 8px;
-}
-
-@keyframes deudasCuotasFlash {
-    0%, 25% { box-shadow: 0 0 0 3px var(--accent-primary); background: var(--accent-light); }
-    100% { box-shadow: 0 0 0 0 transparent; background: transparent; }
+.deudas-plan-toggle:hover {
+    background: var(--accent-light);
 }
 
 .deudas-cuotas-title {
@@ -1383,16 +1372,18 @@
     color: var(--text-secondary);
     white-space: nowrap;
 }
-.deudas-cuota-iconos { display: inline-flex; gap: 0.15rem; }
+.deudas-cuota-iconos { display: inline-flex; flex-wrap: wrap; gap: 0.3rem; }
 .deudas-cuota-icono {
-    border: none;
-    background: transparent;
+    border: 1px solid var(--border-color);
+    background: var(--bg-white);
     cursor: pointer;
-    font-size: 0.85rem;
+    font-size: 0.75rem;
+    font-weight: 600;
     line-height: 1;
-    padding: 0.25rem;
+    padding: 0.35rem 0.55rem;
     border-radius: var(--radius-sm);
-    color: var(--text-muted);
+    color: var(--text-secondary);
+    white-space: nowrap;
 }
 .deudas-cuota-icono:hover { background: var(--bg-secondary); color: var(--text-primary); }
 .deudas-cuota-icono--danger:hover { color: var(--danger, #dc2626); }
@@ -2218,16 +2209,6 @@
     color: var(--warning, #9a6700);
     font-style: normal;
     line-height: 1.4;
-}
-
-#modalDetalle .deudas-edicion-nota-link,
-#modalDeuda .deudas-edicion-nota-link {
-    margin: 0.3rem 0 0;
-    padding: 0.5rem 0.7rem;
-    border-radius: 8px;
-    background: rgba(245, 158, 11, 0.09);
-    color: var(--warning, #9a6700);
-    text-decoration: underline;
 }
 
 #modalDetalle .deudas-detalle-notas {

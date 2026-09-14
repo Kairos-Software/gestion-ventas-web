@@ -5,7 +5,7 @@
 {% block title %}Créditos y préstamos{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'caja/css/deudas.css' %}?v=20260914b">
+<link rel="stylesheet" href="{% static 'caja/css/deudas.css' %}?v=20260914c">
 {% endblock %}
 
 {% block content %}
@@ -220,7 +220,73 @@
                 </div>
             </section>
 
-            <section class="deudas-fs">
+            <section class="deudas-fs" id="bloqueCuotasEdicion" hidden>
+                <div class="deudas-cuotas-headrow">
+                    <div>
+                        <h3 class="deudas-fs-title">Cuotas de esta deuda</h3>
+                        <p class="deudas-step-subtitle">Tildá una cuota como pagada o pendiente, editala o quitala.</p>
+                    </div>
+                    <div class="deudas-cuotas-headrow-actions" id="bloqueConvertirVariable" hidden>
+                        <button type="button" class="btn btn-ghost btn-sm" id="btnConvertirVariable">Pasar a cuotas variables</button>
+                        <button type="button" class="kai-help-btn" id="btnAyudaConvertirVariable" data-help-target="ayuda_convertir_variable" aria-label="¿Para qué sirve esto?">?</button>
+                    </div>
+                </div>
+                <div class="kai-help-popover" id="ayuda_convertir_variable">
+                    Usalo cuando cargaste esta deuda como "cuotas fijas" pero después resultó que las cuotas
+                    no son todas iguales, o te faltan cargar algunas (por ejemplo, el banco solo te mostraba
+                    una parte del plan). Convierte esta deuda a "cuotas variables" sin tocar lo que ya pagaste;
+                    después agregás o corregís las que falten desde el panel de abajo.
+                </div>
+                <div class="deudas-cuotas-wrap">
+                    <table class="deudas-cuotas-tabla deudas-cuotas-tabla--detalle">
+                        <thead>
+                            <tr>
+                                <th>Cuota</th>
+                                <th>Vencimiento</th>
+                                <th class="th-monto">Monto</th>
+                                <th>Estado</th>
+                                <th class="th-acciones">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dCuotasActualesBody"></tbody>
+                    </table>
+                </div>
+
+                <div class="deudas-editar-cuotas" id="deudasEditarCuotas" hidden>
+                    <div class="deudas-cuotas-headrow-actions">
+                        <h3 class="deudas-cuotas-title">Agregar o editar cuotas pendientes</h3>
+                        <button type="button" class="kai-help-btn" data-help-target="ayuda_editar_cuotas" aria-label="Cómo funciona esto">?</button>
+                    </div>
+                    <div class="kai-help-popover" id="ayuda_editar_cuotas">
+                        Las cuotas ya pagadas de antes no se modifican acá (usá la tabla de arriba para esas).
+                        Editá las pendientes (fecha o monto) o agregá las que falten, de a una o con "Generar N
+                        cuotas más" — y si alguna de las que agregás ya la pagaste, tildá "ya pagada" y
+                        completá cuándo, para que quede registrada así de una vez.
+                    </div>
+                    <div class="deudas-ec-generar">
+                        <label for="ecGenerarN">Generar</label>
+                        <input type="number" id="ecGenerarN" step="1" min="1" placeholder="N">
+                        <span>cuotas más (mensuales, desde la última)</span>
+                        <button type="button" class="btn btn-ghost btn-sm" id="btnEcGenerar">Generar</button>
+                    </div>
+                    <div class="deudas-cv-cabecera">
+                        <span class="deudas-cv-cabecera-num">#</span>
+                        <span>Vencimiento</span>
+                        <span>Monto</span>
+                        <span class="deudas-cv-cabecera-pago">Ya pagada</span>
+                        <span></span>
+                    </div>
+                    <div class="deudas-cuotas-variables-wrap" id="deudasEditarCuotasWrap"></div>
+                    <button type="button" class="btn btn-ghost btn-sm" id="btnAgregarCuotaPendiente">+ Agregar cuota</button>
+                    <p class="deudas-cuotas-variables-resumen" id="deudasEditarCuotasResumen"></p>
+                    <div id="ecMsg" class="deudas-inline-msg"></div>
+                    <div class="deudas-registrar-abono-acciones">
+                        <button type="button" class="btn btn-primary" id="btnGuardarCuotas">Guardar cuotas pendientes</button>
+                    </div>
+                </div>
+            </section>
+
+            <section class="deudas-fs" id="seccionPlanPago">
                 <div class="deudas-fs-head">
                     <div class="deudas-step-heading">
                         <span class="deudas-step-number">2</span>
@@ -230,7 +296,10 @@
                         </div>
                     </div>
                     <button type="button" class="kai-help-btn" data-help-target="dModoCuotasHint" aria-label="¿Cuál elijo?">?</button>
+                    <button type="button" class="deudas-plan-toggle" id="btnTogglePlanPago" hidden>Ver el plan original ▾</button>
                 </div>
+                <p class="deudas-edicion-nota" id="notaBloqueoEdicion" hidden></p>
+                <div id="cuerpoPlanPago">
                 <div class="deudas-modo-seg" role="group" aria-label="Tipo de plan de pago">
                     <button type="button" class="deudas-modo-seg-btn deudas-modo-seg-btn--active" data-modo="fijas" aria-pressed="true"><strong>Cuotas fijas</strong><small>Mismo monto cada mes</small></button>
                     <button type="button" class="deudas-modo-seg-btn" data-modo="variable" aria-pressed="false"><strong>Cuotas variables</strong><small>Cargás lo que sepas, sumás el resto después</small></button>
@@ -306,10 +375,6 @@
                         </div>
                     </div>
                 </div>
-                <p class="deudas-edicion-nota" id="notaBloqueoEdicion" hidden></p>
-                <button type="button" class="deudas-edicion-nota-link" id="btnIrACuotas" hidden>
-                    ¿Necesitás corregir una cuota puntual (monto, fecha, etc.)? Bajá a "Cuotas de esta deuda" ↓
-                </button>
 
                 <div id="gridPlanVariable" hidden>
                     <div id="bloqueGenerarCuotasVar">
@@ -357,6 +422,7 @@
                     <div class="deudas-cuotas-variables-wrap" id="deudasCuotasVariablesWrap"></div>
                     <button type="button" class="btn btn-ghost btn-sm" id="btnAgregarCuotaVariable">+ Agregar cuota</button>
                     <p class="deudas-cuotas-variables-resumen" id="deudasCuotasVariablesResumen"></p>
+                </div>
                 </div>
             </section>
 
@@ -722,7 +788,7 @@
     window.deudasPuedeConfirmar = {{ puede_confirmar|yesno:"true,false" }};
     window.deudasPuedeEditar = {{ puede_editar|yesno:"true,false" }};
 </script>
-<script src="{% static 'caja/js/deudas.js' %}?v=20260914b"></script>
+<script src="{% static 'caja/js/deudas.js' %}?v=20260914c"></script>
 <script src="{% static 'caja/js/deudas_documentos.js' %}"></script>
 <script src="{% static 'caja/js/deudas_imprimir.js' %}?v=20260913"></script>
 {% endblock %}

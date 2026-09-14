@@ -76,7 +76,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const modalDeudaTitle = document.getElementById('modalDeudaTitle');
     const modalDeudaSubtitle = document.getElementById('modalDeudaSubtitle');
     const notaBloqueoEdicion = document.getElementById('notaBloqueoEdicion');
-    const btnIrACuotas = document.getElementById('btnIrACuotas');
+    const btnTogglePlanPago = document.getElementById('btnTogglePlanPago');
+    const cuerpoPlanPago = document.getElementById('cuerpoPlanPago');
     const bloqueGenerarCuotasVar = document.getElementById('bloqueGenerarCuotasVar');
     const bloqueCargaInicialCreacion = document.getElementById('bloqueCargaInicialCreacion');
     const bloqueCuotasEdicion = document.getElementById('bloqueCuotasEdicion');
@@ -933,6 +934,8 @@ document.addEventListener('DOMContentLoaded', function () {
         if (notaBloqueoEdicion) { notaBloqueoEdicion.hidden = true; notaBloqueoEdicion.textContent = ''; }
         if (bloqueCargaInicialCreacion) bloqueCargaInicialCreacion.hidden = false;
         if (bloqueCuotasEdicion) bloqueCuotasEdicion.hidden = true;
+        if (btnTogglePlanPago) btnTogglePlanPago.hidden = true;
+        if (cuerpoPlanPago) cuerpoPlanPago.hidden = false;
         setModoTitulo(false);
 
         setTipo('compra_credito');
@@ -1050,21 +1053,30 @@ document.addEventListener('DOMContentLoaded', function () {
             notaBloqueoEdicion.hidden = !hayPagos;
             notaBloqueoEdicion.textContent = esVariable
                 ? 'Ya hay cuotas confirmadas — la moneda y la cuenta ya no se pueden cambiar. El capital y el plan total sí (solo recalculan el interés).'
-                : 'Esta deuda ya tiene cuotas confirmadas — el monto, interés, cantidad de cuotas, fecha de inicio, moneda y cuenta ya no se pueden editar acá arriba.';
+                : 'Esta deuda ya tiene cuotas confirmadas — el monto, interés, cantidad de cuotas, fecha de inicio, moneda y cuenta ya no se pueden editar. El monto/fecha de UNA cuota puntual sí, en la tabla de arriba.';
         }
-        // El monto/fecha de UNA cuota puntual (incluida una ya pagada, real
-        // o histórica) sí se corrige — pero desde la tabla de abajo, no
-        // desde estos campos bloqueados. Sin este botón, el usuario ve el
-        // campo "Monto" gris y da por sentado que no se puede corregir nada
-        // (reporte real de usuario) sin llegar a notar el ✎ de la tabla.
-        if (btnIrACuotas) btnIrACuotas.hidden = !hayPagos;
+
+        // Reporte real de usuario: con el plan de pago (mayormente
+        // bloqueado) mostrado de entrada, "Editar deuda" parecía todo
+        // deshabilitado y costaba encontrar lo que sí se podía tocar. Ahora
+        // "Cuotas de esta deuda" (lo único realmente editable cuando ya
+        // hay pagos) se movió arriba de esta sección, y esta — que en modo
+        // fijas/libre queda 100% de solo lectura — arranca colapsada para
+        // no tapar lo editable con un montón de campos grises. En modo
+        // variable el capital y el plan total SÍ se editan acá, así que
+        // ahí se deja siempre expandida.
+        const colapsable = hayPagos && !esVariable;
+        if (btnTogglePlanPago) {
+            btnTogglePlanPago.hidden = !colapsable;
+            btnTogglePlanPago.textContent = 'Ver el plan original ▾';
+        }
+        if (cuerpoPlanPago) cuerpoPlanPago.hidden = colapsable;
     }
 
-    btnIrACuotas?.addEventListener('click', () => {
-        if (!bloqueCuotasEdicion) return;
-        bloqueCuotasEdicion.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        bloqueCuotasEdicion.classList.add('deudas-cuotas-destacado');
-        setTimeout(() => bloqueCuotasEdicion.classList.remove('deudas-cuotas-destacado'), 1600);
+    btnTogglePlanPago?.addEventListener('click', () => {
+        if (!cuerpoPlanPago) return;
+        cuerpoPlanPago.hidden = !cuerpoPlanPago.hidden;
+        btnTogglePlanPago.textContent = cuerpoPlanPago.hidden ? 'Ver el plan original ▾' : 'Ocultar el plan original ▴';
     });
 
     // Repuebla la parte de "cuotas de esta deuda" del formulario con datos
@@ -1478,16 +1490,16 @@ document.addEventListener('DOMContentLoaded', function () {
         if (puedeEditarEstaCuota) {
             const iconPago = c.estado === 'pendiente'
                 ? `<button type="button" class="deudas-cuota-icono deudas-cuota-icono--success" title="Marcar como ya pagada"
-                            onclick='marcarCuotaPagadaPrompt(${JSON.stringify(c)})'>✓</button>`
+                            onclick='marcarCuotaPagadaPrompt(${JSON.stringify(c)})'>✓ Marcar pagada</button>`
                 : `<button type="button" class="deudas-cuota-icono" title="Revertir a pendiente"
-                            onclick='revertirCuotaPendientePrompt(${JSON.stringify(c)})'>↩</button>`;
+                            onclick='revertirCuotaPendientePrompt(${JSON.stringify(c)})'>↩ Revertir</button>`;
             acciones = `
                 <div class="deudas-cuota-iconos">
                     ${iconPago}
-                    <button type="button" class="deudas-cuota-icono" title="Editar cuota"
-                            onclick='editarCuotaPrompt(${JSON.stringify(c)})'>✎</button>
+                    <button type="button" class="deudas-cuota-icono" title="Editar monto, fecha y otros datos de esta cuota"
+                            onclick='editarCuotaPrompt(${JSON.stringify(c)})'>✎ Editar</button>
                     <button type="button" class="deudas-cuota-icono deudas-cuota-icono--danger" title="Eliminar cuota"
-                            onclick='eliminarCuotaPrompt(${JSON.stringify(c)})'>🗑</button>
+                            onclick='eliminarCuotaPrompt(${JSON.stringify(c)})'>🗑 Eliminar</button>
                 </div>`;
         }
 
