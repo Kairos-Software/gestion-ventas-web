@@ -2051,20 +2051,53 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     // ── Editar / eliminar una cuota puntual ──────────────────────────
+    // Para una cuota pagada históricamente (carga inicial) se puede
+    // corregir todo lo que se cargó de ella: vencimiento, monto, la fecha
+    // en que realmente se pagó y la nota de cómo — ninguno de esos datos
+    // mueve caja ni turno (ver CuotaDeuda.editar). Para una cuota con pago
+    // real, en cambio, la fecha de confirmación y la cuenta no se tocan
+    // acá a propósito (definen a qué turno pertenece su movimiento ya
+    // materializado) — si están mal, hay que revertir la cuota a
+    // pendiente (revertirCuotaPendientePrompt) y volver a confirmarla.
     window.editarCuotaPrompt = async function (c) {
         const nuevaFecha = window.prompt('Vencimiento de la cuota (AAAA-MM-DD):', c.fecha_vencimiento);
         if (nuevaFecha === null) return;
         const nuevoMonto = window.prompt('Monto de la cuota:', c.monto);
         if (nuevoMonto === null) return;
         const pagada = c.estado === 'confirmada';
-        if (pagada && !await KaiConfirm(
-            'Esta cuota ya está pagada. Si cambiás el monto, se ajusta el movimiento de caja '
-            + '(la diferencia vuelve o sale de la cuenta con la que se pagó). ¿Seguir?', { danger: true }
-        )) return;
+        const cambioMonto = pagada && nuevoMonto !== '' && Number(nuevoMonto) !== Number(c.monto);
+        if (cambioMonto) {
+            const msg = c.es_historica
+                ? 'Esta cuota está marcada como pagada de antes de cargar el sistema (carga inicial) — '
+                  + 'no tiene un movimiento de caja real detrás, así que corregir el monto NO afecta tu '
+                  + 'caja. ¿Confirmar el nuevo monto?'
+                : 'Esta cuota ya está pagada. Si cambiás el monto, se ajusta el movimiento de caja real '
+                  + '(la diferencia vuelve o sale de la cuenta con la que se pagó). ¿Seguir?';
+            if (!await KaiConfirm(msg, { danger: !c.es_historica })) return;
+        }
+
+        const body = { fecha_vencimiento: nuevaFecha || null, monto: nuevoMonto || null };
+
+        if (pagada && c.es_historica) {
+            const fechaPagoActual = c.fecha_confirmacion ? c.fecha_confirmacion.slice(0, 10) : '';
+            const nuevaFechaPago = window.prompt(
+                '¿Qué día se pagó realmente esta cuota? (AAAA-MM-DD) — distinto del vencimiento, '
+                + 'es el dato de la carga inicial:', fechaPagoActual,
+            );
+            if (nuevaFechaPago === null) return;
+            const nuevaNota = window.prompt(
+                'Nota de cómo se pagó (opcional, ej. "transferencia", "efectivo antes de cargar el sistema"):',
+                c.medio_pago_historico || '',
+            );
+            if (nuevaNota === null) return;
+            body.fecha_pago = nuevaFechaPago || null;
+            body.medio_pago_historico = nuevaNota;
+        }
+
         try {
             const r = await fetch(urls.editarCuota.replace('/0/', `/${c.pk}/`), {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
-                body: JSON.stringify({ fecha_vencimiento: nuevaFecha || null, monto: nuevoMonto || null }),
+                body: JSON.stringify(body),
             });
             const result = await r.json();
             if (result.success) {

@@ -802,7 +802,11 @@ class ConvertirDeudaVariableAjax(LoginRequiredMixin, View):
 # ══════════════════════════════════════════════════════════════════
 
 class EditarCuotaDeudaAjax(LoginRequiredMixin, View):
-    """POST { monto?, fecha_vencimiento? } → CuotaDeuda.editar()."""
+    """
+    POST { monto?, fecha_vencimiento?, fecha_pago?, medio_pago_historico? }
+    → CuotaDeuda.editar(). Los últimos dos solo aplican a una cuota
+    pagada históricamente (carga inicial) — ver CuotaDeuda.editar().
+    """
 
     def post(self, request, pk):
         if not chequear_permiso(request.user, PERMISO_EDITAR):
@@ -822,6 +826,13 @@ class EditarCuotaDeudaAjax(LoginRequiredMixin, View):
                     kwargs['fecha_vencimiento'] = date.fromisoformat(str(data.get('fecha_vencimiento')))
                 except (ValueError, TypeError):
                     return JsonResponse({'error': 'Fecha de vencimiento inválida.'}, status=400)
+            if data.get('fecha_pago'):
+                try:
+                    kwargs['fecha_pago'] = date.fromisoformat(str(data.get('fecha_pago')))
+                except (ValueError, TypeError):
+                    return JsonResponse({'error': 'Fecha de pago inválida.'}, status=400)
+            if data.get('medio_pago_historico') is not None:
+                kwargs['medio_pago_historico'] = data.get('medio_pago_historico')
 
             cuota.editar(**kwargs)
             return JsonResponse({

@@ -3640,15 +3640,37 @@ class CuotaDeuda(models.Model):
             fondear_chequera(financiadora, cuenta_origen, monto_cheque, timezone.localtime().date(), cheque, usuario)
 
     @transaction.atomic
-    def editar(self, *, monto=None, fecha_vencimiento=None, usuario=None):
+    def editar(self, *, monto=None, fecha_vencimiento=None, fecha_pago=None,
+               medio_pago_historico=None, usuario=None):
         """
         Corrige una cuota puntual, para arreglar un error de carga:
           - PENDIENTE: cambia monto y/o fecha de vencimiento libremente.
-          - CONFIRMADA: la fecha siempre; el monto solo si el pago fue de
-            UNA sola forma (una cuenta, o histórico) — se escala esa
-            línea de pago y se re-sincroniza su MovimientoCaja. Si se
-            pagó con cheque o repartido en varias cuentas, hay que borrar
-            la cuota y volver a cargarla.
+          - CONFIRMADA: la fecha de vencimiento siempre; el monto solo si
+            el pago fue de UNA sola forma (una cuenta, o histórico) — se
+            escala esa línea de pago y se re-sincroniza su MovimientoCaja.
+            Si se pagó con cheque o repartido en varias cuentas, hay que
+            borrar la cuota y volver a cargarla.
+          - CONFIRMADA y es_historica: además se puede corregir `fecha_pago`
+            (cuándo se pagó realmente — distinto de fecha_vencimiento) y
+            `medio_pago_historico` (la nota de cómo se pagó). Son datos
+            puramente informativos de una carga inicial: no hay ningún
+            MovimientoCaja ni turno de por medio (ver
+            _aplicar_pago_historico), así que no hace falta ningún chequeo
+            de caja/turno para tocarlos.
+
+            Para reasignar la cuenta informativa (`cuenta_pago_historica`)
+            no hay edición directa acá — revertí la cuota a pendiente y
+            volvé a marcarla como pagada con la cuenta correcta (ver
+            revertir_a_pendiente / marcar_pagada), que sí la deja elegir.
+
+            Para una cuota con un pago REAL (no histórico): ni la cuenta de
+            pago ni la fecha en que se confirmó se pueden tocar acá — esa
+            fecha es la que define a qué turno de caja pertenece el
+            movimiento ya materializado, y cambiarla a mano podría
+            desincronizar un cierre ya congelado. Para corregir eso,
+            revertí la cuota a pendiente (bloqueado si su turno ya cerró,
+            ver _turno_cerrado_de_cuota_efectivo) y confirmala de nuevo con
+            los datos correctos.
         Bloqueada si la deuda nació de una compra real (`pago_compra`) —
         esas cuotas espejan la compra y se editan desde Compras.
         """
@@ -3659,6 +3681,13 @@ class CuotaDeuda(models.Model):
             raise ValueError('La deuda no está activa.')
         if self.estado == EstadoCuota.ANULADA:
             raise ValueError('No se puede editar una cuota anulada.')
+
+        if (fecha_pago is not None or medio_pago_historico is not None) \
+                and not (self.estado == EstadoCuota.CONFIRMADA and self.es_historica):
+            raise ValueError(
+                'La fecha real de pago y la nota de cómo se pagó solo se pueden corregir en una '
+                'cuota pagada históricamente (carga inicial).'
+            )
 
         if fecha_vencimiento is not None and not isinstance(fecha_vencimiento, date):
             fecha_vencimiento = date.fromisoformat(str(fecha_vencimiento))
@@ -3689,7 +3718,21 @@ class CuotaDeuda(models.Model):
                     pagos[0].save(update_fields=['monto'])
             self.monto = monto
 
-        self.save(update_fields=['monto', 'fecha_vencimiento'])
+        campos = ['monto', 'fecha_vencimiento']
+
+        if fecha_pago is not None:
+            if not isinstance(fecha_pago, date):
+                fecha_pago = date.fromisoformat(str(fecha_pago))
+            if fecha_pago > timezone.localtime().date():
+                raise ValueError('La fecha de pago no puede ser futura.')
+            self.fecha_confirmacion = timezone.make_aware(dt.combine(fecha_pago, dt.min.time()))
+            campos.append('fecha_confirmacion')
+
+        if medio_pago_historico is not None:
+            self.medio_pago_historico = str(medio_pago_historico).strip()[:100]
+            campos.append('medio_pago_historico')
+
+        self.save(update_fields=campos)
 
         if self.estado == EstadoCuota.CONFIRMADA:
             sincronizar_movimiento_cuota(self)
