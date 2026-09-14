@@ -76,6 +76,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const modalDeudaTitle = document.getElementById('modalDeudaTitle');
     const modalDeudaSubtitle = document.getElementById('modalDeudaSubtitle');
     const notaBloqueoEdicion = document.getElementById('notaBloqueoEdicion');
+    const btnIrACuotas = document.getElementById('btnIrACuotas');
     const bloqueGenerarCuotasVar = document.getElementById('bloqueGenerarCuotasVar');
     const bloqueCargaInicialCreacion = document.getElementById('bloqueCargaInicialCreacion');
     const bloqueCuotasEdicion = document.getElementById('bloqueCuotasEdicion');
@@ -1049,9 +1050,22 @@ document.addEventListener('DOMContentLoaded', function () {
             notaBloqueoEdicion.hidden = !hayPagos;
             notaBloqueoEdicion.textContent = esVariable
                 ? 'Ya hay cuotas confirmadas — la moneda y la cuenta ya no se pueden cambiar. El capital y el plan total sí (solo recalculan el interés).'
-                : 'Esta deuda ya tiene cuotas confirmadas — el monto, interés, cantidad de cuotas, fecha de inicio, moneda y cuenta ya no se pueden editar. Para agregar, corregir o destildar una cuota puntual usá la tabla de abajo.';
+                : 'Esta deuda ya tiene cuotas confirmadas — el monto, interés, cantidad de cuotas, fecha de inicio, moneda y cuenta ya no se pueden editar acá arriba.';
         }
+        // El monto/fecha de UNA cuota puntual (incluida una ya pagada, real
+        // o histórica) sí se corrige — pero desde la tabla de abajo, no
+        // desde estos campos bloqueados. Sin este botón, el usuario ve el
+        // campo "Monto" gris y da por sentado que no se puede corregir nada
+        // (reporte real de usuario) sin llegar a notar el ✎ de la tabla.
+        if (btnIrACuotas) btnIrACuotas.hidden = !hayPagos;
     }
+
+    btnIrACuotas?.addEventListener('click', () => {
+        if (!bloqueCuotasEdicion) return;
+        bloqueCuotasEdicion.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        bloqueCuotasEdicion.classList.add('deudas-cuotas-destacado');
+        setTimeout(() => bloqueCuotasEdicion.classList.remove('deudas-cuotas-destacado'), 1600);
+    });
 
     // Repuebla la parte de "cuotas de esta deuda" del formulario con datos
     // frescos — se usa al abrir la edición y después de cualquier acción

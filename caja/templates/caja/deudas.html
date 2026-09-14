@@ -5,7 +5,7 @@
 {% block title %}Créditos y préstamos{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'caja/css/deudas.css' %}?v=20261001">
+<link rel="stylesheet" href="{% static 'caja/css/deudas.css' %}?v=20260914b">
 {% endblock %}
 
 {% block content %}
@@ -307,6 +307,9 @@
                     </div>
                 </div>
                 <p class="deudas-edicion-nota" id="notaBloqueoEdicion" hidden></p>
+                <button type="button" class="deudas-edicion-nota-link" id="btnIrACuotas" hidden>
+                    ¿Necesitás corregir una cuota puntual (monto, fecha, etc.)? Bajá a "Cuotas de esta deuda" ↓
+                </button>
 
                 <div id="gridPlanVariable" hidden>
                     <div id="bloqueGenerarCuotasVar">
@@ -719,7 +722,7 @@
     window.deudasPuedeConfirmar = {{ puede_confirmar|yesno:"true,false" }};
     window.deudasPuedeEditar = {{ puede_editar|yesno:"true,false" }};
 </script>
-<script src="{% static 'caja/js/deudas.js' %}?v=20260914"></script>
+<script src="{% static 'caja/js/deudas.js' %}?v=20260914b"></script>
 <script src="{% static 'caja/js/deudas_documentos.js' %}"></script>
 <script src="{% static 'caja/js/deudas_imprimir.js' %}?v=20260913"></script>
 {% endblock %}

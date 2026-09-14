@@ -606,6 +606,34 @@
     border-top: 1px dashed var(--border-color);
 }
 
+.deudas-edicion-nota-link {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--accent-primary);
+    background: none;
+    border: none;
+    padding: 0.35rem 0 0;
+    margin: 0;
+    cursor: pointer;
+}
+
+.deudas-edicion-nota-link:hover {
+    text-decoration: underline;
+}
+
+.deudas-cuotas-destacado {
+    animation: deudasCuotasFlash 1.6s ease-out;
+    border-radius: 8px;
+}
+
+@keyframes deudasCuotasFlash {
+    0%, 25% { box-shadow: 0 0 0 3px var(--accent-primary); background: var(--accent-light); }
+    100% { box-shadow: 0 0 0 0 transparent; background: transparent; }
+}
+
 .deudas-cuotas-title {
     font-family: var(--font-heading);
     font-weight: 700;
@@ -2190,6 +2218,16 @@
     color: var(--warning, #9a6700);
     font-style: normal;
     line-height: 1.4;
+}
+
+#modalDetalle .deudas-edicion-nota-link,
+#modalDeuda .deudas-edicion-nota-link {
+    margin: 0.3rem 0 0;
+    padding: 0.5rem 0.7rem;
+    border-radius: 8px;
+    background: rgba(245, 158, 11, 0.09);
+    color: var(--warning, #9a6700);
+    text-decoration: underline;
 }
 
 #modalDetalle .deudas-detalle-notas {
