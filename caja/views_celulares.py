@@ -63,6 +63,8 @@ def _serializar_celular(c):
         'compania': c.compania,
         'pin': c.pin,
         'puk': c.puk,
+        'iccid': c.iccid,
+        'imei': c.imei,
         'fecha_activacion': c.fecha_activacion.isoformat() if c.fecha_activacion else '',
         'frecuencia_recarga_dias': c.frecuencia_recarga_dias,
         'notas': c.notas,
@@ -190,6 +192,8 @@ class CelularAccionesAjax(LoginRequiredMixin, View):
         celular.compania = (body.get('compania') or '').strip()[:60]
         celular.pin = (body.get('pin') or '').strip()[:20]
         celular.puk = (body.get('puk') or '').strip()[:20]
+        celular.iccid = (body.get('iccid') or '').strip()[:25]
+        celular.imei = (body.get('imei') or '').strip()[:20]
         celular.fecha_activacion = fecha_activacion
         celular.frecuencia_recarga_dias = frecuencia
         celular.notas = (body.get('notas') or '').strip()

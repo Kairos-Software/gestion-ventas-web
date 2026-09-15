@@ -129,6 +129,17 @@
                     </div>
                 </div>
 
+                <div class="celular-campo-grid">
+                    <div class="celular-campo">
+                        <label for="celularIccid">ICCID <span class="celular-campo-opcional">(opcional)</span></label>
+                        <input type="text" id="celularIccid" class="celulares-input" maxlength="25" placeholder="Número largo escrito en el chip (SIM)">
+                    </div>
+                    <div class="celular-campo">
+                        <label for="celularImei">IMEI <span class="celular-campo-opcional">(opcional)</span></label>
+                        <input type="text" id="celularImei" class="celulares-input" maxlength="20" placeholder="Marcá *#06# en el teléfono para verlo">
+                    </div>
+                </div>
+
                 <div class="celular-campo">
                     <label for="celularFrecuencia">Recordar recargar cada <span class="celular-campo-opcional">(en días, opcional)</span></label>
                     <input type="number" id="celularFrecuencia" class="celulares-input" min="1" step="1" placeholder="Ej: 30" style="max-width:140px;">
@@ -241,6 +252,6 @@
     const CELULARES_PUEDE_ELIMINAR = {{ puede_eliminar|yesno:"true,false" }};
     const CELULARES_HOY            = "{{ today }}";
 </script>
-<script src="{% static 'caja/js/celulares.js' %}?v=20260914"></script>
+<script src="{% static 'caja/js/celulares.js' %}?v=20260915"></script>
 {% endif %}
 {% endblock %}

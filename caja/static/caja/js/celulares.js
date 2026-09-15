@@ -21,6 +21,8 @@
     const celularFechaActivacion = document.getElementById('celularFechaActivacion');
     const celularPin         = document.getElementById('celularPin');
     const celularPuk         = document.getElementById('celularPuk');
+    const celularIccid       = document.getElementById('celularIccid');
+    const celularImei        = document.getElementById('celularImei');
     const celularFrecuencia  = document.getElementById('celularFrecuencia');
     const celularNotas       = document.getElementById('celularNotas');
     const celularActivoWrap  = document.getElementById('celularActivoWrap');
@@ -49,7 +51,7 @@
     let celulares = [];
     const camposEditables = [
         celularNumero, celularTitular, celularCompania, celularFechaActivacion,
-        celularPin, celularPuk, celularFrecuencia, celularNotas,
+        celularPin, celularPuk, celularIccid, celularImei, celularFrecuencia, celularNotas,
     ];
 
     function escapeHtml(s) {
@@ -184,6 +186,8 @@
         celularPin.type = 'password';
         celularPuk.value = '';
         celularPuk.type = 'password';
+        celularIccid.value = '';
+        celularImei.value = '';
         celularFrecuencia.value = '';
         celularNotas.value = '';
         celularActivoWrap.style.display = 'none';
@@ -208,6 +212,8 @@
         celularPin.type = 'password';
         celularPuk.value = c.puk;
         celularPuk.type = 'password';
+        celularIccid.value = c.iccid;
+        celularImei.value = c.imei;
         celularFrecuencia.value = c.frecuencia_recarga_dias || '';
         celularNotas.value = c.notas;
         camposEditables.forEach((el) => { el.disabled = !CELULARES_PUEDE_EDITAR; });
@@ -258,6 +264,8 @@
             fecha_activacion: celularFechaActivacion.value,
             pin: celularPin.value.trim(),
             puk: celularPuk.value.trim(),
+            iccid: celularIccid.value.trim(),
+            imei: celularImei.value.trim(),
             frecuencia_recarga_dias: celularFrecuencia.value,
             notas: celularNotas.value.trim(),
             activo: celularActivo.checked,

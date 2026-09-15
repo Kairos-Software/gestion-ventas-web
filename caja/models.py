@@ -6285,6 +6285,14 @@ class Celular(models.Model):
     compania = models.CharField(max_length=60, blank=True, help_text='Movistar, Personal, Claro, etc.')
     pin = models.CharField(max_length=20, blank=True, verbose_name='PIN')
     puk = models.CharField(max_length=20, blank=True, verbose_name='PUK')
+    iccid = models.CharField(
+        max_length=25, blank=True, verbose_name='ICCID',
+        help_text='Número largo escrito en el chip (SIM) físico.',
+    )
+    imei = models.CharField(
+        max_length=20, blank=True, verbose_name='IMEI',
+        help_text='Número de serie del teléfono (marcando *#06# se ve en pantalla).',
+    )
     fecha_activacion = models.DateField(null=True, blank=True)
     frecuencia_recarga_dias = models.PositiveIntegerField(
         null=True, blank=True,

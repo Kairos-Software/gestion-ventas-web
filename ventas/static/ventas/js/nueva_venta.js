@@ -31,27 +31,36 @@
 const CFG = window.VTA_CONFIG || {};
 const LOTE_REGEX = /^LT-\d{4}-\d{5}$/i;
 const BALANZA_REGEX = /^BAL-\d{4}-\d{5}$/i;
+const PAQUETE_REGEX = /^PAQ-\d{4}-\d{5}$/i;
 
 // Patrón "tolerante": prefijo + separador (cualquier símbolo, 1 char) +
 // 4 dígitos + separador + 5 dígitos. Cubre distintos lectores de
 // código de barras que, según su configuración de teclado, pueden
 // mandar cualquier símbolo (', `, _, :, etc.) en vez del guión real
-// del código impreso — sin necesidad de saber de antemano cuál.
+// del código impreso — sin necesidad de saber de antemano cuál. Aplica
+// a lote (LT-), balanza (BAL-) y paquete (PAQ-, ver
+// generar_codigo_barras_paquete en productos/models.py): son los únicos
+// códigos con guión real en su formato — el resto de los códigos de
+// barra (EAN/UPC de productos) son puramente numéricos y nunca pisan
+// esta tecla, por eso el problema solo se veía al escanear un paquete.
 const LOTE_REGEX_TOLERANTE = /^LT.(\d{4}).(\d{5})$/i;
 const BALANZA_REGEX_TOLERANTE = /^BAL.(\d{4}).(\d{5})$/i;
+const PAQUETE_REGEX_TOLERANTE = /^PAQ.(\d{4}).(\d{5})$/i;
 
 /**
- * Si el texto escaneado no matchea el código de lote exacto pero sí
- * su forma general (LT-XXXX-XXXXX o BAL-XXXX-XXXXX con cualquier
+ * Si el texto escaneado no matchea el código exacto de lote/balanza/
+ * paquete pero sí su forma general (XXX-XXXX-XXXXX con cualquier
  * separador), lo reconstruye con guiones. Independiente de marca/
  * modelo del lector.
  */
-function _normalizarPosibleCodigoLote(raw) {
-    if (LOTE_REGEX.test(raw) || BALANZA_REGEX.test(raw)) return raw;
+function _normalizarPosibleCodigoEscaneado(raw) {
+    if (LOTE_REGEX.test(raw) || BALANZA_REGEX.test(raw) || PAQUETE_REGEX.test(raw)) return raw;
     const mLote = raw.match(LOTE_REGEX_TOLERANTE);
     if (mLote) return `LT-${mLote[1]}-${mLote[2]}`;
     const mBal = raw.match(BALANZA_REGEX_TOLERANTE);
     if (mBal) return `BAL-${mBal[1]}-${mBal[2]}`;
+    const mPaq = raw.match(PAQUETE_REGEX_TOLERANTE);
+    if (mPaq) return `PAQ-${mPaq[1]}-${mPaq[2]}`;
     return raw;
 }
 
@@ -331,7 +340,7 @@ async function _ejecutarBusqueda(q, { forzarAgregado = false } = {}) {
         return;
     }
 
-    q = _normalizarPosibleCodigoLote(q);
+    q = _normalizarPosibleCodigoEscaneado(q);
 
     if (BALANZA_REGEX.test(q)) {
         await _buscarPorCodigoBalanza(q);

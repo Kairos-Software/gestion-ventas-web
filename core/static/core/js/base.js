@@ -482,6 +482,20 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // ── Inputs numéricos: la rueda del mouse no debe cambiar el valor ──
+    // Con un <input type="number"> enfocado, el navegador de por sí le
+    // suma/resta al valor cuando el usuario gira la rueda encima —
+    // aunque la intención sea simplemente scrollear la página. Se saca
+    // esa conducta desenfocando el input apenas llega la rueda (sin
+    // preventDefault: así la página igual scrollea normal, no se
+    // bloquea el scroll, solo se corta el cambio de valor accidental).
+    // Global a propósito: aplica a cualquier input numérico del sistema
+    // (montos de cuotas en Deudas, cantidades, etc.), no solo a uno.
+    document.addEventListener('wheel', function (e) {
+        const el = document.activeElement;
+        if (el && el.tagName === 'INPUT' && el.type === 'number') el.blur();
+    }, { passive: true });
+
 });
 
 // ── Reiniciar sistema (solo superusuarios) ───────────────────────────────
