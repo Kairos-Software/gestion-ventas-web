@@ -155,6 +155,12 @@ async function _pdfRasterizar(html, anchoIframePx) {
             useCORS: true,
             allowTaint: false,
             logging: false,
+            // El renderer propio de html2canvas recalcula las métricas de
+            // texto y SVG: en Chrome desplazaba la letra del comprobante y
+            // los iconos de contacto aunque el HTML de impresión estuviera
+            // bien. ForeignObject deja que el mismo motor del navegador
+            // pinte el DOM, conservando el layout que se ve en Imprimir.
+            foreignObjectRendering: true,
             windowWidth: anchoIframePx,
             windowHeight: alto,
             width: anchoIframePx,
@@ -167,9 +173,9 @@ async function _pdfRasterizar(html, anchoIframePx) {
     }
 }
 
-// Espera a que el iframe termine el layout y a que carguen sus
-// imágenes (logo del comercio, QR del comprobante). Nunca cuelga más
-// de 4s.
+// Espera a que el iframe termine el layout, a que carguen sus imágenes
+// (logo del comercio, QR del comprobante) y a que las fuentes estén
+// listas. Nunca cuelga más de 4s.
 function _pdfEsperarIframe(iframe) {
     return new Promise(resolve => {
         const win = iframe.contentWindow;
@@ -188,7 +194,10 @@ function _pdfEsperarIframe(iframe) {
         }
 
         function cuandoCargue() {
-            esperarImagenes().then(() => {
+            const fuentes = doc.fonts && doc.fonts.ready
+                ? doc.fonts.ready.catch(() => undefined)
+                : Promise.resolve();
+            Promise.all([esperarImagenes(), fuentes]).then(() => {
                 // dos rAF: deja que el navegador aplique el layout final
                 win.requestAnimationFrame(() => win.requestAnimationFrame(terminar));
             });
