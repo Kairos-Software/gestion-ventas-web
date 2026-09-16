@@ -112,28 +112,45 @@ function ticketHtmlA4(data, opts) {
             flex: 0 0 auto;
             width: 82pt;
             padding: 0 10pt;
-            border-right: 1px solid #86AFC8;
             display: flex;
             justify-content: center;
             align-items: flex-start;
+            position: relative;
+        }
+        .a4-header2-divider::after {
+            content: '';
+            position: absolute;
+            top: 48pt;
+            bottom: 0;
+            left: 50%;
+            width: 1px;
+            background: #86AFC8;
         }
         .a4-tipo-box {
             flex: 0 0 auto;
             border: 1.5px solid #1E6FA8;
-            width: 52pt;
+            width: 54pt;
+            height: 48pt;
             text-align: center;
-            padding: 4pt 0 5pt;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            background: #fff;
+            position: relative;
+            z-index: 1;
         }
-        .a4-tipo-letra { font-size: 26pt; font-weight: 800; line-height: 1; }
-        .a4-tipo-cod   { font-size: 6.5pt; font-weight: 700; letter-spacing: .03em; color: #4A5568; margin-top: 2pt; }
+        .a4-tipo-letra { width: 100%; font-size: 26pt; font-weight: 800; line-height: .9; text-align: center; }
+        .a4-tipo-cod   { width: 100%; font-size: 6.5pt; font-weight: 700; letter-spacing: .03em; color: #26364A; margin-top: 3pt; text-align: center; }
 
-        .a4-logo { max-height: 46px; max-width: 155px; object-fit: contain; margin-bottom: 6pt; display: block; }
+        .a4-logo { max-height: 54px; max-width: 170px; object-fit: contain; object-position: left center; margin-bottom: 6pt; display: block; }
         .a4-header2-comprobante .a4-logo { margin-left: auto; }
         .a4-empresa-nombre { font-size: 14pt; font-weight: 700; margin-bottom: 3pt; letter-spacing: -.01em; }
-        .a4-empresa-dato   { font-size: 8.5pt; color: #4A5568; margin: 1pt 0; }
+        .a4-empresa-dato   { font-size: 8.5pt; color: #26364A; margin: 1pt 0; }
         .a4-empresa-contacto { margin: 5pt 0; }
-        .a4-contacto-row { display: flex; align-items: flex-start; gap: 5pt; margin: 2pt 0; }
-        .a4-contacto-row svg { flex: 0 0 auto; margin-top: 1pt; }
+        .a4-contacto-row { display: flex; align-items: center; gap: 5pt; min-height: 11pt; margin: 2pt 0; }
+        .a4-contacto-row svg { flex: 0 0 11px; width: 11px; height: 11px; display: block; }
         .a4-contacto-row .a4-empresa-dato { margin: 0; }
 
         .a4-original-label {
@@ -141,7 +158,7 @@ function ticketHtmlA4(data, opts) {
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: .12em;
-            color: #8A9BB0;
+            color: #50627A;
             margin-bottom: 4pt;
         }
         .a4-ticket-titulo {
@@ -150,7 +167,7 @@ function ticketHtmlA4(data, opts) {
             letter-spacing: -.01em;
             color: #0D1B2A;
         }
-        .a4-ticket-titulo.a4-titulo-simple { color: #4A5568; }
+        .a4-ticket-titulo.a4-titulo-simple { color: #26364A; }
         .a4-ticket-numero-grande {
             font-size: 13pt;
             font-weight: 800;
@@ -159,7 +176,7 @@ function ticketHtmlA4(data, opts) {
             margin-top: 4pt;
         }
         .a4-meta-list { margin-top: 8pt; }
-        .a4-meta-row { font-size: 8.5pt; color: #4A5568; margin: 2pt 0; }
+        .a4-meta-row { font-size: 8.5pt; color: #26364A; margin: 2pt 0; }
         .a4-meta-row strong { color: #0D1B2A; font-weight: 700; }
 
         /* ── Bloques de info (cliente / operación) ── */
@@ -184,7 +201,7 @@ function ticketHtmlA4(data, opts) {
             margin-bottom: 5pt;
         }
         .a4-info-nombre { font-size: 10pt; font-weight: 700; margin-bottom: 2pt; }
-        .a4-info-dato   { font-size: 8.5pt; color: #4A5568; line-height: 1.5; }
+        .a4-info-dato   { font-size: 8.5pt; color: #26364A; line-height: 1.5; }
 
         /* ── Tabla de ítems ── */
         .a4-table { width: 100%; border-collapse: collapse; margin-bottom: 9pt; font-size: 8.2pt; table-layout: fixed; border: 1px solid #86AFC8; }
@@ -210,7 +227,6 @@ function ticketHtmlA4(data, opts) {
         .a4-table td:not(:nth-child(1)):not(:nth-child(2)) { text-align: right; }
         .a4-table td:nth-child(n+3) { white-space: nowrap; }
         .a4-table tbody tr:last-child td { border-bottom: 0; }
-        .a4-table--formal tbody tr:last-child td { height: 37mm; }
         .a4-table tr,
         .a4-resumen,
         .a4-leyenda-fiscal,
@@ -227,7 +243,7 @@ function ticketHtmlA4(data, opts) {
         .a4-table col.a4-col-subtotal{ width: 14%; }
 
         .a4-prod-nombre  { font-weight: 600; }
-        .a4-prod-detalle { font-size: 7.5pt; color: #8A9BB0; margin-top: 2pt; }
+        .a4-prod-detalle { font-size: 7.5pt; color: #40536A; margin-top: 2pt; }
 
         /* ── Forma de pago + Totales, lado a lado ── */
         .a4-resumen {
@@ -251,7 +267,7 @@ function ticketHtmlA4(data, opts) {
         }
         .a4-desglose-iva-row {
             display: flex; justify-content: space-between;
-            font-size: 9pt; color: #5B6B82; padding: 1.5pt 0;
+            font-size: 9pt; color: #26364A; padding: 1.5pt 0;
         }
         .a4-transparencia-title {
             margin: 4pt 0 2pt;
@@ -271,7 +287,7 @@ function ticketHtmlA4(data, opts) {
             justify-content: space-between;
             gap: 8pt;
             font-size: 8pt;
-            color: #4A5568;
+            color: #26364A;
             padding: 1pt 0;
         }
         .a4-total-final-row {
@@ -291,14 +307,14 @@ function ticketHtmlA4(data, opts) {
         .a4-comprobante {
             display: flex;
             align-items: center;
-            gap: 14pt;
+            gap: 12pt;
             margin-bottom: 9pt;
-            padding: 10pt 14pt;
+            padding: 8pt 12pt;
             background: #fff;
             border: 1px solid #86AFC8;
             border-left: 4pt solid #1E6FA8;
         }
-        .a4-comprobante-qr { width: 68pt; height: 68pt; flex: 0 0 auto; background: #fff; padding: 3pt; border-radius: 2pt; }
+        .a4-comprobante-qr { width: 60pt; height: 60pt; flex: 0 0 auto; background: #fff; padding: 2pt; }
         .a4-comprobante-datos { font-size: 8.5pt; color: #0D1B2A; line-height: 1.4; }
         .a4-comprobante-label {
             font-size: 7.5pt;
@@ -315,31 +331,32 @@ function ticketHtmlA4(data, opts) {
             border: 1px solid #86AFC8;
             font-size: 7.5pt;
             line-height: 1.4;
-            color: #4A5568;
+            color: #26364A;
         }
 
         /* ── Pie oficial ARCA ── */
         .a4-arca-oficial {
             display: flex;
             align-items: center;
-            gap: 14pt;
-            padding-top: 10pt;
-            margin-bottom: 10pt;
-            border-top: 1px solid #E4EAF0;
+            gap: 12pt;
+            padding: 8pt 2pt 0;
+            margin-bottom: 8pt;
+            border-top: 1.5px solid #1E6FA8;
             font-size: 8pt;
-            color: #4A5568;
+            color: #26364A;
         }
-        .a4-arca-marca { flex: 0 0 auto; text-align: center; }
-        .a4-arca-wordmark { font-size: 13pt; font-weight: 800; letter-spacing: .02em; color: #0D1B2A; }
-        .a4-arca-caption { font-size: 6pt; text-transform: uppercase; letter-spacing: .03em; color: #8A9BB0; margin-top: 1pt; line-height: 1.3; }
+        .a4-arca-marca { flex: 0 0 150pt; display: flex; align-items: center; color: #172842; }
+        .a4-arca-wordmark { flex: 0 0 auto; font-size: 17pt; font-weight: 800; letter-spacing: -.02em; line-height: 1; }
+        .a4-arca-separador { align-self: stretch; width: 1px; min-height: 25pt; margin: 0 7pt; background: #1E6FA8; }
+        .a4-arca-caption { font-size: 5.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: .025em; color: #26364A; line-height: 1.35; }
         .a4-arca-texto { flex: 1 1 0; }
-        .a4-arca-disclaimer { font-style: italic; font-size: 7.5pt; color: #8A9BB0; margin-top: 2pt; }
+        .a4-arca-disclaimer { font-style: italic; font-size: 7.5pt; color: #40536A; margin-top: 2pt; }
         .a4-arca-pagina { flex: 0 0 auto; font-weight: 600; }
 
         /* ── Notas ── */
         .a4-notas {
             font-size: 9pt;
-            color: #4A5568;
+            color: #26364A;
             padding: 8pt 10pt;
             background: #F4F6F9;
             border-left: 3px solid #CBD5E0;
@@ -351,7 +368,7 @@ function ticketHtmlA4(data, opts) {
         .a4-footer {
             text-align: center;
             font-size: 8.5pt;
-            color: #8A9BB0;
+            color: #50627A;
             padding-top: 4pt;
         }
         .a4-footer-eslogan {
@@ -419,7 +436,7 @@ function ticketHtmlA4(data, opts) {
     </div>
 
     <!-- Tabla de ítems -->
-    <table class="a4-table${items.length <= 4 ? ' a4-table--formal' : ''}">
+    <table class="a4-table">
         <colgroup>
             <col class="a4-col-codigo"><col class="a4-col-nombre"><col class="a4-col-cant">
             <col class="a4-col-unidad"><col class="a4-col-precio"><col class="a4-col-bonifp">
@@ -468,6 +485,7 @@ function ticketHtmlA4(data, opts) {
     <div class="a4-arca-oficial">
         <div class="a4-arca-marca">
             <div class="a4-arca-wordmark">ARCA</div>
+            <div class="a4-arca-separador"></div>
             <div class="a4-arca-caption">Agencia de Recaudación<br>y Control Aduanero</div>
         </div>
         <div class="a4-arca-texto">
@@ -505,7 +523,7 @@ ${sinAutoImpresion ? '' : `
 
 function _a4ContactoRow(iconPath, texto) {
     return `<div class="a4-contacto-row">
-        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#8A9BB0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconPath}</svg>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#1E6FA8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${iconPath}</svg>
         <div class="a4-empresa-dato">${_esc(texto)}</div>
     </div>`;
 }
@@ -565,7 +583,6 @@ function _a4FilaItem(item, esOficial) {
     // arriba en "Datos del cliente". Se sigue mostrando en el ticket
     // informal (sin comprobante_arca), que es donde tiene sentido.
     const detalle = [
-        item.marca ? _esc(item.marca) : '',
         item.color ? `Color: ${_esc(item.color)}` : '',
         (!esOficial && item.cliente) ? `Cliente: ${_esc(item.cliente)}` : '',
     ].filter(Boolean).join(' · ');

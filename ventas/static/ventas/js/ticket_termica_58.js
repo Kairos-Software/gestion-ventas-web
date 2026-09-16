@@ -378,7 +378,6 @@ function _t58Item(item) {
     // de largo el nombre principal.
     const detalle = [
         item.codigo ? _esc(`Cód: ${item.codigo}`) : '',
-        item.marca  ? _esc(item.marca)            : '',
         item.color  ? _esc(item.color)            : '',
     ].filter(Boolean).join(' · ');
     return `<div class="t58-item">

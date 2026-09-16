@@ -383,7 +383,6 @@ function _t80Item(item) {
     // larga y confusa de leer.
     const detalle = [
         item.codigo ? `Cód: ${item.codigo}`    : '',
-        item.marca  ? item.marca               : '',
         item.color  ? `Color: ${item.color}`   : '',
     ].filter(Boolean).join(' · ');
 
