@@ -249,3 +249,48 @@ def historial_cliente(cliente):
             'saldo': str(saldo),
         })
     return filas
+
+
+# ══════════════════════════════════════════════════════════════════
+#  HISTORIAL DE SCORING — línea de tiempo del riesgo de pago
+# ══════════════════════════════════════════════════════════════════
+
+def historial_scoring(cliente):
+    """
+    Puntos guardados en HistorialScoring (uno por fecha en que el
+    puntaje efectivo cambió — ver Cliente.recalcular_scoring()), más un
+    punto final con el valor VIGENTE ahora mismo si todavía no coincide
+    con el último guardado, para que el gráfico siempre termine en el
+    número real de hoy aunque recién no se haya disparado ningún
+    recálculo.
+
+    Un cliente sin historial de crédito (nunca compró en cuotas ni pagó
+    con cheque — mismo `sin_historial` que calcular_scoring()) devuelve
+    lista vacía en vez de un punto trivial "1000, hoy": todavía no hay
+    nada que graficar.
+    """
+    from core.scoring import BANDA_LABEL
+
+    puntos = list(
+        cliente.historial_scoring
+        .order_by('fecha')
+        .values('fecha', 'score', 'banda', 'desglose', 'es_backfill')
+    )
+
+    if not puntos and cliente.scoring_sin_historial:
+        return []
+
+    if not puntos or puntos[-1]['score'] != cliente.scoring:
+        puntos.append({
+            'fecha': timezone.localtime().date(),
+            'score': cliente.scoring,
+            'banda': cliente.scoring_banda,
+            'desglose': cliente.scoring_desglose or [],
+            'es_backfill': False,
+        })
+
+    for p in puntos:
+        p['banda_label'] = BANDA_LABEL.get(p['banda'], p['banda'])
+
+    return puntos
+    return filas

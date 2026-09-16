@@ -1,5 +1,6 @@
 import os
 import json
+from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -39,6 +40,15 @@ class EmpresaGuardarAjax(LoginRequiredMixin, View):
         if condicion_iva and condicion_iva not in CondicionIVA.values:
             return JsonResponse({'error': 'Condición frente al IVA inválida.'}, status=400)
 
+        fecha_inicio_actividades = (body.get('fecha_inicio_actividades') or '').strip()
+        if fecha_inicio_actividades:
+            try:
+                fecha_inicio_actividades = date.fromisoformat(fecha_inicio_actividades)
+            except ValueError:
+                return JsonResponse({'error': 'Fecha de inicio de actividades inválida.'}, status=400)
+        else:
+            fecha_inicio_actividades = None
+
         empresa = DatosEmpresa.get_solo()
         empresa.nombre_comercial = nombre_comercial
         empresa.eslogan          = (body.get('eslogan') or '').strip()
@@ -46,6 +56,8 @@ class EmpresaGuardarAjax(LoginRequiredMixin, View):
         empresa.cuit             = (body.get('cuit') or '').strip()
         empresa.condicion_iva    = condicion_iva
         empresa.domicilio        = (body.get('domicilio') or '').strip()
+        empresa.ingresos_brutos  = (body.get('ingresos_brutos') or '').strip()
+        empresa.fecha_inicio_actividades = fecha_inicio_actividades
         empresa.telefono         = (body.get('telefono') or '').strip()
         empresa.email            = (body.get('email') or '').strip()
         empresa.save()

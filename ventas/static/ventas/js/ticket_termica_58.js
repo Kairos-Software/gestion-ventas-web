@@ -41,6 +41,8 @@ function ticketHtmlTermica58(data, opts) {
     const pagos   = data.pagos   || [];
     const cbte    = data.comprobante_arca || null;
     const cliente = data.cliente || null;
+    const letra   = cbte ? String(cbte.tipo_display || '').trim().slice(-1) : '';
+    const cod     = cbte ? String(cbte.tipo_comprobante).padStart(3, '0') : '';
 
     return `<!DOCTYPE html>
 <html lang="es">
@@ -98,8 +100,32 @@ function ticketHtmlTermica58(data, opts) {
         }
 
         /* ── Número de venta ── */
+        .t58-doc-head {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5pt;
+            padding: 3pt 0;
+        }
+        .t58-doc-letter {
+            min-width: 21pt;
+            padding: 2pt;
+            border: 1.5px solid #000;
+            font-size: 12pt;
+            font-weight: bold;
+            line-height: 1;
+            text-align: center;
+        }
+        .t58-doc-letter small { display: block; margin-top: 2pt; font-size: 4.8pt; line-height: 1.1; }
         .t58-venta-num  { font-size: 8pt; font-weight: bold; text-align: center; margin: 2pt 0 1pt; }
         .t58-venta-meta { font-size: 6.5pt; font-weight: 600; text-align: center; }
+        .t58-section-title {
+            font-size: 6.2pt;
+            font-weight: bold;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+            margin: 3pt 0 2pt;
+        }
 
         /* ── Cliente ── */
         .t58-cliente-cf {
@@ -112,6 +138,16 @@ function ticketHtmlTermica58(data, opts) {
         /* ── Ítems ── */
         .t58-items { width: 100%; margin: 3pt 0; }
         .t58-item  { margin-bottom: 4pt; }
+        .t58-items-head {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px solid #000;
+            padding-bottom: 2pt;
+            margin-bottom: 3pt;
+            font-size: 5.7pt;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
         .t58-item-nombre {
             font-weight: bold;
             font-size: 7pt;
@@ -168,6 +204,14 @@ function ticketHtmlTermica58(data, opts) {
             text-transform: uppercase;
             margin-bottom: 2pt;
         }
+        .t58-leyenda-fiscal {
+            border: 1px solid #000;
+            padding: 3pt;
+            margin: 2pt 0;
+            font-size: 5.7pt;
+            font-weight: 600;
+            line-height: 1.3;
+        }
 
         /* ── Pie ── */
         .t58-footer {
@@ -198,43 +242,58 @@ function ticketHtmlTermica58(data, opts) {
     <div class="t58-empresa-nombre">${_esc(emp.nombre)}</div>
     ${emp.razon_social ? `<div class="t58-empresa-dato">${_esc(emp.razon_social)}</div>` : ''}
     ${_t58EmpresaDatosGrid([
+        emp.domicilio     ? `Dom: ${emp.domicilio}`     : null,
         emp.telefono      ? `Tel: ${emp.telefono}`      : null,
+        emp.email         ? emp.email                   : null,
         emp.cuit          ? `CUIT: ${emp.cuit}`         : null,
         emp.condicion_iva ? `IVA: ${emp.condicion_iva}` : null,
-        emp.domicilio     ? `Dom: ${emp.domicilio}`     : null,
+        (cbte || emp.ingresos_brutos) ? `IIBB: ${emp.ingresos_brutos || '—'}` : null,
+        (cbte || emp.fecha_inicio_actividades) ? `Inicio: ${emp.fecha_inicio_actividades || '—'}` : null,
     ])}
 
     <hr class="t58-sep-doble">
 
-    <!-- Número y fecha -->
-    <div class="t58-venta-num">${cbte ? _esc(cbte.tipo_display) + ' ' + _esc(cbte.numero_display) : _esc(venta.numero)}</div>
+    <!-- Tipo, número y datos de la operación -->
+    <div class="t58-doc-head">
+        ${cbte ? `<div class="t58-doc-letter">${_esc(letra)}<small>COD. ${_esc(cod)}</small></div>` : ''}
+        <div>
+            <div class="t58-venta-num">${cbte ? _esc(cbte.tipo_display) : 'TICKET'}</div>
+            <div class="t58-venta-num">${cbte ? _esc(cbte.numero_display) : _esc(venta.numero)}</div>
+        </div>
+    </div>
     <div class="t58-venta-meta">${_esc(venta.fecha_hora || venta.fecha)}</div>
     ${venta.confirmado_por ? `<div class="t58-venta-meta">Op: ${_esc(venta.confirmado_por)}</div>` : ''}
+    <div class="t58-venta-meta">${_esc(venta.condicion_venta_display || 'Contado')}</div>
 
     <hr class="t58-sep-simple">
 
     <!-- Cliente -->
-    ${_t58Cliente(cliente)}
+    <div class="t58-section-title">Datos del cliente</div>
+    ${_t58Cliente(cliente, cbte)}
 
     <hr class="t58-sep-simple">
 
     <!-- Ítems -->
     <div class="t58-items">
+        <div class="t58-items-head"><span>Producto</span><span>Subtotal</span></div>
         ${items.map(item => _t58Item(item)).join('')}
     </div>
 
     <hr class="t58-sep-doble">
 
     <!-- Total -->
-    ${_t58DesgloseIva(cbte)}
+    ${_t58ResumenTotales(cbte, items, venta)}
     <div class="t58-total-final">
         <span>TOTAL</span>
-        <span>$${_fmtNum(venta.total)}</span>
+        <span>$${_fmtNum(cbte ? cbte.importe_total : venta.total)}</span>
     </div>
+
+    ${_t58LeyendaReceptor(cbte)}
 
     <hr class="t58-sep-simple">
 
     <!-- Medios de pago -->
+    <div class="t58-section-title">Forma de pago</div>
     ${_t58Pagos(pagos, venta)}
 
     <!-- Notas (solo si caben — se truncan por CSS si son muy largas) -->
@@ -248,7 +307,7 @@ function ticketHtmlTermica58(data, opts) {
 
     <!-- Pie -->
     <hr class="t58-sep-simple">
-    <div class="t58-footer">Gracias por su compra.</div>
+    <div class="t58-footer">Gracias por su compra.${emp.eslogan ? `<br>${_esc(emp.eslogan)}` : ''}</div>
 ${sinAutoImpresion ? '' : `
     <script>
         window.addEventListener('load', function () {
@@ -296,15 +355,17 @@ function _t58EmpresaDatosGrid(campos) {
     return html;
 }
 
-function _t58Cliente(cliente) {
-    if (!cliente) {
-        return `<div class="t58-cliente-cf">CONSUMIDOR FINAL</div>`;
-    }
+function _t58Cliente(cliente, cbte) {
+    const documento = (cbte && cbte.receptor_documento) || (cliente && cliente.documento) || '';
+    const condicionIva = (cbte && cbte.receptor_condicion_iva) || (cliente && cliente.condicion_iva) || (cliente ? '' : 'Consumidor Final');
+    const esConsumidorFinal = String(condicionIva).toLocaleLowerCase('es').includes('consumidor final');
+    let nombre = cliente ? cliente.nombre : 'Consumidor Final';
+    if (esConsumidorFinal && String(nombre).toLocaleLowerCase('es').includes('consumidor final')) nombre = 'A CONSUMIDOR FINAL';
     return `<div class="t58-cliente">
-        <div class="t58-cliente-nombre">Cliente: ${_esc(cliente.nombre)}</div>
-        ${cliente.documento ? `<div class="t58-peq">${_esc(cliente.documento)}</div>` : ''}
-        ${cliente.direccion ? `<div class="t58-peq">Dir: ${_esc(cliente.direccion)}</div>` : ''}
-        ${cliente.telefono  ? `<div class="t58-peq">Tel: ${_esc(cliente.telefono)}</div>` : ''}
+        <div class="t58-cliente-nombre">${_esc(nombre)}</div>
+        <div class="t58-peq">${documento ? _esc(documento) : 'CUIT: —'}</div>
+        <div class="t58-peq">IVA: ${_esc(condicionIva || '—')}</div>
+        <div class="t58-peq">Dom: ${cliente && cliente.direccion ? _esc(cliente.direccion) : '—'}</div>
     </div>`;
 }
 
@@ -324,27 +385,48 @@ function _t58Item(item) {
         <div class="t58-item-nombre">${_esc(item.nombre)}</div>
         ${detalle ? `<div class="t58-item-detalle">${detalle}</div>` : ''}
         <div class="t58-item-nums">
-            <span class="t58-item-cant">${_esc(String(item.cantidad))}x ${_fmtNum(item.precio_unitario)}${desc}</span>
-            <span><strong>${_fmtNum(item.subtotal)}</strong></span>
+            <span class="t58-item-cant">${_esc(String(item.cantidad))}x $ ${_fmtNum(item.precio_unitario)}${desc}</span>
+            <span><strong>$ ${_fmtNum(item.subtotal)}</strong></span>
         </div>
     </div>`;
 }
 
 // Factura A/B discrimina IVA (tipo_comprobante: 1=A, 6=B, 11=C) — Factura C
 // nunca lo mostró y sigue igual.
-function _t58DesgloseIva(cbte) {
-    if (!cbte || (cbte.tipo_comprobante !== 1 && cbte.tipo_comprobante !== 6)) return '';
-    return `
-        <div class="t58-total-row"><span>Neto gravado</span><span>$${_fmtNum(cbte.importe_neto)}</span></div>
-        <div class="t58-total-row"><span>IVA</span><span>$${_fmtNum(cbte.importe_iva)}</span></div>
-    `;
+function _t58ResumenTotales(cbte, items, venta) {
+    const subtotal = items.reduce((acc, item) => acc + parseFloat(item.subtotal || 0), 0);
+    const totalDocumento = parseFloat((cbte && cbte.importe_total) || venta.total || 0);
+    const descuentoGlobal = Math.max(0, subtotal - totalDocumento);
+    let html = `<div class="t58-total-row"><span>Subtotal</span><span>$${_fmtNum(subtotal)}</span></div>`;
+    if (descuentoGlobal > 0.005) {
+        const pct = parseFloat(venta.descuento_global_pct || 0) > 0
+            ? ` (${_t58FmtPct(venta.descuento_global_pct)}%)`
+            : '';
+        html += `<div class="t58-total-row"><span>Bonif. global${pct}</span><span>− $${_fmtNum(descuentoGlobal)}</span></div>`;
+    }
+    if (cbte && (cbte.tipo_comprobante === 1 || cbte.tipo_comprobante === 6)) {
+        const esFacturaB = cbte.tipo_comprobante === 6;
+        html += `
+            <div class="t58-total-row"><span>Neto gravado</span><span>$${_fmtNum(cbte.importe_neto)}</span></div>
+            ${esFacturaB ? '<div class="t58-section-title">Transparencia fiscal · Ley 27.743</div>' : ''}
+            <div class="t58-total-row"><span>${esFacturaB ? 'IVA contenido' : 'IVA'}</span><span>$${_fmtNum(cbte.importe_iva)}</span></div>`;
+    }
+    if (cbte) html += `<div class="t58-total-row"><span>${cbte.tipo_comprobante === 6 ? 'Otros imp. nac.' : 'Otros trib.'}</span><span>$0,00</span></div>`;
+    return html;
+}
+
+function _t58LeyendaReceptor(cbte) {
+    if (!cbte || cbte.tipo_comprobante !== 1) return '';
+    const condicion = String(cbte.receptor_condicion_iva || '').toLocaleLowerCase('es');
+    if (!condicion.includes('monotribut')) return '';
+    return `<div class="t58-leyenda-fiscal">El crédito fiscal discriminado en el presente comprobante solo podrá ser computado a efectos del Régimen de Sostenimiento e Inclusión Fiscal para Pequeños Contribuyentes de la Ley N.º 27.618.</div>`;
 }
 
 function _t58Comprobante(cbte) {
     if (!cbte) return '';
     return `<div class="t58-comprobante">
         <div class="t58-comprobante-label">Autorizado por ARCA</div>
-        ${cbte.qrDataUrl ? `<img src="${cbte.qrDataUrl}" alt="QR AFIP" style="width:24mm; height:24mm; margin:2pt auto; display:block;">` : ''}
+        ${cbte.qrDataUrl ? `<img src="${_esc(cbte.qrDataUrl)}" alt="QR ARCA" style="width:24mm; height:24mm; margin:2pt auto; display:block;">` : ''}
         <div class="t58-peq">CAE: <strong>${_esc(cbte.cae)}</strong></div>
         <div class="t58-peq">Vto: <strong>${_esc(cbte.cae_vencimiento)}</strong></div>
     </div>`;
@@ -352,7 +434,7 @@ function _t58Comprobante(cbte) {
 
 function _t58PagoDetalle(p) {
     const partes = [];
-    if (p.etiqueta_plan && Number(p.cantidad_pagos) > 1) partes.push(p.etiqueta_plan);
+    if (p.etiqueta_plan && Number(p.cantidad_pagos) > 1) partes.push(_esc(p.etiqueta_plan));
     if (p.recargo_monto && parseFloat(p.recargo_monto) > 0) partes.push(`+${p.recargo_pct}%`);
     return partes.length ? ` (${partes.join(', ')})` : '';
 }
@@ -390,4 +472,10 @@ function _fmtNum(val) {
     const n = parseFloat(val);
     if (isNaN(n)) return String(val ?? '');
     return n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function _t58FmtPct(val) {
+    const n = parseFloat(val);
+    if (isNaN(n)) return String(val ?? '');
+    return n.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }

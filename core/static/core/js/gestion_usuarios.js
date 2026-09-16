@@ -354,7 +354,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Campos de texto / selects
             const camposTexto = [
-                'username','email','rol_nombre','first_name','last_name','dni','cuil',
+                'username','email','rol_pk','first_name','last_name','dni','cuil',
                 'fecha_nacimiento','genero','estado_civil','nacionalidad','cantidad_hijos',
                 'telefono_personal','telefono_alternativo','email_personal','calle','numero',
                 'piso_depto','barrio','localidad','partido','provincia','pais','codigo_postal',
@@ -430,6 +430,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                     modal?.hide();
                     resetForm();
+                } else if (data.error) {
+                    // Rechazo de _asignar_rol (no es un error de validación
+                    // de campo, no viene como {errors: {...}}).
+                    mostrarError(data.error);
                 } else {
                     const errores = Object.entries(data.errors)
                         .map(([campo, msgs]) => `${campo}: ${msgs.join(', ')}`)

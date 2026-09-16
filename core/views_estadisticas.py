@@ -287,12 +287,15 @@ def cliente_perfil(request, pk):
     if puede_ver_deuda:
         deudas = stats_cliente_perfil.deudas_activas(cliente)
         historial = stats_cliente_perfil.historial_cliente(cliente)
+        scoring_historial = stats_cliente_perfil.historial_scoring(cliente)
         contexto.update({
             'comportamiento_pago': stats_cliente_perfil.comportamiento_pago(cliente),
             'deudas_activas': deudas,
             'deudas_activas_json': json.dumps(deudas, cls=DjangoJSONEncoder),
             'historial': historial,
             'historial_json': json.dumps(historial, cls=DjangoJSONEncoder),
+            'scoring_historial': scoring_historial,
+            'scoring_historial_json': json.dumps(scoring_historial, cls=DjangoJSONEncoder),
         })
 
     return render(request, 'core/estadisticas/cliente_perfil.html', contexto)

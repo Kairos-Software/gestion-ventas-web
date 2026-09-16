@@ -108,6 +108,19 @@
 
             <div class="config-row config-form-pair">
                 <div class="config-field">
+                    <label class="config-row-label" for="idIngresosBrutos">Ingresos Brutos</label>
+                    <input class="form-control" id="idIngresosBrutos" value="{{ datos_empresa.ingresos_brutos }}" placeholder="Ej: 20-34702256-0">
+                    <small class="config-row-desc">Tu N° de inscripción en Ingresos Brutos (Rentas de tu provincia). Si sos Monotributista sin inscripción provincial aparte, se suele repetir el mismo CUIT. Va impreso en la factura.</small>
+                </div>
+                <div class="config-field">
+                    <label class="config-row-label" for="idFechaInicioActividades">Fecha de inicio de actividades</label>
+                    <input type="date" class="form-control" id="idFechaInicioActividades" value="{{ datos_empresa.fecha_inicio_actividades|date:'Y-m-d' }}">
+                    <small class="config-row-desc">La misma que figura en tu Constancia de Inscripción de AFIP/ARCA (no la fecha en que empezaste a usar el sistema).</small>
+                </div>
+            </div>
+
+            <div class="config-row config-form-pair">
+                <div class="config-field">
                     <label class="config-row-label" for="idTelefono">Teléfono</label>
                     <input class="form-control" id="idTelefono" value="{{ datos_empresa.telefono }}">
                 </div>

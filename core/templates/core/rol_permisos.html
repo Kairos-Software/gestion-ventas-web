@@ -1,7 +1,7 @@
 {% extends 'core/base.html' %}
 {% load static %}
 
-{% block title %}Permisos — {{ usuario_obj.username }}{% endblock %}
+{% block title %}{% if rol %}Editar perfil — {{ rol.nombre }}{% else %}Nuevo perfil de permisos{% endif %}{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'core/css/permisos_usuario.css' %}?v=6">
@@ -11,21 +11,25 @@
 <div class="page-header">
     <div>
         <a href="{% url 'core:gestion_usuarios' %}" class="back-link">← Volver a usuarios</a>
-        <h1>Permisos de <span>{{ usuario_obj.username }}</span></h1>
-        {% if rol_nombre %}
-            <p class="rol-info">
-                <span class="rol-actual">Rol: <strong>{{ rol_nombre }}</strong></span>
-                <span class="leyenda-item"><span class="tag-rol">ROL</span> heredado</span>
-                <span class="leyenda-item"><span class="tag-override-si">OVERRIDE ✓</span> permitido individualmente</span>
-                <span class="leyenda-item"><span class="tag-override-no">OVERRIDE ✗</span> quitado individualmente</span>
-            </p>
-        {% else %}
-            <p class="rol-info sin-rol">Este usuario no tiene rol asignado. Todos los permisos son overrides individuales.</p>
-        {% endif %}
+        <h1>{% if rol %}Editar perfil <span>{{ rol.nombre }}</span>{% else %}Nuevo <span>perfil de permisos</span>{% endif %}</h1>
+        <p class="rol-info sin-rol">Este perfil se asigna como default al crear o editar un usuario. Cada usuario puede seguir teniendo overrides individuales por encima, sin que eso afecte al perfil ni a otros usuarios que lo usen.</p>
     </div>
 </div>
 
 <div id="alertGuardado" class="alerta-guardado" role="status" aria-live="polite" style="display:none;"></div>
+
+<div class="perfil-datos-basicos">
+    <div class="row g-3">
+        <div class="col-md-4">
+            <label class="form-label" for="perfilNombre">Nombre del perfil <span class="field-required">*</span></label>
+            <input type="text" class="form-control" id="perfilNombre" maxlength="100" value="{{ rol.nombre|default:'' }}" placeholder="Ej: Cajero 1">
+        </div>
+        <div class="col-md-8">
+            <label class="form-label" for="perfilDescripcion">Descripción <span class="text-muted">(opcional)</span></label>
+            <input type="text" class="form-control" id="perfilDescripcion" maxlength="255" value="{{ rol.descripcion|default:'' }}" placeholder="Para qué se usa este perfil">
+        </div>
+    </div>
+</div>
 
 <div class="permisos-toolbar">
     <label class="permisos-buscador" for="buscarPermiso">
@@ -39,8 +43,8 @@
 
     <div class="permisos-filtros" role="group" aria-label="Filtrar permisos por estado">
         <button type="button" class="permiso-filtro active" data-filter="todos">Todos</button>
-        <button type="button" class="permiso-filtro" data-filter="permitidos">Permitidos</button>
-        <button type="button" class="permiso-filtro" data-filter="sin-permiso">Sin permiso</button>
+        <button type="button" class="permiso-filtro" data-filter="permitidos">Incluidos</button>
+        <button type="button" class="permiso-filtro" data-filter="sin-permiso">No incluidos</button>
     </div>
 
     <div class="permisos-resumen" id="permisosResumen" aria-live="polite">
@@ -48,11 +52,11 @@
     </div>
 
     <div class="permisos-acciones">
-        <button type="button" class="btn btn-sm btn-permitir-todo" id="btnSeleccionarTodo" title="Permitir todos los permisos que podés editar">
+        <button type="button" class="btn btn-sm btn-permitir-todo" id="btnSeleccionarTodo" title="Incluir todos los permisos que podés editar">
             <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                 <path d="M3 8.25 6.25 11.5 13 4.75" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            Permitir todo
+            Incluir todo
         </button>
         <button type="button" class="btn btn-secondary btn-sm" id="btnDeseleccionarTodo" title="Quitar todos los permisos que podés editar">Quitar todo</button>
         <button type="button" class="btn btn-primary btn-sm" id="btnGuardar">Guardar</button>
@@ -60,24 +64,24 @@
 </div>
 
 <form id="formPermisos">
-    {% for modulo, permisos in modulos %}
-    <section class="modulo-card" data-seccion="{{ modulo|lower }}">
+    {% for seccion, permisos in secciones %}
+    <section class="modulo-card" data-seccion="{{ seccion|lower }}">
         <div class="modulo-header">
             <div class="modulo-heading">
                 <span class="modulo-icon">◈</span>
-                <h3>{{ modulo }}</h3>
+                <h3>{{ seccion }}</h3>
                 <span class="modulo-count" data-total="{{ permisos|length }}">{{ permisos|length }} permisos</span>
             </div>
             <div class="modulo-controles">
-                <label class="modulo-select-all" title="Permitir o quitar todos los permisos editables de este módulo">
-                    <input type="checkbox" class="modulo-select-all-check" aria-label="Permitir todos los permisos editables de {{ modulo }}">
-                    <span>Permitir área</span>
+                <label class="modulo-select-all" title="Incluir o quitar todos los permisos editables de esta sección">
+                    <input type="checkbox" class="modulo-select-all-check" aria-label="Incluir todos los permisos editables de {{ seccion }}">
+                    <span>Incluir área</span>
                 </label>
                 <button type="button"
                         class="modulo-collapse"
                         aria-expanded="true"
                         aria-controls="permisos-modulo-{{ forloop.counter }}"
-                        aria-label="Mostrar u ocultar permisos de {{ modulo }}">
+                        aria-label="Mostrar u ocultar permisos de {{ seccion }}">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                         <path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
@@ -92,13 +96,6 @@
                 <div class="permiso-info">
                     <label class="permiso-label" for="perm_{{ p.codigo }}">{{ p.label }}</label>
                     <div class="permiso-meta">
-                        <span class="fuente-badge fuente-{{ p.fuente }} {% if p.fuente == 'sin_permiso' %}fuente-vacia{% endif %}">
-                            {% if p.fuente == 'rol' %}ROL
-                            {% elif p.fuente == 'override_positivo' %}OVERRIDE ✓
-                            {% elif p.fuente == 'override_negativo' %}OVERRIDE ✗
-                            {% elif p.fuente == 'superusuario' %}SUPERUSER
-                            {% else %}—{% endif %}
-                        </span>
                         <span class="permiso-codigo">{{ p.codigo }}</span>
                         {% if not p.editable %}
                         <span class="candado-badge"
@@ -135,13 +132,15 @@
 
 <div class="acciones-bottom">
     <a href="{% url 'core:gestion_usuarios' %}" class="btn btn-secondary btn-sm">Cancelar</a>
-    <button type="button" class="btn btn-primary btn-sm" id="btnGuardarBottom">Guardar permisos</button>
+    <button type="button" class="btn btn-primary btn-sm" id="btnGuardarBottom">Guardar perfil</button>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    window.guardarPermisosUrl = "{% url 'core:guardar_permisos' usuario_obj.pk %}";
+    window.rolGuardarUrl = "{% url 'core:rol_acciones' %}";
+    window.rolVolverUrl = "{% url 'core:gestion_usuarios' %}";
+    window.rolPk = {{ rol.pk|default:'null' }};
 </script>
-<script src="{% static 'core/js/permisos_usuario.js' %}?v=5"></script>
+<script src="{% static 'core/js/rol_permisos.js' %}?v=1"></script>
 {% endblock %}

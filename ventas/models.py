@@ -687,6 +687,26 @@ class Venta(models.Model):
         self.total = round(subtotal, 2)
         self.save(update_fields=['total'])
 
+    def condicion_venta_arca(self):
+        """
+        "Condición de venta" en los términos del modelo visual oficial de
+        factura (ARCA/AFIP): Contado / Cuenta Corriente / Tarjeta de Crédito
+        / Tarjeta de Débito. Se deriva de los medios de pago ya cargados,
+        sin pedir ningún dato nuevo. Si el cobro está dividido entre varios
+        medios, prioriza el que compromete más al vendedor: CUOTAS (crédito
+        propio, el cliente todavía debe) primero, tarjeta de crédito después.
+        """
+        medios = set(self.pagos.values_list('medio', flat=True))
+        if not medios:
+            medios = {self.medio_pago}
+        if MedioPago.CUOTAS in medios:
+            return 'Cuenta Corriente'
+        if MedioPago.CREDITO in medios:
+            return 'Tarjeta de Crédito'
+        if MedioPago.DEBITO in medios:
+            return 'Tarjeta de Débito'
+        return 'Contado'
+
     def calcular_iva_por_alicuota(self):
         """
         Agrupa los ítems por alícuota de IVA (snapshot en ItemVenta.alicuota_iva)
@@ -2183,6 +2203,27 @@ class ComprobanteArca(models.Model):
 
     def __str__(self):
         return f'{self.get_tipo_comprobante_display()} {self.punto_venta:04d}-{self.numero:08d} (CAE {self.cae})'
+
+    @property
+    def condicion_iva_receptor_display(self):
+        """Etiqueta oficial ARCA de la condición de IVA del receptor, tal
+        como se declaró al pedir este CAE (ver core/services_arca/tipos.py:
+        CondicionIvaReceptor.LABELS — es la misma tabla que devuelve
+        FEParamGetCondicionIvaReceptor). Se usa en el comprobante impreso en
+        vez de la condición ACTUAL del cliente, porque esta es la que
+        efectivamente quedó declarada ante ARCA para este comprobante."""
+        from core.services_arca.tipos import CondicionIvaReceptor
+        return CondicionIvaReceptor.LABELS.get(self.condicion_iva_receptor_id, '')
+
+    @property
+    def doc_receptor_display(self):
+        """'CUIT: 20-12345678-9' listo para el comprobante impreso, o ''
+        si el receptor es Consumidor Final (doc_tipo 99, sin documento)."""
+        from core.services_arca.tipos import DOC_TIPO_CUIT, DOC_TIPO_CUIL, DOC_TIPO_DNI
+        etiqueta = {DOC_TIPO_CUIT: 'CUIT', DOC_TIPO_CUIL: 'CUIL', DOC_TIPO_DNI: 'DNI'}.get(self.doc_tipo)
+        if not etiqueta or not self.doc_nro or self.doc_nro == '0':
+            return ''
+        return f'{etiqueta}: {self.doc_nro}'
 
 
 # ══════════════════════════════════════════════════════════════════

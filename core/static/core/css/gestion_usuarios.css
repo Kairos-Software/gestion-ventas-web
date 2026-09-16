@@ -243,6 +243,20 @@
     border-bottom: none;
 }
 
+/* La tabla de arriba (Usuarios) necesita ancho mínimo porque tiene 8 columnas
+   y depende de .table-card para el scroll horizontal. La de "Perfiles de
+   permisos" vive en un modal angosto con solo 3 columnas — heredar ese
+   min-width la desbordaba y dejaba los botones Editar/Eliminar fuera de
+   vista, exigiendo un scroll horizontal que nadie encontraba. */
+.table-perfiles {
+    min-width: 0;
+}
+
+.table-perfiles .col-actions {
+    width: 1%;
+    white-space: nowrap;
+}
+
 .table tbody tr:hover td {
     background: var(--bg-surface-hover);
 }
@@ -1119,6 +1133,81 @@
 
     .table tbody tr:not([data-id]) {
         display: block;
+    }
+
+    /* La tabla de Perfiles de permisos no tiene data-id (no es la de
+       Usuarios) y quedaba atrapada en las reglas de arriba pensadas para
+       convertir la tabla de Usuarios en tarjetas: perdía los encabezados
+       y las filas se desarmaban sin ningún layout que las reemplazara
+       (columnas angostísimas, texto partido letra por letra). Se le arma
+       una tarjeta simple propia: nombre arriba, cantidad de usuarios al
+       lado, acciones abajo en todo el ancho. */
+    .table-perfiles thead {
+        display: none;
+    }
+
+    .table-perfiles,
+    .table-perfiles tbody {
+        display: block;
+        width: 100%;
+    }
+
+    .table-perfiles tbody tr {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.4rem 0.75rem;
+        padding: 0.85rem 0;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .table-perfiles tbody tr:last-child {
+        border-bottom: none;
+    }
+
+    .table-perfiles td {
+        display: block;
+        padding: 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+    }
+
+    .table-perfiles td:first-child {
+        flex: 1 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        color: var(--text-primary);
+        font-size: 0.9rem;
+        font-weight: 650;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .table-perfiles td:nth-child(2) {
+        flex: 0 0 auto;
+        color: var(--text-muted);
+        font-size: 0.75rem;
+    }
+
+    .table-perfiles td:nth-child(2)::before {
+        content: attr(data-label);
+        margin-right: 0.3rem;
+        color: var(--text-muted);
+        font-size: 0.62rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .table-perfiles td:last-child {
+        flex: 1 1 100%;
+    }
+
+    .table-perfiles td[colspan] {
+        font-size: 0.8rem;
+        font-weight: 400;
+        color: var(--text-muted);
+        white-space: normal;
     }
 
     .empty-state {

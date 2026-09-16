@@ -56,7 +56,13 @@ urlpatterns = [
     # ── Permisos ──────────────────────────────────────────────────
     path('usuarios/<int:pk>/permisos/', views_permisos.GestionPermisosView.as_view(), name='gestion_permisos'),
     path('usuarios/<int:pk>/permisos/guardar/', views_permisos.GuardarPermisosAjax.as_view(), name='guardar_permisos'),
-    path('roles/permisos/guardar/', views_permisos.GuardarPermisosRolAjax.as_view(), name='guardar_permisos_rol'),
+
+    # ── Perfiles de permisos ("paquetes" para crear usuarios) ────────
+    path('roles/listar/', views_permisos.RolesListarAjax.as_view(), name='roles_listar'),
+    path('roles/nuevo/', views_permisos.RolPermisosView.as_view(), name='rol_nuevo'),
+    path('roles/<int:pk>/permisos/', views_permisos.RolPermisosView.as_view(), name='rol_permisos'),
+    path('roles/acciones/', views_permisos.RolCrearEditarAjax.as_view(), name='rol_acciones'),
+    path('roles/eliminar/', views_permisos.RolEliminarAjax.as_view(), name='rol_eliminar'),
 
     # ── Clientes ──────────────────────────────────────────────────
     path('clientes/', views_clientes.GestionClientesView.as_view(), name='gestion_clientes'),

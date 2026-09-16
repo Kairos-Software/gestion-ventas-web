@@ -143,12 +143,7 @@ class FormularioUsuarioBase(forms.ModelForm):
 class FormularioCreacionUsuario(FormularioUsuarioBase, UserCreationForm):
     password1 = forms.CharField(label='Contraseña', widget=forms.PasswordInput, required=True)
     password2 = forms.CharField(label='Confirmar contraseña', widget=forms.PasswordInput, required=True)
-    rol_nombre = forms.CharField(
-        label='Rol',
-        required=False,
-        max_length=50,
-        help_text='Escribe el nombre del rol. Si no existe, se creará automáticamente.'
-    )
+    rol_pk = forms.CharField(label='Perfil de permisos', required=False)
 
     class Meta(FormularioUsuarioBase.Meta):
         fields = FormularioUsuarioBase.Meta.fields + ['password1', 'password2']
@@ -178,12 +173,7 @@ class FormularioCreacionUsuario(FormularioUsuarioBase, UserCreationForm):
 # ══════════════════════════════════════════════════════════════════
 
 class FormularioEdicionUsuario(FormularioUsuarioBase):
-    rol_nombre = forms.CharField(
-        label='Rol del sistema',
-        required=False,
-        max_length=50,
-        help_text='Si no existe, se creará automáticamente.'
-    )
+    rol_pk = forms.CharField(label='Perfil de permisos', required=False)
 
     class Meta(FormularioUsuarioBase.Meta):
         pass

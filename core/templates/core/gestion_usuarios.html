@@ -4,7 +4,7 @@
 {% block title %}Gestión de Personal{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'core/css/gestion_usuarios.css' %}?v=5">
+<link rel="stylesheet" href="{% static 'core/css/gestion_usuarios.css' %}?v=8">
 {% endblock %}
 
 {% block content %}
@@ -15,6 +15,9 @@
     </div>
     <div class="page-header-actions">
         <a href="{% url 'core:home' %}" class="btn btn-secondary btn-sm">← Volver</a>
+        {% if puede_ver_roles %}
+            <button class="btn btn-outline-primary btn-sm" id="btnPerfilesPermisos">Perfiles de permisos</button>
+        {% endif %}
         {% if puede_crear %}
             <button class="btn btn-primary btn-sm" id="btnNuevoUsuario">+ Nuevo usuario</button>
         {% endif %}
@@ -209,8 +212,13 @@
                                     <input type="email" class="form-control" name="email" id="id_email">
                                 </div>
                                 <div class="col-md-4">
-                                    <label class="form-label">Rol del sistema</label>
-                                    <input type="text" class="form-control" name="rol_nombre" id="id_rol_nombre" placeholder="Ej: Administrativo, Técnico">
+                                    <label class="form-label">Perfil de permisos</label>
+                                    <select class="form-select" name="rol_pk" id="id_rol_pk">
+                                        <option value="">Sin perfil asignado</option>
+                                        {% for r in roles %}
+                                        <option value="{{ r.pk }}">{{ r.nombre }}</option>
+                                        {% endfor %}
+                                    </select>
                                 </div>
                             </div>
                             <div class="row g-3 mt-1 campo-password">
@@ -864,6 +872,66 @@
     </div>
 </div>
 {% endif %}
+
+{# ══════════════════════════════════════════════════════ #}
+{# PERFILES DE PERMISOS ("paquetes" para crear usuarios)   #}
+{# ══════════════════════════════════════════════════════ #}
+{% if puede_ver_roles %}
+{# ── Modal A: lista de perfiles ── #}
+<div class="modal fade" id="perfilesModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title">Perfiles de permisos</h5>
+                    <p class="modal-subtitle">Paquetes de permisos para asignar de una sola vez al crear un usuario.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                {% if puede_crear_roles %}
+                <div class="d-flex justify-content-end mb-2">
+                    <a href="{% url 'core:rol_nuevo' %}" class="btn btn-primary btn-sm">+ Nuevo perfil</a>
+                </div>
+                {% endif %}
+                <table class="table table-perfiles table-sm align-middle">
+                    <thead>
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Usuarios</th>
+                            <th class="col-actions">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="perfilesTbody">
+                        <tr><td colspan="3" class="text-muted">Sin perfiles cargados todavía.</td></tr>
+                    </tbody>
+                </table>
+                <div id="perfilesListaMsg" class="alerta-inline alerta-error" style="display:none;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ── Modal B: confirmar eliminación de un perfil ── #}
+<div class="modal fade" id="perfilEliminarModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header modal-header-danger">
+                <h5 class="modal-title">Eliminar perfil</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>¿Confirmás eliminar el perfil <strong id="perfilNombreEliminar"></strong>?</p>
+                <div id="perfilEliminarMsg" class="alerta-inline alerta-error" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger btn-sm" id="btnConfirmarEliminarPerfil">Eliminar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
@@ -872,6 +940,25 @@
     window.usuarioEliminarUrl = "{% url 'core:usuario_eliminar' %}";
     window.puedeGestionarPermisos = {{ puede_gestionar_permisos|yesno:"true,false" }};
     window.permisosBaseUrl = "{% url 'core:gestion_permisos' 0 %}";
+    window.rolesPermisos = {
+        ver: {{ puede_ver_roles|yesno:"true,false" }},
+        crear: {{ puede_crear_roles|yesno:"true,false" }},
+        editar: {{ puede_editar_roles|yesno:"true,false" }},
+        eliminar: {{ puede_eliminar_roles|yesno:"true,false" }},
+    };
+    window.rolesUrls = {
+        listar: "{% url 'core:roles_listar' %}",
+        permisosBase: "{% url 'core:rol_permisos' 0 %}",
+        eliminar: "{% url 'core:rol_eliminar' %}",
+    };
+    window.rolesIniciales = [
+        {% for r in roles %}
+        {pk: {{ r.pk }}, nombre: "{{ r.nombre|escapejs }}", num_usuarios: {{ r.num_usuarios }}},
+        {% endfor %}
+    ];
 </script>
-<script src="{% static 'core/js/gestion_usuarios.js' %}?v=5"></script>
+<script src="{% static 'core/js/gestion_usuarios.js' %}?v=6"></script>
+{% if puede_ver_roles %}
+<script src="{% static 'core/js/perfiles_permisos.js' %}?v=5"></script>
+{% endif %}
 {% endblock %}

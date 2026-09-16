@@ -106,6 +106,18 @@
 }
 
 /* ═══════════════════════════════════════════════
+   PERFIL — datos básicos (nombre/descripción)
+   ═══════════════════════════════════════════════ */
+.perfil-datos-basicos {
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    padding: 1rem 1.1rem;
+    margin-bottom: 0.75rem;
+    box-shadow: var(--shadow-sm);
+}
+
+/* ═══════════════════════════════════════════════
    BUTTONS
    ═══════════════════════════════════════════════ */
 .btn {

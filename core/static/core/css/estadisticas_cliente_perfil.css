@@ -283,3 +283,30 @@
 .cp-dot-suspendido { background: #EF4444; }
 .cp-dot-inactivo { background: #8A9BB0; }
 .cp-dot-persona { background: #F26A1B; }
+
+/* ═══════════ HISTORIAL DE SCORING ═══════════
+   El panel de desglose reusa .sco-tabla de detalle_cliente.css (pensada
+   para vivir dentro de .dc-score-card, sin padding propio) — acá vive
+   directo en un .card-body con padding, así que se le resetea el
+   margin/width propios en vez de heredarlos. */
+.sco-historial-desglose {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+}
+.sco-historial-desglose .sco-tabla {
+    width: 100%;
+    margin: 0;
+}
+.sco-hist-desglose-header {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .625rem;
+    margin-bottom: .5rem;
+    font-size: .8125rem;
+}
+.sco-hist-desglose-score {
+    color: var(--text-muted);
+    font-size: .75rem;
+}

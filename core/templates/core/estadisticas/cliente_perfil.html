@@ -126,6 +126,27 @@
     </div>
 </div>
 
+{# ══════════ HISTORIAL DE SCORING ══════════ #}
+<div class="card mb-4">
+    <div class="card-header">
+        <div>
+            <p class="card-title">Historial de scoring</p>
+            <p class="text-muted" style="font-size:.8125rem;">Evolución del riesgo de pago — hacé click en un punto para ver por qué</p>
+        </div>
+        {% if scoring_historial %}<span class="sco-badge sco-badge--{{ cliente.scoring_banda }}">{{ cliente.scoring_banda_label }}</span>{% endif %}
+    </div>
+    <div class="card-body">
+        {% if scoring_historial %}
+        <div class="est-chart-wrap">
+            <canvas id="chartScoringHistorial"></canvas>
+        </div>
+        <div class="sco-historial-desglose" id="scoHistDesglose"></div>
+        {% else %}
+            <div class="empty-state"><p>Este cliente todavía no tiene historial de scoring — recién se genera cuando compra en cuotas o paga con cheque.</p></div>
+        {% endif %}
+    </div>
+</div>
+
 {# ══════════ DEUDA ACTUAL CONSOLIDADA ══════════ #}
 <div class="card mb-4">
     <div class="card-header">
@@ -203,6 +224,7 @@
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="{% static 'core/js/estadisticas.js' %}"></script>
+<script src="{% static 'core/js/estadisticas_cliente_scoring.js' %}"></script>
 <script src="{% static 'core/js/cliente_deuda_total_imprimir.js' %}"></script>
 <script src="{% static 'core/js/cliente_historial_imprimir.js' %}"></script>
 <script>
@@ -212,6 +234,10 @@
             {'label': 'A término', 'cantidad': {{ comportamiento_pago.cantidad_a_termino }}},
             {'label': 'Con atraso', 'cantidad': {{ comportamiento_pago.cantidad_con_atraso }}},
         ], { 'A término': '#10B981', 'Con atraso': '#EF4444' });
+        {% endif %}
+
+        {% if scoring_historial %}
+        initChartScoringHistorial({{ scoring_historial_json|default:'[]'|safe }});
         {% endif %}
 
         var cliente = { pk: {{ cliente.pk }}, nombre: "{{ cliente.get_nombre_display|escapejs }}" };

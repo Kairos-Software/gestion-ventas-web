@@ -51,6 +51,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     cuit:             document.getElementById('idCuit').value,
                     condicion_iva:    document.getElementById('idCondicionIva').value,
                     domicilio:        document.getElementById('idDomicilio').value,
+                    ingresos_brutos:  document.getElementById('idIngresosBrutos').value,
+                    fecha_inicio_actividades: document.getElementById('idFechaInicioActividades').value,
                     telefono:         document.getElementById('idTelefono').value,
                     email:            document.getElementById('idEmail').value,
                 }),

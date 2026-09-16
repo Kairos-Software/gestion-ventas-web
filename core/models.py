@@ -21,6 +21,10 @@ PERMISOS_CHOICES = [
     ('editar_usuarios',    'Editar usuarios'),
     ('eliminar_usuarios',  'Eliminar usuarios'),
     ('gestionar_permisos', 'Gestionar permisos de otros usuarios'),
+    ('ver_roles',          'Ver perfiles de permisos (paquetes que se asignan al crear un usuario)'),
+    ('crear_roles',        'Crear perfiles de permisos'),
+    ('editar_roles',       'Editar perfiles de permisos existentes'),
+    ('eliminar_roles',     'Eliminar perfiles de permisos'),
 
     # ── Módulo: Empresa ──────────────────────────────────────────
     ('editar_empresa',     'Editar datos de la empresa'),
@@ -168,6 +172,10 @@ PERMISOS_RESTRINGIDOS = {
     'gestionar_notificaciones',
     'editar_catalogo',
     'reabrir_turno',
+    'ver_roles',
+    'crear_roles',
+    'editar_roles',
+    'eliminar_roles',
 }
 
 
@@ -1056,6 +1064,14 @@ class Cliente(models.Model):
         desglose reflejan igual el cálculo real (para poder mostrar
         "ajustado a mano, el cálculo daba X").
 
+        De paso, si el puntaje EFECTIVO cambió respecto al último punto
+        guardado en HistorialScoring, registra uno nuevo — así el gráfico
+        de "Historial de scoring" (Estadísticas > Clientes) solo acumula
+        puntos donde el número realmente se movió, sin ruido por cada
+        recálculo que no cambió nada (la mayoría: cron diario, barrido
+        perezoso). Nunca rompe el recálculo si falla (mismo criterio que
+        el resto del motor: el scoring es informativo).
+
         Devuelve el dict de core.scoring.calcular_scoring().
         """
         from core.scoring import calcular_scoring, banda_de_score
@@ -1075,6 +1091,22 @@ class Cliente(models.Model):
                 'scoring', 'scoring_calculado', 'scoring_sin_historial',
                 'scoring_desglose', 'scoring_actualizado_el', 'nivel_riesgo',
             ])
+            try:
+                ultimo = self.historial_scoring.order_by('-fecha').first()
+                if ultimo is None or ultimo.score != efectivo:
+                    HistorialScoring.objects.update_or_create(
+                        cliente=self, fecha=timezone.localtime().date(),
+                        defaults={
+                            'score': efectivo,
+                            'banda': banda_de_score(efectivo)[0],
+                            'desglose': r['desglose'],
+                            'es_backfill': False,
+                        },
+                    )
+            except Exception:
+                import logging
+                logging.getLogger(__name__).exception(
+                    'No se pudo registrar el historial de scoring del cliente %s', self.pk)
         return r
 
 
@@ -1162,6 +1194,42 @@ def recalcular_scoring_pendientes(limite=25, antiguedad_horas=20):
             import logging
             logging.getLogger(__name__).exception('No se pudo recalcular el scoring del cliente %s', pk)
     return hechos
+
+
+class HistorialScoring(models.Model):
+    """
+    Un punto en la línea de tiempo del scoring de un cliente — para el
+    gráfico "Historial de scoring" en Estadísticas > Clientes.
+
+    Se crea/actualiza SOLO cuando el puntaje efectivo cambia (ver
+    Cliente.recalcular_scoring()): un registro por (cliente, fecha), así
+    si el número se mueve dos veces el mismo día el punto de ese día
+    queda con el último valor, sin duplicados. `desglose` es una copia
+    congelada de core.scoring.calcular_scoring()['desglose'] tal como
+    quedó ESE día, para poder explicar cualquier punto del gráfico sin
+    tener que recalcular nada.
+    """
+    cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE, related_name='historial_scoring')
+    fecha   = models.DateField()
+    score   = models.IntegerField()
+    banda   = models.CharField(max_length=20)
+    desglose = models.JSONField(default=list)
+    es_backfill = models.BooleanField(
+        default=False,
+        help_text='True si este punto lo generó el comando de reconstrucción '
+                   'retroactiva (backfill_historial_scoring) a partir de '
+                   'fechas reales del historial, no un recálculo en el momento.',
+    )
+    creado_el = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Historial de scoring'
+        verbose_name_plural = 'Historial de scoring'
+        unique_together = [('cliente', 'fecha')]
+        ordering = ['fecha']
+
+    def __str__(self):
+        return f'{self.cliente} — {self.fecha}: {self.score}'
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -1294,6 +1362,20 @@ class DatosEmpresa(models.Model):
     cuit = models.CharField(max_length=13, blank=True, help_text='XX-XXXXXXXX-X')
     condicion_iva = models.CharField(max_length=3, choices=CondicionIVA.choices, blank=True)
     domicilio = models.CharField(max_length=300, blank=True)
+    # ── Datos fiscales para la factura impresa (exigidos por ARCA en el
+    #    modelo visual del comprobante, no se obtienen de ningún lado del
+    #    sistema — se cargan una sola vez a mano) ──
+    ingresos_brutos = models.CharField(
+        'Ingresos Brutos', max_length=20, blank=True,
+        help_text='N° de inscripción en Ingresos Brutos (Rentas de tu provincia). '
+                   'Si sos Monotributista sin inscripción provincial aparte, se '
+                   'suele repetir el mismo CUIT.',
+    )
+    fecha_inicio_actividades = models.DateField(
+        'Fecha de inicio de actividades', null=True, blank=True,
+        help_text='La misma que figura en tu Constancia de Inscripción de AFIP/ARCA '
+                   '(no la fecha en que empezaste a usar este sistema).',
+    )
     telefono = models.CharField(max_length=50, blank=True)
     email = models.EmailField(blank=True)
     logo = models.ImageField(upload_to=_empresa_logo_path, blank=True, null=True)

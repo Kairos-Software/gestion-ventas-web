@@ -176,9 +176,19 @@ def _cheques_de_cliente(cliente):
 #  CÁLCULO
 # ══════════════════════════════════════════════════════════════════
 
-def calcular_scoring(cliente):
+def calcular_scoring(cliente, hoy=None):
     """
     Recalcula el scoring del cliente desde cero.
+
+    `hoy`: fecha de referencia para todo el cálculo (mora, atrasos,
+    ventana de 2 años, antigüedad). Por default es hoy de verdad — se
+    puede pasar una fecha pasada para reconstruir qué puntaje habría
+    dado el motor en ese momento, a partir de hechos reales con fecha
+    (cuotas confirmadas/vencidas, cheques). Ver
+    core/management/commands/backfill_historial_scoring.py. OJO: esto es
+    una reconstrucción aproximada — depende del estado ACTUAL de cada
+    CuentaPorCobrar (activa/monto/etc.), no de cómo estaba esa cuenta en
+    la fecha simulada.
 
     Devuelve un dict:
         {
@@ -198,7 +208,7 @@ def calcular_scoring(cliente):
         CuentaPorCobrar, CuotaCobro, EstadoCuota, EstadoDeuda, EstadoCheque,
     )
 
-    hoy    = timezone.localtime().date()
+    hoy    = hoy or timezone.localtime().date()
     limite = hoy - timedelta(days=VENTANA_DIAS)
 
     desglose = [{"concepto": "Base", "detalle": "Puntaje inicial", "puntos": PUNTAJE_INICIAL}]

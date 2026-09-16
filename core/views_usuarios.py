@@ -1,5 +1,7 @@
 # core/views_usuarios.py
 import json
+from django.db import transaction
+from django.db.models import Count
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -16,7 +18,7 @@ from .forms_usuarios import (
     FormularioEstudio, FormularioExperienciaLaboral,
     FormularioCapacitacion, FormularioDocumento,
 )
-from .permisos import chequear_permiso
+from .permisos import chequear_permiso, filtrar_permisos_otorgables
 
 # ══════════════════════════════════════════════════════════════════
 #  LISTADO / GESTIÓN
@@ -33,13 +35,24 @@ class GestionUsuariosView(LoginRequiredMixin, View):
         else:
             qs = Usuario.objects.none()
 
+        # Se pasa siempre (no solo si puede_gestionar_roles): cualquiera con
+        # crear_usuarios/editar_usuarios necesita el desplegable de perfiles
+        # en el alta/edición de usuario. `num_usuarios` solo lo usa el modal
+        # de gestión de perfiles, pero es gratis pedirlo siempre acá.
+        roles = Rol.objects.annotate(num_usuarios=Count('usuario')).order_by('nombre')
+
         context = {
             'usuarios':                qs,
+            'roles':                   roles,
             'sin_permiso':             not puede_ver,
             'puede_crear':             chequear_permiso(request.user, 'crear_usuarios'),
             'puede_editar':            chequear_permiso(request.user, 'editar_usuarios'),
             'puede_eliminar':          chequear_permiso(request.user, 'eliminar_usuarios'),
             'puede_gestionar_permisos':chequear_permiso(request.user, 'gestionar_permisos'),
+            'puede_ver_roles':         chequear_permiso(request.user, 'ver_roles'),
+            'puede_crear_roles':       chequear_permiso(request.user, 'crear_roles'),
+            'puede_editar_roles':      chequear_permiso(request.user, 'editar_roles'),
+            'puede_eliminar_roles':    chequear_permiso(request.user, 'eliminar_roles'),
         }
         return render(request, 'core/gestion_usuarios.html', context)
 
@@ -114,7 +127,7 @@ class UsuarioCrearEditarAjax(LoginRequiredMixin, View):
             'fecha_apto': usuario.fecha_apto.strftime('%Y-%m-%d') if usuario.fecha_apto else '',
             'observaciones_salud': usuario.observaciones_salud or '',
             'notas_internas': usuario.notas_internas or '',
-            'rol_nombre': usuario.rol.nombre if usuario.rol else '',
+            'rol_pk': usuario.rol_id or '',
         }
 
         # Agregar sub‑recursos
@@ -193,8 +206,13 @@ class UsuarioCrearEditarAjax(LoginRequiredMixin, View):
             form = FormularioCreacionUsuario(request.POST, request.FILES)
 
         if form.is_valid():
-            usuario = form.save()
-            _asignar_rol(usuario, request.POST.get('rol_nombre', ''))
+            with transaction.atomic():
+                usuario = form.save()
+                ok, error = _asignar_rol(usuario, request.POST.get('rol_pk', ''), request.user)
+                if not ok:
+                    transaction.set_rollback(True)
+            if not ok:
+                return JsonResponse({'error': error}, status=400)
 
             # Eliminar foto si se marcó
             if request.POST.get('foto_perfil_eliminar') == '1':
@@ -424,8 +442,20 @@ class EditarUsuarioDetalleAjax(LoginRequiredMixin, View):
         form = FormularioEdicionUsuario(request.POST, request.FILES, instance=usuario)
 
         if form.is_valid():
+            # Ojo: esta pantalla (el detalle completo del empleado) NO tiene
+            # ningún campo de perfil de permisos — a diferencia del modal
+            # rápido de gestion_usuarios.html, que sí lo tiene y por eso ahí
+            # abajo SÍ se llama a _asignar_rol(). Antes de este comentario
+            # este view llamaba a _asignar_rol() igual, con
+            # request.POST.get('rol_pk', '') SIEMPRE vacío por no existir el
+            # campo acá — eso le borraba el perfil a CUALQUIER usuario cada
+            # vez que alguien le editaba un dato desde esta pantalla (sueldo,
+            # dirección, lo que sea), sin que nadie lo pidiera. Bug real,
+            # encontrado auditando el fix de escalación de privilegios de
+            # _asignar_rol — se saca el llamado en vez de mandarle un
+            # rol_pk vacío que no significa "sin perfil" sino "no toqué este
+            # campo, ni siquiera está en este formulario".
             usuario = form.save()
-            _asignar_rol(usuario, request.POST.get('rol_nombre', ''))
             return JsonResponse({'success': True, 'usuario': _serializar_usuario(usuario)})
 
         return JsonResponse({'success': False, 'errors': form.errors}, status=400)
@@ -611,14 +641,47 @@ class UsuarioFotoAjax(LoginRequiredMixin, View):
 #  FUNCIONES AUXILIARES
 # ══════════════════════════════════════════════════════════════════
 
-def _asignar_rol(usuario, rol_nombre):
-    rol_nombre = (rol_nombre or '').strip()
-    if rol_nombre:
-        rol, _ = Rol.objects.get_or_create(nombre=rol_nombre)
-        usuario.rol = rol
-    else:
-        usuario.rol = None
+def _asignar_rol(usuario, rol_pk, solicitante):
+    """
+    Devuelve (True, None) si se asignó, o (False, mensaje) si se rechazó.
+
+    Ojo acá — este es el único lugar de todo el sistema donde un usuario
+    puede terminar con más permisos efectivos sin pasar por la pantalla de
+    permisos (gestionar_permisos) ni por la de perfiles (crear/editar_roles):
+    alcanza con poder crear o editar un usuario (crear_usuarios/
+    editar_usuarios) para elegirle CUALQUIER perfil del desplegable. Sin este
+    chequeo, alguien con editar_usuarios pero sin ninguno de esos otros
+    permisos podría asignarle a un empleado un perfil armado por el dueño
+    con permisos que ni el propio editor tiene — un agujero de escalación de
+    privilegios idéntico en espíritu al que ya se tapó en
+    filtrar_permisos_otorgables() para overrides individuales y para
+    perfiles, pero que acá faltaba.
+
+    Reasignar el MISMO perfil que el usuario ya tenía (o sacarle uno,
+    dejándolo sin perfil) nunca se bloquea: no se está otorgando ningún
+    permiso nuevo en ninguno de los dos casos, así que no hace falta que el
+    solicitante tenga él mismo esos permisos — de lo contrario, editar
+    cualquier OTRO dato de un empleado con un perfil "alto" (sueldo,
+    dirección, lo que sea) por alguien sin ese nivel se rompería solo por
+    reenviar el mismo valor que ya estaba en el desplegable.
+    """
+    rol_pk = (rol_pk or '').strip()
+    rol_actual_id = usuario.rol_id
+    nuevo_rol = Rol.objects.filter(pk=rol_pk).first() if rol_pk else None
+    nuevo_rol_id = nuevo_rol.pk if nuevo_rol else None
+
+    if nuevo_rol and nuevo_rol_id != rol_actual_id and not solicitante.is_superuser:
+        permisos_rol = nuevo_rol.get_permisos()
+        otorgables = filtrar_permisos_otorgables(permisos_rol, solicitante)
+        if otorgables != permisos_rol:
+            return False, (
+                f'No podés asignar el perfil "{nuevo_rol.nombre}": incluye permisos '
+                f'que vos mismo no tenés concedidos.'
+            )
+
+    usuario.rol = nuevo_rol
     usuario.save()
+    return True, None
 
 
 def _serializar_usuario(u):
