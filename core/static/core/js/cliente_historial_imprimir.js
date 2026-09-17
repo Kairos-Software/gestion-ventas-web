@@ -54,10 +54,11 @@ function _chiEmpresaHtml(emp) {
 }
 
 function _chiClienteHtml(cliente) {
-    const documento = cliente.documento || cliente.cuit || cliente.cuil || cliente.dni || '';
     const datos = [
-        cliente.codigo ? `Código: ${cliente.codigo}` : '',
-        documento ? `Documento: ${documento}` : '',
+        cliente.dni ? `DNI: ${cliente.dni}` : '',
+        cliente.cuil ? `CUIL: ${cliente.cuil}` : '',
+        cliente.cuit ? `CUIT: ${cliente.cuit}` : '',
+        (!cliente.dni && !cliente.cuil && !cliente.cuit && cliente.documento) ? `Documento: ${cliente.documento}` : '',
         cliente.condicion_iva ? `IVA: ${cliente.condicion_iva}` : '',
         cliente.direccion ? `Domicilio: ${cliente.direccion}` : '',
         cliente.email ? `Email: ${cliente.email}` : '',

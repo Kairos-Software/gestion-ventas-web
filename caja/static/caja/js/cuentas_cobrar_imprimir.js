@@ -59,8 +59,10 @@ function _ciEmpresaHtml(emp) {
 
 function _ciClienteHtml(cxc) {
     const datos = [
-        cxc.cliente_codigo ? `Código: ${cxc.cliente_codigo}` : '',
-        cxc.cliente_documento ? `Documento: ${cxc.cliente_documento}` : '',
+        cxc.cliente_dni ? `DNI: ${cxc.cliente_dni}` : '',
+        cxc.cliente_cuil ? `CUIL: ${cxc.cliente_cuil}` : '',
+        cxc.cliente_cuit ? `CUIT: ${cxc.cliente_cuit}` : '',
+        (!cxc.cliente_dni && !cxc.cliente_cuil && !cxc.cliente_cuit && cxc.cliente_documento) ? `Documento: ${cxc.cliente_documento}` : '',
         cxc.cliente_condicion_iva ? `IVA: ${cxc.cliente_condicion_iva}` : '',
         cxc.cliente_direccion ? `Domicilio: ${cxc.cliente_direccion}` : '',
         cxc.cliente_email ? `Email: ${cxc.cliente_email}` : '',

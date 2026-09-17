@@ -338,7 +338,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 titulo: 'Imprimir movimientos',
                 descripcion: `Extracto de movimientos de ${resumenActual.cliente_nombre}.`,
                 alElegir: (formato) => ccMovimientosImprimir(
-                    resumenActual.cliente_nombre, resumenActual.historial, formato),
+                    {
+                        nombre: resumenActual.cliente_nombre,
+                        dni: resumenActual.cliente_dni,
+                        cuil: resumenActual.cliente_cuil,
+                        cuit: resumenActual.cliente_cuit,
+                        condicion_iva: resumenActual.cliente_condicion_iva,
+                        direccion: resumenActual.cliente_direccion,
+                        email: resumenActual.cliente_email,
+                    },
+                    resumenActual.historial, formato),
             });
             return;
         }
@@ -391,7 +400,16 @@ document.addEventListener('DOMContentLoaded', function () {
             titulo: 'Imprimir deuda actual',
             descripcion: `Estado de cuenta de ${resumenActual.cliente_nombre}.`,
             alElegir: (formato) => clienteDeudaTotalImprimir(
-                { pk: resumenActual.cliente_pk, nombre: resumenActual.cliente_nombre },
+                {
+                    pk: resumenActual.cliente_pk,
+                    nombre: resumenActual.cliente_nombre,
+                    dni: resumenActual.cliente_dni,
+                    cuil: resumenActual.cliente_cuil,
+                    cuit: resumenActual.cliente_cuit,
+                    condicion_iva: resumenActual.cliente_condicion_iva,
+                    direccion: resumenActual.cliente_direccion,
+                    email: resumenActual.cliente_email,
+                },
                 resumenActual.deudas, formato),
         });
     });

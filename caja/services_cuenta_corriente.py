@@ -142,6 +142,12 @@ def resumen_cliente(cliente):
     return {
         'cliente_pk': cliente.pk,
         'cliente_nombre': cliente.get_nombre_display(),
+        'cliente_dni': cliente.dni,
+        'cliente_cuil': cliente.cuil,
+        'cliente_cuit': cliente.cuit,
+        'cliente_condicion_iva': cliente.get_cond_iva_display() if cliente.cond_iva else '',
+        'cliente_direccion': cliente.get_direccion_completa(),
+        'cliente_email': cliente.email_principal,
         'saldo_total': str(saldo_total),
         'deudas': deudas,
         'historial': historial,

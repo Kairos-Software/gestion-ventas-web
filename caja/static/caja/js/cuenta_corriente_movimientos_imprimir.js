@@ -7,8 +7,9 @@
  * Mismo patrón que cuenta_corriente_recibo.js (HTML en ventana nueva
  * que dispara el diálogo de impresión del navegador).
  *
- * Expone: ccMovimientosImprimir(clienteNombre, historial, formato, ventanaPrevia)
- *   - clienteNombre: string
+ * Expone: ccMovimientosImprimir(cliente, historial, formato, ventanaPrevia)
+ *   - cliente: objeto identificatorio; por compatibilidad acepta un nombre
+ *     como string.
  *   - historial: filas de
  *     core.services_estadisticas.cliente_perfil.historial_cliente
  *     [{fecha, descripcion, medio_pago, monto, saldo}], orden cronológico.
@@ -62,6 +63,21 @@ function _ccmEmpresaHtml(emp) {
     </header>`;
 }
 
+function _ccmClienteHtml(cliente) {
+    const datos = [
+        cliente.dni ? `DNI: ${cliente.dni}` : '',
+        cliente.cuil ? `CUIL: ${cliente.cuil}` : '',
+        cliente.cuit ? `CUIT: ${cliente.cuit}` : '',
+        cliente.condicion_iva ? `IVA: ${cliente.condicion_iva}` : '',
+        cliente.direccion ? `Domicilio: ${cliente.direccion}` : '',
+        cliente.email ? `Email: ${cliente.email}` : '',
+    ].filter(Boolean).map(_ccmEsc).join(' · ');
+    return `<section class="ccm-cliente">
+        <span>Cliente</span><strong>${_ccmEsc(cliente.nombre || '—')}</strong>
+        ${datos ? `<div>${datos}</div>` : ''}
+    </section>`;
+}
+
 function _ccmResolverSalida(formato, ventanaPrevia) {
     if (formato && typeof formato !== 'string') {
         return { formato: 'a4', ventana: formato };
@@ -89,6 +105,7 @@ function _ccmCssFormato(formato) {
         .ccm-eslogan, .ccm-empresa-datos { max-width: none; margin-top: 2px; font-size: 7pt; line-height: 1.35; text-align: center; overflow-wrap: anywhere; }
         .ccm-cliente { margin-bottom: 10px; padding: 7px; font-size: ${fuente}; overflow-wrap: anywhere; }
         .ccm-cliente > span { display: block; margin: 0 0 2px; }
+        .ccm-cliente div { font-size: 7pt; }
         .ccm-sub { font-size: 8pt; line-height: 1.35; margin-bottom: 12px; }
         .ccm-saldo-actual { padding: 8px; margin-bottom: 12px; border: 1px solid #333; background: none; font-size: ${fuente}; }
         .ccm-saldo-actual strong { color: #111; font-size: 12pt; }
@@ -109,6 +126,13 @@ function _ccmCssFormato(formato) {
 
 function ccMovimientosImprimir(clienteNombre, historial, formato, ventanaPrevia) {
     const emp = (typeof window !== 'undefined' && window.KAI_EMPRESA) || {};
+    const clienteBase = (clienteNombre && typeof clienteNombre === 'object')
+        ? clienteNombre
+        : { nombre: clienteNombre || '' };
+    const cliente = {
+        ...clienteBase,
+        nombre: clienteBase.nombre || clienteBase.cliente_nombre || '',
+    };
     const salida = _ccmResolverSalida(formato, ventanaPrevia);
     formato = salida.formato;
     ventanaPrevia = salida.ventana;
@@ -148,7 +172,7 @@ function ccMovimientosImprimir(clienteNombre, historial, formato, ventanaPrevia)
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>Movimientos de cuenta corriente — ${_ccmEsc(clienteNombre)}</title>
+<title>Movimientos de cuenta corriente — ${_ccmEsc(cliente.nombre)}</title>
 <style>
     * { box-sizing: border-box; }
     body { font-family: Arial, Helvetica, sans-serif; color: #1a1a1a; padding: 32px; max-width: 800px; margin: 0 auto; }
@@ -161,6 +185,7 @@ function ccMovimientosImprimir(clienteNombre, historial, formato, ventanaPrevia)
     .ccm-empresa-datos { max-width: 55%; color: #26364A; font-size: .75rem; line-height: 1.45; text-align: right; }
     .ccm-cliente { margin: 0 0 18px; padding: 9px 12px; border: 1px solid #B7CEDC; background: #F7FAFC; font-size: .8125rem; line-height: 1.45; }
     .ccm-cliente > span { margin-right: 8px; color: #1E6FA8; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+    .ccm-cliente div { margin-top: 3px; color: #40536A; font-size: .75rem; }
     .ccm-sub { color: #555; font-size: .875rem; margin: 0 0 20px; }
     .ccm-saldo-actual {
         display: flex; align-items: baseline; justify-content: space-between;
@@ -187,7 +212,7 @@ function ccMovimientosImprimir(clienteNombre, historial, formato, ventanaPrevia)
     ${_ccmEmpresaHtml(emp)}
     <h1>Movimientos de cuenta corriente</h1>
     <p class="ccm-sub">${rango} · ${movs.length} movimiento${movs.length === 1 ? '' : 's'} · impreso el ${new Date().toLocaleDateString('es-AR')}</p>
-    <section class="ccm-cliente"><span>Cliente</span><strong>${_ccmEsc(clienteNombre)}</strong></section>
+    ${_ccmClienteHtml(cliente)}
 
     <div class="ccm-saldo-actual">
         <span>Saldo actual</span>

@@ -236,9 +236,9 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="{% static 'core/js/estadisticas.js' %}?v=20260916"></script>
 <script src="{% static 'core/js/estadisticas_cliente_scoring.js' %}?v=20260917"></script>
-<script src="{% static 'core/js/cliente_deuda_total_imprimir.js' %}?v=2026091701"></script>
-<script src="{% static 'core/js/cliente_historial_imprimir.js' %}?v=2026091701"></script>
-<script src="{% static 'core/js/cliente_scoring_imprimir.js' %}?v=2026091701"></script>
+<script src="{% static 'core/js/cliente_deuda_total_imprimir.js' %}?v=2026091702"></script>
+<script src="{% static 'core/js/cliente_historial_imprimir.js' %}?v=2026091702"></script>
+<script src="{% static 'core/js/cliente_scoring_imprimir.js' %}?v=2026091702"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         {% if comportamiento_pago.cantidad_evaluadas %}
@@ -255,7 +255,6 @@
         var cliente = {
             pk: {{ cliente.pk }},
             nombre: "{{ cliente.get_nombre_display|escapejs }}",
-            codigo: "{{ cliente.codigo|escapejs }}",
             cuit: "{{ cliente.cuit|escapejs }}",
             cuil: "{{ cliente.cuil|escapejs }}",
             dni: "{{ cliente.dni|escapejs }}",
