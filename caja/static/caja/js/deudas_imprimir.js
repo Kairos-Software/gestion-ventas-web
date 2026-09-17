@@ -31,6 +31,30 @@ function _diEstadoLabel(c) {
     return 'Pendiente';
 }
 
+function _diEmpresaHtml(emp) {
+    const nombre = emp.nombre || emp.razon_social || '';
+    const razon = emp.razon_social && emp.razon_social !== nombre ? emp.razon_social : '';
+    const contacto = [emp.domicilio, emp.telefono ? `Tel: ${emp.telefono}` : '', emp.email]
+        .filter(Boolean).map(_diEsc).join(' · ');
+    const fiscal = [emp.cuit ? `CUIT: ${emp.cuit}` : '', emp.condicion_iva]
+        .filter(Boolean).map(_diEsc).join(' · ');
+    if (!emp.logo_url && !nombre && !contacto && !fiscal && !emp.eslogan) return '';
+    return `<header class="di-membrete">
+        <div class="di-marca">
+            ${emp.logo_url ? `<img class="di-logo" src="${_diEsc(emp.logo_url)}" alt="Logo">` : ''}
+            <div>
+                ${nombre ? `<div class="di-empresa-nombre">${_diEsc(nombre)}</div>` : ''}
+                ${emp.eslogan ? `<div class="di-eslogan">${_diEsc(emp.eslogan)}</div>` : ''}
+            </div>
+        </div>
+        <div class="di-empresa-datos">
+            ${razon ? `<div>${_diEsc(razon)}</div>` : ''}
+            ${contacto ? `<div>${contacto}</div>` : ''}
+            ${fiscal ? `<div>${fiscal}</div>` : ''}
+        </div>
+    </header>`;
+}
+
 /**
  * @param {object} deuda
  * @param {Window} [ventanaPrevia] - Ventana ya abierta (window.open llamado
@@ -39,6 +63,8 @@ function _diEstadoLabel(c) {
  *   Si no se pasa, la abre acá mismo (caso de uso sin async de por medio).
  */
 function deudaImprimir(deuda, ventanaPrevia) {
+    const emp = (typeof window !== 'undefined' && window.KAI_EMPRESA) || {};
+    const acreedor = deuda.acreedor_nombre || deuda.proveedor_nombre || deuda.entidad_nombre || '';
     const tieneCuentaPropia = deuda.tipo === 'compra_credito' || deuda.tipo === 'prestamo';
     const cuentaLabel = deuda.tipo === 'compra_credito' ? 'Tarjeta' : 'Cuenta acreditada';
     const cuentaValor = deuda.tipo === 'compra_credito'
@@ -63,6 +89,14 @@ function deudaImprimir(deuda, ventanaPrevia) {
     * { box-sizing: border-box; }
     body { font-family: Arial, Helvetica, sans-serif; color: #1a1a1a; padding: 32px; max-width: 720px; margin: 0 auto; }
     h1 { font-size: 1.25rem; margin: 0 0 4px; }
+    .di-membrete { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid #1E6FA8; page-break-inside: avoid; }
+    .di-marca { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .di-logo { display: block; max-width: 170px; max-height: 58px; object-fit: contain; }
+    .di-empresa-nombre { font-size: 1.05rem; font-weight: 700; }
+    .di-eslogan { margin-top: 2px; color: #40536A; font-size: .75rem; font-style: italic; }
+    .di-empresa-datos { max-width: 55%; color: #26364A; font-size: .75rem; line-height: 1.45; text-align: right; }
+    .di-acreedor { margin: 0 0 18px; padding: 9px 12px; border: 1px solid #B7CEDC; background: #F7FAFC; font-size: .8125rem; line-height: 1.45; }
+    .di-acreedor > span { margin-right: 8px; color: #1E6FA8; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
     .di-subtitulo { color: #555; font-size: .875rem; margin: 0 0 20px; }
     .di-resumen { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px; margin-bottom: 20px; font-size: .875rem; }
     .di-resumen div { display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding: 3px 0; }
@@ -77,8 +111,10 @@ function deudaImprimir(deuda, ventanaPrevia) {
 </style>
 </head>
 <body>
+    ${_diEmpresaHtml(emp)}
     <h1>${_diEsc(deuda.tipo_display)} — ${_diEsc(deuda.descripcion || deuda.compra_numero || ('#' + deuda.pk))}</h1>
     <p class="di-subtitulo">Estado de cuenta al ${new Date().toLocaleDateString('es-AR')}</p>
+    ${acreedor ? `<section class="di-acreedor"><span>Proveedor / acreedor</span><strong>${_diEsc(acreedor)}</strong></section>` : ''}
     ${deuda.es_carga_inicial ? '<div class="di-badge">Carga inicial</div>' : ''}
     <div class="di-resumen">
         ${deuda.numero_comprobante ? `<div><span>N° de comprobante</span><strong>${_diEsc(deuda.numero_comprobante)}</strong></div>` : ''}

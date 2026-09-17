@@ -34,6 +34,45 @@ function _cdtEstadoLabel(c) {
     return 'Pendiente';
 }
 
+function _cdtEmpresaHtml(emp) {
+    const nombre = emp.nombre || emp.razon_social || '';
+    const razon = emp.razon_social && emp.razon_social !== nombre ? emp.razon_social : '';
+    const contacto = [emp.domicilio, emp.telefono ? `Tel: ${emp.telefono}` : '', emp.email]
+        .filter(Boolean).map(_cdtEsc).join(' · ');
+    const fiscal = [emp.cuit ? `CUIT: ${emp.cuit}` : '', emp.condicion_iva]
+        .filter(Boolean).map(_cdtEsc).join(' · ');
+    if (!emp.logo_url && !nombre && !contacto && !fiscal && !emp.eslogan) return '';
+    return `<header class="cdt-membrete">
+        <div class="cdt-marca">
+            ${emp.logo_url ? `<img class="cdt-logo" src="${_cdtEsc(emp.logo_url)}" alt="Logo">` : ''}
+            <div>
+                ${nombre ? `<div class="cdt-empresa-nombre">${_cdtEsc(nombre)}</div>` : ''}
+                ${emp.eslogan ? `<div class="cdt-eslogan">${_cdtEsc(emp.eslogan)}</div>` : ''}
+            </div>
+        </div>
+        <div class="cdt-empresa-datos">
+            ${razon ? `<div>${_cdtEsc(razon)}</div>` : ''}
+            ${contacto ? `<div>${contacto}</div>` : ''}
+            ${fiscal ? `<div>${fiscal}</div>` : ''}
+        </div>
+    </header>`;
+}
+
+function _cdtClienteHtml(cliente) {
+    const documento = cliente.documento || cliente.cuit || cliente.cuil || cliente.dni || '';
+    const datos = [
+        cliente.codigo ? `Código: ${cliente.codigo}` : '',
+        documento ? `Documento: ${documento}` : '',
+        cliente.condicion_iva ? `IVA: ${cliente.condicion_iva}` : '',
+        cliente.direccion ? `Domicilio: ${cliente.direccion}` : '',
+        cliente.email ? `Email: ${cliente.email}` : '',
+    ].filter(Boolean).map(_cdtEsc).join(' · ');
+    return `<section class="cdt-cliente">
+        <span>Cliente</span><strong>${_cdtEsc(cliente.nombre)}</strong>
+        ${datos ? `<div>${datos}</div>` : ''}
+    </section>`;
+}
+
 function _cdtResolverSalida(formato, ventanaPrevia) {
     if (formato && typeof formato !== 'string') {
         return { formato: 'a4', ventana: formato };
@@ -47,11 +86,21 @@ function _cdtCssFormato(formato) {
     const ancho = formato === 'termica58' ? 58 : 80;
     const padding = formato === 'termica58' ? '2.5mm' : '3.5mm';
     const fuente = formato === 'termica58' ? '8.2pt' : '9pt';
+    const logoAncho = formato === 'termica58' ? '34mm' : '44mm';
+    const logoAlto = formato === 'termica58' ? '13mm' : '16mm';
     return `
         @page { size: ${ancho}mm auto; margin: 0; }
         html, body { width: ${ancho}mm; max-width: ${ancho}mm; margin: 0; }
         body { padding: ${padding}; font-size: ${fuente}; }
         h1 { font-size: 12pt; line-height: 1.25; }
+        .cdt-membrete { display: block; margin-bottom: 12px; padding-bottom: 9px; text-align: center; }
+        .cdt-marca { display: block; }
+        .cdt-logo { max-width: ${logoAncho}; max-height: ${logoAlto}; margin: 0 auto 5px; }
+        .cdt-empresa-nombre { font-size: 10pt; }
+        .cdt-eslogan, .cdt-empresa-datos { max-width: none; margin-top: 2px; font-size: 7pt; line-height: 1.35; text-align: center; overflow-wrap: anywhere; }
+        .cdt-cliente { margin-bottom: 10px; padding: 7px; font-size: ${fuente}; overflow-wrap: anywhere; }
+        .cdt-cliente > span { display: block; margin: 0 0 2px; }
+        .cdt-cliente div { font-size: 7pt; }
         .cdt-subtitulo { font-size: 8pt; line-height: 1.35; margin-bottom: 12px; }
         .cdt-total-general { padding: 8px; margin-bottom: 14px; border: 1px solid #333; background: none; font-size: ${fuente}; }
         .cdt-total-general strong { color: #111; font-size: 11pt; text-align: right; }
@@ -79,6 +128,7 @@ function _cdtCssFormato(formato) {
  *   el click, para no perder el gesto del usuario (ver cxcImprimir).
  */
 function clienteDeudaTotalImprimir(cliente, deudas, formato, ventanaPrevia) {
+    const emp = (typeof window !== 'undefined' && window.KAI_EMPRESA) || {};
     const salida = _cdtResolverSalida(formato, ventanaPrevia);
     formato = salida.formato;
     ventanaPrevia = salida.ventana;
@@ -137,6 +187,15 @@ function clienteDeudaTotalImprimir(cliente, deudas, formato, ventanaPrevia) {
     * { box-sizing: border-box; }
     body { font-family: Arial, Helvetica, sans-serif; color: #1a1a1a; padding: 32px; max-width: 760px; margin: 0 auto; }
     h1 { font-size: 1.25rem; margin: 0 0 4px; }
+    .cdt-membrete { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid #1E6FA8; page-break-inside: avoid; }
+    .cdt-marca { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .cdt-logo { display: block; max-width: 170px; max-height: 58px; object-fit: contain; }
+    .cdt-empresa-nombre { font-size: 1.05rem; font-weight: 700; }
+    .cdt-eslogan { margin-top: 2px; color: #40536A; font-size: .75rem; font-style: italic; }
+    .cdt-empresa-datos { max-width: 55%; color: #26364A; font-size: .75rem; line-height: 1.45; text-align: right; }
+    .cdt-cliente { margin: 0 0 18px; padding: 9px 12px; border: 1px solid #B7CEDC; background: #F7FAFC; font-size: .8125rem; line-height: 1.45; }
+    .cdt-cliente > span { margin-right: 8px; color: #1E6FA8; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+    .cdt-cliente div { margin-top: 3px; color: #40536A; font-size: .75rem; }
     .cdt-subtitulo { color: #555; font-size: .875rem; margin: 0 0 20px; }
     .cdt-total-general {
         display: flex; align-items: baseline; justify-content: space-between;
@@ -161,8 +220,10 @@ function clienteDeudaTotalImprimir(cliente, deudas, formato, ventanaPrevia) {
 </style>
 </head>
 <body>
-    <h1>Deuda total — ${_cdtEsc(cliente.nombre)}</h1>
+    ${_cdtEmpresaHtml(emp)}
+    <h1>Estado de cuenta consolidado</h1>
     <p class="cdt-subtitulo">Estado de cuenta consolidado al ${new Date().toLocaleDateString('es-AR')} — ${deudas.length} cuenta${deudas.length === 1 ? '' : 's'} por cobrar activa${deudas.length === 1 ? '' : 's'}</p>
+    ${_cdtClienteHtml(cliente)}
     <div class="cdt-total-general">
         <span>Total adeudado</span>
         <strong>${totalGeneral}</strong>

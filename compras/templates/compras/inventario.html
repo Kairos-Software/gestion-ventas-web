@@ -146,10 +146,28 @@
             </button>
         </div>
 
+        <!-- Barra contextual: solo aparece con algo seleccionado, separada de la
+             toolbar de siempre para no romper su simetría (búsqueda/filtros/fraccionar). -->
+        <div class="inv-seleccion-bar" id="inventarioSeleccionWrap" style="display:none;">
+            <span class="inv-seleccion-count">
+                <strong id="inventarioSeleccionCount">0</strong> producto(s) seleccionado(s)
+            </span>
+            <div class="inv-seleccion-bar-acciones">
+                <button type="button" class="cmp-btn cmp-btn-ghost" style="width:auto;" id="btnLimpiarSeleccion">Limpiar selección</button>
+                <button type="button" class="cmp-btn cmp-btn-primary" style="width:auto;" id="btnAbrirImprimirMultiple">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" style="margin-right:.35rem">
+                        <path d="M4 6V2H12V6M4 11H2.5C2 11 2 10.5 2 10V7C2 6.5 2 6 2.5 6H13.5C14 6 14 6.5 14 7V10C14 10.5 14 11 13.5 11H12M4 11H12V14H4V11Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+                    </svg>
+                    Imprimir seleccionados
+                </button>
+            </div>
+        </div>
+
         <div class="inventario-tabla-wrap">
             <table class="table inventario-tabla">
                 <thead>
                     <tr>
+                        <th><input type="checkbox" id="chkSeleccionarTodos" title="Seleccionar todos los que se ven"></th>
                         <th>Producto</th>
                         <th>Lote</th>
                         <th>Cantidad</th>
@@ -161,7 +179,7 @@
                     </tr>
                 </thead>
                 <tbody id="inventarioTbody">
-                    <tr><td colspan="8" class="text-center text-muted py-4">Cargando...</td></tr>
+                    <tr><td colspan="9" class="text-center text-muted py-4">Cargando...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -252,6 +270,89 @@
                         <path d="M4 6V2H12V6M4 11H2.5C2 11 2 10.5 2 10V7C2 6.5 2 6 2.5 6H13.5C14 6 14 6.5 14 7V10C14 10.5 14 11 13.5 11H12M4 11H12V14H4V11Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
                     </svg>
                     Imprimir
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     MODAL — Imprimir códigos de varios productos a la vez
+══════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalImprimirMultiple" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg" style="max-width:720px;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Imprimir códigos — varios productos</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+
+                <div class="inv-multi-cantidad-todos">
+                    <span>Cantidad para todos:</span>
+                    <input type="number" id="impMultiCantidadTodos" class="cmp-input-inline" value="1" min="1" style="width:64px;">
+                    <button type="button" class="cmp-btn cmp-btn-ghost" style="width:auto;" id="btnAplicarCantidadTodos">Aplicar a todos</button>
+                </div>
+
+                <div class="inv-multi-lista" id="impMultiLista"></div>
+
+                <!-- ── Configuración de impresión (misma lógica que el modal de un solo lote) ── -->
+                <div class="inv-print-config">
+                    <div class="inv-print-config-title">Configuración de impresión</div>
+
+                    <div class="inv-print-row">
+                        <div class="inv-print-field">
+                            <label>Tipo de impresora</label>
+                            <select id="impMultiTipo" class="cmp-select-inline" style="width:100%;">
+                                <option value="hoja">Hoja / impresora normal (varias por hoja)</option>
+                                <option value="termica">Etiquetas térmicas · pistola (una por rollo)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="inv-print-row">
+                        <div class="inv-print-field">
+                            <label>Ancho de etiqueta (mm)</label>
+                            <input type="number" id="impMultiAncho" class="cmp-input-inline" value="50" min="10" style="width:100%;">
+                        </div>
+                        <div class="inv-print-field">
+                            <label>Alto de etiqueta (mm)</label>
+                            <input type="number" id="impMultiAlto" class="cmp-input-inline" value="30" min="10" style="width:100%;">
+                        </div>
+                    </div>
+
+                    <div class="inv-print-presets" id="impMultiPresets">
+                        <button type="button" class="inv-preset-btn" data-w="40" data-h="30">40 × 30</button>
+                        <button type="button" class="inv-preset-btn" data-w="50" data-h="30">50 × 30</button>
+                        <button type="button" class="inv-preset-btn" data-w="58" data-h="40">58 × 40</button>
+                        <button type="button" class="inv-preset-btn" data-w="100" data-h="50">100 × 50</button>
+                    </div>
+
+                    <div class="inv-print-row" id="impMultiHojaOpciones">
+                        <div class="inv-print-field">
+                            <label>Tamaño de hoja</label>
+                            <select id="impMultiHoja" class="cmp-select-inline" style="width:100%;">
+                                <option value="A4">A4</option>
+                                <option value="Carta">Carta</option>
+                            </select>
+                        </div>
+                        <div class="inv-print-field">
+                            <label>Margen de hoja (mm)</label>
+                            <input type="number" id="impMultiMargen" class="cmp-input-inline" value="8" min="0" style="width:100%;">
+                        </div>
+                    </div>
+
+                    <p class="inv-print-resumen" id="impMultiResumen"></p>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="cmp-btn cmp-btn-ghost" style="width:auto;" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="cmp-btn cmp-btn-primary" style="width:auto;" id="btnImprimirMultiple">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                        <path d="M4 6V2H12V6M4 11H2.5C2 11 2 10.5 2 10V7C2 6.5 2 6 2.5 6H13.5C14 6 14 6.5 14 7V10C14 10.5 14 11 13.5 11H12M4 11H12V14H4V11Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+                    </svg>
+                    Imprimir todo
                 </button>
             </div>
         </div>

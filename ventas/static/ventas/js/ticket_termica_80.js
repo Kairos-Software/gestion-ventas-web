@@ -27,10 +27,14 @@
  * @param {object} [opts]
  * @param {boolean} [opts.sinAutoImpresion]  No incluir el <script> que
  *   dispara window.print() al cargar (lo usa ticket_pdf.js).
+ * @param {boolean} [opts.duplicado]  Aclara "Duplicado" en vez de
+ *   "Original" — mismo comprobante ya emitido, solo cambia esa leyenda
+ *   impresa (ver ticket_a4.js, mismo criterio).
  * @returns {string}
  */
 function ticketHtmlTermica80(data, opts) {
     const sinAutoImpresion = !!(opts && opts.sinAutoImpresion);
+    const esDuplicado = !!(opts && opts.duplicado);
     const emp     = data.empresa || {};
     const venta   = data.venta   || {};
     const items   = data.items   || [];
@@ -123,6 +127,14 @@ function ticketHtmlTermica80(data, opts) {
             text-align: center;
         }
         .t80-doc-letter small { display: block; margin-top: 2pt; font-size: 5.8pt; line-height: 1.1; }
+        .t80-original-label {
+            font-size: 6.5pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: .1em;
+            text-align: center;
+            margin-bottom: 1pt;
+        }
         .t80-venta-num  { font-size: 9.5pt; font-weight: bold; text-align: center; margin: 3pt 0 1pt; }
         .t80-venta-meta { font-size: 8pt; font-weight: 600; text-align: center; margin-bottom: 2pt; }
         .t80-section-title {
@@ -263,6 +275,7 @@ function ticketHtmlTermica80(data, opts) {
     <div class="t80-doc-head">
         ${cbte ? `<div class="t80-doc-letter">${_esc(letra)}<small>COD. ${_esc(cod)}</small></div>` : ''}
         <div>
+            ${cbte ? `<div class="t80-original-label">${esDuplicado ? 'Duplicado' : 'Original'}</div>` : ''}
             <div class="t80-venta-num">${cbte ? _esc(cbte.tipo_display) : 'TICKET DE VENTA'}</div>
             <div class="t80-venta-num">${cbte ? _esc(cbte.numero_display) : _esc(venta.numero)}</div>
         </div>

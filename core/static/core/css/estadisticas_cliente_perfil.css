@@ -284,19 +284,47 @@
 .cp-dot-inactivo { background: #8A9BB0; }
 .cp-dot-persona { background: #F26A1B; }
 
-/* ═══════════ HISTORIAL DE SCORING ═══════════
-   El panel de desglose reusa .sco-tabla de detalle_cliente.css (pensada
-   para vivir dentro de .dc-score-card, sin padding propio) — acá vive
-   directo en un .card-body con padding, así que se le resetea el
-   margin/width propios en vez de heredarlos. */
+/* ═══════════ HISTORIAL DE SCORING ═══════════ */
+.sco-filtro-rango { display: flex; gap: .4rem; margin-bottom: .85rem; }
+.sco-filtro-btn {
+    padding: .3rem .75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    background: var(--bg-white);
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: .72rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+.sco-filtro-btn:hover { border-color: var(--brand-orange-mid); color: var(--brand-orange); }
+.sco-filtro-btn--activo { background: var(--brand-orange); border-color: var(--brand-orange); color: #fff; }
+
+.sco-resumen-grid { margin-bottom: 1.25rem; }
+
+/* Leyenda de colores del gráfico — mismos colores que .sco-badge--* /
+   SCO_BANDA_COLOR en el JS, para que nadie tenga que adivinar qué
+   significa cada franja de fondo del gráfico. */
+.sco-leyenda {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .3rem .9rem;
+    margin: .75rem 0 0;
+    font-size: .72rem;
+    color: var(--text-secondary);
+}
+.sco-leyenda-item { display: inline-flex; align-items: center; gap: .35rem; }
+.sco-leyenda-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+.sco-leyenda-rango { color: var(--text-muted); }
+
+/* El panel de desglose ya NO reusa .sco-tabla acá (se reemplazó por el
+   gráfico de cascada .sco-wf-* de abajo) — .sco-tabla en sí no se tocó,
+   sigue igual en detalle_cliente.html (Personas > Clientes). */
 .sco-historial-desglose {
     margin-top: 1rem;
     padding-top: 1rem;
     border-top: 1px solid var(--border-color);
-}
-.sco-historial-desglose .sco-tabla {
-    width: 100%;
-    margin: 0;
 }
 .sco-hist-desglose-header {
     display: flex;
@@ -310,3 +338,79 @@
     color: var(--text-muted);
     font-size: .75rem;
 }
+
+.sco-eventos-header {
+    margin-top: 1rem;
+    font-size: .72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--text-muted);
+}
+.sco-eventos-lista {
+    max-height: 260px;
+    overflow-y: auto;
+    margin-top: .5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+}
+.sco-evento-row {
+    display: flex;
+    align-items: flex-start;
+    gap: .65rem;
+    padding: .6rem .75rem;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-color);
+    transition: background var(--transition-fast);
+}
+.sco-evento-row:last-child { border-bottom: 0; }
+.sco-evento-row:hover { background: var(--bg-secondary); }
+.sco-evento-row--activo { background: var(--brand-orange-light); }
+.sco-evento-icono {
+    flex: 0 0 auto;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    margin-top: .1rem;
+}
+.sco-evento-icono svg { width: 14px; height: 14px; }
+.sco-evento-row--sube .sco-evento-icono { color: var(--success); background: #f0fdf4; }
+.sco-evento-row--baja .sco-evento-icono { color: var(--danger); background: #fef2f2; }
+.sco-evento-row--igual .sco-evento-icono,
+.sco-evento-row--inicio .sco-evento-icono { color: var(--text-muted); background: var(--bg-secondary); }
+.sco-evento-cuerpo { flex: 1 1 0; min-width: 0; }
+.sco-evento-fecha {
+    display: flex; align-items: center; gap: .4rem;
+    font-size: .68rem; font-weight: 700; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: .03em;
+}
+.sco-evento-texto { font-size: .8125rem; color: var(--text-primary); margin-top: .15rem; }
+.sco-evento-motivo { font-size: .72rem; color: var(--text-muted); margin-top: .1rem; }
+
+/* Desglose del punto seleccionado como gráfico de cascada — una barra
+   por concepto, divergiendo desde el cero central, en vez de una tabla
+   plana de números. */
+.sco-wf-base {
+    font-size: .75rem;
+    color: var(--text-muted);
+    padding-bottom: .5rem;
+    margin-bottom: .35rem;
+    border-bottom: 1px dashed var(--border-color);
+}
+.sco-wf-list { display: flex; flex-direction: column; gap: .3rem; }
+.sco-wf-row { display: flex; align-items: center; gap: .5rem; font-size: .78rem; }
+.sco-wf-label { flex: 0 0 46%; color: var(--text-primary); min-width: 0; }
+.sco-wf-detalle { display: block; font-size: .68rem; color: var(--text-muted); margin-top: .05rem; }
+.sco-wf-barzone {
+    position: relative;
+    flex: 1 1 0;
+    height: 14px;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.sco-wf-zero { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--border-color); }
+.sco-wf-bar { position: absolute; top: 1px; bottom: 1px; border-radius: 3px; transition: width .3s ease; }
+.sco-wf-bar.pos { background: linear-gradient(90deg, var(--success), #34d399); }
+.sco-wf-bar.neg { background: linear-gradient(90deg, #f87171, var(--danger)); }
+.sco-wf-val { flex: 0 0 50px; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }

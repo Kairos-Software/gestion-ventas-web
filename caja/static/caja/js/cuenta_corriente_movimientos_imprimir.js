@@ -38,6 +38,30 @@ function _ccmFecha(iso) {
     return `${d}/${m}/${y}`;
 }
 
+function _ccmEmpresaHtml(emp) {
+    const nombre = emp.nombre || emp.razon_social || '';
+    const razon = emp.razon_social && emp.razon_social !== nombre ? emp.razon_social : '';
+    const contacto = [emp.domicilio, emp.telefono ? `Tel: ${emp.telefono}` : '', emp.email]
+        .filter(Boolean).map(_ccmEsc).join(' · ');
+    const fiscal = [emp.cuit ? `CUIT: ${emp.cuit}` : '', emp.condicion_iva]
+        .filter(Boolean).map(_ccmEsc).join(' · ');
+    if (!emp.logo_url && !nombre && !contacto && !fiscal && !emp.eslogan) return '';
+    return `<header class="ccm-membrete">
+        <div class="ccm-marca">
+            ${emp.logo_url ? `<img class="ccm-logo" src="${_ccmEsc(emp.logo_url)}" alt="Logo">` : ''}
+            <div>
+                ${nombre ? `<div class="ccm-empresa-nombre">${_ccmEsc(nombre)}</div>` : ''}
+                ${emp.eslogan ? `<div class="ccm-eslogan">${_ccmEsc(emp.eslogan)}</div>` : ''}
+            </div>
+        </div>
+        <div class="ccm-empresa-datos">
+            ${razon ? `<div>${_ccmEsc(razon)}</div>` : ''}
+            ${contacto ? `<div>${contacto}</div>` : ''}
+            ${fiscal ? `<div>${fiscal}</div>` : ''}
+        </div>
+    </header>`;
+}
+
 function _ccmResolverSalida(formato, ventanaPrevia) {
     if (formato && typeof formato !== 'string') {
         return { formato: 'a4', ventana: formato };
@@ -51,11 +75,20 @@ function _ccmCssFormato(formato) {
     const ancho = formato === 'termica58' ? 58 : 80;
     const padding = formato === 'termica58' ? '2.5mm' : '3.5mm';
     const fuente = formato === 'termica58' ? '8.2pt' : '9pt';
+    const logoAncho = formato === 'termica58' ? '34mm' : '44mm';
+    const logoAlto = formato === 'termica58' ? '13mm' : '16mm';
     return `
         @page { size: ${ancho}mm auto; margin: 0; }
         html, body { width: ${ancho}mm; max-width: ${ancho}mm; margin: 0; }
         body { padding: ${padding}; font-size: ${fuente}; }
         h1 { font-size: 12pt; line-height: 1.25; }
+        .ccm-membrete { display: block; margin-bottom: 12px; padding-bottom: 9px; text-align: center; }
+        .ccm-marca { display: block; }
+        .ccm-logo { max-width: ${logoAncho}; max-height: ${logoAlto}; margin: 0 auto 5px; }
+        .ccm-empresa-nombre { font-size: 10pt; }
+        .ccm-eslogan, .ccm-empresa-datos { max-width: none; margin-top: 2px; font-size: 7pt; line-height: 1.35; text-align: center; overflow-wrap: anywhere; }
+        .ccm-cliente { margin-bottom: 10px; padding: 7px; font-size: ${fuente}; overflow-wrap: anywhere; }
+        .ccm-cliente > span { display: block; margin: 0 0 2px; }
         .ccm-sub { font-size: 8pt; line-height: 1.35; margin-bottom: 12px; }
         .ccm-saldo-actual { padding: 8px; margin-bottom: 12px; border: 1px solid #333; background: none; font-size: ${fuente}; }
         .ccm-saldo-actual strong { color: #111; font-size: 12pt; }
@@ -75,6 +108,7 @@ function _ccmCssFormato(formato) {
 }
 
 function ccMovimientosImprimir(clienteNombre, historial, formato, ventanaPrevia) {
+    const emp = (typeof window !== 'undefined' && window.KAI_EMPRESA) || {};
     const salida = _ccmResolverSalida(formato, ventanaPrevia);
     formato = salida.formato;
     ventanaPrevia = salida.ventana;
@@ -119,6 +153,14 @@ function ccMovimientosImprimir(clienteNombre, historial, formato, ventanaPrevia)
     * { box-sizing: border-box; }
     body { font-family: Arial, Helvetica, sans-serif; color: #1a1a1a; padding: 32px; max-width: 800px; margin: 0 auto; }
     h1 { font-size: 1.25rem; margin: 0 0 4px; }
+    .ccm-membrete { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid #1E6FA8; page-break-inside: avoid; }
+    .ccm-marca { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .ccm-logo { display: block; max-width: 170px; max-height: 58px; object-fit: contain; }
+    .ccm-empresa-nombre { font-size: 1.05rem; font-weight: 700; }
+    .ccm-eslogan { margin-top: 2px; color: #40536A; font-size: .75rem; font-style: italic; }
+    .ccm-empresa-datos { max-width: 55%; color: #26364A; font-size: .75rem; line-height: 1.45; text-align: right; }
+    .ccm-cliente { margin: 0 0 18px; padding: 9px 12px; border: 1px solid #B7CEDC; background: #F7FAFC; font-size: .8125rem; line-height: 1.45; }
+    .ccm-cliente > span { margin-right: 8px; color: #1E6FA8; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
     .ccm-sub { color: #555; font-size: .875rem; margin: 0 0 20px; }
     .ccm-saldo-actual {
         display: flex; align-items: baseline; justify-content: space-between;
@@ -142,8 +184,10 @@ function ccMovimientosImprimir(clienteNombre, historial, formato, ventanaPrevia)
 </style>
 </head>
 <body>
+    ${_ccmEmpresaHtml(emp)}
     <h1>Movimientos de cuenta corriente</h1>
-    <p class="ccm-sub">${_ccmEsc(clienteNombre)} — ${rango} · ${movs.length} movimiento${movs.length === 1 ? '' : 's'} · impreso el ${new Date().toLocaleDateString('es-AR')}</p>
+    <p class="ccm-sub">${rango} · ${movs.length} movimiento${movs.length === 1 ? '' : 's'} · impreso el ${new Date().toLocaleDateString('es-AR')}</p>
+    <section class="ccm-cliente"><span>Cliente</span><strong>${_ccmEsc(clienteNombre)}</strong></section>
 
     <div class="ccm-saldo-actual">
         <span>Saldo actual</span>

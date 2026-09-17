@@ -76,6 +76,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'core.context_processors.perms_kai',
                 'core.context_processors.kai_flags',
+                'core.context_processors.datos_empresa',
             ],
         },
     },

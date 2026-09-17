@@ -102,10 +102,16 @@ def _serializar_documento(doc):
 
 
 def _serializar_cxc(cxc, con_cuotas=False):
+    cliente = cxc.cliente if cxc.cliente_id else None
     data = {
         'pk': cxc.pk,
         'cliente_pk': cxc.cliente_id,
-        'cliente_nombre': cxc.cliente.get_nombre_display() if cxc.cliente_id else '',
+        'cliente_nombre': cliente.get_nombre_display() if cliente else '',
+        'cliente_codigo': cliente.codigo if cliente else '',
+        'cliente_documento': (cliente.cuit or cliente.cuil or cliente.dni) if cliente else '',
+        'cliente_condicion_iva': cliente.get_cond_iva_display() if cliente and cliente.cond_iva else '',
+        'cliente_direccion': cliente.get_direccion_completa() if cliente else '',
+        'cliente_email': cliente.email_principal if cliente else '',
         'descripcion': cxc.descripcion,
         'numero_comprobante': cxc.numero_comprobante,
         'numero_pagare': cxc.numero_pagare,

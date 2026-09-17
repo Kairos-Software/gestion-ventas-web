@@ -7,7 +7,7 @@
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'core/css/estadisticas.css' %}">
 <link rel="stylesheet" href="{% static 'core/css/detalle_cliente.css' %}">
-<link rel="stylesheet" href="{% static 'core/css/estadisticas_cliente_perfil.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas_cliente_perfil.css' %}?v=20260917">
 {% endblock %}
 
 {% block content %}
@@ -131,15 +131,26 @@
     <div class="card-header">
         <div>
             <p class="card-title">Historial de scoring</p>
-            <p class="text-muted" style="font-size:.8125rem;">Evolución del riesgo de pago — hacé click en un punto para ver por qué</p>
+            <p class="text-muted" style="font-size:.8125rem;">Todo cliente arranca en 1000 (Excelente) — acá se ven los cambios reales desde ese punto. Hacé click en el gráfico o en un evento para ver el detalle.</p>
         </div>
-        {% if scoring_historial %}<span class="sco-badge sco-badge--{{ cliente.scoring_banda }}">{{ cliente.scoring_banda_label }}</span>{% endif %}
+        {% if scoring_historial %}
+        <div style="display:flex; align-items:center; gap:.6rem;">
+            <span class="sco-badge sco-badge--{{ cliente.scoring_banda }}">{{ cliente.scoring_banda_label }}</span>
+            <button type="button" class="btn btn-ghost btn-sm" id="btnImprimirScoring">Imprimir</button>
+        </div>
+        {% endif %}
     </div>
     <div class="card-body">
         {% if scoring_historial %}
+        <div class="sco-filtro-rango" id="scoFiltroRango"></div>
+        <div class="est-mini-stat-grid sco-resumen-grid" id="scoResumen"></div>
         <div class="est-chart-wrap">
             <canvas id="chartScoringHistorial"></canvas>
+            <div class="empty-state" id="chartSinDatosRango" style="display:none"><p>No hay puntos en este rango — probá "Todo".</p></div>
         </div>
+        <div class="sco-leyenda" id="scoLeyenda"></div>
+        <div class="sco-eventos-header">Línea de eventos — más reciente primero</div>
+        <div class="sco-eventos-lista" id="scoEventosLista"></div>
         <div class="sco-historial-desglose" id="scoHistDesglose"></div>
         {% else %}
             <div class="empty-state"><p>Este cliente todavía no tiene historial de scoring — recién se genera cuando compra en cuotas o paga con cheque.</p></div>
@@ -223,10 +234,11 @@
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-<script src="{% static 'core/js/estadisticas.js' %}"></script>
-<script src="{% static 'core/js/estadisticas_cliente_scoring.js' %}"></script>
-<script src="{% static 'core/js/cliente_deuda_total_imprimir.js' %}"></script>
-<script src="{% static 'core/js/cliente_historial_imprimir.js' %}"></script>
+<script src="{% static 'core/js/estadisticas.js' %}?v=20260916"></script>
+<script src="{% static 'core/js/estadisticas_cliente_scoring.js' %}?v=20260917"></script>
+<script src="{% static 'core/js/cliente_deuda_total_imprimir.js' %}?v=2026091701"></script>
+<script src="{% static 'core/js/cliente_historial_imprimir.js' %}?v=2026091701"></script>
+<script src="{% static 'core/js/cliente_scoring_imprimir.js' %}?v=2026091701"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         {% if comportamiento_pago.cantidad_evaluadas %}
@@ -240,7 +252,17 @@
         initChartScoringHistorial({{ scoring_historial_json|default:'[]'|safe }});
         {% endif %}
 
-        var cliente = { pk: {{ cliente.pk }}, nombre: "{{ cliente.get_nombre_display|escapejs }}" };
+        var cliente = {
+            pk: {{ cliente.pk }},
+            nombre: "{{ cliente.get_nombre_display|escapejs }}",
+            codigo: "{{ cliente.codigo|escapejs }}",
+            cuit: "{{ cliente.cuit|escapejs }}",
+            cuil: "{{ cliente.cuil|escapejs }}",
+            dni: "{{ cliente.dni|escapejs }}",
+            condicion_iva: "{{ cliente.get_cond_iva_display|escapejs }}",
+            direccion: "{{ cliente.get_direccion_completa|escapejs }}",
+            email: "{{ cliente.email_principal|escapejs }}",
+        };
 
         var btnDeuda = document.getElementById('btnImprimirDeudaTotal');
         if (btnDeuda) {
@@ -255,6 +277,14 @@
             btnHistorial.addEventListener('click', function () {
                 var ventana = window.open('', '_blank', 'width=800,height=950');
                 clienteHistorialImprimir(cliente, {{ historial_json|default:'[]'|safe }}, ventana);
+            });
+        }
+
+        var btnScoring = document.getElementById('btnImprimirScoring');
+        if (btnScoring) {
+            btnScoring.addEventListener('click', function () {
+                var ventana = window.open('', '_blank', 'width=800,height=950');
+                clienteScoringImprimir(cliente, {{ scoring_historial_json|default:'[]'|safe }}, ventana);
             });
         }
     });

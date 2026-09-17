@@ -60,10 +60,15 @@ const A4_ICON_MAIL  = '<rect x="3" y="5" width="18" height="14" rx="2"/><path d=
  * @param {boolean} [opts.sinAutoImpresion]  No incluir el <script> que
  *   dispara window.print() al cargar. Lo usa ticket_pdf.js, que
  *   rasteriza este HTML en un iframe oculto para armar el PDF.
+ * @param {boolean} [opts.duplicado]  Aclara "Duplicado" en vez de
+ *   "Original" en el comprobante — mismo comprobante ya emitido, solo
+ *   cambia esa leyenda impresa (elegido en el selector de formato, ver
+ *   ticket_imprimir.js / _detalle_venta_modales.html #ticketDuplicado).
  * @returns {string}     HTML completo listo para abrir en ventana nueva
  */
 function ticketHtmlA4(data, opts) {
     const sinAutoImpresion = !!(opts && opts.sinAutoImpresion);
+    const esDuplicado = !!(opts && opts.duplicado);
     const emp     = data.empresa || {};
     const venta   = data.venta   || {};
     const items   = data.items   || [];
@@ -414,7 +419,7 @@ function ticketHtmlA4(data, opts) {
             </div>
         </div>` : ''}
         <div class="a4-header2-col a4-header2-comprobante">
-            ${cbte ? '<div class="a4-original-label">Original</div>' : ''}
+            ${cbte ? `<div class="a4-original-label">${esDuplicado ? 'Duplicado' : 'Original'}</div>` : ''}
             <div class="a4-ticket-titulo${cbte ? '' : ' a4-titulo-simple'}">${cbte ? _esc(cbte.tipo_display) : 'Ticket de Venta'}</div>
             <div class="a4-ticket-numero-grande">${cbte ? _esc(cbte.numero_display) : _esc(venta.numero)}</div>
             <div class="a4-meta-list">${_a4MetaComprobante(cbte, venta, emp)}</div>

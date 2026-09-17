@@ -33,6 +33,44 @@ function _ciEstadoLabel(c) {
     return 'Pendiente';
 }
 
+function _ciEmpresaHtml(emp) {
+    const nombre = emp.nombre || emp.razon_social || '';
+    const razon = emp.razon_social && emp.razon_social !== nombre ? emp.razon_social : '';
+    const contacto = [emp.domicilio, emp.telefono ? `Tel: ${emp.telefono}` : '', emp.email]
+        .filter(Boolean).map(_ciEsc).join(' · ');
+    const fiscal = [emp.cuit ? `CUIT: ${emp.cuit}` : '', emp.condicion_iva]
+        .filter(Boolean).map(_ciEsc).join(' · ');
+    if (!emp.logo_url && !nombre && !contacto && !fiscal && !emp.eslogan) return '';
+    return `<header class="ci-membrete">
+        <div class="ci-marca">
+            ${emp.logo_url ? `<img class="ci-logo" src="${_ciEsc(emp.logo_url)}" alt="Logo">` : ''}
+            <div>
+                ${nombre ? `<div class="ci-empresa-nombre">${_ciEsc(nombre)}</div>` : ''}
+                ${emp.eslogan ? `<div class="ci-eslogan">${_ciEsc(emp.eslogan)}</div>` : ''}
+            </div>
+        </div>
+        <div class="ci-empresa-datos">
+            ${razon ? `<div>${_ciEsc(razon)}</div>` : ''}
+            ${contacto ? `<div>${contacto}</div>` : ''}
+            ${fiscal ? `<div>${fiscal}</div>` : ''}
+        </div>
+    </header>`;
+}
+
+function _ciClienteHtml(cxc) {
+    const datos = [
+        cxc.cliente_codigo ? `Código: ${cxc.cliente_codigo}` : '',
+        cxc.cliente_documento ? `Documento: ${cxc.cliente_documento}` : '',
+        cxc.cliente_condicion_iva ? `IVA: ${cxc.cliente_condicion_iva}` : '',
+        cxc.cliente_direccion ? `Domicilio: ${cxc.cliente_direccion}` : '',
+        cxc.cliente_email ? `Email: ${cxc.cliente_email}` : '',
+    ].filter(Boolean).map(_ciEsc).join(' · ');
+    return `<section class="ci-cliente">
+        <span>Cliente</span><strong>${_ciEsc(cxc.cliente_nombre || '—')}</strong>
+        ${datos ? `<div>${datos}</div>` : ''}
+    </section>`;
+}
+
 function _ciResolverSalida(formato, ventanaPrevia) {
     if (formato && typeof formato !== 'string') {
         return { formato: 'a4', ventana: formato };
@@ -46,11 +84,21 @@ function _ciCssFormato(formato) {
     const ancho = formato === 'termica58' ? 58 : 80;
     const padding = formato === 'termica58' ? '2.5mm' : '3.5mm';
     const fuente = formato === 'termica58' ? '8.2pt' : '9pt';
+    const logoAncho = formato === 'termica58' ? '34mm' : '44mm';
+    const logoAlto = formato === 'termica58' ? '13mm' : '16mm';
     return `
         @page { size: ${ancho}mm auto; margin: 0; }
         html, body { width: ${ancho}mm; max-width: ${ancho}mm; margin: 0; }
         body { padding: ${padding}; font-size: ${fuente}; }
         h1 { font-size: 12pt; line-height: 1.25; }
+        .ci-membrete { display: block; margin-bottom: 12px; padding-bottom: 9px; text-align: center; }
+        .ci-marca { display: block; }
+        .ci-logo { max-width: ${logoAncho}; max-height: ${logoAlto}; margin: 0 auto 5px; }
+        .ci-empresa-nombre { font-size: 10pt; }
+        .ci-eslogan, .ci-empresa-datos { max-width: none; margin-top: 2px; font-size: 7pt; line-height: 1.35; text-align: center; overflow-wrap: anywhere; }
+        .ci-cliente { margin-bottom: 10px; padding: 7px; font-size: ${fuente}; overflow-wrap: anywhere; }
+        .ci-cliente > span { display: block; margin: 0 0 2px; }
+        .ci-cliente div { font-size: 7pt; }
         .ci-subtitulo { font-size: 8pt; margin-bottom: 12px; }
         .ci-resumen { grid-template-columns: 1fr; gap: 0; margin-bottom: 12px; font-size: ${fuente}; }
         .ci-resumen div { gap: 8px; padding: 3px 0; }
@@ -77,6 +125,7 @@ function _ciCssFormato(formato) {
  *   Si no se pasa, la abre acá mismo (caso de uso sin async de por medio).
  */
 function cxcImprimir(cxc, formato, ventanaPrevia) {
+    const emp = (typeof window !== 'undefined' && window.KAI_EMPRESA) || {};
     const salida = _ciResolverSalida(formato, ventanaPrevia);
     formato = salida.formato;
     ventanaPrevia = salida.ventana;
@@ -105,6 +154,15 @@ function cxcImprimir(cxc, formato, ventanaPrevia) {
     * { box-sizing: border-box; }
     body { font-family: Arial, Helvetica, sans-serif; color: #1a1a1a; padding: 32px; max-width: 720px; margin: 0 auto; }
     h1 { font-size: 1.25rem; margin: 0 0 4px; }
+    .ci-membrete { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid #1E6FA8; page-break-inside: avoid; }
+    .ci-marca { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .ci-logo { display: block; max-width: 170px; max-height: 58px; object-fit: contain; }
+    .ci-empresa-nombre { font-size: 1.05rem; font-weight: 700; }
+    .ci-eslogan { margin-top: 2px; color: #40536A; font-size: .75rem; font-style: italic; }
+    .ci-empresa-datos { max-width: 55%; color: #26364A; font-size: .75rem; line-height: 1.45; text-align: right; }
+    .ci-cliente { margin: 0 0 18px; padding: 9px 12px; border: 1px solid #B7CEDC; background: #F7FAFC; font-size: .8125rem; line-height: 1.45; }
+    .ci-cliente > span { margin-right: 8px; color: #1E6FA8; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+    .ci-cliente div { margin-top: 3px; color: #40536A; font-size: .75rem; }
     .ci-subtitulo { color: #555; font-size: .875rem; margin: 0 0 20px; }
     .ci-resumen { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px; margin-bottom: 20px; font-size: .875rem; }
     .ci-resumen div { display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding: 3px 0; }
@@ -122,12 +180,13 @@ function cxcImprimir(cxc, formato, ventanaPrevia) {
 </style>
 </head>
 <body>
-    <h1>Cuenta por cobrar — ${_ciEsc(cxc.cliente_nombre || ('#' + cxc.pk))}</h1>
+    ${_ciEmpresaHtml(emp)}
+    <h1>Cuenta por cobrar</h1>
     <p class="ci-subtitulo">Estado de cuenta al ${new Date().toLocaleDateString('es-AR')}</p>
+    ${_ciClienteHtml(cxc)}
     ${cxc.es_carga_inicial ? '<div class="ci-badge">Carga inicial</div>' : ''}
     <div class="ci-resumen">
         ${cxc.numero_comprobante ? `<div><span>N° de comprobante</span><strong>${_ciEsc(cxc.numero_comprobante)}</strong></div>` : ''}
-        <div><span>Cliente</span><strong>${_ciEsc(cxc.cliente_nombre)}</strong></div>
         ${cxc.venta_numero ? `<div><span>Venta</span><strong>${_ciEsc(cxc.venta_numero)}</strong></div>` : ''}
         <div><span>Monto original</span><strong>${_ciFmtMoneda(cxc.monto_original, cxc.moneda)}</strong></div>
         <div><span>Interés</span><strong>${_ciEsc(cxc.porcentaje_interes)}%</strong></div>

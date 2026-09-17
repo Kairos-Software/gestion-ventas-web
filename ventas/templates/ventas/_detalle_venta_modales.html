@@ -163,6 +163,18 @@ de pago. El Cheque real se crea recién al confirmar la venta.
                 </span>
             </span>
         </label>
+        <label id="ticketDuplicadoWrap" style="
+            display:none; align-items:flex-start; gap:.5rem; margin-bottom:1rem;
+            padding:.65rem .75rem; border:1px solid var(--border-color); border-radius:.6rem;
+            background:var(--bg-secondary); cursor:pointer; font-size:.8125rem;">
+            <input type="checkbox" id="ticketDuplicado" style="margin-top:.15rem">
+            <span>
+                Imprimir como Duplicado<br>
+                <span style="font-size:.72rem; color:var(--text-muted); font-weight:400">
+                    Solo cambia la aclaración impresa (Original/Duplicado) — no genera un comprobante nuevo, es el mismo ya emitido.
+                </span>
+            </span>
+        </label>
         <div style="display:flex; flex-direction:column; gap:.6rem">
             <button data-ticket-formato="a4" class="cdt-ticket-btn"
                 style="width:100%;justify-content:flex-start;gap:.75rem;padding:.75rem 1rem;text-align:left;font-size:.875rem;">

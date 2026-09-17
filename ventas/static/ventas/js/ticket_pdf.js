@@ -70,12 +70,47 @@ function _pdfGenerador(formato) {
     return null;
 }
 
+// html2canvas con foreignObjectRendering (necesario para que el texto y los
+// íconos SVG del encabezado no se desplacen — ver _pdfRasterizar) no logra
+// dibujar imágenes que sean una URL externa: solo renderiza bien imágenes
+// ya embebidas como data: URI. El QR ya viaja como data: URI (qrDataUrl),
+// pero el logo de la empresa es una URL real del servidor — por eso al
+// imprimir (motor normal del navegador) el logo se ve bien, pero al
+// "Guardar PDF" (rasterizado con html2canvas) desaparecía. Se descarga acá
+// y se reemplaza por su propio data: URI antes de armar el HTML a rasterizar.
+async function _pdfImagenComoDataUri(url) {
+    if (!url || url.startsWith('data:')) return url;
+    try {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const blob = await resp.blob();
+        return await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(reader.error);
+            reader.readAsDataURL(blob);
+        });
+    } catch (err) {
+        console.warn('ticket_pdf.js: no se pudo incrustar el logo en el PDF, se omite.', err);
+        return null;
+    }
+}
+
+async function _pdfConLogoEmbebido(data) {
+    const logoUrl = data.empresa && data.empresa.logo_url;
+    if (!logoUrl || logoUrl.startsWith('data:')) return data;
+    const logoDataUri = await _pdfImagenComoDataUri(logoUrl);
+    return { ...data, empresa: { ...data.empresa, logo_url: logoDataUri || '' } };
+}
+
 /**
  * @param {string} formato  'a4' | 'termica80' | 'termica58'
  * @param {boolean} soloTicket  igual que en ticketImprimir(): imprime
  *   como ticket simple (sin CAE/QR) aunque haya comprobante ARCA.
+ * @param {boolean} esDuplicado  igual que en ticketImprimir(): aclara
+ *   "Duplicado" en vez de "Original" en el ticket A4 (ver ticket_a4.js).
  */
-async function ticketGuardarPdf(formato, soloTicket) {
+async function ticketGuardarPdf(formato, soloTicket, esDuplicado) {
     _ticketCerrarSelector();
 
     if (!window.TICKET_DATA) {
@@ -99,8 +134,9 @@ async function ticketGuardarPdf(formato, soloTicket) {
             await window.TICKET_DATA.comprobante_arca.qrReadyPromise;
         }
 
-        const data = soloTicket ? { ...window.TICKET_DATA, comprobante_arca: null } : window.TICKET_DATA;
-        const html = generador(data, { sinAutoImpresion: true });
+        let data = soloTicket ? { ...window.TICKET_DATA, comprobante_arca: null } : window.TICKET_DATA;
+        data = await _pdfConLogoEmbebido(data);
+        const html = generador(data, { sinAutoImpresion: true, duplicado: !!esDuplicado });
 
         const canvas = await _pdfRasterizar(html, _PDF_ANCHO_IFRAME[formato] || 794);
 

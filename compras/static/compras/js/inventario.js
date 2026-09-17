@@ -7,6 +7,14 @@ document.addEventListener('DOMContentLoaded', function () {
     let filtroActual   = '';
     let debounceTimer   = null;
 
+    // ── Selección múltiple para imprimir varios códigos de una vez ──
+    // seleccionMap persiste entre búsquedas (por pk), así el usuario puede
+    // buscar "coca cola", tildar unos, después buscar "sprite" y sumar más
+    // antes de imprimir todo junto. lotesPorPk se reconstruye en cada
+    // render y solo contiene lo que está visible en ese momento.
+    const seleccionMap = new Map();
+    let lotesPorPk = new Map();
+
     // ── Carga inicial ──
     cargarLotes();
     cargarStats();
@@ -42,19 +50,19 @@ document.addEventListener('DOMContentLoaded', function () {
         if (inputBuscar.value.trim()) params.set('q', inputBuscar.value.trim());
         if (filtroActual) params.set('vencimiento', filtroActual);
 
-        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">Cargando...</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4">Cargando...</td></tr>`;
 
         fetch(`${window.INVENTARIO_URLS.listar}?${params.toString()}`)
             .then(r => r.json())
             .then(data => {
                 if (data.error) {
-                    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-4">${data.error}</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger py-4">${data.error}</td></tr>`;
                     return;
                 }
                 renderTabla(data.results);
             })
             .catch(() => {
-                tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-4">Error al cargar el inventario.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger py-4">Error al cargar el inventario.</td></tr>`;
             });
     }
 
@@ -112,13 +120,18 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function renderTabla(lotes) {
+        lotesPorPk = new Map();
+        lotes.forEach(l => lotesPorPk.set(String(l.pk), l));
+
         if (!lotes.length) {
-            tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">No se encontraron lotes.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4">No se encontraron lotes.</td></tr>`;
+            sincronizarCheckboxTodos();
             return;
         }
 
         tbody.innerHTML = lotes.map(l => `
             <tr>
+                <td><input type="checkbox" class="inv-check-lote" data-pk="${l.pk}" ${seleccionMap.has(String(l.pk)) ? 'checked' : ''}></td>
                 <td>
                     <div class="inv-producto-nombre">${escapeHtml(l.producto_nombre)}</div>
                     ${l.variante_desc ? `<div class="inv-variante-desc">${escapeHtml(l.variante_desc)}</div>` : ''}
@@ -179,6 +192,86 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
             });
         });
+
+        tbody.querySelectorAll('.inv-check-lote').forEach(chk => {
+            chk.addEventListener('change', () => {
+                const pk = String(chk.dataset.pk);
+                if (chk.checked) {
+                    const lote = lotesPorPk.get(pk);
+                    if (lote) {
+                        lote._cantidadEtiquetas = lote._cantidadEtiquetas || 1;
+                        seleccionMap.set(pk, lote);
+                    }
+                } else {
+                    seleccionMap.delete(pk);
+                }
+                actualizarBotonSeleccion();
+                sincronizarCheckboxTodos();
+            });
+        });
+
+        sincronizarCheckboxTodos();
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  SELECCIÓN MÚLTIPLE — checkboxes de la tabla + barra de acción
+    // ══════════════════════════════════════════════════════════
+
+    const chkSeleccionarTodos      = document.getElementById('chkSeleccionarTodos');
+    const inventarioSeleccionWrap  = document.getElementById('inventarioSeleccionWrap');
+    const inventarioSeleccionCount = document.getElementById('inventarioSeleccionCount');
+    const btnLimpiarSeleccion      = document.getElementById('btnLimpiarSeleccion');
+    const btnAbrirImprimirMultiple = document.getElementById('btnAbrirImprimirMultiple');
+
+    function actualizarBotonSeleccion() {
+        const n = seleccionMap.size;
+        inventarioSeleccionWrap.style.display = n > 0 ? 'flex' : 'none';
+        inventarioSeleccionCount.textContent = n;
+    }
+
+    // El "seleccionar todos" solo afecta lo que está visible en este momento
+    // (la búsqueda/filtro actual) — no toca selecciones hechas antes con
+    // otro filtro, que siguen guardadas en seleccionMap.
+    function sincronizarCheckboxTodos() {
+        if (!chkSeleccionarTodos) return;
+        const pks = Array.from(lotesPorPk.keys());
+        chkSeleccionarTodos.checked = pks.length > 0 && pks.every(pk => seleccionMap.has(pk));
+    }
+
+    if (chkSeleccionarTodos) {
+        chkSeleccionarTodos.addEventListener('change', () => {
+            const marcar = chkSeleccionarTodos.checked;
+            lotesPorPk.forEach((lote, pk) => {
+                if (marcar) {
+                    lote._cantidadEtiquetas = lote._cantidadEtiquetas || 1;
+                    seleccionMap.set(pk, lote);
+                } else {
+                    seleccionMap.delete(pk);
+                }
+            });
+            tbody.querySelectorAll('.inv-check-lote').forEach(chk => { chk.checked = marcar; });
+            actualizarBotonSeleccion();
+        });
+    }
+
+    if (btnLimpiarSeleccion) {
+        btnLimpiarSeleccion.addEventListener('click', () => {
+            seleccionMap.clear();
+            tbody.querySelectorAll('.inv-check-lote').forEach(chk => { chk.checked = false; });
+            if (chkSeleccionarTodos) chkSeleccionarTodos.checked = false;
+            actualizarBotonSeleccion();
+        });
+    }
+
+    // Sacar un producto puntual de la selección desde la lista del modal
+    // múltiple — también destilda su checkbox en la tabla, si está visible.
+    function quitarDeSeleccion(pk) {
+        pk = String(pk);
+        seleccionMap.delete(pk);
+        const chk = tbody.querySelector(`.inv-check-lote[data-pk="${pk}"]`);
+        if (chk) chk.checked = false;
+        actualizarBotonSeleccion();
+        sincronizarCheckboxTodos();
     }
 
     function badgeVencimiento(l) {
@@ -365,6 +458,188 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     btnImprimir.addEventListener('click', imprimirEtiquetas);
+
+    // ══════════════════════════════════════════════════════════
+    //  MODAL — Impresión múltiple (varios productos en una tanda)
+    //  Reusa crearEtiquetaNodo/calcularGrilla/limpiarAreaImpresion,
+    //  solo cambia en que cada etiqueta puede ser un lote distinto
+    //  y cada uno tiene su propia cantidad de copias.
+    // ══════════════════════════════════════════════════════════
+
+    const modalMultiEl   = document.getElementById('modalImprimirMultiple');
+    const modalMulti      = modalMultiEl ? new bootstrap.Modal(modalMultiEl) : null;
+    const impMultiLista   = document.getElementById('impMultiLista');
+    const impMultiTipo    = document.getElementById('impMultiTipo');
+    const impMultiAncho   = document.getElementById('impMultiAncho');
+    const impMultiAlto    = document.getElementById('impMultiAlto');
+    const impMultiHoja    = document.getElementById('impMultiHoja');
+    const impMultiMargen  = document.getElementById('impMultiMargen');
+    const impMultiHojaOpciones = document.getElementById('impMultiHojaOpciones');
+    const impMultiResumen = document.getElementById('impMultiResumen');
+    const impMultiPresets = document.getElementById('impMultiPresets');
+    const impMultiCantidadTodos  = document.getElementById('impMultiCantidadTodos');
+    const btnAplicarCantidadTodos = document.getElementById('btnAplicarCantidadTodos');
+    const btnImprimirMultiple    = document.getElementById('btnImprimirMultiple');
+
+    if (btnAbrirImprimirMultiple && modalMulti) {
+        btnAbrirImprimirMultiple.addEventListener('click', () => {
+            if (seleccionMap.size === 0) return;
+            renderListaMultiple();
+            actualizarResumenMultiple();
+            modalMulti.show();
+        });
+    }
+
+    function renderListaMultiple() {
+        const items = Array.from(seleccionMap.values());
+
+        if (!items.length) {
+            impMultiLista.innerHTML = `<p class="inv-multi-lista-vacia">No hay productos seleccionados.</p>`;
+            btnImprimirMultiple.disabled = true;
+            return;
+        }
+        btnImprimirMultiple.disabled = false;
+
+        impMultiLista.innerHTML = items.map(l => `
+            <div class="inv-multi-item">
+                <div class="inv-multi-item-info">
+                    <div class="inv-multi-item-nombre">${escapeHtml(l.producto_nombre)}</div>
+                    <div class="inv-multi-item-lote">${l.variante_desc ? escapeHtml(l.variante_desc) + ' · ' : ''}Lote ${escapeHtml(l.codigo)}</div>
+                </div>
+                <input type="number" class="cmp-input-inline inv-multi-item-cant" data-pk="${l.pk}" min="1" value="${l._cantidadEtiquetas || 1}" title="Cantidad de etiquetas">
+                <button type="button" class="inv-multi-item-quitar" data-pk="${l.pk}" title="Quitar de la selección">×</button>
+            </div>
+        `).join('');
+
+        impMultiLista.querySelectorAll('.inv-multi-item-cant').forEach(inp => {
+            inp.addEventListener('input', () => {
+                const lote = seleccionMap.get(String(inp.dataset.pk));
+                if (lote) lote._cantidadEtiquetas = Math.max(1, parseInt(inp.value) || 1);
+                actualizarResumenMultiple();
+            });
+        });
+
+        impMultiLista.querySelectorAll('.inv-multi-item-quitar').forEach(btn => {
+            btn.addEventListener('click', () => {
+                quitarDeSeleccion(btn.dataset.pk);
+                renderListaMultiple();
+                actualizarResumenMultiple();
+            });
+        });
+    }
+
+    if (btnAplicarCantidadTodos) {
+        btnAplicarCantidadTodos.addEventListener('click', () => {
+            const n = Math.max(1, parseInt(impMultiCantidadTodos.value) || 1);
+            seleccionMap.forEach(l => { l._cantidadEtiquetas = n; });
+            renderListaMultiple();
+            actualizarResumenMultiple();
+        });
+    }
+
+    impMultiTipo.addEventListener('change', () => {
+        const esTermica = impMultiTipo.value === 'termica';
+        impMultiHojaOpciones.style.display = esTermica ? 'none' : 'flex';
+        impMultiAncho.value = esTermica ? 40 : 50;
+        impMultiAlto.value  = esTermica ? 30 : 30;
+        actualizarResumenMultiple();
+    });
+
+    [impMultiAncho, impMultiAlto, impMultiHoja, impMultiMargen].forEach(el => {
+        el.addEventListener('input', actualizarResumenMultiple);
+    });
+
+    impMultiPresets.addEventListener('click', (e) => {
+        const btn = e.target.closest('.inv-preset-btn');
+        if (!btn) return;
+        impMultiAncho.value = btn.dataset.w;
+        impMultiAlto.value  = btn.dataset.h;
+        actualizarResumenMultiple();
+    });
+
+    function totalEtiquetasMultiple() {
+        let total = 0;
+        seleccionMap.forEach(l => { total += Math.max(1, l._cantidadEtiquetas || 1); });
+        return total;
+    }
+
+    function actualizarResumenMultiple() {
+        const ancho = parseFloat(impMultiAncho.value) || 0;
+        const alto  = parseFloat(impMultiAlto.value) || 0;
+        const total = totalEtiquetasMultiple();
+        const nProductos = seleccionMap.size;
+
+        if (!ancho || !alto || !nProductos) { impMultiResumen.textContent = ''; return; }
+
+        if (impMultiTipo.value === 'termica') {
+            impMultiResumen.textContent = `Se imprimirán ${total} etiqueta${total !== 1 ? 's' : ''} de ${ancho}×${alto} mm (${nProductos} producto${nProductos !== 1 ? 's' : ''} distintos), una por página.`;
+            return;
+        }
+
+        const margen = parseFloat(impMultiMargen.value) || 0;
+        const { cols, rows, porHoja } = calcularGrilla(ancho, alto, impMultiHoja.value, margen);
+        const hojas = Math.ceil(total / porHoja);
+        impMultiResumen.textContent = `Entran ${porHoja} etiquetas por hoja ${impMultiHoja.value} (${cols} columnas × ${rows} filas) — se usarán ${hojas} hoja${hojas !== 1 ? 's' : ''} para ${total} etiqueta${total !== 1 ? 's' : ''} de ${nProductos} producto${nProductos !== 1 ? 's' : ''}.`;
+    }
+
+    function imprimirEtiquetasMultiples() {
+        if (seleccionMap.size === 0) return;
+
+        limpiarAreaImpresion();
+
+        const tipo  = impMultiTipo.value;
+        const ancho = parseFloat(impMultiAncho.value) || 50;
+        const alto  = parseFloat(impMultiAlto.value) || 30;
+
+        const pageStyle = document.createElement('style');
+        pageStyle.id = 'inv-print-page-style';
+
+        const area = document.createElement('div');
+        area.id = 'inv-print-area';
+
+        // "Aplana" la selección: cada lote se repite tantas veces como
+        // cantidad tenga cargada, y ahí sí se arma la grilla de a una.
+        const etiquetas = [];
+        seleccionMap.forEach(l => {
+            const n = Math.max(1, l._cantidadEtiquetas || 1);
+            for (let i = 0; i < n; i++) etiquetas.push(l);
+        });
+
+        if (tipo === 'termica') {
+            pageStyle.textContent = `@page { size: ${ancho}mm ${alto}mm; margin: 0; }`;
+            etiquetas.forEach(l => area.appendChild(crearEtiquetaNodo(l, ancho, alto)));
+        } else {
+            const hoja   = impMultiHoja.value;
+            const margen = parseFloat(impMultiMargen.value) || 8;
+            const tamHojaCss = hoja === 'A4' ? 'A4' : 'letter';
+            pageStyle.textContent = `@page { size: ${tamHojaCss}; margin: ${margen}mm; }`;
+
+            const { cols, porHoja } = calcularGrilla(ancho, alto, hoja, margen);
+
+            let grid = null;
+            etiquetas.forEach((l, i) => {
+                if (i % porHoja === 0) {
+                    grid = document.createElement('div');
+                    grid.className = 'inv-print-grid';
+                    grid.style.gridTemplateColumns = `repeat(${cols}, ${ancho}mm)`;
+                    grid.style.gridAutoRows = `${alto}mm`;
+                    if (i > 0) grid.style.pageBreakBefore = 'always';
+                    area.appendChild(grid);
+                }
+                grid.appendChild(crearEtiquetaNodo(l, ancho, alto));
+            });
+        }
+
+        document.head.appendChild(pageStyle);
+        document.body.appendChild(area);
+
+        window.onafterprint = limpiarAreaImpresion;
+        setTimeout(() => window.print(), 50);
+    }
+
+    if (btnImprimirMultiple) {
+        btnImprimirMultiple.addEventListener('click', imprimirEtiquetasMultiples);
+    }
 
     function escapeHtml(str) {
         if (!str) return '';

@@ -54,13 +54,18 @@ function ticketAbrirSelector(modo) {
     if (sub)    sub.textContent    = _ticketModo === 'pdf'
         ? 'Seleccioná el tamaño de página del archivo.'
         : 'Seleccioná el tipo de papel/impresora que vas a usar.';
-    // El checkbox "imprimir como ticket simple" solo tiene sentido si la
-    // venta tiene de verdad un comprobante ARCA — si no, ya imprime como
-    // ticket simple por default, no hace falta ofrecer la opción.
+    // El checkbox "imprimir como ticket simple" y el de "Duplicado" solo
+    // tienen sentido si la venta tiene de verdad un comprobante ARCA — sin
+    // eso no hay "Original"/"Duplicado" que aclarar.
+    const hayComprobante = !!(window.TICKET_DATA && window.TICKET_DATA.comprobante_arca);
     const wrapSoloTicket = document.getElementById('ticketSoloTicketWrap');
-    if (wrapSoloTicket) {
-        wrapSoloTicket.style.display = (window.TICKET_DATA && window.TICKET_DATA.comprobante_arca) ? 'flex' : 'none';
-    }
+    if (wrapSoloTicket) wrapSoloTicket.style.display = hayComprobante ? 'flex' : 'none';
+    const wrapDuplicado = document.getElementById('ticketDuplicadoWrap');
+    if (wrapDuplicado) wrapDuplicado.style.display = hayComprobante ? 'flex' : 'none';
+    // Cada vez que se abre el selector arranca en "Original" — no debería
+    // quedar pegado el "Duplicado" de una impresión anterior sin que se note.
+    const chkDuplicado = document.getElementById('ticketDuplicado');
+    if (chkDuplicado) chkDuplicado.checked = false;
     overlay.style.display = 'flex';
 }
 
@@ -85,8 +90,12 @@ function _ticketCerrarSelector() {
  *   todas formas, esto solo cambia qué se IMPRIME en papel. No toca
  *   window.TICKET_DATA (se arma una copia), para que la próxima
  *   impresión pueda volver a mostrar los datos fiscales sin recargar.
+ * @param {boolean} esDuplicado  Si es true, el ticket A4 aclara
+ *   "Duplicado" en vez de "Original" — mismo comprobante ya emitido,
+ *   solo cambia esa leyenda impresa (ver ticket_a4.js, opts.duplicado).
+ *   Los formatos térmicos no muestran esa leyenda, así que la ignoran.
  */
-async function ticketImprimir(formato, soloTicket) {
+async function ticketImprimir(formato, soloTicket, esDuplicado) {
     _ticketCerrarSelector();
 
     if (!window.TICKET_DATA) {
@@ -131,7 +140,7 @@ async function ticketImprimir(formato, soloTicket) {
         return;
     }
 
-    const html = htmlGenerador(data);
+    const html = htmlGenerador(data, { duplicado: !!esDuplicado });
     _abrirVentanaImpresion(html);
 }
 
@@ -175,11 +184,13 @@ document.addEventListener('click', e => {
     if (btnFormato) {
         const chkSoloTicket = document.getElementById('ticketSoloTicket');
         const soloTicket = !!(chkSoloTicket && chkSoloTicket.checked);
+        const chkDuplicado = document.getElementById('ticketDuplicado');
+        const esDuplicado = !!(chkDuplicado && chkDuplicado.checked);
         const formato = btnFormato.dataset.ticketFormato;
         if (_ticketModo === 'pdf' && typeof ticketGuardarPdf === 'function') {
-            ticketGuardarPdf(formato, soloTicket);
+            ticketGuardarPdf(formato, soloTicket, esDuplicado);
         } else {
-            ticketImprimir(formato, soloTicket);
+            ticketImprimir(formato, soloTicket, esDuplicado);
         }
     }
 });

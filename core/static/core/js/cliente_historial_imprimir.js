@@ -29,12 +29,52 @@ function _chiFecha(iso) {
     return `${dia}/${mes}/${anio}`;
 }
 
+function _chiEmpresaHtml(emp) {
+    const nombre = emp.nombre || emp.razon_social || '';
+    const razon = emp.razon_social && emp.razon_social !== nombre ? emp.razon_social : '';
+    const contacto = [emp.domicilio, emp.telefono ? `Tel: ${emp.telefono}` : '', emp.email]
+        .filter(Boolean).map(_chiEsc).join(' · ');
+    const fiscal = [emp.cuit ? `CUIT: ${emp.cuit}` : '', emp.condicion_iva]
+        .filter(Boolean).map(_chiEsc).join(' · ');
+    if (!emp.logo_url && !nombre && !contacto && !fiscal && !emp.eslogan) return '';
+    return `<header class="chi-membrete">
+        <div class="chi-marca">
+            ${emp.logo_url ? `<img class="chi-logo" src="${_chiEsc(emp.logo_url)}" alt="Logo">` : ''}
+            <div>
+                ${nombre ? `<div class="chi-empresa-nombre">${_chiEsc(nombre)}</div>` : ''}
+                ${emp.eslogan ? `<div class="chi-eslogan">${_chiEsc(emp.eslogan)}</div>` : ''}
+            </div>
+        </div>
+        <div class="chi-empresa-datos">
+            ${razon ? `<div>${_chiEsc(razon)}</div>` : ''}
+            ${contacto ? `<div>${contacto}</div>` : ''}
+            ${fiscal ? `<div>${fiscal}</div>` : ''}
+        </div>
+    </header>`;
+}
+
+function _chiClienteHtml(cliente) {
+    const documento = cliente.documento || cliente.cuit || cliente.cuil || cliente.dni || '';
+    const datos = [
+        cliente.codigo ? `Código: ${cliente.codigo}` : '',
+        documento ? `Documento: ${documento}` : '',
+        cliente.condicion_iva ? `IVA: ${cliente.condicion_iva}` : '',
+        cliente.direccion ? `Domicilio: ${cliente.direccion}` : '',
+        cliente.email ? `Email: ${cliente.email}` : '',
+    ].filter(Boolean).map(_chiEsc).join(' · ');
+    return `<section class="chi-cliente">
+        <span>Cliente</span><strong>${_chiEsc(cliente.nombre)}</strong>
+        ${datos ? `<div>${datos}</div>` : ''}
+    </section>`;
+}
+
 /**
  * @param {object} cliente - {pk, nombre}
  * @param {object[]} historial - filas {fecha, tipo, descripcion, monto, saldo, medio_pago}
  * @param {Window} [ventanaPrevia]
  */
 function clienteHistorialImprimir(cliente, historial, ventanaPrevia) {
+    const emp = (typeof window !== 'undefined' && window.KAI_EMPRESA) || {};
     if (!historial || !historial.length) {
         if (ventanaPrevia) ventanaPrevia.close();
         if (typeof KaiToast !== 'undefined') {
@@ -61,6 +101,15 @@ function clienteHistorialImprimir(cliente, historial, ventanaPrevia) {
     * { box-sizing: border-box; }
     body { font-family: Arial, Helvetica, sans-serif; color: #1a1a1a; padding: 32px; max-width: 800px; margin: 0 auto; }
     h1 { font-size: 1.25rem; margin: 0 0 4px; }
+    .chi-membrete { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid #1E6FA8; page-break-inside: avoid; }
+    .chi-marca { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .chi-logo { display: block; max-width: 170px; max-height: 58px; object-fit: contain; }
+    .chi-empresa-nombre { font-size: 1.05rem; font-weight: 700; }
+    .chi-eslogan { margin-top: 2px; color: #40536A; font-size: .75rem; font-style: italic; }
+    .chi-empresa-datos { max-width: 55%; color: #26364A; font-size: .75rem; line-height: 1.45; text-align: right; }
+    .chi-cliente { margin: 0 0 18px; padding: 9px 12px; border: 1px solid #B7CEDC; background: #F7FAFC; font-size: .8125rem; line-height: 1.45; }
+    .chi-cliente > span { margin-right: 8px; color: #1E6FA8; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+    .chi-cliente div { margin-top: 3px; color: #40536A; font-size: .75rem; }
     .chi-subtitulo { color: #555; font-size: .875rem; margin: 0 0 20px; }
     table { width: 100%; border-collapse: collapse; font-size: .8125rem; }
     th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; }
@@ -71,8 +120,10 @@ function clienteHistorialImprimir(cliente, historial, ventanaPrevia) {
 </style>
 </head>
 <body>
-    <h1>Historial de ventas y pagos — ${_chiEsc(cliente.nombre)}</h1>
+    ${_chiEmpresaHtml(emp)}
+    <h1>Historial de ventas y pagos</h1>
     <p class="chi-subtitulo">Generado al ${new Date().toLocaleDateString('es-AR')} — ${historial.length} movimiento${historial.length === 1 ? '' : 's'}, ordenado de más reciente a más antiguo</p>
+    ${_chiClienteHtml(cliente)}
     <table>
         <thead>
             <tr><th>Fecha</th><th>Descripción</th><th>Medio de pago</th><th class="chi-monto">Monto</th><th class="chi-monto">Saldo</th></tr>

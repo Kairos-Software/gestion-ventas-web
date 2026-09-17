@@ -287,10 +287,14 @@ def historial_scoring(cliente):
             'banda': cliente.scoring_banda,
             'desglose': cliente.scoring_desglose or [],
             'es_backfill': False,
+            # Vigente AHORA MISMO pero todavía no se guardó como punto real
+            # (nadie disparó un recálculo hoy) — el frontend lo aclara para
+            # no hacer parecer que fue "registrado" ese día como los demás.
+            'es_actual': True,
         })
 
     for p in puntos:
         p['banda_label'] = BANDA_LABEL.get(p['banda'], p['banda'])
+        p.setdefault('es_actual', False)
 
     return puntos
-    return filas

@@ -682,6 +682,22 @@
             {% endif %}
         </nav>
 
+        <script>
+            // Identidad visual única para comprobantes y reportes impresos.
+            // Cada generador omite por sí solo los campos que estén vacíos.
+            window.KAI_EMPRESA = {
+                nombre: "{{ datos_empresa_global.nombre_comercial|escapejs }}",
+                razon_social: "{{ datos_empresa_global.razon_social|escapejs }}",
+                domicilio: "{{ datos_empresa_global.domicilio|escapejs }}",
+                telefono: "{{ datos_empresa_global.telefono|escapejs }}",
+                email: "{{ datos_empresa_global.email|escapejs }}",
+                cuit: "{{ datos_empresa_global.cuit|escapejs }}",
+                condicion_iva: "{{ datos_empresa_global.get_condicion_iva_display|escapejs }}",
+                eslogan: "{{ datos_empresa_global.eslogan|escapejs }}",
+                logo_url: "{% if datos_empresa_global.logo %}{{ request.scheme }}://{{ request.get_host }}{{ datos_empresa_global.logo.url }}{% endif %}",
+            };
+        </script>
+
         {% if user.is_authenticated %}
         <!-- URLs para los atajos de teclado (Ctrl+Alt+letra) definidos en base.js -->
         <script>

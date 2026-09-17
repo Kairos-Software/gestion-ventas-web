@@ -599,3 +599,131 @@
     font-style: italic;
     margin-top: 0.1rem;
 }
+
+/* ────────────────────────────────────────────────────────────────
+   SELECCIÓN MÚLTIPLE — checkboxes en la tabla + impresión en lote
+──────────────────────────────────────────────────────────────── */
+.inventario-tabla thead th:first-child,
+.inventario-tabla tbody td:first-child {
+    width: 2.2rem;
+    padding-right: 0;
+}
+
+.inv-check-lote,
+#chkSeleccionarTodos {
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+    accent-color: var(--brand-orange);
+}
+
+/* Barra contextual de selección — fila propia entre la toolbar y la tabla,
+   con el mismo lenguaje visual (naranja) que ya usa el resto de la pantalla
+   para estados "activos" (inv-row-resaltada, inv-print-resumen). */
+.inv-seleccion-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    flex-wrap: wrap;
+    padding: .7rem 1.25rem;
+    background: var(--brand-orange-light);
+    border-bottom: 1px solid var(--brand-orange-mid);
+}
+
+.inv-seleccion-bar-acciones {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+}
+
+.inv-seleccion-count {
+    font-size: .82rem;
+    color: var(--brand-orange-dark);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* Modal de impresión múltiple */
+.inv-multi-cantidad-todos {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    font-size: .8rem;
+    color: var(--text-secondary);
+    margin-bottom: .75rem;
+}
+
+.inv-multi-lista {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    max-height: 260px;
+    overflow-y: auto;
+    margin-bottom: .5rem;
+    padding-right: .15rem;
+}
+
+.inv-multi-item {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    padding: .55rem .7rem;
+    border: 1px solid var(--border-color);
+    border-radius: .6rem;
+    background: var(--bg-secondary);
+}
+
+.inv-multi-item-info { flex: 1; min-width: 0; }
+
+.inv-multi-item-nombre {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: .8rem;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.inv-multi-item-lote {
+    font-size: .7rem;
+    color: var(--text-muted);
+    margin-top: .1rem;
+}
+
+.inv-multi-item-cant {
+    width: 58px;
+    flex-shrink: 0;
+    text-align: center;
+    padding: .3rem .35rem;
+    font-size: .8rem;
+}
+
+.inv-multi-item-quitar {
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    border-radius: .5rem;
+    border: 1px solid var(--border-color);
+    background: var(--bg-white);
+    color: var(--text-muted);
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: all .15s;
+}
+
+.inv-multi-item-quitar:hover {
+    border-color: var(--danger, #EF4444);
+    color: var(--danger, #EF4444);
+    background: rgba(239, 68, 68, .06);
+}
+
+.inv-multi-lista-vacia {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: .85rem;
+    padding: 1.5rem 1rem;
+    margin: 0;
+}

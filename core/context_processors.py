@@ -20,6 +20,17 @@ render). El backend NO se apoya en esto: cada vista sigue chequeando con
 from .permisos import permisos_efectivos
 
 
+def datos_empresa(request):
+    """Datos del emisor disponibles en todos los documentos imprimibles."""
+    try:
+        from .models import DatosEmpresa
+        return {'datos_empresa_global': DatosEmpresa.get_solo()}
+    except Exception:
+        # Un deploy con migraciones pendientes no debe impedir que cargue
+        # todo el sistema por un dato meramente visual del membrete.
+        return {'datos_empresa_global': None}
+
+
 def kai_flags(request):
     """
     Flags de instalación que la barra lateral / templates base necesitan
