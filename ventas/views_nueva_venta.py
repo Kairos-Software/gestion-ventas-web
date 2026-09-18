@@ -1330,7 +1330,9 @@ def construir_contexto_detalle(request, venta):
     # tarjeta/QR/transferencia, un reembolso sí puede salir de efectivo.
     items_lista = list(venta.items.select_related('producto', 'cliente', 'combinacion').all())
     devoluciones = list(
-        venta.devoluciones.select_related('cuenta').prefetch_related('items').order_by('-fecha_alta')
+        venta.devoluciones.select_related('cuenta')
+        .prefetch_related('items__item_venta', 'nota_credito_arca')
+        .order_by('-fecha_alta')
     ) if venta.estado == EstadoVenta.CONFIRMADA else []
 
     # cantidad_devuelta/disponible_devolucion se setean SIEMPRE (no

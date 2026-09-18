@@ -11,6 +11,11 @@ no es Responsable Inscripto, siempre es Factura C (Monotributista/Exento
 nunca discriminan IVA). Si el emisor SÍ es Responsable Inscripto, se elige
 A si el RECEPTOR también es Responsable Inscripto (para que pueda tomarse
 el IVA como crédito fiscal), o B para cualquier otro caso.
+
+También tiene emitir_nota_credito(): pide el CAE de la Nota de Crédito que
+corresponde a una devolución, cuando la venta devuelta tiene un
+ComprobanteArca asociado — se dispara sola desde registrar_devolucion()
+(ver ventas/views_devoluciones.py), nunca hace falta llamarla a mano.
 """
 from core.models import ConfiguracionArca, DatosEmpresa, CondicionIVA
 
@@ -178,6 +183,122 @@ def facturar_venta(venta, *, cliente=None, condicion_iva_receptor_id=None):
         doc_nro=doc_nro or '',
         condicion_iva_receptor_id=cond_iva_receptor,
         importe_total=venta.total,
+        importe_neto=importe_neto,
+        importe_iva=importe_iva,
+        respuesta_json={'respuesta_cruda': resultado['respuesta_cruda']},
+    )
+
+
+def emitir_nota_credito(devolucion):
+    """
+    Emite la Nota de Crédito ARCA de `devolucion`, si la venta devuelta
+    tiene un ComprobanteArca asociado. Si no lo tiene (venta no facturada,
+    o facturación ARCA nunca habilitada para ella), no hace nada — devuelve
+    None silenciosamente, NO es un error: la mayoría de las devoluciones son
+    sobre ventas sin ARCA de por medio.
+
+    Soporta NC total y parcial: el importe SIEMPRE sale de
+    devolucion.calcular_iva_por_alicuota() (proporcional a lo efectivamente
+    devuelto), nunca de devolucion.monto (que es el reembolso en EFECTIVO —
+    puede ser 0 en un simple cambio; la NC se emite igual, porque
+    fiscalmente el cliente dejó de deber ese importe más allá de si se le
+    devolvió plata o se le dio otro producto).
+
+    El receptor (doc_tipo/doc_nro/condicion_iva_receptor_id) se hereda TAL
+    CUAL del comprobante original, nunca se recalcula desde el cliente
+    actual de la venta — esos datos ya se validaron una vez al facturar, y
+    la mayoría de las ventas son a Consumidor Final sin cliente identificado
+    en absoluto: la NC tiene que poder emitirse igual, sin pedir nada nuevo.
+
+    Si ARCA rechaza el comprobante, levanta ArcaError — la devolución ya se
+    registró (registrar_devolucion() ya hizo commit antes de llamar acá),
+    el llamador decide qué hacer con el error (mismo criterio que
+    ConfirmarVentaAjax/VentaFacturarAjax con facturar_venta(): nunca se
+    deshace algo que ya pasó físicamente).
+
+    Idempotente: si esta devolución ya tiene una NC emitida, la devuelve sin
+    volver a pedir un CAE.
+    """
+    from ventas.models import NotaCreditoArca, TipoComprobante
+
+    venta = devolucion.venta
+    comprobante_original = getattr(venta, 'comprobante_arca', None)
+    if comprobante_original is None:
+        return None
+
+    existente = getattr(devolucion, 'nota_credito_arca', None)
+    if existente is not None:
+        return existente
+
+    tipo_nc_por_factura = {
+        TipoComprobante.FACTURA_A: TipoComprobante.NOTA_CREDITO_A,
+        TipoComprobante.FACTURA_B: TipoComprobante.NOTA_CREDITO_B,
+        TipoComprobante.FACTURA_C: TipoComprobante.NOTA_CREDITO_C,
+    }
+    tipo_nc = tipo_nc_por_factura.get(comprobante_original.tipo_comprobante)
+    if tipo_nc is None:
+        raise ArcaError(
+            f'No se sabe qué tipo de Nota de Crédito corresponde a '
+            f'"{comprobante_original.get_tipo_comprobante_display()}".'
+        )
+
+    config = ConfiguracionArca.get_solo()
+    if not config.habilitado:
+        raise ArcaError('La facturación electrónica no está habilitada en Configuración.')
+    if not config.tiene_certificado():
+        raise ArcaError('No hay certificado ARCA cargado en Configuración.')
+
+    empresa = DatosEmpresa.get_solo()
+
+    desglose = devolucion.calcular_iva_por_alicuota()
+    importe_total = desglose['importe_total']
+
+    if comprobante_original.tipo_comprobante == TipoComprobante.FACTURA_C:
+        importe_neto, importe_iva, iva_detalle = importe_total, 0, None
+    else:
+        importe_neto = desglose['neto_total']
+        importe_iva = desglose['iva_total']
+        iva_detalle = [
+            {
+                'id':       ALICUOTA_IVA_A_ID_ARCA.get(g['alicuota'], ALICUOTA_IVA_A_ID_ARCA['21']),
+                'base_imp': g['neto'],
+                'importe':  g['iva'],
+            }
+            for g in desglose['grupos']
+        ]
+
+    resultado = wsfe.solicitar_cae(
+        config,
+        cuit=empresa.cuit.replace('-', '').strip(),
+        tipo_comprobante=tipo_nc,
+        doc_tipo=comprobante_original.doc_tipo,
+        doc_nro=comprobante_original.doc_nro,
+        condicion_iva_receptor_id=comprobante_original.condicion_iva_receptor_id,
+        importe_total=importe_total,
+        importe_neto=importe_neto,
+        importe_iva=importe_iva,
+        iva_detalle=iva_detalle,
+        cbtes_asoc=[{
+            'tipo': comprobante_original.tipo_comprobante,
+            'punto_venta': comprobante_original.punto_venta,
+            'numero': comprobante_original.numero,
+        }],
+    )
+
+    return NotaCreditoArca.objects.create(
+        venta=venta,
+        devolucion=devolucion,
+        comprobante_original=comprobante_original,
+        tipo_comprobante=tipo_nc,
+        punto_venta=config.punto_venta,
+        numero=resultado['numero'],
+        cae=resultado['cae'],
+        cae_vencimiento=resultado['cae_vencimiento'],
+        ambiente=config.ambiente,
+        doc_tipo=comprobante_original.doc_tipo,
+        doc_nro=comprobante_original.doc_nro or '',
+        condicion_iva_receptor_id=comprobante_original.condicion_iva_receptor_id,
+        importe_total=importe_total,
         importe_neto=importe_neto,
         importe_iva=importe_iva,
         respuesta_json={'respuesta_cruda': resultado['respuesta_cruda']},

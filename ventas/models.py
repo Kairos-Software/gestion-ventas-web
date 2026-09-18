@@ -462,24 +462,26 @@ def _bloquear_si_tiene_comprobante_arca(venta):
     total nuevo pero el ComprobanteArca sigue siendo el de los 5 ítems
     originales (facturar_venta() ni siquiera pide un CAE nuevo, ver
     core/services_arca/facturacion.py), así que el sistema termina
-    mostrando datos que ya no coinciden con lo declarado ante ARCA — y no
-    hay forma de corregir un comprobante ya emitido desde acá, porque no
-    existe todavía un mecanismo de Nota de Crédito.
+    mostrando datos que ya no coinciden con lo declarado ante ARCA — y
+    anular/editar la venta directamente no es forma válida de corregir
+    ante ARCA un comprobante ya emitido.
 
     Si el cliente devolvió parte de la compra, el camino correcto es
     "Registrar devolución": no toca la Venta ni el ComprobanteArca
-    original, así que la factura sigue coincidiendo exactamente con lo
-    que ARCA tiene en su base.
+    original (la factura sigue coincidiendo exactamente con lo que ARCA
+    tiene en su base), y si la venta tiene comprobante ARCA, dispara sola
+    la Nota de Crédito correspondiente (ver emitir_nota_credito en
+    core/services_arca/facturacion.py).
     """
     comprobante = getattr(venta, 'comprobante_arca', None)
     if comprobante is not None:
         raise ValueError(
             f'Esta venta ya tiene un comprobante ARCA emitido ({comprobante}) — no se puede '
             f'anular ni eliminar. ARCA ya tiene ese comprobante registrado como válido y no hay '
-            f'forma de corregirlo desde acá (no está implementada la Nota de Crédito); anular y '
-            f'editar la venta la dejaría con datos que no coinciden con lo facturado. Si el '
-            f'cliente devolvió parte de la compra, registrá una devolución en su lugar — no '
-            f'toca la venta ni el comprobante.'
+            f'forma de corregirlo desde acá; anular y editar la venta la dejaría con datos que '
+            f'no coinciden con lo facturado. Si el cliente devolvió parte de la compra, registrá '
+            f'una devolución en su lugar — no toca la venta ni el comprobante, y emite la Nota '
+            f'de Crédito correspondiente.'
         )
 
 
@@ -1531,6 +1533,55 @@ class DevolucionVenta(models.Model):
             self.numero = _generar_numero_devolucion()
         super().save(*args, **kwargs)
 
+    def calcular_iva_por_alicuota(self):
+        """
+        Análogo a Venta.calcular_iva_por_alicuota() (ver más abajo), pero
+        para lo efectivamente devuelto en ESTA DevolucionVenta — usado para
+        el desglose de IVA de la Nota de Crédito (ver emitir_nota_credito
+        en core/services_arca/facturacion.py). A diferencia de Venta, acá
+        no hay un total ya calculado contra el cual cerrar el redondeo —
+        se devuelve también 'importe_total' con el bruto ya redondeado.
+
+        Cuenta TODOS los ítems devueltos, incluidos los es_perdida=True:
+        fiscalmente el cliente dejó de deber esa plata sin importar qué
+        pasa después con la unidad física (se revende o se da de baja
+        como pérdida).
+        """
+        factor = (1 - self.venta.descuento_global_pct / 100) if self.venta.descuento_global_pct else Decimal('1')
+        acumulado = {}
+        total_bruto = Decimal('0')
+        for dev_item in self.items.select_related('item_venta').all():
+            item_venta = dev_item.item_venta
+            if item_venta is None:
+                continue
+            alicuota = item_venta.alicuota_iva or AlicuotaIVA.GENERAL
+            valor = dev_item.cantidad * item_venta.precio_unitario * (1 - item_venta.descuento_pct / 100) * factor
+            acumulado[alicuota] = acumulado.get(alicuota, Decimal('0')) + valor
+            total_bruto += valor
+
+        grupos = []
+        for alicuota, base_mas_iva in acumulado.items():
+            neto = base_mas_iva / (1 + Decimal(alicuota) / 100)
+            grupos.append({
+                'alicuota': alicuota,
+                'neto': round(neto, 2),
+                'iva': round(base_mas_iva - neto, 2),
+            })
+
+        neto_total = sum(g['neto'] for g in grupos)
+        iva_total = sum(g['iva'] for g in grupos)
+        importe_total = round(total_bruto, 2)
+
+        # Mismo criterio de ajuste de redondeo que Venta.calcular_iva_por_alicuota:
+        # la diferencia se absorbe en el neto del grupo más grande.
+        diferencia = importe_total - (neto_total + iva_total)
+        if diferencia and grupos:
+            mas_grande = max(grupos, key=lambda g: g['neto'] + g['iva'])
+            mas_grande['neto'] = round(mas_grande['neto'] + diferencia, 2)
+            neto_total = sum(g['neto'] for g in grupos)
+
+        return {'grupos': grupos, 'neto_total': neto_total, 'iva_total': iva_total, 'importe_total': importe_total}
+
 
 class DevolucionVentaItem(models.Model):
     """
@@ -1566,6 +1617,27 @@ class DevolucionVentaItem(models.Model):
 
     def __str__(self):
         return f'{self.producto_nombre_snapshot} — {self.cantidad}u'
+
+    @property
+    def precio_unitario(self):
+        """Precio unitario del ItemVenta original, o 0 si ya no existe
+        (SET_NULL) — solo para mostrar en la Nota de Crédito impresa."""
+        return self.item_venta.precio_unitario if self.item_venta else Decimal('0')
+
+    @property
+    def subtotal_devuelto(self):
+        """Valor de lo efectivamente devuelto en esta fila — mismo cálculo
+        que ItemVenta.subtotal (cantidad × precio_unitario, con el
+        descuento_pct del ítem original), pero con la cantidad DEVUELTA en
+        vez de la cantidad vendida. Usado para imprimir la Nota de Crédito
+        (ver ticket_nc.js) — no incluye el descuento_global_pct de la
+        venta, igual que ItemVenta.subtotal tampoco lo incluye."""
+        if self.item_venta is None:
+            return Decimal('0')
+        base = self.cantidad * self.item_venta.precio_unitario
+        if self.item_venta.descuento_pct:
+            base = base * (1 - self.item_venta.descuento_pct / 100)
+        return round(base, 2)
 
 
 class DevolucionVentaConsumo(models.Model):
@@ -2154,10 +2226,16 @@ class VentaDocumento(models.Model):
 # ══════════════════════════════════════════════════════════════════
 
 class TipoComprobante(models.IntegerChoices):
-    """Códigos de comprobante de ARCA (los que exige WSFEv1, no inventados)."""
+    """Códigos de comprobante de ARCA (los que exige WSFEv1, no inventados).
+    Familias correlativas Factura/Nota de Débito/Nota de Crédito = X/X+1/X+2
+    (A: 1/2/3, B: 6/7/8, C: 11/12/13). Nota de Débito (2/7/12) no está
+    implementada — no hace falta todavía."""
     FACTURA_A = 1, 'Factura A'
+    NOTA_CREDITO_A = 3, 'Nota de Crédito A'
     FACTURA_B = 6, 'Factura B'
+    NOTA_CREDITO_B = 8, 'Nota de Crédito B'
     FACTURA_C = 11, 'Factura C'
+    NOTA_CREDITO_C = 13, 'Nota de Crédito C'
 
 
 class ComprobanteArca(models.Model):
@@ -2219,6 +2297,90 @@ class ComprobanteArca(models.Model):
     def doc_receptor_display(self):
         """'CUIT: 20-12345678-9' listo para el comprobante impreso, o ''
         si el receptor es Consumidor Final (doc_tipo 99, sin documento)."""
+        from core.services_arca.tipos import DOC_TIPO_CUIT, DOC_TIPO_CUIL, DOC_TIPO_DNI
+        etiqueta = {DOC_TIPO_CUIT: 'CUIT', DOC_TIPO_CUIL: 'CUIL', DOC_TIPO_DNI: 'DNI'}.get(self.doc_tipo)
+        if not etiqueta or not self.doc_nro or self.doc_nro == '0':
+            return ''
+        return f'{etiqueta}: {self.doc_nro}'
+
+    @property
+    def numero_display(self):
+        return f'{self.punto_venta:04d}-{self.numero:08d}'
+
+
+class NotaCreditoArca(models.Model):
+    """
+    Nota de Crédito ARCA (CAE real) que corrige, total o parcialmente, un
+    ComprobanteArca ya emitido — se dispara sola desde registrar_devolucion()
+    (ver core/services_arca/facturacion.py: emitir_nota_credito). Una
+    DevolucionVenta dispara a lo sumo una NC (OneToOne); una Venta puede
+    tener varias NC a lo largo del tiempo, una por cada devolución parcial
+    — por eso NO es OneToOne a Venta como ComprobanteArca.
+
+    Mismos campos y mismo criterio que ComprobanteArca: todo es snapshot
+    de lo efectivamente declarado ante ARCA en el momento de emitir, nunca
+    se recalcula desde la Venta/Devolución más adelante.
+    """
+    venta = models.ForeignKey(
+        Venta, on_delete=models.PROTECT, related_name='notas_credito_arca',
+    )
+    devolucion = models.OneToOneField(
+        DevolucionVenta, on_delete=models.PROTECT, related_name='nota_credito_arca',
+    )
+    comprobante_original = models.ForeignKey(
+        ComprobanteArca, on_delete=models.PROTECT, related_name='notas_credito',
+        help_text='La factura que esta NC corrige (CbteAsoc ante ARCA).',
+    )
+
+    tipo_comprobante = models.PositiveSmallIntegerField(choices=TipoComprobante.choices)
+    punto_venta = models.PositiveIntegerField()
+    numero = models.PositiveIntegerField()
+
+    cae = models.CharField(max_length=20)
+    cae_vencimiento = models.DateField()
+    ambiente = models.CharField(max_length=12, choices=AmbienteArca.choices)
+
+    # — Receptor, heredado tal cual del comprobante_original (nunca del
+    #   cliente actual de la Venta — ver emitir_nota_credito) —
+    doc_tipo = models.PositiveSmallIntegerField(help_text='Código AFIP: 80=CUIT, 96=DNI, 99=Consumidor Final, etc.')
+    doc_nro = models.CharField(max_length=20, blank=True)
+    condicion_iva_receptor_id = models.PositiveSmallIntegerField(
+        help_text='Código de FEParamGetCondicionIvaReceptor (5=Consumidor Final, etc.)',
+    )
+
+    # — Importes (snapshot) — el monto efectivamente acreditado, no el de
+    #   la factura original ni el reembolso en efectivo de la devolución —
+    importe_total = models.DecimalField(max_digits=14, decimal_places=2)
+    importe_neto = models.DecimalField(max_digits=14, decimal_places=2)
+    importe_iva = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+
+    creado_el = models.DateTimeField(auto_now_add=True)
+    respuesta_json = models.JSONField(
+        blank=True, null=True,
+        help_text='Respuesta cruda de ARCA (FECAESolicitar), para auditoría/debug.',
+    )
+
+    class Meta:
+        verbose_name = 'Nota de crédito ARCA'
+        verbose_name_plural = 'Notas de crédito ARCA'
+
+    def __str__(self):
+        return f'{self.get_tipo_comprobante_display()} {self.numero_display} (CAE {self.cae})'
+
+    @property
+    def numero_display(self):
+        return f'{self.punto_venta:04d}-{self.numero:08d}'
+
+    @property
+    def condicion_iva_receptor_display(self):
+        """Ver ComprobanteArca.condicion_iva_receptor_display — misma idea,
+        la condición de IVA tal como quedó declarada ante ARCA para ESTA NC."""
+        from core.services_arca.tipos import CondicionIvaReceptor
+        return CondicionIvaReceptor.LABELS.get(self.condicion_iva_receptor_id, '')
+
+    @property
+    def doc_receptor_display(self):
+        """Ver ComprobanteArca.doc_receptor_display."""
         from core.services_arca.tipos import DOC_TIPO_CUIT, DOC_TIPO_CUIL, DOC_TIPO_DNI
         etiqueta = {DOC_TIPO_CUIT: 'CUIT', DOC_TIPO_CUIL: 'CUIL', DOC_TIPO_DNI: 'DNI'}.get(self.doc_tipo)
         if not etiqueta or not self.doc_nro or self.doc_nro == '0':

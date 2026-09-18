@@ -456,6 +456,21 @@
                             · {{ it.cantidad|floatformat:"-3" }} × {{ it.producto_nombre_snapshot }}{% if it.es_perdida %} <span style="color:var(--danger)">(pérdida)</span>{% endif %}
                         </div>
                         {% endfor %}
+                        {% if dev.nota_credito_arca %}
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-top:.35rem;padding-left:.5rem">
+                            <span style="color:var(--text-muted);font-size:.72rem">
+                                NC: {{ dev.nota_credito_arca.get_tipo_comprobante_display }} {{ dev.nota_credito_arca.numero_display }} — CAE {{ dev.nota_credito_arca.cae }}
+                            </span>
+                            <div style="display:flex;gap:.35rem">
+                                <button type="button" class="cdt-ticket-btn" style="font-size:.7rem;padding:.25rem .5rem" onclick="ncImprimirDevolucion({{ dev.pk }})">
+                                    Imprimir NC
+                                </button>
+                                <button type="button" class="cdt-ticket-btn" style="font-size:.7rem;padding:.25rem .5rem" onclick="ncGuardarPdfDevolucion({{ dev.pk }})">
+                                    Guardar PDF
+                                </button>
+                            </div>
+                        </div>
+                        {% endif %}
                     </div>
                     {% endfor %}
                 </div>
@@ -508,7 +523,8 @@ window.TICKET_VENDOR = {
 <script src="{% static 'ventas/js/ticket_a4.js' %}?v=20260916f"></script>
 <script src="{% static 'ventas/js/ticket_termica_80.js' %}?v=20260916f"></script>
 <script src="{% static 'ventas/js/ticket_termica_58.js' %}?v=20260916f"></script>
-<script src="{% static 'ventas/js/ticket_imprimir.js' %}?v=20260916"></script>
-<script src="{% static 'ventas/js/ticket_pdf.js' %}?v=20260916c"></script>
-<script src="{% static 'ventas/js/detalle_venta.js' %}?v=2026090801"></script>
+<script src="{% static 'ventas/js/ticket_nc.js' %}?v=20260917b"></script>
+<script src="{% static 'ventas/js/ticket_imprimir.js' %}?v=20260917a"></script>
+<script src="{% static 'ventas/js/ticket_pdf.js' %}?v=20260917a"></script>
+<script src="{% static 'ventas/js/detalle_venta.js' %}?v=20260917b"></script>
 {% endblock %}

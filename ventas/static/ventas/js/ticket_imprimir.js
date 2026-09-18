@@ -33,12 +33,21 @@
 // 'pdf'      → ticket_pdf.js genera el archivo y lo descarga directo
 let _ticketModo = 'imprimir';
 
+// Si no es null, el selector está apuntando a IMPRIMIR UNA NOTA DE
+// CRÉDITO puntual (una entrada de window.NC_DATA) en vez del ticket de
+// la venta — ver ncImprimirDevolucion() en detalle_venta.js. Se resetea
+// a null después de imprimir o al cerrar el selector.
+let _ticketObjetivoNC = null;
+
 /**
  * Muestra el modal selector de formato.
  * @param {string} [modo]  'imprimir' (default) | 'pdf'
+ * @param {object} [ncData]  Si viene, el selector imprime esta Nota de
+ *   Crédito (una entrada de window.NC_DATA) en vez del ticket de la venta.
  */
-function ticketAbrirSelector(modo) {
+function ticketAbrirSelector(modo, ncData) {
     _ticketModo = modo === 'pdf' ? 'pdf' : 'imprimir';
+    _ticketObjetivoNC = ncData || null;
 
     const overlay = document.getElementById('ticketSelectorOverlay');
     if (!overlay) {
@@ -54,14 +63,15 @@ function ticketAbrirSelector(modo) {
     if (sub)    sub.textContent    = _ticketModo === 'pdf'
         ? 'Seleccioná el tamaño de página del archivo.'
         : 'Seleccioná el tipo de papel/impresora que vas a usar.';
-    // El checkbox "imprimir como ticket simple" y el de "Duplicado" solo
-    // tienen sentido si la venta tiene de verdad un comprobante ARCA — sin
-    // eso no hay "Original"/"Duplicado" que aclarar.
+    // El checkbox "imprimir como ticket simple" no tiene sentido para una
+    // Nota de Crédito (siempre es un comprobante fiscal, nunca "sin CAE").
+    // El de "Duplicado" sí sigue aplicando (Original/Duplicado también
+    // corresponde a una NC, igual que a una factura).
     const hayComprobante = !!(window.TICKET_DATA && window.TICKET_DATA.comprobante_arca);
     const wrapSoloTicket = document.getElementById('ticketSoloTicketWrap');
-    if (wrapSoloTicket) wrapSoloTicket.style.display = hayComprobante ? 'flex' : 'none';
+    if (wrapSoloTicket) wrapSoloTicket.style.display = (!_ticketObjetivoNC && hayComprobante) ? 'flex' : 'none';
     const wrapDuplicado = document.getElementById('ticketDuplicadoWrap');
-    if (wrapDuplicado) wrapDuplicado.style.display = hayComprobante ? 'flex' : 'none';
+    if (wrapDuplicado) wrapDuplicado.style.display = (_ticketObjetivoNC || hayComprobante) ? 'flex' : 'none';
     // Cada vez que se abre el selector arranca en "Original" — no debería
     // quedar pegado el "Duplicado" de una impresión anterior sin que se note.
     const chkDuplicado = document.getElementById('ticketDuplicado');
@@ -72,6 +82,7 @@ function ticketAbrirSelector(modo) {
 function _ticketCerrarSelector() {
     const overlay = document.getElementById('ticketSelectorOverlay');
     if (overlay) overlay.style.display = 'none';
+    _ticketObjetivoNC = null;
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -96,7 +107,34 @@ function _ticketCerrarSelector() {
  *   Los formatos térmicos no muestran esa leyenda, así que la ignoran.
  */
 async function ticketImprimir(formato, soloTicket, esDuplicado) {
+    const objetivoNC = _ticketObjetivoNC;  // capturar ANTES de cerrar el selector (lo resetea a null)
     _ticketCerrarSelector();
+
+    if (objetivoNC) {
+        if (objetivoNC.nc && objetivoNC.nc.qrReadyPromise) {
+            await objetivoNC.nc.qrReadyPromise;
+        }
+
+        let ncGenerador;
+        if (formato === 'a4') {
+            ncGenerador = typeof ncHtmlA4 === 'function' ? ncHtmlA4 : null;
+        } else if (formato === 'termica80') {
+            ncGenerador = typeof ncHtmlTermica80 === 'function' ? ncHtmlTermica80 : null;
+        } else if (formato === 'termica58') {
+            ncGenerador = typeof ncHtmlTermica58 === 'function' ? ncHtmlTermica58 : null;
+        } else {
+            console.error(`ticket_imprimir.js: formato desconocido "${formato}".`);
+            return;
+        }
+        if (!ncGenerador) {
+            console.error('ticket_imprimir.js: generador de Nota de Crédito no disponible. ¿Cargaste ticket_nc.js?');
+            return;
+        }
+
+        const html = ncGenerador(objetivoNC, { duplicado: !!esDuplicado });
+        _abrirVentanaImpresion(html);
+        return;
+    }
 
     if (!window.TICKET_DATA) {
         console.error('ticket_imprimir.js: window.TICKET_DATA no está definido.');

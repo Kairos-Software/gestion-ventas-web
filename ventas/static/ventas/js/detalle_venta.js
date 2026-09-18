@@ -1604,6 +1604,51 @@ function vdtToast(titulo, cuerpo, duracionMs) {
     }
 })();
 
+/* ════════════════════════════════════════════════════════════════
+   NOTA DE CRÉDITO — se emite sola al registrar una devolución (ver
+   emitir_nota_credito en core/services_arca/facturacion.py); acá solo
+   se avisa si ARCA la rechazó (mismo mecanismo diferido que
+   "vdtFacturaError" de arriba) y se ofrece imprimirla si se emitió bien.
+════════════════════════════════════════════════════════════════ */
+(function () {
+    const errorPendiente = sessionStorage.getItem('vdtNotaCreditoError');
+    if (errorPendiente) {
+        sessionStorage.removeItem('vdtNotaCreditoError');
+        vdtToast('Devolución registrada — no se pudo emitir la Nota de Crédito', errorPendiente, 15000);
+    }
+})();
+
+/**
+ * Abre el selector de formato para imprimir la Nota de Crédito de una
+ * devolución puntual — busca la entrada correspondiente en window.NC_DATA
+ * (armado en _detalle_venta_datos.html) y se la pasa a ticketAbrirSelector,
+ * que reusa el mismo modal de A4/térmica80/térmica58 ya existente.
+ * @param {number} devolucionPk
+ */
+function ncImprimirDevolucion(devolucionPk) {
+    const entrada = (window.NC_DATA || []).find(e => e.devolucion_pk === devolucionPk);
+    if (!entrada) {
+        console.error('ncImprimirDevolucion: no se encontró la NC de la devolución', devolucionPk);
+        return;
+    }
+    ticketAbrirSelector('imprimir', entrada);
+}
+
+/**
+ * Igual que ncImprimirDevolucion(), pero abre el selector en modo "pdf"
+ * (ver ticketAbrirSelector) — el mismo botón "Guardar PDF" que ya existe
+ * para el ticket de la venta, aplicado a la Nota de Crédito.
+ * @param {number} devolucionPk
+ */
+function ncGuardarPdfDevolucion(devolucionPk) {
+    const entrada = (window.NC_DATA || []).find(e => e.devolucion_pk === devolucionPk);
+    if (!entrada) {
+        console.error('ncGuardarPdfDevolucion: no se encontró la NC de la devolución', devolucionPk);
+        return;
+    }
+    ticketAbrirSelector('pdf', entrada);
+}
+
 const btnFacturarAhora = document.getElementById('vdtBtnFacturarAhora');
 if (btnFacturarAhora) {
     btnFacturarAhora.addEventListener('click', async () => {
@@ -1794,6 +1839,12 @@ function vdtRecalcularMontoDevolucion() {
             });
             const data = await res.json();
             if (data.ok) {
+                if (data.nota_credito_error) {
+                    // Mismo mecanismo que "vdtFacturaError": la página va a
+                    // recargar/refrescar ahora mismo, así que el aviso se
+                    // guarda para mostrarlo recién cuando vuelva a cargar.
+                    sessionStorage.setItem('vdtNotaCreditoError', data.nota_credito_error);
+                }
                 if (typeof window.panelCobroRefrescar === 'function') window.panelCobroRefrescar();
                 else window.location.reload();
             } else {
@@ -1812,6 +1863,8 @@ function vdtRecalcularMontoDevolucion() {
 // ── Hooks para el panel flotante de cobro (panel_cobro.js) ──
 window.vdtImprimirTicket = vdtImprimirTicket;
 window.vdtAbrirModalDevolucion = vdtAbrirModalDevolucion;
+window.ncImprimirDevolucion = ncImprimirDevolucion;
+window.ncGuardarPdfDevolucion = ncGuardarPdfDevolucion;
 window.detalleVentaSetTotal = function (nuevoTotal) {
     pagoState.total = Number(nuevoTotal) || 0;
     if (pagoState.lineas.length === 1 && !pagoState.lineas[0]._editadoManual) {

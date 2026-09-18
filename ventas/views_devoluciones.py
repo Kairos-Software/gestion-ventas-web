@@ -8,6 +8,8 @@ from django.shortcuts import get_object_or_404
 
 from productos.models import cantidad_valida_para_unidad
 from core.permisos import chequear_permiso
+from core.services_arca import facturacion
+from core.services_arca.wsaa import ArcaError
 from .models import Venta, ItemVenta, registrar_devolucion
 
 
@@ -106,8 +108,27 @@ class RegistrarDevolucionAjax(LoginRequiredMixin, View):
         except ValueError as e:
             return JsonResponse({'error': str(e)}, status=400)
 
-        return JsonResponse({
+        # Nota de Crédito ARCA — se dispara sola, FUERA de la transacción de
+        # registrar_devolucion() (que ya hizo commit arriba). Si la venta no
+        # tiene comprobante ARCA, emitir_nota_credito() no hace nada (None).
+        # Si ARCA la rechaza, la devolución queda registrada igual — lo que
+        # ya pasó físicamente (stock repuesto, pérdida, caja) no se deshace;
+        # mismo criterio que ConfirmarVentaAjax con facturar_venta().
+        nota_credito, nota_credito_error = None, None
+        try:
+            nota_credito = facturacion.emitir_nota_credito(devolucion)
+        except ArcaError as exc:
+            nota_credito_error = str(exc)
+
+        respuesta = {
             'ok': True,
             'numero': devolucion.numero,
             'monto': str(devolucion.monto),
-        })
+        }
+        if nota_credito:
+            respuesta['nota_credito_tipo_display'] = nota_credito.get_tipo_comprobante_display()
+            respuesta['nota_credito_numero_display'] = nota_credito.numero_display
+            respuesta['nota_credito_cae'] = nota_credito.cae
+        if nota_credito_error:
+            respuesta['nota_credito_error'] = nota_credito_error
+        return JsonResponse(respuesta)

@@ -20,6 +20,11 @@
  * Depende de: window.TICKET_DATA y ticketHtml{A4,Termica80,Termica58}.
  * Lo llama ticket_imprimir.js cuando el selector de formato se abrió
  * en modo "pdf" (ver ticketAbrirSelector).
+ *
+ * También cubre Notas de Crédito: si el selector se abrió apuntando a
+ * una NC puntual (_ticketObjetivoNC, ver ticket_imprimir.js), usa los
+ * generadores de ticket_nc.js (ncHtml{A4,Termica80,Termica58}) en vez
+ * de los del ticket de venta — ver _pdfGuardarNC() más abajo.
  * ─────────────────────────────────────────────────────────────────
  */
 'use strict';
@@ -70,6 +75,15 @@ function _pdfGenerador(formato) {
     return null;
 }
 
+// Mismo mapeo que _pdfGenerador(), pero para los generadores de Nota de
+// Crédito (ticket_nc.js) — ver la rama NC al principio de ticketGuardarPdf().
+function _pdfGeneradorNC(formato) {
+    if (formato === 'a4')        return typeof ncHtmlA4 === 'function' ? ncHtmlA4 : null;
+    if (formato === 'termica80') return typeof ncHtmlTermica80 === 'function' ? ncHtmlTermica80 : null;
+    if (formato === 'termica58') return typeof ncHtmlTermica58 === 'function' ? ncHtmlTermica58 : null;
+    return null;
+}
+
 // html2canvas con foreignObjectRendering (necesario para que el texto y los
 // íconos SVG del encabezado no se desplacen — ver _pdfRasterizar) no logra
 // dibujar imágenes que sean una URL externa: solo renderiza bien imágenes
@@ -107,11 +121,19 @@ async function _pdfConLogoEmbebido(data) {
  * @param {string} formato  'a4' | 'termica80' | 'termica58'
  * @param {boolean} soloTicket  igual que en ticketImprimir(): imprime
  *   como ticket simple (sin CAE/QR) aunque haya comprobante ARCA.
+ *   Ignorado cuando el objetivo es una Nota de Crédito (ver _ticketObjetivoNC
+ *   en ticket_imprimir.js) — una NC siempre es un comprobante fiscal.
  * @param {boolean} esDuplicado  igual que en ticketImprimir(): aclara
  *   "Duplicado" en vez de "Original" en el ticket A4 (ver ticket_a4.js).
  */
 async function ticketGuardarPdf(formato, soloTicket, esDuplicado) {
+    const objetivoNC = _ticketObjetivoNC;  // capturar ANTES de cerrar el selector (lo resetea a null)
     _ticketCerrarSelector();
+
+    if (objetivoNC) {
+        await _pdfGuardarNC(objetivoNC, formato, esDuplicado);
+        return;
+    }
 
     if (!window.TICKET_DATA) {
         console.error('ticket_pdf.js: window.TICKET_DATA no está definido.');
@@ -161,6 +183,64 @@ async function ticketGuardarPdf(formato, soloTicket, esDuplicado) {
     } finally {
         if (aviso) aviso.querySelector('.kai-toast-close')?.click();
     }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   GUARDAR PDF — RAMA NOTA DE CRÉDITO
+   ──────────────────────────────────────────────────────────────
+   ncHtmlA4/Termica80/58 (ticket_nc.js) no usan logo de empresa (a
+   diferencia de ticketHtmlA4) — solo texto —, así que no hace falta la
+   incrustación de imagen que sí necesita _pdfConLogoEmbebido() más arriba.
+════════════════════════════════════════════════════════════════ */
+async function _pdfGuardarNC(objetivoNC, formato, esDuplicado) {
+    if (objetivoNC.nc && objetivoNC.nc.qrReadyPromise) {
+        await objetivoNC.nc.qrReadyPromise;
+    }
+
+    const generador = _pdfGeneradorNC(formato);
+    if (!generador) {
+        console.error(`ticket_pdf.js: generador de Nota de Crédito para "${formato}" no disponible. ¿Cargaste ticket_nc.js?`);
+        return;
+    }
+
+    const aviso = (window.KaiToast && KaiToast.show)
+        ? KaiToast.show('Generando PDF…', 'info', 0)
+        : null;
+
+    try {
+        await _pdfAsegurarLibs();
+
+        const html = generador(objetivoNC, { sinAutoImpresion: true, duplicado: !!esDuplicado });
+        const canvas = await _pdfRasterizar(html, _PDF_ANCHO_IFRAME[formato] || 794);
+
+        const { jsPDF } = window.jspdf;
+        let pdf;
+        if (formato === 'a4') {
+            pdf = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
+            _pdfPegarMultipagina(pdf, canvas, 210, 297);
+        } else {
+            const escala  = canvas._escala || 1;
+            const anchoMm = canvas.width  / escala / _PX_POR_MM;
+            const altoMm  = canvas.height / escala / _PX_POR_MM;
+            pdf = new jsPDF({ unit: 'mm', format: [anchoMm, altoMm], compress: true });
+            pdf.addImage(canvas, 'PNG', 0, 0, anchoMm, altoMm, undefined, 'FAST');
+        }
+        pdf.save(_pdfNombreArchivoNC(objetivoNC));
+    } catch (err) {
+        console.error('ticket_pdf.js:', err);
+        if (window.KaiToast && KaiToast.show) {
+            KaiToast.show('No se pudo generar el PDF. ' + (err.message || ''), 'danger', 6000);
+        }
+    } finally {
+        if (aviso) aviso.querySelector('.kai-toast-close')?.click();
+    }
+}
+
+function _pdfNombreArchivoNC(objetivoNC) {
+    const nc = objetivoNC && objetivoNC.nc;
+    let base = nc ? `${nc.tipo_display || 'Nota de Credito'} ${nc.numero_display || ''}` : 'Nota de Credito';
+    base = base.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim();
+    return (base || 'nota-de-credito') + '.pdf';
 }
 
 /* ════════════════════════════════════════════════════════════════

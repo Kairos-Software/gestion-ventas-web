@@ -191,3 +191,77 @@
     })();
 </script>
 {% endif %}
+
+<!-- Notas de Crédito emitidas (una por devolución que tenga una) — se
+     imprimen como documento propio, ver ticket_nc.js. Misma forma de
+     datos que comprobante_arca de arriba, más los ítems devueltos y el
+     comprobante que corrige. -->
+<script>
+    window.NC_DATA = [
+        {% for dev in devoluciones %}{% if dev.nota_credito_arca %}{
+            devolucion_pk: {{ dev.pk }},
+            comprobante_original_display: "{% if comprobante_arca %}{{ comprobante_arca.get_tipo_comprobante_display|escapejs }} {{ comprobante_arca.punto_venta|stringformat:'05d' }}-{{ comprobante_arca.numero|stringformat:'08d' }}{% endif %}",
+            items: [
+                {% for dev_item in dev.items.all %}{
+                    nombre: "{{ dev_item.producto_nombre_snapshot|escapejs }}{% if dev_item.combinacion_desc_snapshot %} — {{ dev_item.combinacion_desc_snapshot|escapejs }}{% endif %}",
+                    cantidad: "{{ dev_item.cantidad|stringformat:'.3f' }}",
+                    precio_unitario: "{{ dev_item.precio_unitario|stringformat:'.2f' }}",
+                    subtotal: "{{ dev_item.subtotal_devuelto|stringformat:'.2f' }}"
+                }{% if not forloop.last %},{% endif %}{% endfor %}
+            ],
+            nc: {
+                tipo_display: "{{ dev.nota_credito_arca.get_tipo_comprobante_display|escapejs }}",
+                tipo_comprobante: {{ dev.nota_credito_arca.tipo_comprobante }},
+                punto_venta: {{ dev.nota_credito_arca.punto_venta }},
+                numero: {{ dev.nota_credito_arca.numero }},
+                numero_display: "{{ dev.nota_credito_arca.numero_display }}",
+                cae: "{{ dev.nota_credito_arca.cae }}",
+                cae_vencimiento: "{{ dev.nota_credito_arca.cae_vencimiento|date:'d/m/Y' }}",
+                importe_total: "{{ dev.nota_credito_arca.importe_total|stringformat:'.2f' }}",
+                importe_neto: "{{ dev.nota_credito_arca.importe_neto|stringformat:'.2f' }}",
+                importe_iva: "{{ dev.nota_credito_arca.importe_iva|stringformat:'.2f' }}",
+                receptor_documento: "{{ dev.nota_credito_arca.doc_receptor_display|escapejs }}",
+                receptor_condicion_iva: "{{ dev.nota_credito_arca.condicion_iva_receptor_display|escapejs }}",
+                iva_grupos: [
+                    {% if dev.nota_credito_arca.tipo_comprobante != 13 %}
+                    {% for g in dev.calcular_iva_por_alicuota.grupos %}{
+                        alicuota: "{{ g.alicuota }}",
+                        neto: "{{ g.neto|stringformat:'.2f' }}",
+                        iva: "{{ g.iva|stringformat:'.2f' }}"
+                    }{% if not forloop.last %},{% endif %}{% endfor %}
+                    {% endif %}
+                ],
+                qrDataUrl: "",
+                qrPayload: {
+                    ver: 1,
+                    fecha: "{{ dev.fecha|date:'Y-m-d' }}",
+                    cuit: {{ datos_empresa.cuit|default:'0'|cut:'-' }},
+                    ptoVta: {{ dev.nota_credito_arca.punto_venta }},
+                    tipoCmp: {{ dev.nota_credito_arca.tipo_comprobante }},
+                    nroCmp: {{ dev.nota_credito_arca.numero }},
+                    importe: {{ dev.nota_credito_arca.importe_total|stringformat:'.2f' }},
+                    moneda: "PES",
+                    ctz: 1,
+                    tipoDocRec: {{ dev.nota_credito_arca.doc_tipo }},
+                    nroDocRec: {{ dev.nota_credito_arca.doc_nro|default:'0' }},
+                    tipoCodAut: "E",
+                    codAut: {{ dev.nota_credito_arca.cae }}
+                }
+            }
+        }{% if not forloop.last %},{% endif %}{% endif %}{% endfor %}
+    ];
+
+    (function () {
+        window.NC_DATA.forEach(function (entrada) {
+            var texto = 'https://www.arca.gob.ar/fe/qr/?p=' + btoa(JSON.stringify(entrada.nc.qrPayload));
+            try {
+                var qr = qrcode(0, 'M');
+                qr.addData(texto);
+                qr.make();
+                entrada.nc.qrDataUrl = qr.createDataURL(6, 2);
+            } catch (err) {
+                console.error('No se pudo generar el QR de la Nota de Crédito:', err);
+            }
+        });
+    })();
+</script>

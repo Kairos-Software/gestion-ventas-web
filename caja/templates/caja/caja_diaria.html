@@ -7,7 +7,7 @@ Caja Diaria
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'caja/css/caja_common.css' %}">
-<link rel="stylesheet" href="{% static 'caja/css/caja_diaria.css' %}?v=20260905">
+<link rel="stylesheet" href="{% static 'caja/css/caja_diaria.css' %}?v=20260918">
 {% endblock %}
 
 {% block content %}
@@ -415,8 +415,8 @@ Caja Diaria
         <h3>Sin turno abierto</h3>
         <p>Abrí un turno para comenzar a vender.</p>
         {% if puede_abrir_cerrar_turno %}
-        <button class="vta-btn vta-btn-primary" onclick="cdAbrirTurno()">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <button type="button" class="vta-btn vta-btn-primary" onclick="cdAbrirTurno()">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                 <path d="M3 8H13M8 3V13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
             </svg>
             Abrir Turno

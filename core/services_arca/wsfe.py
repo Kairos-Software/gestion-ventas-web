@@ -120,10 +120,28 @@ def _iva_xml(iva_detalle):
     return f'\n                  <ar:Iva>{filas}\n                  </ar:Iva>'
 
 
+def _cbtes_asoc_xml(cbtes_asoc):
+    """Nodo <ar:CbtesAsoc> — obligatorio en una Nota de Crédito/Débito para
+    referenciar la factura original que corrige (CbteAsoc: Tipo/PtoVta/Nro).
+    None/vacío para comprobantes que no asocian nada (facturas), igual que
+    _iva_xml."""
+    if not cbtes_asoc:
+        return ''
+    filas = ''.join(
+        '\n                     <ar:CbteAsoc>'
+        f'<ar:Tipo>{c["tipo"]}</ar:Tipo>'
+        f'<ar:PtoVta>{c["punto_venta"]}</ar:PtoVta>'
+        f'<ar:Nro>{c["numero"]}</ar:Nro>'
+        '</ar:CbteAsoc>'
+        for c in cbtes_asoc
+    )
+    return f'\n                  <ar:CbtesAsoc>{filas}\n                  </ar:CbtesAsoc>'
+
+
 def solicitar_cae(config, *, cuit, tipo_comprobante, doc_tipo, doc_nro,
                    condicion_iva_receptor_id, importe_total, importe_neto=None,
                    importe_iva=0, iva_detalle=None, concepto=1, moneda='PES',
-                   cotizacion=1):
+                   cotizacion=1, cbtes_asoc=None):
     """
     Pide un CAE para el próximo número disponible del punto de venta
     configurado. Devuelve dict con numero/cae/cae_vencimiento/respuesta_cruda.
@@ -131,6 +149,11 @@ def solicitar_cae(config, *, cuit, tipo_comprobante, doc_tipo, doc_nro,
 
     iva_detalle: lista opcional de {'id', 'base_imp', 'importe'} — una
     entrada por alícuota (Factura A/B). None/vacío para Factura C.
+
+    cbtes_asoc: lista opcional de {'tipo', 'punto_venta', 'numero'} — el/los
+    comprobante(s) que este comprobante asocia (CbteAsoc). Obligatorio para
+    Nota de Crédito/Débito (referencia la factura que corrigen); None para
+    facturas.
     """
     if importe_neto is None:
         importe_neto = importe_total - importe_iva
@@ -164,6 +187,14 @@ def solicitar_cae(config, *, cuit, tipo_comprobante, doc_tipo, doc_nro,
         '                  <ar:ImpTrib>0</ar:ImpTrib>\n'
         f'                  <ar:MonId>{moneda}</ar:MonId>\n'
         f'                  <ar:MonCotiz>{cotizacion}</ar:MonCotiz>'
+        # OJO: CbtesAsoc va acá (entre MonCotiz e Iva) según el orden
+        # documentado del schema de WSFEv1 — a diferencia de
+        # CondicionIVAReceptorId (ver docstring del módulo, verificado a
+        # mano contra homologación), esta posición NO fue verificada
+        # todavía (no se puede probar en esta fase). Si ARCA rechaza una
+        # Nota de Crédito con un error de schema/orden, este es el primer
+        # lugar a revisar.
+        f'{_cbtes_asoc_xml(cbtes_asoc)}'
         f'{_iva_xml(iva_detalle)}\n'
         f'                  <ar:CondicionIVAReceptorId>{condicion_iva_receptor_id}</ar:CondicionIVAReceptorId>\n'
         '               </ar:FECAEDetRequest>\n'
