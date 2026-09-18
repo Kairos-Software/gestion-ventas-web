@@ -1,0 +1,138 @@
+<!-- core/templates/core/herramientas_dev.html -->
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Herramientas de desarrollador{% endblock %}
+
+{% block breadcrumb %}<strong>Herramientas de desarrollador</strong>{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/herramientas_dev.css' %}?v=20260918b">
+{% endblock %}
+
+{% block content %}
+<div class="hdev-page">
+
+    <div class="hdev-page-header">
+        <h1>Herramientas de desarrollador</h1>
+        <p>
+            Acciones que antes solo se podían hacer por consola, ahora con botones — para
+            no depender de nadie más. Esta página es solo tuya: nadie que no sea
+            superusuario puede verla ni usarla. Cada tarjeta te explica, en criollo, qué
+            hace y qué significa el resultado antes de que apretés nada.
+        </p>
+    </div>
+
+    {% if ambiente_arca == 'produccion' %}
+    <div class="hdev-alerta hdev-alerta--danger">
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M10 2L18.5 17H1.5L10 2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M10 8V11.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="10" cy="14" r="0.9" fill="currentColor"/></svg>
+        <span>ARCA está configurado en <strong>Producción</strong>: las herramientas fiscales de esta página pueden emitir comprobantes reales, no de prueba.</span>
+    </div>
+    {% else %}
+    <div class="hdev-alerta hdev-alerta--info">
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.4"/><path d="M10 9v4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="10" cy="6" r="1" fill="currentColor"/></svg>
+        <span>ARCA está configurado en <strong>{{ ambiente_arca_display }}</strong> — las herramientas fiscales de esta página no afectan comprobantes reales.</span>
+    </div>
+    {% endif %}
+
+    <nav class="hdev-nav">
+        <a href="#cat-diagnostico">Mirar información</a>
+        <a href="#cat-fiscal">Facturación electrónica (ARCA)</a>
+        <a href="#cat-mantenimiento">Corregir y actualizar datos</a>
+        <a href="#cat-notificaciones">Correos y avisos</a>
+        <a href="#cat-riesgo">Zona de riesgo</a>
+    </nav>
+
+    <section id="cat-diagnostico">
+        <h2 class="hdev-categoria-titulo">Mirar información</h2>
+        <p class="hdev-categoria-subtitulo">Solo consultan datos — no cambian nada, podés usarlas sin miedo.</p>
+        <div class="hdev-grid" data-categoria="diagnostico"></div>
+    </section>
+
+    <section id="cat-fiscal">
+        <h2 class="hdev-categoria-titulo">Facturación electrónica (ARCA)</h2>
+        <p class="hdev-categoria-subtitulo">Todo lo relacionado con facturas y Notas de Crédito ante ARCA.</p>
+        <div class="hdev-grid" data-categoria="fiscal"></div>
+    </section>
+
+    <section id="cat-mantenimiento">
+        <h2 class="hdev-categoria-titulo">Corregir y actualizar datos</h2>
+        <p class="hdev-categoria-subtitulo">La mayoría te deja ver primero qué cambiaría, antes de aplicarlo de verdad.</p>
+        <div class="hdev-grid" data-categoria="mantenimiento"></div>
+    </section>
+
+    <section id="cat-notificaciones">
+        <h2 class="hdev-categoria-titulo">Correos y avisos</h2>
+        <p class="hdev-categoria-subtitulo">Mandan correos de verdad — revisá el destino antes de usarlas.</p>
+        <div class="hdev-grid" data-categoria="notificaciones"></div>
+    </section>
+
+    <section id="cat-riesgo">
+        <h2 class="hdev-categoria-titulo hdev-categoria-titulo--riesgo">Zona de riesgo</h2>
+        <p class="hdev-categoria-subtitulo">
+            Estas tres afectan a TODO el sistema a la vez, no a un dato puntual. Pensalas dos veces.
+        </p>
+        <div class="hdev-grid">
+
+            <article class="hdev-card hdev-card--riesgo">
+                <header class="hdev-card-header">
+                    <h3>Cargar datos de prueba en el catálogo</h3>
+                    <span class="hdev-badge hdev-badge--muta">Cambia datos</span>
+                </header>
+                <p class="hdev-desc">
+                    Crea categorías, productos, paquetes y ofertas de ejemplo (todos con el
+                    nombre "DEMO - ") para ver cómo se ve el catálogo online con contenido
+                    cargado. No toca nada de lo que ya cargaste a mano.
+                </p>
+                <div class="hdev-actions">
+                    <button type="button" class="hdev-btn hdev-btn--secundario" onclick="cargarDatosDemoCatalogo(this)">Cargar datos de prueba</button>
+                </div>
+            </article>
+
+            <article class="hdev-card hdev-card--riesgo">
+                <header class="hdev-card-header">
+                    <h3>Eliminar datos de prueba del catálogo</h3>
+                    <span class="hdev-badge hdev-badge--peligro">Borra datos</span>
+                </header>
+                <p class="hdev-desc">
+                    Borra únicamente lo que se creó con "Cargar datos de prueba" (todo lo que
+                    tenga el nombre "DEMO - "). Nada de lo que cargaste vos a mano se toca.
+                </p>
+                <div class="hdev-actions">
+                    <button type="button" class="hdev-btn hdev-btn--peligro" onclick="eliminarDatosDemoCatalogo(this)">Eliminar datos de prueba</button>
+                </div>
+            </article>
+
+            <article class="hdev-card hdev-card--riesgo">
+                <header class="hdev-card-header">
+                    <h3>Borrar todo y empezar de cero</h3>
+                    <span class="hdev-badge hdev-badge--peligro">No se puede deshacer</span>
+                </header>
+                <p class="hdev-desc">
+                    Borra absolutamente todo (clientes, ventas, compras, stock, caja — todo)
+                    menos los usuarios con permiso de superusuario. Es un borrado total y
+                    definitivo, pensado solo para arrancar un sistema nuevo desde cero. Te va a
+                    pedir escribir una frase exacta y tu contraseña antes de hacer nada.
+                </p>
+                <div class="hdev-actions">
+                    <button type="button" class="hdev-btn hdev-btn--peligro" onclick="reiniciarSistema()">Borrar todo y empezar de cero</button>
+                </div>
+            </article>
+
+        </div>
+    </section>
+
+</div>
+
+<script id="herramientasDevData" type="application/json">{{ herramientas_json|safe }}</script>
+<script>
+    window.HDEV_EJECUTAR_URL = "{% url 'core:herramientas_dev_ejecutar' %}";
+    window.HDEV_AMBIENTE_ARCA_DISPLAY = "{{ ambiente_arca_display }}";
+    window.HDEV_AMBIENTE_ARCA = "{{ ambiente_arca }}";
+    window.HDEV_EMAIL_EMPRESA_DEFAULT = "{{ email_empresa_default|default:'' }}";
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'core/js/herramientas_dev.js' %}?v=20260918b"></script>
+{% endblock %}

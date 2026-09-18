@@ -12,6 +12,7 @@ from . import views_estadisticas
 from . import views_notas
 from . import views_billetes
 from . import views_recuperacion
+from . import views_herramientas_dev
 
 app_name = 'core'
 
@@ -106,6 +107,10 @@ urlpatterns = [
 
     # ── Reinicio de datos (solo superusuarios) ──────────────────────
     path('reiniciar/', views_reiniciar.ReiniciarSistemaAjax.as_view(), name='reiniciar_sistema'),
+
+    # ── Herramientas de desarrollador (solo superusuarios) ──────────
+    path('herramientas-desarrollador/', views_herramientas_dev.herramientas_dev, name='herramientas_dev'),
+    path('herramientas-desarrollador/ejecutar/', views_herramientas_dev.EjecutarHerramientaAjax.as_view(), name='herramientas_dev_ejecutar'),
 
     # ── Notas (Anotador — Herramientas) ────────────────────────────
     path('notas/', views_notas.NotasView.as_view(), name='notas'),

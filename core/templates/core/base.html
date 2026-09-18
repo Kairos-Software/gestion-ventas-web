@@ -614,6 +614,15 @@
                             <span>Celulares</span>
                         </a>
                         {% endif %}
+                        {% if user.is_superuser %}
+                        <a href="{% url 'core:herramientas_dev' %}"
+                           class="nav-subitem {% if request.resolver_match.url_name == 'herramientas_dev' %}active{% endif %}">
+                            <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                                <path d="M9.5 2.5L4 8L6 10L11.5 4.5C12 5.5 11.8 6.8 10.9 7.7C10 8.6 8.6 8.8 7.5 8.2L3 12.7C2.6 13.1 1.9 13.1 1.5 12.7C1.1 12.3 1.1 11.6 1.5 11.2L6 6.7C5.4 5.6 5.6 4.2 6.5 3.3C7.4 2.4 8.7 2.2 9.5 2.5Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+                            </svg>
+                            <span>Herramientas de desarrollador</span>
+                        </a>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -826,29 +835,12 @@
                         </a>
                         {% if user.is_superuser %}
                         <div class="user-dropdown-divider"></div>
-                        <button type="button" class="user-dropdown-item" role="menuitem" onclick="cargarDatosDemoCatalogo(this)">
+                        <a href="{% url 'core:herramientas_dev' %}" class="user-dropdown-item" role="menuitem">
                             <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-                                <path d="M3 5.5L9 2.5L15 5.5L9 8.5L3 5.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
-                                <path d="M3 5.5V12.5L9 15.5L15 12.5V5.5" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
-                                <path d="M9 8.5V15.5" stroke="currentColor" stroke-width="1.4"/>
+                                <path d="M10.5 2.5L4.5 9L7 11.5L13.5 5C14 6 13.8 7.4 12.8 8.4C11.8 9.4 10.3 9.6 9.1 8.9L4 14C3.6 14.4 2.9 14.4 2.5 14C2.1 13.6 2.1 12.9 2.5 12.5L7.5 7.4C6.9 6.2 7.1 4.7 8.1 3.7C9.1 2.7 10.5 2.5 11.5 3" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
                             </svg>
-                            Cargar datos de prueba (catálogo)
-                        </button>
-                        <button type="button" class="user-dropdown-item user-dropdown-item--danger" role="menuitem" onclick="eliminarDatosDemoCatalogo(this)">
-                            <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-                                <path d="M3 5H15" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-                                <path d="M7 5V3.5C7 3 7.5 2.5 8 2.5H10C10.5 2.5 11 3 11 3.5V5" stroke="currentColor" stroke-width="1.4"/>
-                                <path d="M4.5 5L5 15C5 15.5 5.5 16 6 16H12C12.5 16 13 15.5 13 15L13.5 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                            Eliminar datos de prueba (catálogo)
-                        </button>
-                        <button type="button" class="user-dropdown-item user-dropdown-item--danger" role="menuitem" onclick="reiniciarSistema()">
-                            <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-                                <path d="M15 9C15 12.31 12.31 15 9 15C5.69 15 3 12.31 3 9C3 5.69 5.69 3 9 3C10.87 3 12.54 3.86 13.63 5.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-                                <path d="M13.5 2V5.5H10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                            Reiniciar sistema (dev)
-                        </button>
+                            Herramientas de desarrollador
+                        </a>
                         {% endif %}
                         <div class="user-dropdown-divider"></div>
                         <form action="{% url 'core:logout' %}" method="post" class="user-dropdown-logout-form">

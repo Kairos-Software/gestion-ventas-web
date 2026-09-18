@@ -121,7 +121,7 @@
     background: var(--bg-secondary);
 }
 
-.vta-card-header svg { color: var(--brand-orange); }
+.vta-card-header > svg { color: var(--brand-orange); }
 
 .vta-card-title {
     font-family: var(--font-heading);
@@ -642,11 +642,23 @@
 /* Estado vacío del carrito (lista, no tabla) */
 .vta-cart-empty {
     text-align: center;
-    padding: 3rem 1.5rem;
+    padding: 3.5rem 1.5rem;
     color: var(--text-muted);
 }
-.vta-cart-empty-ic { color: var(--border-strong, #cbd5e1); margin-bottom: .6rem; }
-.vta-cart-empty p { font-size: .85rem; line-height: 1.55; margin: 0; }
+.vta-cart-empty-ic {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--brand-orange-light);
+    border: 1px solid var(--brand-orange-mid);
+    color: var(--brand-orange);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1rem;
+    opacity: .7;
+}
+.vta-cart-empty p { font-size: .875rem; line-height: 1.55; margin: 0; }
 
 /* El pie del carrito (`.vta-cart-footer`) y su visibilidad desktop/mobile
    se manejan en el <style> inline de nueva_venta.html — el total ya vive
@@ -1874,7 +1886,13 @@ textarea.vta-control {
     color: var(--text-muted);
     padding: 2.5rem 1rem;
 }
-.vta-cobro-placeholder-ic { color: var(--border-strong, #cbd5e1); margin-bottom: .6rem; }
+.vta-cobro-placeholder-ic {
+    color: var(--border-strong, #cbd5e1);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: .6rem;
+}
 .vta-cobro-placeholder p { font-size: .84rem; line-height: 1.5; margin: 0; }
 
 @media (max-width: 1024px) {
@@ -2215,11 +2233,13 @@ details.vdt-cobro-details[open] > summary::after { content: '▴'; }
     margin-left: .6rem;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: .3rem;
     padding: .22rem .55rem;
     font-family: var(--font-body);
     font-size: .72rem;
     font-weight: 600;
+    line-height: 1;
     color: var(--text-secondary);
     background: var(--bg-white);
     border: 1px solid var(--border-color);
