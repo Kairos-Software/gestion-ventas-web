@@ -7,13 +7,13 @@
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'core/css/estadisticas.css' %}">
 <link rel="stylesheet" href="{% static 'core/css/estadisticas_finanzas.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas_resumen.css' %}?v=20260921c">
 {% endblock %}
 
 {% block content %}
-
 {% if sin_permiso %}
 <div class="est-sin-permiso">
-    <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
         <path d="M12 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
         <circle cx="12" cy="16.2" r="0.9" fill="currentColor"/>
@@ -21,274 +21,253 @@
     <p>No tenés permiso para ver el panel de Estadísticas.</p>
 </div>
 {% else %}
-
-{% include "core/estadisticas/_filtros.html" %}
-
-<!-- ══════════ POSICIÓN FINANCIERA NETA (tiempo real, no depende del filtro) ══════════ -->
-{% if situacion_financiera.posicion_neta %}
-<div class="est-posicion-neta-card {% if situacion_financiera.posicion_neta.0.total < 0 %}ef-negativo{% else %}ef-positivo{% endif %}">
-    <div class="est-posicion-neta-info">
-        <p class="card-title">Posición financiera neta</p>
-        <p class="text-muted" style="font-size:.8125rem;">Tu plata disponible, más lo que te deben, menos lo que debés — si hoy cobraras y pagaras todo, esto es lo que te queda. Detalle en <a href="{% url 'core:estadisticas_caja' %}">Caja y Finanzas</a>.</p>
-    </div>
-    <div class="est-posicion-neta-valores">
-        {% for p in situacion_financiera.posicion_neta %}
-        <div class="est-posicion-neta-valor {% if p.total < 0 %}negativo{% else %}positivo{% endif %}">
-            ${{ p.total|pesos }}<span>{{ p.moneda }}</span>
+<div class="est-summary-page">
+    <header class="est-summary-heading">
+        <div>
+            <h1>Resumen</h1>
+            <p>Del {{ desde|date:'d/m/Y' }} al {{ hasta|date:'d/m/Y' }}</p>
         </div>
-        {% endfor %}
+        {% if queda_realmente %}<a href="{% url 'core:estadisticas_caja' %}" class="est-summary-heading-link">Ver Caja y Finanzas <span aria-hidden="true">→</span></a>{% endif %}
+    </header>
+
+    <form id="estResumenPresetForm" method="get"></form>
+    <div class="est-summary-filters" role="group" aria-label="Período">
+        <button form="estResumenPresetForm" type="submit" name="preset" value="hoy" class="btn btn-sm {% if preset == 'hoy' %}btn-primary{% else %}btn-secondary{% endif %}">Hoy</button>
+        <button form="estResumenPresetForm" type="submit" name="preset" value="semana" class="btn btn-sm {% if preset == 'semana' %}btn-primary{% else %}btn-secondary{% endif %}">7 días</button>
+        <button form="estResumenPresetForm" type="submit" name="preset" value="mes_actual" class="btn btn-sm {% if preset == 'mes_actual' %}btn-primary{% else %}btn-secondary{% endif %}">Este mes</button>
+        <button form="estResumenPresetForm" type="submit" name="preset" value="mes_anterior" class="btn btn-sm {% if preset == 'mes_anterior' %}btn-primary{% else %}btn-secondary{% endif %}">Mes anterior</button>
+        <button form="estResumenPresetForm" type="submit" name="preset" value="anio" class="btn btn-sm {% if preset == 'anio' %}btn-primary{% else %}btn-secondary{% endif %}">Este año</button>
+        <details class="est-summary-custom-range" {% if preset == 'personalizado' %}open{% endif %}>
+            <summary>Elegir fechas</summary>
+            <form method="get">
+                <input type="hidden" name="preset" value="personalizado">
+                <label>Desde <input type="date" name="desde" value="{{ desde|date:'Y-m-d' }}" required></label>
+                <label>Hasta <input type="date" name="hasta" value="{{ hasta|date:'Y-m-d' }}" required></label>
+                <button type="submit" class="btn btn-sm btn-primary">Aplicar</button>
+            </form>
+        </details>
     </div>
-</div>
-{% endif %}
 
-<!-- ══════════ LÍMITE CONTABLE (monotributo) — solo con permiso de editar empresa ══════════ -->
-{% if limite_contable %}
-<div class="est-limite-contable-card">
-    <p class="card-title">Límite contable{% if configuracion_limite_contable.nombre_categoria %} — {{ configuracion_limite_contable.nombre_categoria }}{% endif %}</p>
-    <p class="text-muted" style="font-size:.8125rem;">Total facturado (no la ganancia), independiente del filtro de fecha de abajo.</p>
-
-    {% if limite_contable.mensual or limite_contable.anual %}
-    <div class="est-limite-contable-bloques">
-        {% if limite_contable.mensual %}
-        <div class="est-limite-contable-bloque">
-            <div>
-                <span class="est-limite-contable-bloque-label">Este mes</span>
-                <div class="est-limite-contable-monto">${{ limite_contable.mensual.total|pesos }}<span class="est-limite-contable-monto-de">de ${{ limite_contable.mensual.limite|pesos }}</span></div>
-            </div>
-            <span class="est-badge-limite est-badge-limite--{{ limite_contable.mensual.estado }}">{{ limite_contable.mensual.porcentaje|floatformat:1 }}%</span>
-        </div>
-        {% endif %}
-        {% if limite_contable.anual %}
-        <div class="est-limite-contable-bloque">
-            <div>
-                <span class="est-limite-contable-bloque-label">Últimos 12 meses</span>
-                <div class="est-limite-contable-monto">${{ limite_contable.anual.total|pesos }}<span class="est-limite-contable-monto-de">de ${{ limite_contable.anual.limite|pesos }}</span></div>
-            </div>
-            <span class="est-badge-limite est-badge-limite--{{ limite_contable.anual.estado }}">{{ limite_contable.anual.porcentaje|floatformat:1 }}%</span>
-        </div>
-        {% endif %}
-    </div>
-    {% else %}
-    <p class="text-muted" style="font-size:.8125rem; margin-top:.5rem;">
-        No cargaste ningún tope todavía — configuralo en <a href="{% url 'core:configuracion' %}#seccion-limite-contable">Configuración → Límite contable</a>.
-    </p>
-    {% endif %}
-
-    <details class="est-limite-contable-detalle">
-        <summary>Ver detalle mes a mes</summary>
-        <div class="est-limite-contable-tabla-wrap">
-            <table class="est-limite-contable-tabla">
-                <thead>
-                    <tr>
-                        <th>Mes</th>
-                        <th class="th-monto">Facturación total</th>
-                        <th class="th-monto">Sin efectivo</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for fila in limite_contable.serie %}
-                    <tr>
-                        <td>{{ fila.mes|date:"M Y" }}</td>
-                        <td class="th-monto{% if configuracion_limite_contable.incluir_efectivo %} est-limite-contable-col-activa{% endif %}">${{ fila.total_con_efectivo|pesos }}</td>
-                        <td class="th-monto{% if not configuracion_limite_contable.incluir_efectivo %} est-limite-contable-col-activa{% endif %}">${{ fila.total_sin_efectivo|pesos }}</td>
-                    </tr>
+    <section class="est-summary-overview" aria-label="Indicadores principales">
+        <div class="est-summary-highlights">
+            <article class="est-summary-highlight est-summary-highlight--result {% if ganancia_final < 0 %}is-negative{% endif %}">
+                <div class="est-summary-label-row">
+                    <span class="est-summary-highlight-label">{% if ganancia_final < 0 %}Pérdida del período{% else %}Ganancia del período{% endif %}</span>
+                    <button type="button" class="kai-help-btn" data-help-target="ayuda_resumen_ganancia" aria-label="Qué significa esta ganancia o pérdida" aria-controls="ayuda_resumen_ganancia">?</button>
+                </div>
+                <div class="kai-help-popover" id="ayuda_resumen_ganancia">Es lo que ganaste o perdiste con tus ventas después de costos, gastos y productos perdidos. No es tu saldo de caja.</div>
+                <strong class="est-summary-highlight-value">${{ ganancia_final|pesos }}</strong>
+                <p>Después de costos, gastos y productos perdidos</p>
+                <a href="#estResultadoDetalle">Ver cálculo <span aria-hidden="true">→</span></a>
+            </article>
+            <article class="est-summary-highlight est-summary-highlight--sales">
+                <div class="est-summary-label-row">
+                    <span class="est-summary-highlight-label">Total vendido</span>
+                    <button type="button" class="kai-help-btn" data-help-target="ayuda_resumen_ventas" aria-label="Qué incluye el total vendido" aria-controls="ayuda_resumen_ventas">?</button>
+                </div>
+                <div class="kai-help-popover" id="ayuda_resumen_ventas">Es el valor de tus ventas confirmadas en las fechas elegidas, aunque todavía no las hayas cobrado.</div>
+                <strong class="est-summary-highlight-value">${{ resumen.ingresos|pesos }}</strong>
+                <p>{{ resumen.cantidad_ventas }} venta{{ resumen.cantidad_ventas|pluralize }} · ticket promedio ${{ ticket_promedio|pesos }}</p>
+                {% if comparacion.variacion_ingresos is not None %}
+                <span class="est-summary-change {% if comparacion.variacion_ingresos > 0 %}is-up{% elif comparacion.variacion_ingresos < 0 %}is-down{% endif %}">
+                    {% if comparacion.variacion_ingresos > 0 %}+{% endif %}{{ comparacion.variacion_ingresos|floatformat:0 }}% {{ comparacion_label }}
+                </span>
+                {% else %}
+                <span class="est-summary-change">Sin período anterior comparable</span>
+                {% endif %}
+                <div class="est-kpi-spark" id="sparkVendido"></div>
+            </article>
+            {% if situacion_financiera.posicion_neta %}
+            <article class="est-summary-highlight est-summary-highlight--position">
+                <div class="est-summary-label-row">
+                    <span class="est-summary-highlight-label">Posición neta <small>· hoy</small></span>
+                    <button type="button" class="kai-help-btn" data-help-target="ayuda_resumen_posicion" aria-label="Qué significa la posición neta" aria-controls="ayuda_resumen_posicion">?</button>
+                </div>
+                <div class="kai-help-popover" id="ayuda_resumen_posicion">Es lo que te quedaría, por moneda, si hoy cobraras todo lo que te deben y pagaras tus deudas y cheques pendientes, sumado al saldo que ya tenés en cuenta. Es una proyección: no es plata disponible ahora, es un cálculo de cómo quedarías si saldaras todo hoy mismo.</div>
+                <div class="est-summary-position-list">
+                    {% for p in situacion_financiera.posicion_neta %}
+                    <strong class="est-summary-highlight-value {% if p.total < 0 %}is-negative{% endif %}">${{ p.total|pesos }} <small>{{ p.moneda }}</small></strong>
                     {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </details>
-</div>
-{% endif %}
-
-<!-- ══════════ KPIs PRINCIPALES ══════════ -->
-<div class="est-kpi-grid">
-
-    <!-- Vendiste -->
-    <div class="est-kpi-card">
-        <div class="est-kpi-top">
-            <div class="est-kpi-icon naranja">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M2 3h2l1.5 9.5A2 2 0 0 0 7.5 14H15a2 2 0 0 0 2-1.6L18.5 6H5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="17" r="1.2" fill="currentColor"/><circle cx="15" cy="17" r="1.2" fill="currentColor"/></svg>
-            </div>
-            <div class="est-kpi-label">Total vendido</div>
-        </div>
-        <div class="est-kpi-value">${{ resumen.ingresos|pesos }}</div>
-        {% if comparacion.variacion_ingresos is not None %}
-            <div class="est-kpi-delta {% if comparacion.variacion_ingresos > 0 %}up{% elif comparacion.variacion_ingresos < 0 %}down{% else %}flat{% endif %}">
-                {% if comparacion.variacion_ingresos > 0 %}▲ {{ comparacion.variacion_ingresos|floatformat:0 }}% más{% elif comparacion.variacion_ingresos < 0 %}▼ {{ comparacion.variacion_ingresos|cut:"-"|floatformat:0 }}% menos{% else %}Igual{% endif %}
-                {{ comparacion_label }}
-            </div>
-        {% else %}
-            <div class="est-kpi-sub">Sin datos del período anterior para comparar todavía</div>
-        {% endif %}
-        <div class="est-kpi-spark" id="sparkVendido"></div>
-    </div>
-
-    <!-- Ganaste -->
-    <div class="est-kpi-card">
-        <div class="est-kpi-top">
-            <div class="est-kpi-icon verde">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.7"/><path d="M10 6.5v7M8 8.2c0-.9.9-1.5 2-1.5s2 .6 2 1.4c0 1.9-4 1.2-4 3.1 0 .8.9 1.4 2 1.4s2-.6 2-1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-            </div>
-            <div class="est-kpi-label">Total ganado</div>
-        </div>
-        <div class="est-kpi-value">${{ resumen.ganancia_bruta|pesos }}</div>
-        {% if comparacion.variacion_ganancia is not None %}
-            <div class="est-kpi-delta {% if comparacion.variacion_ganancia > 0 %}up{% elif comparacion.variacion_ganancia < 0 %}down{% else %}flat{% endif %}">
-                {% if comparacion.variacion_ganancia > 0 %}▲ {{ comparacion.variacion_ganancia|floatformat:0 }}% más{% elif comparacion.variacion_ganancia < 0 %}▼ {{ comparacion.variacion_ganancia|cut:"-"|floatformat:0 }}% menos{% else %}Igual{% endif %}
-                {{ comparacion_label }}
-            </div>
-        {% endif %}
-        <div class="est-kpi-sub">De cada $100 vendidos, ganás ${{ resumen.margen_pct|floatformat:0 }}</div>
-        <div class="est-kpi-spark" id="sparkGanado"></div>
-    </div>
-
-    <!-- Ticket promedio -->
-    <div class="est-kpi-card">
-        <div class="est-kpi-top">
-            <div class="est-kpi-icon azul">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="2" y="5" width="16" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M6 5V3.5C6 2.95 6.45 2.5 7 2.5H13C13.55 2.5 14 2.95 14 3.5V5" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="10.5" r="2" stroke="currentColor" stroke-width="1.3"/></svg>
-            </div>
-            <div class="est-kpi-label">Ticket promedio</div>
-        </div>
-        <div class="est-kpi-value">${{ ticket_promedio|pesos }}</div>
-        <div class="est-kpi-sub">{{ resumen.cantidad_ventas }} venta{{ resumen.cantidad_ventas|pluralize }} confirmada{{ resumen.cantidad_ventas|pluralize }}</div>
-    </div>
-
-    <!-- Facturado con ARCA -->
-    <div class="est-kpi-card">
-        <div class="est-kpi-top">
-            <div class="est-kpi-icon morado">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M5 2.5H15V17.5L12.5 16L10 17.5L7.5 16L5 17.5V2.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7.5 6.5H12.5M7.5 9.5H12.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-            </div>
-            <div class="est-kpi-label">Facturado con ARCA</div>
-        </div>
-        <div class="est-kpi-value">${{ facturacion_arca.total_facturado|pesos }}</div>
-        <div class="est-kpi-sub">{{ facturacion_arca.pct_facturado }}% del total vendido — detalle en <a href="{% url 'core:estadisticas_ventas' %}">Ventas</a></div>
-    </div>
-
-    <!-- Total gastado -->
-    <div class="est-kpi-card">
-        <div class="est-kpi-top">
-            <div class="est-kpi-icon gris">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 10a7 7 0 1 1 14 0 7 7 0 0 1-14 0Z" stroke="currentColor" stroke-width="1.7"/><path d="M10 6v4l3 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </div>
-            <div class="est-kpi-label">Total gastado</div>
-        </div>
-        <div class="est-kpi-value">${{ resumen.gastos|pesos }}</div>
-        <div class="est-kpi-sub">Gastos operativos cargados en este período — detalle en <a href="{% url 'core:estadisticas_caja' %}">Caja y Finanzas</a></div>
-    </div>
-
-    <!-- Total perdido -->
-    <div class="est-kpi-card">
-        <div class="est-kpi-top">
-            <div class="est-kpi-icon rojo">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 2 18 16H2L10 2Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M10 8v4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="10" cy="14.3" r="0.9" fill="currentColor"/></svg>
-            </div>
-            <div class="est-kpi-label">Total perdido</div>
-        </div>
-        <div class="est-kpi-value">${{ perdidas_periodo.total_perdidas_periodo|pesos }}</div>
-        <div class="est-kpi-sub">Por vencimiento y mermas — detalle en <a href="{% url 'core:estadisticas_productos' %}">Productos y Stock</a></div>
-    </div>
-
-</div>
-
-<!-- ══════════ RESUMEN COMPLETO DEL PERÍODO (la cuenta, clara) ══════════ -->
-<div class="card mb-4">
-    <div class="card-header">
-        <div>
-            <p class="card-title">Resumen completo del período</p>
-            <p class="text-muted" style="font-size:.8125rem;">Todo lo que entró y salió, en un solo lugar</p>
-        </div>
-    </div>
-    <div class="card-body" style="padding-top:.5rem; padding-bottom:.5rem;">
-        <div class="est-resumen-tabla">
-            <div class="est-resumen-fila" data-monto="{{ resumen.ingresos|floatformat:0 }}" data-tipo="positivo">
-                <span class="est-resumen-bar"></span>
-                <span class="est-resumen-signo">+</span>
-                <span class="est-resumen-concepto">Total vendido</span>
-                <span class="est-resumen-monto">${{ resumen.ingresos|pesos }}</span>
-            </div>
-            <div class="est-resumen-fila" data-monto="{{ resumen.costo_mercaderia|floatformat:0 }}" data-tipo="negativo">
-                <span class="est-resumen-bar"></span>
-                <span class="est-resumen-signo menos">−</span>
-                <span class="est-resumen-concepto">Costo de esa mercadería</span>
-                <span class="est-resumen-monto menos">${{ resumen.costo_mercaderia|pesos }}</span>
-            </div>
-            {% if resumen.cobrado_de_mas %}
-            <div class="est-resumen-fila" data-monto="{{ resumen.cobrado_de_mas|floatformat:0 }}" data-tipo="positivo">
-                <span class="est-resumen-bar"></span>
-                <span class="est-resumen-signo">+</span>
-                <span class="est-resumen-concepto">Redondeos y recargos cobrados</span>
-                <span class="est-resumen-monto">${{ resumen.cobrado_de_mas|pesos }}</span>
-            </div>
+                </div>
+                <p>Proyección por moneda · no es plata disponible</p>
+                {% if puede_ver_caja %}<a href="{% url 'core:estadisticas_caja' %}">Detalle en Caja y Finanzas <span aria-hidden="true">→</span></a>{% endif %}
+            </article>
             {% endif %}
-            <div class="est-resumen-fila subtotal">
-                <span class="est-resumen-signo">=</span>
-                <span class="est-resumen-concepto">Ganancia por las ventas</span>
-                <span class="est-resumen-monto">${{ resumen.ganancia_bruta|pesos }}</span>
-            </div>
-            <div class="est-resumen-fila" data-monto="{{ resumen.gastos|floatformat:0 }}" data-tipo="negativo">
-                <span class="est-resumen-bar"></span>
-                <span class="est-resumen-signo menos">−</span>
-                <span class="est-resumen-concepto">Gastos del período</span>
-                <span class="est-resumen-monto menos">${{ resumen.gastos|pesos }}</span>
-            </div>
-            <div class="est-resumen-fila subtotal">
-                <span class="est-resumen-signo">=</span>
-                <span class="est-resumen-concepto">Te queda en el bolsillo</span>
-                <span class="est-resumen-monto">${{ resumen.ganancia_neta|pesos }}</span>
-            </div>
-            <div class="est-resumen-fila" data-monto="{{ perdidas_periodo.total_vencido_periodo|floatformat:0 }}" data-tipo="negativo">
-                <span class="est-resumen-bar"></span>
-                <span class="est-resumen-signo menos">−</span>
-                <span class="est-resumen-concepto">Perdido por vencimiento en este período</span>
-                <span class="est-resumen-monto menos">${{ perdidas_periodo.total_vencido_periodo|pesos }}</span>
-            </div>
-            <div class="est-resumen-fila" data-monto="{{ perdidas_periodo.total_mermas_periodo|floatformat:0 }}" data-tipo="negativo">
-                <span class="est-resumen-bar"></span>
-                <span class="est-resumen-signo menos">−</span>
-                <span class="est-resumen-concepto">Perdido por rotura / merma en este período</span>
-                <span class="est-resumen-monto menos">${{ perdidas_periodo.total_mermas_periodo|pesos }}</span>
-            </div>
-            <div class="est-resumen-fila total">
-                <span class="est-resumen-signo">=</span>
-                <span class="est-resumen-concepto">Ganancia final real</span>
-                <span class="est-resumen-monto">${{ ganancia_final|pesos }}</span>
-            </div>
+            {% if queda_realmente %}
+            <article class="est-summary-highlight est-summary-highlight--cash {% if queda_realmente.total < 0 %}is-negative{% endif %}">
+                <div class="est-summary-label-row">
+                    <span class="est-summary-highlight-label">Flujo de caja del período</span>
+                    <button type="button" class="kai-help-btn" data-help-target="ayuda_resumen_movimientos" aria-label="Qué significa el flujo de caja del período" aria-controls="ayuda_resumen_movimientos">?</button>
+                </div>
+                <div class="kai-help-popover" id="ayuda_resumen_movimientos">Es cuánto entró y salió realmente de la caja en las fechas elegidas: ventas cobradas y cobros de cuentas por cobrar, menos lo pagado en compras, gastos y deudas. A diferencia de la ganancia, no cuenta lo vendido o comprado a crédito que todavía no se cobró ni pagó — solo movimiento real de plata. No es tu saldo total de caja.</div>
+                <strong class="est-summary-highlight-value">${{ queda_realmente.total|pesos }} <small>ARS</small></strong>
+                <p>{% if queda_realmente.total < 0 %}Salió más de lo que entró{% elif queda_realmente.total > 0 %}Entró más de lo que salió{% else %}Entradas y salidas equilibradas{% endif %} · no es tu saldo de caja</p>
+                <a href="#estMovimientoDetalle">Ver cálculo <span aria-hidden="true">→</span></a>
+            </article>
+            {% endif %}
         </div>
-    </div>
-</div>
+        {% if limite_contable.mensual.estado == 'cerca' or limite_contable.mensual.estado == 'superado' or limite_contable.anual.estado == 'cerca' or limite_contable.anual.estado == 'superado' %}
+        <a class="est-summary-alert" href="#estLimiteContable">
+            Revisá el límite contable: uno de los topes configurados está cerca o fue superado. <span aria-hidden="true">→</span>
+        </a>
+        {% endif %}
+    </section>
 
-<!-- ══════════ TENDENCIA ══════════ -->
-<div class="card">
-    <div class="card-header">
-        <div>
-            <p class="card-title">¿Tu negocio está creciendo?</p>
-            <p class="text-muted" style="font-size:.8125rem;">Ganancia de los últimos 12 meses — si la línea verde sube, vas por buen camino</p>
+    <div class="est-summary-main-grid">
+    <section class="est-summary-section est-summary-section--trend" aria-labelledby="estResumenTendencia">
+        <div class="est-summary-section-heading">
+            <div>
+                <h2 id="estResumenTendencia">Evolución de ventas</h2>
+                <p>Ventas y ganancia antes de gastos · últimos 12 meses, sin aplicar el filtro.</p>
+            </div>
         </div>
-    </div>
-    <div class="card-body">
-        <div class="est-chart-wrap">
-            <canvas id="chartTendencia"></canvas>
-        </div>
-    </div>
-</div>
+        <div class="est-chart-wrap"><canvas id="chartTendencia" aria-label="Evolución mensual de ventas y ganancia antes de gastos" role="img"></canvas></div>
+    </section>
 
+    <section class="est-summary-section" aria-labelledby="estResumenOperativos">
+        <div class="est-summary-section-heading">
+            <div>
+                <h2 id="estResumenOperativos">Otros indicadores</h2>
+            </div>
+        </div>
+        <div class="est-summary-metrics">
+            <article class="est-summary-metric">
+                <div class="est-summary-label-row"><span>Ganancia antes de gastos</span><button type="button" class="kai-help-btn" data-help-target="ayuda_resumen_ganancia_ventas" aria-label="Qué significa la ganancia antes de gastos" aria-controls="ayuda_resumen_ganancia_ventas">?</button></div>
+                <div class="kai-help-popover" id="ayuda_resumen_ganancia_ventas">Es lo que dejaron las ventas tras restar el costo de los productos. Todavía no descuenta gastos ni productos perdidos.</div>
+                <strong>${{ resumen.ganancia_bruta|pesos }}</strong>
+                <small>Margen {{ resumen.margen_pct|floatformat:0 }}% · antes de gastos</small>
+                {% if comparacion.variacion_ganancia is not None %}
+                <span class="est-summary-change {% if comparacion.variacion_ganancia > 0 %}is-up{% elif comparacion.variacion_ganancia < 0 %}is-down{% endif %}">{% if comparacion.variacion_ganancia > 0 %}+{% endif %}{{ comparacion.variacion_ganancia|floatformat:0 }}% {{ comparacion_label }}</span>
+                {% endif %}
+                <div class="est-kpi-spark" id="sparkGanado"></div>
+            </article>
+            {% if compras_periodo %}
+            <article class="est-summary-metric">
+                <div class="est-summary-label-row"><span>Compras del período</span><button type="button" class="kai-help-btn" data-help-target="ayuda_resumen_compras" aria-label="Qué incluyen las compras del período" aria-controls="ayuda_resumen_compras">?</button></div>
+                <div class="kai-help-popover" id="ayuda_resumen_compras">Es el valor de las compras confirmadas en las fechas elegidas, aunque todavía no las hayas pagado.</div>
+                <strong>${{ compras_periodo.total_comprado|pesos }}</strong>
+                <small>{{ compras_periodo.cantidad_compras }} compra{{ compras_periodo.cantidad_compras|pluralize }} · <a href="{% url 'core:estadisticas_compras' %}">Detalle</a></small>
+            </article>
+            {% endif %}
+            <article class="est-summary-metric">
+                <div class="est-summary-label-row"><span>Gastos registrados</span><button type="button" class="kai-help-btn" data-help-target="ayuda_resumen_gastos" aria-label="Qué incluyen los gastos registrados" aria-controls="ayuda_resumen_gastos">?</button></div>
+                <div class="kai-help-popover" id="ayuda_resumen_gastos">Es lo que registraste como gasto en Caja durante las fechas elegidas. No incluye compras ni pagos de deudas.</div>
+                <strong>${{ resumen.gastos|pesos }}</strong>
+                <small>Registrados{% if puede_ver_caja %} · <a href="{% url 'core:estadisticas_caja' %}">Detalle</a>{% endif %}</small>
+            </article>
+            <article class="est-summary-metric">
+                <div class="est-summary-label-row"><span>Productos perdidos</span><button type="button" class="kai-help-btn" data-help-target="ayuda_resumen_perdidas" aria-label="Qué significa productos perdidos" aria-controls="ayuda_resumen_perdidas">?</button></div>
+                <div class="kai-help-popover" id="ayuda_resumen_perdidas">Es lo que costaron los productos vencidos o registrados como pérdida en las fechas elegidas.</div>
+                <strong>${{ perdidas_periodo.total_perdidas_periodo|pesos }}</strong>
+                <small>Vencimientos y mermas{% if puede_ver_productos %} · <a href="{% url 'core:estadisticas_productos' %}">Detalle</a>{% endif %}</small>
+            </article>
+            <article class="est-summary-metric">
+                <div class="est-summary-label-row"><span>Ventas con factura ARCA</span><button type="button" class="kai-help-btn" data-help-target="ayuda_resumen_arca" aria-label="Qué significa ventas con factura ARCA" aria-controls="ayuda_resumen_arca">?</button></div>
+                <div class="kai-help-popover" id="ayuda_resumen_arca">Es el total de comprobantes emitidos con ARCA para las ventas de las fechas elegidas.</div>
+                <strong>${{ facturacion_arca.total_facturado|pesos }}</strong>
+                <small>{{ facturacion_arca.pct_facturado }}% de ventas{% if puede_ver_ventas %} · <a href="{% url 'core:estadisticas_ventas' %}">Detalle</a>{% endif %}</small>
+            </article>
+        </div>
+    </section>
+    </div>
+
+    <section class="est-summary-section" aria-labelledby="estResumenCalculos">
+        <div class="est-summary-section-heading">
+            <div>
+                <span class="est-summary-kicker">Transparencia</span>
+                <h2 id="estResumenCalculos">Cómo se calculan los resultados</h2>
+                <p>Abrí cada desglose cuando necesites revisar qué suma y qué resta.</p>
+            </div>
+        </div>
+        <div class="est-summary-breakdowns">
+            {% if queda_realmente %}
+            <details class="est-summary-breakdown" id="estMovimientoDetalle">
+                <summary><span><strong>Flujo de caja del período</strong><small>Cuenta parcial; no equivale al saldo de caja</small></span><b>${{ queda_realmente.total|pesos }}</b></summary>
+                <div class="est-summary-breakdown-body">
+                    <div class="est-resumen-tabla">
+                        <div class="est-resumen-fila" data-monto="{{ queda_realmente.vendido|floatformat:0 }}" data-tipo="positivo"><span class="est-resumen-bar"></span><span class="est-resumen-signo">+</span><span class="est-resumen-concepto">Total vendido</span><span class="est-resumen-monto">${{ queda_realmente.vendido|pesos }}</span></div>
+                        {% if queda_realmente.vendido_a_cuenta_corriente %}<div class="est-resumen-fila" data-monto="{{ queda_realmente.vendido_a_cuenta_corriente|floatformat:0 }}" data-tipo="negativo"><span class="est-resumen-bar"></span><span class="est-resumen-signo menos">−</span><span class="est-resumen-concepto">Ventas a cuenta corriente aún no cobradas</span><span class="est-resumen-monto menos">${{ queda_realmente.vendido_a_cuenta_corriente|pesos }}</span></div>{% endif %}
+                        {% if queda_realmente.cobrado_cxc %}<div class="est-resumen-fila" data-monto="{{ queda_realmente.cobrado_cxc|floatformat:0 }}" data-tipo="positivo"><span class="est-resumen-bar"></span><span class="est-resumen-signo">+</span><span class="est-resumen-concepto">Cobros de cuentas por cobrar</span><span class="est-resumen-monto">${{ queda_realmente.cobrado_cxc|pesos }}</span></div>{% endif %}
+                        {% if queda_realmente.devuelto %}<div class="est-resumen-fila" data-monto="{{ queda_realmente.devuelto|floatformat:0 }}" data-tipo="negativo"><span class="est-resumen-bar"></span><span class="est-resumen-signo menos">−</span><span class="est-resumen-concepto">Devoluciones</span><span class="est-resumen-monto menos">${{ queda_realmente.devuelto|pesos }}</span></div>{% endif %}
+                        <div class="est-resumen-fila" data-monto="{{ queda_realmente.comprado|floatformat:0 }}" data-tipo="negativo"><span class="est-resumen-bar"></span><span class="est-resumen-signo menos">−</span><span class="est-resumen-concepto">Compras confirmadas</span><span class="est-resumen-monto menos">${{ queda_realmente.comprado|pesos }}</span></div>
+                        {% if queda_realmente.comprado_a_credito %}<div class="est-resumen-fila" data-monto="{{ queda_realmente.comprado_a_credito|floatformat:0 }}" data-tipo="positivo"><span class="est-resumen-bar"></span><span class="est-resumen-signo">+</span><span class="est-resumen-concepto">Parte de compras aún no pagada</span><span class="est-resumen-monto">${{ queda_realmente.comprado_a_credito|pesos }}</span></div>{% endif %}
+                        <div class="est-resumen-fila" data-monto="{{ queda_realmente.gastado|floatformat:0 }}" data-tipo="negativo"><span class="est-resumen-bar"></span><span class="est-resumen-signo menos">−</span><span class="est-resumen-concepto">Gastos operativos</span><span class="est-resumen-monto menos">${{ queda_realmente.gastado|pesos }}</span></div>
+                        <div class="est-resumen-fila" data-monto="{{ queda_realmente.deudas_pagadas|floatformat:0 }}" data-tipo="negativo"><span class="est-resumen-bar"></span><span class="est-resumen-signo menos">−</span><span class="est-resumen-concepto">Deudas y tarjetas pagadas</span><span class="est-resumen-monto menos">${{ queda_realmente.deudas_pagadas|pesos }}</span></div>
+                        <div class="est-resumen-fila total {% if queda_realmente.total < 0 %}ef-total-negativo{% else %}ef-total-positivo{% endif %}"><span class="est-resumen-signo">=</span><span class="est-resumen-concepto">Flujo de caja considerado</span><span class="est-resumen-monto">${{ queda_realmente.total|pesos }}</span></div>
+                    </div>
+                    {% if obligaciones_periodo.por_moneda or cobros_periodo.por_moneda %}
+                    <p class="est-summary-breakdown-note">No incluidos porque siguen pendientes: {% for m in obligaciones_periodo.por_moneda %}${{ m.a_pagar|pesos }} {{ m.moneda }} por pagar{% if not forloop.last %}, {% endif %}{% endfor %}{% if obligaciones_periodo.por_moneda and cobros_periodo.por_moneda %}; {% endif %}{% for m in cobros_periodo.por_moneda %}${{ m.a_cobrar|pesos }} {{ m.moneda }} por cobrar{% if not forloop.last %}, {% endif %}{% endfor %}. <a href="{% url 'core:estadisticas_caja' %}">Ver Caja y Finanzas</a>.</p>
+                    {% endif %}
+                </div>
+            </details>
+            {% endif %}
+            <details class="est-summary-breakdown" id="estResultadoDetalle">
+                <summary><span><strong>{% if ganancia_final < 0 %}Pérdida{% else %}Ganancia{% endif %} del período</strong><small>Después de costos, gastos y productos perdidos; no es saldo de caja</small></span><b>${{ ganancia_final|pesos }}</b></summary>
+                <div class="est-summary-breakdown-body">
+                    <div class="est-resumen-tabla">
+                        <div class="est-resumen-fila" data-monto="{{ resumen.ingresos|floatformat:0 }}" data-tipo="positivo"><span class="est-resumen-bar"></span><span class="est-resumen-signo">+</span><span class="est-resumen-concepto">Ventas</span><span class="est-resumen-monto">${{ resumen.ingresos|pesos }}</span></div>
+                        <div class="est-resumen-fila" data-monto="{{ resumen.costo_mercaderia|floatformat:0 }}" data-tipo="negativo"><span class="est-resumen-bar"></span><span class="est-resumen-signo menos">−</span><span class="est-resumen-concepto">Costo de mercadería vendida</span><span class="est-resumen-monto menos">${{ resumen.costo_mercaderia|pesos }}</span></div>
+                        {% if resumen.cobrado_de_mas %}<div class="est-resumen-fila" data-monto="{{ resumen.cobrado_de_mas|floatformat:0 }}" data-tipo="positivo"><span class="est-resumen-bar"></span><span class="est-resumen-signo">+</span><span class="est-resumen-concepto">Redondeos y recargos cobrados</span><span class="est-resumen-monto">${{ resumen.cobrado_de_mas|pesos }}</span></div>{% endif %}
+                        <div class="est-resumen-fila subtotal"><span class="est-resumen-signo">=</span><span class="est-resumen-concepto">Ganancia antes de gastos</span><span class="est-resumen-monto">${{ resumen.ganancia_bruta|pesos }}</span></div>
+                        <div class="est-resumen-fila" data-monto="{{ resumen.gastos|floatformat:0 }}" data-tipo="negativo"><span class="est-resumen-bar"></span><span class="est-resumen-signo menos">−</span><span class="est-resumen-concepto">Gastos operativos</span><span class="est-resumen-monto menos">${{ resumen.gastos|pesos }}</span></div>
+                        <div class="est-resumen-fila subtotal"><span class="est-resumen-signo">=</span><span class="est-resumen-concepto">Resultado antes de pérdidas</span><span class="est-resumen-monto">${{ resumen.ganancia_neta|pesos }}</span></div>
+                        <div class="est-resumen-fila" data-monto="{{ perdidas_periodo.total_vencido_periodo|floatformat:0 }}" data-tipo="negativo"><span class="est-resumen-bar"></span><span class="est-resumen-signo menos">−</span><span class="est-resumen-concepto">Productos vencidos</span><span class="est-resumen-monto menos">${{ perdidas_periodo.total_vencido_periodo|pesos }}</span></div>
+                        <div class="est-resumen-fila" data-monto="{{ perdidas_periodo.total_mermas_periodo|floatformat:0 }}" data-tipo="negativo"><span class="est-resumen-bar"></span><span class="est-resumen-signo menos">−</span><span class="est-resumen-concepto">Roturas y mermas</span><span class="est-resumen-monto menos">${{ perdidas_periodo.total_mermas_periodo|pesos }}</span></div>
+                        <div class="est-resumen-fila total {% if ganancia_final < 0 %}ef-total-negativo{% else %}ef-total-positivo{% endif %}"><span class="est-resumen-signo">=</span><span class="est-resumen-concepto">{% if ganancia_final < 0 %}Pérdida{% else %}Ganancia{% endif %} del período</span><span class="est-resumen-monto">${{ ganancia_final|pesos }}</span></div>
+                    </div>
+                </div>
+            </details>
+        </div>
+    </section>
+
+    {% if limite_contable %}
+    <section class="est-summary-section est-summary-section--limit" id="estLimiteContable" aria-labelledby="estResumenLimite">
+        <div class="est-summary-section-heading">
+            <div>
+                <span class="est-summary-kicker">Control contable · no depende del filtro</span>
+                <h2 id="estResumenLimite">Límite contable{% if configuracion_limite_contable.nombre_categoria %} · {{ configuracion_limite_contable.nombre_categoria }}{% endif %}</h2>
+                <p>Facturación acumulada, no ganancia. Los porcentajes usan los topes que configuraste.</p>
+            </div>
+        </div>
+        {% if limite_contable.mensual or limite_contable.anual %}
+        <div class="est-summary-limit-grid">
+            {% if limite_contable.mensual %}<div class="est-summary-limit-item"><span>Este mes</span><strong>${{ limite_contable.mensual.total|pesos }}</strong><small>de ${{ limite_contable.mensual.limite|pesos }}</small><span class="est-badge-limite est-badge-limite--{{ limite_contable.mensual.estado }}">{{ limite_contable.mensual.porcentaje|floatformat:1 }}%</span></div>{% endif %}
+            {% if limite_contable.anual %}<div class="est-summary-limit-item"><span>Últimos 12 meses</span><strong>${{ limite_contable.anual.total|pesos }}</strong><small>de ${{ limite_contable.anual.limite|pesos }}</small><span class="est-badge-limite est-badge-limite--{{ limite_contable.anual.estado }}">{{ limite_contable.anual.porcentaje|floatformat:1 }}%</span></div>{% endif %}
+        </div>
+        {% else %}
+        <p class="est-summary-empty">No hay topes configurados. <a href="{% url 'core:configuracion' %}#seccion-limite-contable">Configurar límite contable</a>.</p>
+        {% endif %}
+        <details class="est-summary-limit-detail">
+            <summary>Ver facturación mes a mes</summary>
+            <div class="est-limite-contable-tabla-wrap"><table class="est-limite-contable-tabla"><thead><tr><th>Mes</th><th class="th-monto">Facturación total</th><th class="th-monto">Sin efectivo</th></tr></thead><tbody>{% for fila in limite_contable.serie %}<tr><td>{{ fila.mes|date:"M Y" }}</td><td class="th-monto{% if configuracion_limite_contable.incluir_efectivo %} est-limite-contable-col-activa{% endif %}">${{ fila.total_con_efectivo|pesos }}</td><td class="th-monto{% if not configuracion_limite_contable.incluir_efectivo %} est-limite-contable-col-activa{% endif %}">${{ fila.total_sin_efectivo|pesos }}</td></tr>{% endfor %}</tbody></table></div>
+        </details>
+    </section>
+    {% endif %}
+</div>
 {% endif %}
-
 {% endblock %}
 
 {% block extra_js %}
 {% if not sin_permiso %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-<script src="{% static 'core/js/estadisticas.js' %}"></script>
+<script src="{% static 'core/js/estadisticas.js' %}?v=20260921c"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const serieMensual = {{ serie_mensual_json|safe }};
-        initChartTendencia(serieMensual);
+        if (window.Chart) {
+            initChartTendencia(serieMensual);
+        } else {
+            document.querySelector('.est-summary-section--trend .est-chart-wrap').innerHTML = '<p class="est-summary-empty">No se pudo cargar el gráfico de tendencia.</p>';
+        }
         initSparkline('sparkVendido', serieMensual.map(f => f.ingresos), '#F26A1B');
         initSparkline('sparkGanado', serieMensual.map(f => f.ganancia), '#10B981');
         initResumenBars();
+        document.querySelectorAll('.est-summary-highlight a[href^="#"]').forEach(function (link) {
+            link.addEventListener('click', function () {
+                const target = document.getElementById(link.getAttribute('href').slice(1));
+                if (target && target.tagName === 'DETAILS') target.open = true;
+            });
+        });
     });
 </script>
 {% endif %}

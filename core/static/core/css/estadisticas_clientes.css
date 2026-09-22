@@ -1,0 +1,53 @@
+/* Clientes: saldos actuales primero, actividad filtrada después. */
+.est-clients-heading { align-items: center; }
+.est-clients-search { width: min(100%, 350px); flex: 0 1 350px; }
+.est-clients-search label { display: block; margin: 0 0 0.18rem; color: var(--text-muted); font-size: 0.67rem; font-weight: 700; }
+.est-clients-search #ecBuscador { min-height: 36px; padding: 0.4rem 0.65rem; font-size: 0.76rem; }
+.est-clients-search .cp-buscador-resultados { z-index: 30; }
+.est-clients-search .cp-buscador-item { color: var(--text-primary); text-decoration: none; }
+.est-clients-search .cp-buscador-item:focus-visible { outline: 2px solid var(--brand-orange); outline-offset: -2px; background: var(--brand-orange-light); }
+.est-clients-section { margin-bottom: 0.8rem; }
+.est-clients-section-heading { margin: 0 0 0.55rem; }
+.est-clients-section-heading h2 { margin: 0; font-family: var(--font-heading); font-size: 0.97rem; font-weight: 750; }
+.est-clients-section-heading p { margin: 0.14rem 0 0; color: var(--text-muted); font-size: 0.72rem; line-height: 1.35; }
+.est-clients-highlight--pending { border-left-color: var(--brand-blue); }
+.est-clients-highlight--pending .est-summary-highlight-value { color: var(--brand-blue); }
+.est-clients-highlight--overdue { border-left-color: var(--warning); }
+.est-clients-highlight--soon { border-left-color: var(--brand-orange); }
+.est-clients-highlight--collected { border-left-color: var(--success); }
+.est-clients-highlight--collected .est-summary-highlight-value { color: var(--success); }
+.est-clients-section .est-summary-highlights { margin-bottom: 0.65rem; }
+.est-clients-rank-panel { scroll-margin-top: 0.8rem; }
+.est-clients-currency-panel { margin-bottom: 0.65rem; }
+.est-clients-currency-values { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; padding: 0.35rem 0 0.55rem; border-top: 1px solid var(--border-color); }
+.est-clients-currency-values > div { min-width: 0; }
+.est-clients-currency-values span { display: block; color: var(--text-muted); font-size: 0.65rem; }
+.est-clients-currency-values strong { display: block; margin-top: 0.15rem; font-size: 0.78rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.est-clients-currency-panel .est-sales-simple-row a { color: var(--brand-blue); text-decoration: none; }
+.est-clients-foreign-collected { margin: -0.1rem 0 0.65rem; color: var(--text-secondary); font-size: 0.7rem; }
+.est-clients-rank-panel .est-sales-panel-heading { align-items: baseline; }
+.est-clients-rank-panel .est-sales-rank-info a { color: inherit; text-decoration: none; }
+.est-clients-rank-panel .est-sales-rank-info a:hover { color: var(--brand-blue); text-decoration: underline; }
+.est-clients-rank-panel .est-sales-rank-value { color: var(--text-primary); }
+.est-clients-rank-panel .est-sales-rank-value strong { font-size: 0.82rem; }
+.est-clients-foreign-ranking { margin-top: 0.55rem; }
+.est-clients-foreign-ranking a { color: var(--brand-blue); text-decoration: none; }
+.est-clients-foreign-ranking a:hover { text-decoration: underline; }
+.est-clients-detail-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.7rem; }
+.est-clients-detail-grid > * { min-width: 0; }
+.est-clients-simple-row { display: flex; justify-content: space-between; gap: 0.5rem; padding: 0.45rem 0; border-bottom: 1px solid var(--border-color); font-size: 0.72rem; }
+.est-clients-simple-row:last-child { border-bottom: 0; }
+.est-clients-simple-row a { min-width: 0; color: var(--text-primary); font-weight: 700; text-decoration: none; overflow-wrap: anywhere; }
+.est-clients-simple-row a:hover { color: var(--brand-blue); text-decoration: underline; }
+.est-clients-simple-row small { flex: 0 0 auto; max-width: 48%; color: var(--text-muted); text-align: right; }
+.est-clients-page .est-summary-filters { margin-bottom: 0.65rem; }
+@media (max-width: 960px) {
+    .est-clients-detail-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 620px) {
+    .est-clients-heading { align-items: stretch; gap: 0.55rem; }
+    .est-clients-search { width: 100%; flex: 1 1 auto; }
+    .est-clients-rank-panel .est-sales-panel-heading { align-items: start; flex-direction: column; gap: 0.1rem; }
+    .est-clients-current-highlights .est-summary-highlight:last-child { grid-column: 1 / -1; min-height: 95px; }
+    .est-clients-currency-values { grid-template-columns: 1fr 1fr; }
+}

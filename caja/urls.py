@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views, views_gastos, views_caja_diaria, views_transacciones, views_deudas, views_cheques, views_cuentas_cobrar, views_cuenta_corriente, views_recargos, views_bienes, views_celulares
+from . import views, views_gastos, views_caja_diaria, views_transacciones, views_deudas, views_resumenes_tarjeta, views_cheques, views_cuentas_cobrar, views_cuenta_corriente, views_recargos, views_bienes, views_celulares
 
 app_name = 'caja'
 
@@ -59,6 +59,7 @@ urlpatterns = [
     path('deudas/<int:pk>/abonar/',          views_deudas.RegistrarAbonoAjax.as_view(), name='registrar_abono_deuda'),
     path('deudas/<int:pk>/cuotas/',          views_deudas.EditarCuotasDeudaAjax.as_view(), name='editar_cuotas_deuda'),
     path('deudas/<int:pk>/convertir-variable/', views_deudas.ConvertirDeudaVariableAjax.as_view(), name='convertir_deuda_variable'),
+    path('deudas/<int:pk>/cerrar-monto-desconocido/', views_deudas.CerrarMontoDesconocidoAjax.as_view(), name='cerrar_monto_desconocido_deuda'),
     path('deudas/cuota/<int:pk>/editar/',    views_deudas.EditarCuotaDeudaAjax.as_view(),   name='editar_cuota_deuda'),
     path('deudas/cuota/<int:pk>/eliminar/',  views_deudas.EliminarCuotaDeudaAjax.as_view(), name='eliminar_cuota_deuda'),
     path('deudas/cuota/<int:pk>/marcar-pagada/', views_deudas.MarcarCuotaPagadaAjax.as_view(), name='marcar_cuota_pagada'),
@@ -66,6 +67,16 @@ urlpatterns = [
     path('deudas/previsualizar-cuotas/',     views_deudas.PrevisualizarCuotasAjax.as_view(),   name='previsualizar_cuotas_deuda'),
     path('deudas/documentos/subir/',         views_deudas.DeudaDocumentoSubirAjax.as_view(),   name='deuda_documento_subir'),
     path('deudas/documentos/eliminar/',      views_deudas.DeudaDocumentoEliminarAjax.as_view(), name='deuda_documento_eliminar'),
+
+    # ══════════════════════════════════════════════════════════════════
+    #  Resúmenes de tarjeta (agrupan cuotas de compra_credito)
+    # ══════════════════════════════════════════════════════════════════
+    path('deudas/resumenes-tarjeta/',            views_resumenes_tarjeta.ResumenesTarjetaView.as_view(),       name='resumenes_tarjeta'),
+    path('deudas/resumenes/listar/',            views_resumenes_tarjeta.ListarResumenesTarjetaAjax.as_view(), name='listar_resumenes_tarjeta'),
+    path('deudas/resumenes/<int:pk>/',          views_resumenes_tarjeta.DetalleResumenTarjetaAjax.as_view(),  name='detalle_resumen_tarjeta'),
+    path('deudas/resumenes/<int:pk>/ajuste/',   views_resumenes_tarjeta.EditarAjusteResumenAjax.as_view(),    name='editar_ajuste_resumen_tarjeta'),
+    path('deudas/resumenes/<int:pk>/pagar/',    views_resumenes_tarjeta.PagarResumenTarjetaAjax.as_view(),    name='pagar_resumen_tarjeta'),
+    path('deudas/resumenes/<int:pk>/deshacer-pago/', views_resumenes_tarjeta.DeshacerPagoResumenAjax.as_view(), name='deshacer_pago_resumen_tarjeta'),
 
     # ══════════════════════════════════════════════════════════════════
     #  AJAX — Cuentas por cobrar (ventas en cuotas)

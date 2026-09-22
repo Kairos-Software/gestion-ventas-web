@@ -75,7 +75,7 @@ def home(request):
     # ── Alertas de stock / vencimientos ──────────────────────────────
     if permisos['productos'] or permisos['stock']:
         ctx['stock_bajo_count'] = Producto.objects.filter(
-            gestiona_stock=True, stock_actual__gt=0,
+            gestiona_stock=True, stock_minimo__gt=0,
             stock_actual__lte=F('stock_minimo'),
         ).count()
         ctx['lotes_vencidos_count'] = LoteCompra.objects.filter(
@@ -105,7 +105,7 @@ def home(request):
             })
 
         productos_stock_bajo = Producto.objects.filter(
-            gestiona_stock=True, stock_actual__gt=0,
+            gestiona_stock=True, stock_minimo__gt=0,
             stock_actual__lte=F('stock_minimo'),
         ).order_by('stock_actual')[:5]
         for p in productos_stock_bajo:

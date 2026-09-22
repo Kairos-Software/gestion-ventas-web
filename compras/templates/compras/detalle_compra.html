@@ -7,7 +7,7 @@
 {% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'compras/css/compras.css' %}?v=20260919">
+<link rel="stylesheet" href="{% static 'compras/css/compras.css' %}?v=20260921a">
 <style>
 /* ══════════════════════════════════════════════════════════════
    MEDIOS DE PAGO (sidebar borrador) — mismo patrón que Ventas
@@ -266,10 +266,15 @@
 }
 
 .vdt-cheque-plan-nota {
-    font-size: .74rem;
-    font-style: italic;
-    color: var(--text-muted);
-    margin: 0;
+    margin: .65rem 0 .2rem;
+    padding: .72rem .8rem;
+    border: 1px solid rgba(245, 158, 11, .3);
+    border-radius: 10px;
+    background: rgba(245, 158, 11, .08);
+    color: var(--text-secondary);
+    font-size: .76rem;
+    font-style: normal;
+    line-height: 1.5;
 }
 
 .cmp-medio-pago-badge {
@@ -438,7 +443,7 @@
                             </td>
                             <td style="text-align:right">
                                 <span class="cdt-moneda-chip">{{ item.moneda }}</span>
-                                {{ item.costo_unitario|pesos }}
+                                {{ item.costo_unitario|pesos:4 }}
                                 {% if item.descuento_pct %}
                                     <span style="font-size:.72rem;color:var(--success)">-{{ item.descuento_pct }}%</span>
                                 {% endif %}
@@ -502,7 +507,7 @@
                             </td>
                             <td>{{ item.nombre_proveedor_display }}</td>
                             <td>{{ item.cantidad|floatformat:"-3" }}</td>
-                            <td>{{ item.costo_unitario|pesos }}</td>
+                            <td>{{ item.costo_unitario|pesos:4 }}</td>
                             <td>
                                 {% if item.descuento_pct %}{{ item.descuento_pct }}%
                                 {% else %}<span class="cdt-muted">—</span>{% endif %}
@@ -892,7 +897,7 @@ window.CDT_CONFIG = {
     tarjetas: JSON.parse(document.getElementById('tarjetas-data').textContent),
 };
 </script>
-<script src="{% static 'compras/js/detalle_compra.js' %}?v=20260912b"></script>
+<script src="{% static 'compras/js/detalle_compra.js' %}?v=20260921a"></script>
 <script>
 function cdtActualizarBadge() {
     const total = document.getElementById('cdtDocLista')

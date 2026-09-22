@@ -4,7 +4,7 @@
 {% block title %}Cuenta corriente{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'caja/css/cuenta_corriente.css' %}?v=20260908.6">
+<link rel="stylesheet" href="{% static 'caja/css/cuenta_corriente.css' %}?v=20260921a">
 <link rel="stylesheet" href="{% static 'core/css/selector_impresion.css' %}?v=2026090801">
 {% endblock %}
 
@@ -23,10 +23,12 @@
 
     <header class="cc-header">
         <div>
+            <span class="cc-eyebrow">Clientes</span>
             <h1 class="cc-title kai-label-help">
                 Cuenta corriente
                 <button type="button" class="kai-help-btn" data-help-target="ayuda_cc" aria-label="Cómo funciona">?</button>
             </h1>
+            <p class="cc-subtitle">Consultá saldos, movimientos y cobros de cada cliente desde un solo lugar.</p>
             <div class="kai-help-popover" id="ayuda_cc">
                 Cada cliente tiene <strong>un solo saldo</strong>: la suma de todo lo que debe.
                 Cuando paga, ponés el monto y el sistema lo descuenta solo, empezando por la
@@ -87,7 +89,7 @@
 </div>
 
 <!-- ══ MODAL DETALLE CLIENTE ══ -->
-<div class="modal" id="ccModalCliente" hidden role="dialog" aria-modal="true" aria-labelledby="ccClienteTitulo">
+<div class="modal" id="ccModalCliente" hidden role="dialog" aria-modal="true" aria-labelledby="ccClienteTitulo" tabindex="-1">
     <div class="modal-backdrop" data-cc-cerrar></div>
     <div class="modal-content modal-content--ancho">
         <div class="modal-header">
@@ -130,7 +132,7 @@
 </div>
 
 <!-- ══ MODAL COBRAR ══ -->
-<div class="modal" id="ccModalCobrar" hidden role="dialog" aria-modal="true" aria-labelledby="ccCobrarTitulo ccCobrarCliente">
+<div class="modal" id="ccModalCobrar" hidden role="dialog" aria-modal="true" aria-labelledby="ccCobrarTitulo ccCobrarCliente" tabindex="-1">
     <div class="modal-backdrop" data-cc-cobrar-cerrar></div>
     <div class="modal-content">
         <div class="modal-header">

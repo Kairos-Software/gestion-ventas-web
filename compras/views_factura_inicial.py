@@ -86,6 +86,12 @@ def _q(v):
     return _d(v).quantize(Decimal('0.01'))
 
 
+def _q4(v):
+    """Igual que `_q` pero a 4 decimales — para costo/precio UNITARIO
+    (ItemCompra.costo_unitario), nunca para totales/montos de pago."""
+    return _d(v).quantize(Decimal('0.0001'))
+
+
 def _fmt_dec(d):
     """Decimal → string en punto fijo, sin notación científica ('1E+1')
     ni ceros de más. 10.00 → '10', 10.50 → '10.5'."""
@@ -599,7 +605,7 @@ class FacturaInicialListarAjax(LoginRequiredMixin, View):
                             'codigo': cod,
                             'variante': it.nombre_combinacion_display,
                             'cantidad': _fmt_dec(it.cantidad),
-                            'costo': str(_q(it.costo_unitario)),
+                            'costo': str(_q4(it.costo_unitario)),
                         })
 
             filas.append({
@@ -653,7 +659,7 @@ def _serializar_item_fi(it, compra):
         'entero': bool(prod and not cantidad_valida_para_unidad(
             prod.unidad_medida, Decimal('0.5'))),
         'cantidad': _fmt_dec(it.cantidad),
-        'costo': str(_q(it.costo_unitario)),
+        'costo': str(_q4(it.costo_unitario)),
         'subtotal': str(it.subtotal),
         'consumido': _fmt_dec(consumido) if consumido > 0 else '',
         'editable': (compra.estado == EstadoCompra.CONFIRMADA
@@ -765,7 +771,7 @@ class FacturaInicialCorregirItemAjax(LoginRequiredMixin, View):
 
                 # ── aplicar ──
                 item.cantidad = nueva_cant
-                item.costo_unitario = _q(nuevo_costo)
+                item.costo_unitario = _q4(nuevo_costo)
                 item.save(update_fields=['cantidad', 'costo_unitario'])
 
                 if lotes:

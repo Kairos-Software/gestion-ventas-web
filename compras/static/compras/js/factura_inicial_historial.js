@@ -24,9 +24,10 @@ function _esc(s) {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
         .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
-function _fmt(v) {
+function _fmt(v, decimales) {
+    const d = decimales == null ? 2 : decimales;
     return '$ ' + (parseFloat(v) || 0).toLocaleString('es-AR', {
-        minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        minimumFractionDigits: d, maximumFractionDigits: d });
 }
 function _incluye(hay, aguja) {
     return String(hay || '').toLowerCase().includes(String(aguja || '').toLowerCase());
@@ -229,7 +230,7 @@ function _itemRow(pk, it) {
             ${consumido}
         </td>
         <td class="r" data-cell="cantidad">${_esc(it.cantidad)}</td>
-        <td class="r" data-cell="costo">${_fmt(it.costo)}</td>
+        <td class="r" data-cell="costo">${_fmt(it.costo, 4)}</td>
         <td class="r" data-cell="subtotal">${_fmt(it.subtotal)}</td>
         <td class="fih-item-actions">${acciones}</td>
     </tr>`;
@@ -248,7 +249,7 @@ function _editarItem(pk, tr, it) {
     tr.querySelector('[data-cell="cantidad"]').innerHTML =
         `<input class="fih-edit-inp" type="number" min="0" step="${step}" value="${_esc(it.cantidad)}" data-e="cantidad">`;
     tr.querySelector('[data-cell="costo"]').innerHTML =
-        `<input class="fih-edit-inp" type="number" min="0" step="0.01" value="${_esc(it.costo)}" data-e="costo">`;
+        `<input class="fih-edit-inp" type="number" min="0" step="0.0001" value="${_esc(it.costo)}" data-e="costo">`;
     tr.querySelector('.fih-item-actions').innerHTML = `
         <button class="fi-hist-btn" data-e-act="guardar">Guardar</button>
         <button class="fi-hist-btn" data-e-act="cancelar">Cancelar</button>`;

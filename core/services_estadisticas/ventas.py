@@ -17,7 +17,7 @@ from django.db.models.functions import TruncMonth, ExtractWeekDay
 
 from ventas.models import (
     ItemVenta, Venta, EstadoVenta, ConsumoLoteVenta, PagoVenta, MedioPago,
-    ComprobanteArca, TipoComprobante,
+    ComprobanteArca, TipoComprobante, DevolucionVenta,
 )
 from caja.models import Gasto, TipoMovimientoCaja
 
@@ -77,6 +77,48 @@ def _cobrado_de_mas(desde, hasta):
         .aggregate(r=Sum('recargo_monto'), d=Sum('redondeo_monto'))
     )
     return (agg['r'] or Decimal('0')) + (agg['d'] or Decimal('0'))
+
+
+def monto_vendido_a_cuenta_corriente(desde, hasta):
+    """
+    Porción de `resumen_ganancia()['ingresos']` que quedó a cuenta
+    corriente (CxC) en vez de cobrarse en el momento de la venta — no es
+    plata que ya tengas en la mano, por eso "Total vendido" NO se puede
+    usar tal cual como entrada de caja: hay que restarle esto y sumar en
+    su lugar lo que efectivamente se cobró de CxC en el período (ver
+    services_estadisticas.caja.cxc_cobrado_blend), sea de esta venta o de
+    una anterior.
+
+    `CuentaPorCobrar.monto_original` es el precio de venta SIN interés —
+    la misma base que usa `ingresos` (subtotal de ítems, sin recargos) —
+    así que restar uno del otro no mezcla peras con manzanas.
+    """
+    from caja.models import CuentaPorCobrar
+    total = (
+        CuentaPorCobrar.objects
+        .filter(pago_venta__venta__estado=EstadoVenta.CONFIRMADA,
+                pago_venta__venta__fecha__range=(desde, hasta))
+        .aggregate(total=Sum('monto_original'))['total']
+    )
+    return total or Decimal('0')
+
+
+def resumen_devoluciones(desde, hasta):
+    """
+    Plata efectivamente reembolsada en devoluciones del período (fecha
+    contable de la devolución, no de la venta original). Un cambio sin
+    devolver plata (`monto=0`, o sin `cuenta`) no cuenta acá — no salió
+    caja real.
+    """
+    agg = (
+        DevolucionVenta.objects
+        .filter(fecha__range=(desde, hasta), cuenta__isnull=False)
+        .aggregate(total=Sum('monto'), cantidad=Count('pk'))
+    )
+    return {
+        'total_devuelto': agg['total'] or Decimal('0'),
+        'cantidad': agg['cantidad'] or 0,
+    }
 
 
 def resumen_ganancia(desde, hasta):

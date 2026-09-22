@@ -5,7 +5,7 @@
 {% block title %}Créditos y préstamos{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'caja/css/deudas.css' %}?v=20260914d">
+<link rel="stylesheet" href="{% static 'caja/css/deudas.css' %}?v=20260921e">
 {% endblock %}
 
 {% block content %}
@@ -24,9 +24,10 @@
          ENCABEZADO
     ══════════════════════════════════ -->
     <header class="deudas-header">
-        <div>
+        <div class="deudas-header-copy">
+            <span class="deudas-eyebrow">Finanzas</span>
             <h1 class="deudas-title">Créditos y préstamos</h1>
-            <p class="deudas-subtitle">Compras con tarjeta, con cheque y préstamos, con su plan de cuotas. Ninguna cuota impacta caja hasta que se confirma.</p>
+            <p class="deudas-subtitle">Controlá lo que debés, los próximos vencimientos y cada pago desde un solo lugar.</p>
         </div>
         {% if puede_crear %}
         <button type="button" class="btn btn-primary" id="btnNuevaDeuda">
@@ -41,14 +42,46 @@
     <!-- ══════════════════════════════════
          TOTAL ADEUDADO
     ══════════════════════════════════ -->
-    <div class="deudas-totales" id="deudasTotales"></div>
+    <div class="deudas-dashboard-grid">
+    <section class="deudas-overview" aria-labelledby="deudasOverviewTitle">
+        <div class="deudas-overview-heading">
+            <div>
+                <span class="deudas-section-kicker">Situación actual</span>
+                <h2 class="deudas-section-title" id="deudasOverviewTitle">Saldo pendiente</h2>
+            </div>
+            <span class="deudas-overview-note">Solo incluye deudas activas</span>
+        </div>
+        <div class="deudas-totales" id="deudasTotales"></div>
+    </section>
+
+    <!-- ══════════════════════════════════
+         RESÚMENES DE TARJETA
+    ══════════════════════════════════ -->
+    <section class="deudas-section deudas-panel deudas-panel--summaries">
+        <div class="deudas-filtros-header">
+            <div>
+                <span class="deudas-section-kicker">Próximos cierres</span>
+                <h2 class="deudas-section-title">Resúmenes de tarjeta</h2>
+                <p class="deudas-section-meta">Lo próximo a pagarle a cada tarjeta — junta en un solo total las cuotas de todas las compras a crédito (celular, sofá, lo que sea) que vencen en el mismo período.</p>
+            </div>
+            <a href="{{ url_resumenes_tarjeta }}" class="btn btn-ghost btn-sm">Ver todos los resúmenes →</a>
+        </div>
+        <div class="deudas-resumenes-wrap" id="resumenesTarjetaWrap">
+            <p class="deudas-tabla-loading">Cargando…</p>
+        </div>
+    </section>
+
+    </div>
 
     <!-- ══════════════════════════════════
          FILTROS
     ══════════════════════════════════ -->
-    <section class="deudas-section">
+    <section class="deudas-section deudas-panel deudas-panel--filters">
         <div class="deudas-filtros-header">
-            <h2 class="deudas-section-title">Historial</h2>
+            <div>
+                <span class="deudas-section-kicker">Todos los movimientos</span>
+                <h2 class="deudas-section-title">Historial de deudas</h2>
+            </div>
             <button type="button" class="btn-filtros-toggle" id="btnToggleFiltros" aria-expanded="false">
                 <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
                     <path d="M2 4H14M4.5 8H11.5M7 12H9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
@@ -98,7 +131,7 @@
     <!-- ══════════════════════════════════
          TABLA
     ══════════════════════════════════ -->
-    <section class="deudas-section">
+    <section class="deudas-section deudas-panel deudas-panel--table">
         <div class="deudas-tabla-wrap">
             <table class="deudas-tabla">
                 <thead>
@@ -126,7 +159,7 @@
 <!-- ══════════════════════════════════
      MODAL NUEVA DEUDA
 ══════════════════════════════════ -->
-<div class="modal" id="modalDeuda" hidden>
+<div class="modal" id="modalDeuda" role="dialog" aria-modal="true" aria-labelledby="modalDeudaTitle" tabindex="-1" hidden>
     <div class="modal-backdrop" id="modalBackdrop"></div>
     <div class="modal-content modal-content--ancho deudas-alta-modal">
         <div class="modal-header">
@@ -347,15 +380,19 @@
                         </label>
                         <div class="kai-help-popover" id="ayuda_interes">
                             Elegí el que tengas — con uno solo alcanza, el resto se calcula. Si no sabés
-                            <strong>ninguno</strong> de los tres (ni el interés, ni el total, ni la cuota), pasate
-                            a <strong>Cuotas variables</strong> arriba: ahí cargás las cuotas como las vayas
-                            teniendo y el interés se calcula solo, sin que lo tengas que saber de antemano.
+                            <strong>ninguno</strong> de los tres (ni el interés, ni el total, ni la cuota) pero
+                            tenés algunas cuotas con fecha y monto (aunque no todas), pasate a
+                            <strong>Cuotas variables</strong> arriba. Si en cambio es un préstamo informal
+                            donde vas pagando montos sueltos y el total real recién se sabe cuando termines de
+                            pagar, elegí <strong>"No lo sé todavía"</strong> (abonos libres).
                         </div>
                         <div class="deudas-interes-seg" role="group" aria-label="Qué dato del interés tenés">
                             <button type="button" class="deudas-interes-seg-btn deudas-interes-seg-btn--active" data-int="pct" aria-pressed="true">Interés %</button>
                             <button type="button" class="deudas-interes-seg-btn" data-int="total" aria-pressed="false">Total a pagar</button>
                             <button type="button" class="deudas-interes-seg-btn" data-int="cuota" aria-pressed="false">Valor de cuota</button>
+                            <button type="button" class="deudas-interes-seg-btn" id="btnIntDesconocido" data-int="desconocido" aria-pressed="false" hidden>No lo sé todavía</button>
                         </div>
+                        <input type="hidden" id="dMontoDesconocido" name="monto_desconocido" value="">
                         <div class="deudas-interes-campos">
                             <input type="number" id="dInteres" name="porcentaje_interes" step="0.01" min="0" value="0" placeholder="Interés %" inputmode="decimal">
                             <input type="number" id="dTotalPagar" step="0.01" min="0" placeholder="Total que vas a devolver" inputmode="decimal" hidden>
@@ -405,7 +442,8 @@
                             se calcula recién cuando estén cargadas las 72.
                         </div>
                     </div>
-                    <div class="form-campo">
+                    <button type="button" class="btn btn-ghost btn-sm" id="btnMostrarPlanTotal">¿El banco te muestra menos cuotas de las que tiene en total?</button>
+                    <div class="form-campo" id="campoPlanTotal" hidden>
                         <label for="dPlanTotal">Cantidad total de cuotas del préstamo <span class="deudas-label-opt">· opcional</span></label>
                         <input type="number" id="dPlanTotal" step="1" min="1" placeholder="ej: 72">
                     </div>
@@ -494,7 +532,7 @@
 <!-- ══════════════════════════════════
      MODAL DETALLE DEUDA (cuotas)
 ══════════════════════════════════ -->
-<div class="modal" id="modalDetalle" hidden>
+<div class="modal" id="modalDetalle" role="dialog" aria-modal="true" aria-labelledby="detalleTitle" tabindex="-1" hidden>
     <div class="modal-backdrop" id="modalDetalleBackdrop"></div>
     <div class="modal-content modal-content--ancho deudas-detalle-modal">
         <div class="modal-header">
@@ -548,11 +586,21 @@
 
                 <div class="deudas-registrar-abono" id="deudasRegistrarAbono" hidden>
                     <div>
-                        <span>Saldo pendiente</span>
+                        <span id="raSaldoTitle">Saldo pendiente</span>
                         <strong id="raSaldoLabel"></strong>
                     </div>
                     <div class="deudas-registrar-abono-acciones">
                         <button type="button" class="btn btn-primary" id="btnAbonar">Registrar un pago</button>
+                    </div>
+                </div>
+
+                <div class="deudas-registrar-abono" id="deudasCerrarMontoDesconocido" hidden>
+                    <div>
+                        <span>Total y tasa real</span>
+                        <strong>Se definen cuando termines de pagar</strong>
+                    </div>
+                    <div class="deudas-registrar-abono-acciones">
+                        <button type="button" class="btn btn-secondary" id="btnCerrarMontoDesconocido">Ya no debo nada más</button>
                     </div>
                 </div>
             </section>
@@ -583,11 +631,17 @@
 <!-- ══════════════════════════════════
      MODAL PAGAR CUOTA / ABONO (pago dividido)
 ══════════════════════════════════ -->
-<div class="modal" id="modalPagoCuota" hidden>
+<div class="modal" id="modalPagoCuota" role="dialog" aria-modal="true" aria-labelledby="pagoCuotaTitle" tabindex="-1" hidden>
     <div class="modal-backdrop" id="modalPagoCuotaBackdrop"></div>
-    <div class="modal-content">
+    <div class="modal-content deudas-dialog deudas-dialog--payment">
         <div class="modal-header">
-            <h2 class="modal-title" id="pagoCuotaTitle">Registrar pago</h2>
+            <div class="deudas-dialog-heading">
+                <span class="deudas-dialog-icon deudas-dialog-icon--success" aria-hidden="true">$</span>
+                <div>
+                    <span class="deudas-dialog-kicker">Movimiento de caja</span>
+                    <h2 class="modal-title" id="pagoCuotaTitle">Registrar pago</h2>
+                </div>
+            </div>
             <button type="button" class="modal-close" id="btnCerrarPagoCuota" aria-label="Cerrar">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                     <path d="M5 5L15 15M5 15L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -595,6 +649,7 @@
             </button>
         </div>
         <div class="modal-body">
+            <p class="deudas-dialog-intro">Elegí desde qué cuenta sale el dinero. Podés dividir el importe entre varios medios.</p>
             <div class="deudas-pago-objetivo" id="pagoCuotaObjetivoFijo">
                 <span>A pagar</span>
                 <strong id="pagoCuotaObjetivo">$ 0,00</strong>
@@ -611,11 +666,17 @@
                 </div>
             </div>
 
-            <div class="deudas-pago-lineas" id="pagoCuotaLineas"></div>
-            <div class="deudas-cuotas-headrow-actions">
-                <button type="button" class="btn btn-ghost btn-sm" id="btnAgregarLineaPago">+ Agregar medio de pago</button>
-                <button type="button" class="kai-help-btn" data-help-target="ayuda_pago_dividido" aria-label="¿Para qué sirve esto?">?</button>
-            </div>
+            <section class="deudas-dialog-section" aria-labelledby="pagoMediosTitle">
+                <div class="deudas-dialog-section-head">
+                    <div>
+                        <span class="deudas-dialog-label">Distribución</span>
+                        <h3 id="pagoMediosTitle">Medios de pago</h3>
+                    </div>
+                    <button type="button" class="kai-help-btn" data-help-target="ayuda_pago_dividido" aria-label="¿Para qué sirve esto?">?</button>
+                </div>
+                <div class="deudas-pago-lineas" id="pagoCuotaLineas"></div>
+                <button type="button" class="btn btn-ghost btn-sm deudas-add-row" id="btnAgregarLineaPago">+ Agregar otro medio</button>
+            </section>
             <div class="kai-help-popover" id="ayuda_pago_dividido">
                 Podés repartir este pago entre varias cuentas — por ejemplo, mitad en efectivo y mitad por
                 transferencia. Cada línea que agregues resta del total; cuando sumen exacto, se habilita
@@ -625,6 +686,7 @@
             <div id="pagoCuotaMsg" class="deudas-inline-msg"></div>
 
             <div class="modal-footer">
+                <button type="button" class="btn btn-ghost" id="btnCancelarPagoCuota">Cancelar</button>
                 <button type="button" class="btn btn-ghost" id="btnPagarConCheque">Pagar con cheque</button>
                 <button type="button" class="btn btn-primary" id="btnConfirmarPagoCuota">Confirmar pago</button>
             </div>
@@ -635,11 +697,17 @@
 <!-- ══════════════════════════════════
      MODAL EDITAR CUOTA (formulario, no prompts del navegador)
 ══════════════════════════════════ -->
-<div class="modal" id="modalEditarCuota" hidden>
+<div class="modal" id="modalEditarCuota" role="dialog" aria-modal="true" aria-labelledby="ecTitle" tabindex="-1" hidden>
     <div class="modal-backdrop" id="modalEditarCuotaBackdrop"></div>
-    <div class="modal-content">
+    <div class="modal-content deudas-dialog">
         <div class="modal-header">
-            <h2 class="modal-title" id="ecTitle">Editar cuota</h2>
+            <div class="deudas-dialog-heading">
+                <span class="deudas-dialog-icon" aria-hidden="true">✎</span>
+                <div>
+                    <span class="deudas-dialog-kicker">Plan de pago</span>
+                    <h2 class="modal-title" id="ecTitle">Editar cuota</h2>
+                </div>
+            </div>
             <button type="button" class="modal-close" id="btnCerrarEditarCuota" aria-label="Cerrar">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                     <path d="M5 5L15 15M5 15L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -647,6 +715,7 @@
             </button>
         </div>
         <div class="modal-body">
+            <p class="deudas-dialog-intro">Corregí el vencimiento, el importe o los datos asociados al pago.</p>
             <div class="deudas-form-grid">
                 <div class="form-campo">
                     <label for="ecVencimiento">Vencimiento *</label>
@@ -688,11 +757,17 @@
 <!-- ══════════════════════════════════
      MODAL MARCAR CUOTA COMO PAGADA (carga inicial)
 ══════════════════════════════════ -->
-<div class="modal" id="modalMarcarPagada" hidden>
+<div class="modal" id="modalMarcarPagada" role="dialog" aria-modal="true" aria-labelledby="mpTitle" tabindex="-1" hidden>
     <div class="modal-backdrop" id="modalMarcarPagadaBackdrop"></div>
-    <div class="modal-content">
+    <div class="modal-content deudas-dialog deudas-dialog--compact">
         <div class="modal-header">
-            <h2 class="modal-title" id="mpTitle">Marcar como pagada</h2>
+            <div class="deudas-dialog-heading">
+                <span class="deudas-dialog-icon deudas-dialog-icon--success" aria-hidden="true">✓</span>
+                <div>
+                    <span class="deudas-dialog-kicker">Pago anterior</span>
+                    <h2 class="modal-title" id="mpTitle">Marcar como pagada</h2>
+                </div>
+            </div>
             <button type="button" class="modal-close" id="btnCerrarMarcarPagada" aria-label="Cerrar">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                     <path d="M5 5L15 15M5 15L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -700,7 +775,10 @@
             </button>
         </div>
         <div class="modal-body">
-            <p class="deudas-edicion-nota">No genera ningún movimiento de caja — se asume que esa plata ya salió antes de cargar el sistema.</p>
+            <div class="deudas-dialog-alert deudas-dialog-alert--info">
+                <strong>No afecta la caja actual</strong>
+                <span>Se registra como un pago realizado antes de empezar a usar el sistema.</span>
+            </div>
             <div class="form-campo">
                 <label for="mpFecha">¿Qué día se pagó esta cuota? *</label>
                 <input type="date" id="mpFecha" required>
@@ -717,11 +795,17 @@
 <!-- ══════════════════════════════════
      MODAL PAGAR CUOTA CON CHEQUE
 ══════════════════════════════════ -->
-<div class="modal" id="modalChequeCuota" hidden>
+<div class="modal" id="modalChequeCuota" role="dialog" aria-modal="true" aria-labelledby="modalChequeCuotaTitle" tabindex="-1" hidden>
     <div class="modal-backdrop" id="modalChequeCuotaBackdrop"></div>
-    <div class="modal-content">
+    <div class="modal-content deudas-dialog deudas-dialog--cheque">
         <div class="modal-header">
-            <h2 class="modal-title">Pagar cuota con cheque</h2>
+            <div class="deudas-dialog-heading">
+                <span class="deudas-dialog-icon deudas-dialog-icon--cheque" aria-hidden="true">Ch</span>
+                <div>
+                    <span class="deudas-dialog-kicker">Pago diferido</span>
+                    <h2 class="modal-title" id="modalChequeCuotaTitle">Pagar cuota con cheque</h2>
+                </div>
+            </div>
             <button type="button" class="modal-close" id="btnCerrarChequeCuota" aria-label="Cerrar">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                     <path d="M5 5L15 15M5 15L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -729,10 +813,15 @@
             </button>
         </div>
         <div class="modal-body">
-            <p style="font-size:.8125rem; color:var(--text-muted); margin:0 0 .75rem;">
+            <p id="cchcMontoNota" class="deudas-dialog-intro deudas-dialog-intro--highlight">
                 El cheque tiene que ser por el monto exacto de este pago: <strong id="cchcMontoLabel"></strong>.
                 La nota del cheque queda cargada sola con la cuota y la operación de origen.
             </p>
+            <div class="deudas-cheque-grid">
+            <div class="form-campo" id="cchcCampoMonto" hidden>
+                <label for="cchcMonto">Monto a pagar *</label>
+                <input type="number" id="cchcMonto" step="0.01" min="0.01">
+            </div>
             <div class="form-campo">
                 <label for="cchc_numero_cheque">N° de cheque</label>
                 <input type="text" id="cchc_numero_cheque" placeholder="Opcional">
@@ -765,7 +854,8 @@
                 <label for="cchc_emisor">Emisor (opcional, firmante propio)</label>
                 <input type="text" id="cchc_emisor" placeholder="Opcional">
             </div>
-            <div id="cchcMsg" style="color:#dc2626; font-size:.8125rem; margin-bottom:.5rem;"></div>
+            </div>
+            <div id="cchcMsg" class="deudas-inline-msg"></div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-ghost" id="btnCancelarChequeCuota">Cancelar</button>
                 <button type="button" class="btn btn-primary" id="btnGuardarChequeCuota">Confirmar con cheque</button>
@@ -792,6 +882,7 @@
         registrarAbono: '{{ url_registrar_abono }}',
         editarCuotas: '{{ url_editar_cuotas }}',
         convertirVariable: '{{ url_convertir_variable }}',
+        cerrarMontoDesconocido: '{{ url_cerrar_monto_desconocido }}',
         editarCuota: '{{ url_editar_cuota }}',
         eliminarCuota: '{{ url_eliminar_cuota }}',
         marcarPagada: '{{ url_marcar_cuota_pagada }}',
@@ -799,12 +890,19 @@
         previsualizarCuotas: '{{ url_previsualizar_cuotas }}',
         documentoSubir: '{{ url_documento_subir }}',
         documentoEliminar: '{{ url_documento_eliminar }}',
+        cheques: '{{ url_cheques }}',
     };
     window.deudasToday = '{{ today }}';
     window.deudasPuedeConfirmar = {{ puede_confirmar|yesno:"true,false" }};
     window.deudasPuedeEditar = {{ puede_editar|yesno:"true,false" }};
+
+    window.resumenesTarjetaUrls = {
+        listar: '{{ url_listar_resumenes_tarjeta }}',
+        pagina: '{{ url_resumenes_tarjeta }}',
+    };
 </script>
-<script src="{% static 'caja/js/deudas.js' %}?v=20260914d"></script>
-<script src="{% static 'caja/js/deudas_documentos.js' %}"></script>
-<script src="{% static 'caja/js/deudas_imprimir.js' %}?v=2026091701"></script>
+<script src="{% static 'caja/js/deudas.js' %}?v=20260921g"></script>
+<script src="{% static 'caja/js/deudas_documentos.js' %}?v=20260921a"></script>
+<script src="{% static 'caja/js/deudas_imprimir.js' %}?v=20260921a"></script>
+<script src="{% static 'caja/js/resumenes_tarjeta_widget.js' %}?v=20260921b"></script>
 {% endblock %}

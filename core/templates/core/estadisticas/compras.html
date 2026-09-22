@@ -1,167 +1,169 @@
 {% extends "core/base.html" %}
-{% load static humanize %}
+{% load static kai_formato %}
 
 {% block title %}Estadísticas — Compras{% endblock %}
 {% block breadcrumb %}<strong>Estadísticas</strong> · Compras{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'core/css/estadisticas.css' %}?v=20260903">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas_resumen.css' %}?v=20260921c">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas_ventas.css' %}?v=20260921a">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas_compras.css' %}?v=20260921a">
 {% endblock %}
 
 {% block content %}
-
 {% if sin_permiso %}
-<div class="est-sin-permiso">
-    <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
-        <path d="M12 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-        <circle cx="12" cy="16.2" r="0.9" fill="currentColor"/>
-    </svg>
-    <p>No tenés permiso para ver estadísticas de compras.</p>
-</div>
+<div class="est-sin-permiso"><p>No tenés permiso para ver estadísticas de compras.</p></div>
 {% else %}
-
-{% include "core/estadisticas/_filtros.html" %}
-
-<!-- ══════════ KPIs ══════════ -->
-<div class="est-kpi-grid">
-    <div class="est-kpi-card">
-        <div class="est-kpi-top">
-            <div class="est-kpi-icon azul">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 4H6L7.2 10.6C7.3 11.1 7.75 11.46 8.26 11.46H15C15.5 11.46 15.94 11.1 16.04 10.6L17.5 4H6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="15.5" r="1.2" stroke="currentColor" stroke-width="1.3"/><circle cx="15" cy="15.5" r="1.2" stroke="currentColor" stroke-width="1.3"/></svg>
-            </div>
-            <div class="est-kpi-label">Total comprado</div>
-        </div>
-        <div class="est-kpi-value">${{ resumen.total_comprado|floatformat:0|intcomma }}</div>
-        {% if comparacion.variacion_total_comprado is not None %}
-            <div class="est-kpi-delta {% if comparacion.variacion_total_comprado > 0 %}down{% elif comparacion.variacion_total_comprado < 0 %}up{% else %}flat{% endif %}">
-                {% if comparacion.variacion_total_comprado > 0 %}▲ {{ comparacion.variacion_total_comprado }}% más{% elif comparacion.variacion_total_comprado < 0 %}▼ {{ comparacion.variacion_total_comprado|cut:"-" }}% menos{% else %}Igual{% endif %}
-                {{ comparacion_label }}
-            </div>
-        {% else %}
-            <div class="est-kpi-sub">Sin datos del período anterior para comparar todavía</div>
-        {% endif %}
-        <div class="est-kpi-spark" id="sparkComprado"></div>
-    </div>
-
-    <div class="est-kpi-card">
-        <div class="est-kpi-top">
-            <div class="est-kpi-icon gris">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="2" y="5" width="16" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M6 5V3.5C6 2.95 6.45 2.5 7 2.5H13C13.55 2.5 14 2.95 14 3.5V5" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="10.5" r="2" stroke="currentColor" stroke-width="1.3"/></svg>
-            </div>
-            <div class="est-kpi-label">Compras confirmadas</div>
-        </div>
-        <div class="est-kpi-value">{{ resumen.cantidad_compras }}</div>
-        <div class="est-kpi-sub">en este período</div>
-    </div>
-</div>
-
-<!-- ══════════ TENDENCIA + PROVEEDORES ══════════ -->
-<div class="est-row">
-    <div class="card">
-        <div class="card-header">
-            <div>
-                <p class="card-title">¿Cuánto estás comprando mes a mes?</p>
-                <p class="text-muted" style="font-size:.8125rem;">Total comprado, últimos 12 meses</p>
-            </div>
-        </div>
-        <div class="card-body">
-            <div class="est-chart-wrap">
-                <canvas id="chartComprasTendencia"></canvas>
-            </div>
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="card-header">
-            <div>
-                <p class="card-title">¿A quién le comprás más?</p>
-                <p class="text-muted" style="font-size:.8125rem;">Proveedores del período, por total comprado</p>
-            </div>
-        </div>
-        <div class="card-body">
-            {% if ranking_proveedores %}
-                {% for p in ranking_proveedores %}
-                <div class="est-ranking-row" data-valor="{{ p.total|floatformat:0 }}">
-                    <span class="est-ranking-bar"></span>
-                    <div class="est-ranking-left">
-                        <span class="est-ranking-pos">{{ forloop.counter }}</span>
-                        <div>
-                            <div class="est-ranking-nombre">{{ p.nombre }}</div>
-                            <div class="est-ranking-detalle">{{ p.cant_compras }} compra{{ p.cant_compras|pluralize }}</div>
-                        </div>
-                    </div>
-                    <div class="est-ranking-right">
-                        <div class="est-ranking-monto"><span class="est-ranking-etiqueta">le compraste</span>${{ p.total|floatformat:0|intcomma }}</div>
-                    </div>
-                </div>
-                {% endfor %}
-            {% else %}
-                <div class="empty-state">
-                    <p>Todavía no hay compras confirmadas con proveedor en este período.</p>
-                </div>
-            {% endif %}
-        </div>
-    </div>
-</div>
-
-<!-- ══════════ COMPRAS POR MEDIO DE PAGO ══════════ -->
-<div class="card">
-    <div class="card-header">
+<div class="est-summary-page est-purchases-page">
+    <header class="est-summary-heading">
         <div>
-            <p class="card-title">¿Cómo le pagaste a tus proveedores?</p>
-            <p class="text-muted" style="font-size:.8125rem;">Agrupado también por moneda — no se mezclan pesos con dólares</p>
+            <h1>Compras</h1>
+            <p>Del {{ desde|date:'d/m/Y' }} al {{ hasta|date:'d/m/Y' }}</p>
         </div>
-    </div>
-    <div class="card-body">
-        {% if por_medio_pago %}
-            <div class="est-row-2" style="align-items:center;">
-                <div>
-                    {% for m in por_medio_pago %}
-                    <div class="est-ranking-row" data-valor="{{ m.total|floatformat:0 }}">
-                        <span class="est-ranking-bar"></span>
-                        <div class="est-ranking-left">
-                            <div>
-                                <div class="est-ranking-nombre">{{ m.medio_label }}</div>
-                                <div class="est-ranking-detalle">{{ m.moneda }}</div>
-                            </div>
-                        </div>
-                        <div class="est-ranking-right">
-                            <div class="est-ranking-monto">${{ m.total|floatformat:0|intcomma }}</div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% if por_medio_pago_ars_json != '[]' %}
-                <div class="est-chart-wrap chico">
-                    <canvas id="chartMedioPagoCompras"></canvas>
-                </div>
-                {% endif %}
-            </div>
-        {% else %}
-            <div class="empty-state">
-                <p>Todavía no hay pagos a proveedores registrados en este período.</p>
-            </div>
-        {% endif %}
-    </div>
-</div>
+    </header>
 
+    <form id="estComprasPresetForm" method="get"></form>
+    <div class="est-summary-filters" role="group" aria-label="Período de compras">
+        <button form="estComprasPresetForm" type="submit" name="preset" value="hoy" class="btn btn-sm {% if preset == 'hoy' %}btn-primary{% else %}btn-secondary{% endif %}">Hoy</button>
+        <button form="estComprasPresetForm" type="submit" name="preset" value="semana" class="btn btn-sm {% if preset == 'semana' %}btn-primary{% else %}btn-secondary{% endif %}">7 días</button>
+        <button form="estComprasPresetForm" type="submit" name="preset" value="mes_actual" class="btn btn-sm {% if preset == 'mes_actual' %}btn-primary{% else %}btn-secondary{% endif %}">Este mes</button>
+        <button form="estComprasPresetForm" type="submit" name="preset" value="mes_anterior" class="btn btn-sm {% if preset == 'mes_anterior' %}btn-primary{% else %}btn-secondary{% endif %}">Mes anterior</button>
+        <button form="estComprasPresetForm" type="submit" name="preset" value="anio" class="btn btn-sm {% if preset == 'anio' %}btn-primary{% else %}btn-secondary{% endif %}">Este año</button>
+        <details class="est-summary-custom-range" {% if preset == 'personalizado' %}open{% endif %}>
+            <summary>Elegir fechas</summary>
+            <form method="get">
+                <input type="hidden" name="preset" value="personalizado">
+                <label>Desde <input type="date" name="desde" value="{{ desde|date:'Y-m-d' }}" required></label>
+                <label>Hasta <input type="date" name="hasta" value="{{ hasta|date:'Y-m-d' }}" required></label>
+                <button type="submit" class="btn btn-sm btn-primary">Aplicar</button>
+            </form>
+        </details>
+    </div>
+
+    {% if resumen.cantidad_compras %}
+    <section class="est-summary-overview" aria-label="Indicadores principales de compras">
+        <div class="est-summary-highlights">
+            <article class="est-summary-highlight est-summary-highlight--cash">
+                <div class="est-summary-label-row">
+                    <span class="est-summary-highlight-label">Total comprado</span>
+                    <button type="button" class="kai-help-btn" data-help-target="ayuda_compras_total" aria-label="Qué significa total comprado" aria-controls="ayuda_compras_total">?</button>
+                </div>
+                <div class="kai-help-popover" id="ayuda_compras_total">Es el valor de los productos comprados, aunque todavía no los hayas pagado. No suma el IVA agregado aparte.</div>
+                <strong class="est-summary-highlight-value">${{ resumen.total_comprado|pesos }}</strong>
+                <p>Mercadería comprada en este período</p>
+                {% if comparacion.variacion_total_comprado is not None %}
+                <span class="est-summary-change est-purchases-change {% if comparacion.variacion_total_comprado > 0 %}is-down{% elif comparacion.variacion_total_comprado < 0 %}is-up{% endif %}">{% if comparacion.variacion_total_comprado > 0 %}+{% endif %}{{ comparacion.variacion_total_comprado|floatformat:0 }}% vs. {{ comparacion.anterior_desde|date:'d/m' }}–{{ comparacion.anterior_hasta|date:'d/m' }}</span>
+                {% else %}<span class="est-summary-change">Sin período anterior comparable</span>{% endif %}
+                <div class="est-kpi-spark" id="sparkComprado"></div>
+            </article>
+            <article class="est-summary-highlight est-summary-highlight--sales">
+                <div class="est-summary-label-row">
+                    <span class="est-summary-highlight-label">Compras realizadas</span>
+                    <button type="button" class="kai-help-btn" data-help-target="ayuda_compras_cantidad" aria-label="Qué cuenta como compra realizada" aria-controls="ayuda_compras_cantidad">?</button>
+                </div>
+                <div class="kai-help-popover" id="ayuda_compras_cantidad">Cuenta las compras confirmadas, no la cantidad de productos comprados.</div>
+                <strong class="est-summary-highlight-value">{{ resumen.cantidad_compras }}</strong>
+                <p>No incluye cargas iniciales de stock</p>
+            </article>
+            <article class="est-summary-highlight est-summary-highlight--position">
+                <div class="est-summary-label-row">
+                    <span class="est-summary-highlight-label">Promedio por compra</span>
+                    <button type="button" class="kai-help-btn" data-help-target="ayuda_compras_promedio" aria-label="Qué significa promedio por compra" aria-controls="ayuda_compras_promedio">?</button>
+                </div>
+                <div class="kai-help-popover" id="ayuda_compras_promedio">Es el total comprado dividido por la cantidad de compras confirmadas.</div>
+                <strong class="est-summary-highlight-value">${{ promedio_compra|pesos }}</strong>
+                <p>Valor promedio, no un pago realizado</p>
+            </article>
+        </div>
+    </section>
+    {% else %}
+    <div class="est-sales-empty-panel est-purchases-empty-panel"><h2>Sin compras en este período</h2><p>Probá otro rango de fechas; la evolución mensual de abajo sigue mostrando los últimos 12 meses.</p></div>
+    {% endif %}
+
+    <div class="est-purchases-main-grid">
+        <section class="est-sales-panel est-purchases-chart" aria-labelledby="estComprasEvolucion">
+            <div class="est-sales-panel-heading"><div><h2 id="estComprasEvolucion">Compras mes a mes</h2><p>Últimos 12 meses · no depende del filtro de fechas</p></div></div>
+            {% if serie_tiene_datos %}
+            <div class="est-chart-wrap"><canvas id="chartComprasTendencia" aria-label="Evolución mensual de compras durante los últimos 12 meses" role="img"></canvas></div>
+            {% else %}<p class="est-sales-empty">No hubo compras confirmadas en los últimos 12 meses.</p>{% endif %}
+        </section>
+
+        <section class="est-sales-panel" aria-labelledby="estComprasProveedores">
+            <div class="est-sales-panel-heading"><div><h2 id="estComprasProveedores">Proveedores principales</h2><p>Ordenados por valor comprado en el período</p></div><span>{{ ranking_proveedores|length }} destacados</span></div>
+            {% if ranking_proveedores %}
+            <ol class="est-sales-rank-list">
+                {% for p in ranking_proveedores|slice:':3' %}
+                <li class="est-sales-rank-item"><span class="est-sales-rank-number">{{ forloop.counter }}</span><div class="est-sales-rank-info"><strong>{{ p.nombre }}</strong><small>{{ p.cant_compras }} compra{{ p.cant_compras|pluralize }}</small></div><div class="est-sales-rank-value"><strong>${{ p.total|pesos }}</strong><small>comprado</small></div></li>
+                {% endfor %}
+            </ol>
+            {% if ranking_proveedores|length > 3 %}
+            <details class="est-sales-expand"><summary>Ver más proveedores</summary><ol class="est-sales-rank-list" start="4">
+                {% for p in ranking_proveedores|slice:'3:' %}
+                <li class="est-sales-rank-item"><span class="est-sales-rank-number">{{ forloop.counter|add:3 }}</span><div class="est-sales-rank-info"><strong>{{ p.nombre }}</strong><small>{{ p.cant_compras }} compra{{ p.cant_compras|pluralize }}</small></div><div class="est-sales-rank-value"><strong>${{ p.total|pesos }}</strong><small>comprado</small></div></li>
+                {% endfor %}
+            </ol></details>
+            {% endif %}
+            {% else %}<p class="est-sales-empty">No hay compras con proveedor identificado en este período.</p>{% endif %}
+        </section>
+    </div>
+
+    <section class="est-sales-section" aria-labelledby="estComprasPagos">
+        <div class="est-sales-section-heading"><div><h2 id="estComprasPagos">Detalle de pagos</h2><p>Consultá los medios usados al registrar las compras.</p></div></div>
+        <details class="est-sales-detail est-purchases-payment">
+            <summary><span><strong>Medios de pago registrados</strong><small>Importes separados por moneda</small></span></summary>
+            <div class="est-sales-detail-body">
+                <div class="est-purchases-payment-grid">
+                    <div>
+                        {% for m in por_medio_pago %}<div class="est-sales-simple-row"><span>{{ m.medio_label }} <small>· {{ m.moneda }}</small></span><strong>${{ m.total|pesos }}</strong></div>
+                        {% empty %}<p class="est-sales-empty">No hay medios de pago registrados para estas compras.</p>{% endfor %}
+                    </div>
+                    {% if por_medio_pago_ars_json != '[]' %}<div class="est-chart-wrap est-purchases-payment-chart"><canvas id="chartMedioPagoCompras" aria-label="Medios de pago en pesos" role="img"></canvas></div>{% endif %}
+                </div>
+                <p class="est-sales-note">El medio registrado puede ser tarjeta, cheque o crédito; no significa que ya salió dinero de caja. El gráfico solo muestra los pagos en pesos.</p>
+            </div>
+        </details>
+    </section>
+</div>
 {% endif %}
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-<script src="{% static 'core/js/estadisticas.js' %}"></script>
+{% if not sin_permiso %}
+<script src="{% static 'core/js/estadisticas.js' %}?v=20260921c"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        const serieMensual = {{ serie_mensual_json|safe }};
-        initChartComprasTendencia(serieMensual);
-        initSparkline('sparkComprado', serieMensual.map(f => f.total), '#1E6FA8');
-        initChartDonut('chartMedioPagoCompras', {{ por_medio_pago_ars_json|safe }}, {
-            'Efectivo': '#10B981', 'Transferencia': '#1E6FA8',
-            'Débito': '#F26A1B', 'QR': '#F59E0B', 'Crédito (tarjeta)': '#8B5CF6',
-        }, { valueKey: 'total', formatValue: (v) => '$' + v.toLocaleString('es-AR') });
-        initRankingBars();
+        {% if serie_tiene_datos %}
+        initSparkline('sparkComprado', {{ serie_mensual_json|safe }}.map(f => f.total), '#1E6FA8');
+        {% endif %}
     });
 </script>
+{% if serie_tiene_datos or por_medio_pago_ars_json != '[]' %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        if (!window.Chart) {
+            document.querySelectorAll('.est-purchases-chart .est-chart-wrap, .est-purchases-payment-chart').forEach(function (el) {
+                el.innerHTML = '<p class="est-sales-empty">No se pudo cargar el gráfico.</p>';
+            });
+            return;
+        }
+        {% if serie_tiene_datos %}initChartComprasTendencia({{ serie_mensual_json|safe }});{% endif %}
+        {% if por_medio_pago_ars_json != '[]' %}
+        // Vive dentro de un <details> colapsado: se inicializa al abrirse,
+        // porque Chart.js mide un lienzo oculto como 0x0.
+        const detMedioPago = document.getElementById('chartMedioPagoCompras').closest('details');
+        detMedioPago.addEventListener('toggle', function () {
+            if (!detMedioPago.open || detMedioPago.dataset.loaded) return;
+            detMedioPago.dataset.loaded = 'true';
+            initChartDonut('chartMedioPagoCompras', {{ por_medio_pago_ars_json|safe }}, {
+                'Efectivo': '#10B981', 'Transferencia': '#1E6FA8',
+                'Débito': '#F26A1B', 'QR': '#F59E0B', 'Crédito (tarjeta)': '#8B5CF6',
+            }, { valueKey: 'total', formatValue: (v) => '$' + v.toLocaleString('es-AR') });
+        });
+        {% endif %}
+    });
+</script>
+{% endif %}
+{% endif %}
 {% endblock %}

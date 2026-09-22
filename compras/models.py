@@ -64,23 +64,28 @@ class TipoDocumentoCompra(models.TextChoices):
 # ══════════════════════════════════════════════════════════════════
 
 def _grossear_con_iva(monto, alicuota_iva):
-    """monto NETO (sin IVA) → monto con el IVA de `alicuota_iva` sumado."""
+    """monto NETO (sin IVA) → monto con el IVA de `alicuota_iva` sumado.
+
+    Quantiza a 4 decimales (no 2): el resultado es un costo UNITARIO
+    (ver _costo_para_lote), que ahora se guarda con esa precisión."""
     if not alicuota_iva or monto is None:
         return monto
     alicuota = Decimal(alicuota_iva)
     if alicuota == 0:
         return monto
-    return (monto * (Decimal('1') + alicuota / Decimal('100'))).quantize(Decimal('0.01'))
+    return (monto * (Decimal('1') + alicuota / Decimal('100'))).quantize(Decimal('0.0001'))
 
 
 def _netear_iva(monto, alicuota_iva):
-    """monto CON IVA → monto sin IVA (neto), según `alicuota_iva`."""
+    """monto CON IVA → monto sin IVA (neto), según `alicuota_iva`.
+
+    Quantiza a 4 decimales — mismo motivo que _grossear_con_iva."""
     if not alicuota_iva or monto is None:
         return monto
     alicuota = Decimal(alicuota_iva)
     if alicuota == 0:
         return monto
-    return (monto / (Decimal('1') + alicuota / Decimal('100'))).quantize(Decimal('0.01'))
+    return (monto / (Decimal('1') + alicuota / Decimal('100'))).quantize(Decimal('0.0001'))
 
 
 def _costo_para_lote(item):
@@ -196,10 +201,11 @@ def _resolver_pagos_compra(compra, pagos):
     plan de cuotas), o None si `pagos` es None (no se tocan los pagos
     existentes).
 
-    Para medio=CHEQUE esto solo define el PLAN de pago (cuotas fijas o
-    libres) — no pide ningún cheque concreto todavía. El/los cheques
-    reales de cada cuota se cargan después, desde el detalle de la
-    Deuda en Créditos y préstamos (ver `_crear_deudas_desde_pagos` y
+    Para medio=CHEQUE esto no pide ningún cheque concreto todavía — nace
+    siempre en modo_cuotas=LIBRE (una deuda de cheques no tiene cronograma
+    mensual, se cubre con los cheques que hagan falta, del monto que sea).
+    El/los cheques reales se cargan después, uno por uno, desde el detalle
+    de la Deuda en Créditos y préstamos (ver `_crear_deudas_desde_pagos` y
     `caja.models.CuotaDeuda.confirmar_con_cheque`). medio=CUENTA_CORRIENTE
     tampoco pide cuenta: no hay ninguna real involucrada, la línea
     queda sin `cuenta` (None).
@@ -275,6 +281,14 @@ def _resolver_pagos_compra(compra, pagos):
                 raise ValueError('Porcentaje de interés inválido.')
             if interes_pct < 0:
                 raise ValueError('El porcentaje de interés no puede ser negativo.')
+            if medio == MedioPagoCompra.CHEQUE and modo_cuotas != ModoCuotas.LIBRE:
+                # Un cheque no tiene cronograma mensual: se cubre con los
+                # cheques que hagan falta, del monto que sea, a medida que
+                # se emiten — ver Deuda.crear_con_cuotas (mismo chequeo).
+                raise ValueError(
+                    'Una compra pagada con cheque no tiene un plan de cuotas fijo — se cubre '
+                    'con los cheques que hagan falta, del monto que sea.'
+                )
             if modo_cuotas == ModoCuotas.LIBRE:
                 # Cuotas libres: no hay plan ni fecha de inicio que pedir
                 # — la deuda nace sin CuotaDeuda, se va pagando después
@@ -612,10 +626,14 @@ class Compra(models.Model):
 
     @property
     def neto(self):
-        """Total sin IVA. None si no es Factura o no tiene alícuota cargada."""
+        """Total sin IVA. None si no es Factura o no tiene alícuota cargada.
+
+        `_netear_iva` ahora quantiza a 4 decimales (la comparten los costos
+        UNITARIOS de compras/models.py) — acá se vuelve a redondear a 2
+        porque esto es un TOTAL, no un costo por unidad."""
         if self.tipo_documento != TipoDocumentoCompra.FACTURA or not self.alicuota_iva:
             return None
-        return _netear_iva(self.total, self.alicuota_iva)
+        return _netear_iva(self.total, self.alicuota_iva).quantize(Decimal('0.01'))
 
     @property
     def monto_iva(self):
@@ -944,7 +962,7 @@ class ItemCompra(models.Model):
 
     # — Cantidades y costos —
     cantidad        = models.DecimalField(max_digits=12, decimal_places=3)
-    costo_unitario  = models.DecimalField('Costo unitario', max_digits=12, decimal_places=2)
+    costo_unitario  = models.DecimalField('Costo unitario', max_digits=14, decimal_places=4)
     moneda          = models.CharField(max_length=5, choices=Moneda.choices, default=Moneda.ARS)
 
     # — Descuento opcional —
@@ -1322,8 +1340,8 @@ class LoteCompra(models.Model):
     )
     costo_unitario = models.DecimalField(
         'Costo unitario',
-        max_digits=12,
-        decimal_places=2,
+        max_digits=14,
+        decimal_places=4,
         help_text='Costo unitario de este lote (para cálculo de ganancias).'
     )
 
@@ -1444,9 +1462,9 @@ class Perdida(models.Model):
     combinacion_desc_snapshot = models.CharField(max_length=300, blank=True)
 
     cantidad = models.DecimalField(max_digits=12, decimal_places=3)
-    costo_unitario_snapshot = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    costo_unitario_snapshot = models.DecimalField(max_digits=14, decimal_places=4, default=0)
     precio_venta_unitario_snapshot = models.DecimalField(
-        max_digits=12, decimal_places=2, default=0,
+        max_digits=14, decimal_places=4, default=0,
         help_text='Precio de venta del producto al momento de la pérdida — para saber no '
                    'solo lo que costó, sino lo que se dejó de facturar por venderlo.',
     )
@@ -1634,7 +1652,7 @@ class Fraccionamiento(models.Model):
         help_text='Cuánto de producto_origen se usó para armar los paquetes.',
     )
     costo_unitario_calculado = models.DecimalField(
-        max_digits=12, decimal_places=2,
+        max_digits=14, decimal_places=4,
         help_text='Costo de cada unidad de producto_destino, calculado desde el costo real de origen consumido.',
     )
 
@@ -1750,7 +1768,7 @@ def fraccionar(producto_origen, producto_destino, cantidad_origen, cantidad_paqu
         usuario  = usuario,
     ).save()
 
-    costo_unitario_calculado = (costo_total_consumido / cantidad_paquetes).quantize(Decimal('0.01'))
+    costo_unitario_calculado = (costo_total_consumido / cantidad_paquetes).quantize(Decimal('0.0001'))
 
     # ── Lote nuevo + movimiento de entrada (producto de destino) ─────
     lote_destino = LoteCompra.objects.create(

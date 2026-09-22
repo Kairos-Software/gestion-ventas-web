@@ -5,7 +5,7 @@
 {% block title %}Cheques{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'caja/css/cheques.css' %}">
+<link rel="stylesheet" href="{% static 'caja/css/cheques.css' %}?v=20260921f">
 {% endblock %}
 
 {% block content %}
@@ -24,9 +24,10 @@
          ENCABEZADO
     ══════════════════════════════════ -->
     <header class="chq-header">
-        <div>
+        <div class="chq-header-copy">
+            <span class="chq-eyebrow">Finanzas</span>
             <h1 class="chq-title">Cheques</h1>
-            <p class="chq-subtitle">Cheques a cobrar (de terceros) y a pagar (propios). Ninguno impacta caja hasta que se confirma.</p>
+            <p class="chq-subtitle">Revisá los cheques propios y de terceros, sus vencimientos y su impacto real en caja.</p>
         </div>
         {% if puede_crear %}
         <button type="button" class="btn btn-primary" id="btnNuevoCheque">
@@ -41,9 +42,13 @@
     <!-- ══════════════════════════════════
          FILTROS
     ══════════════════════════════════ -->
-    <section class="chq-section">
+    <section class="chq-section chq-panel chq-panel--filters">
         <div class="chq-filtros-header">
-            <h2 class="chq-section-title">Historial</h2>
+            <div>
+                <span class="chq-section-kicker">Todos los movimientos</span>
+                <h2 class="chq-section-title">Historial de cheques</h2>
+                <p class="chq-section-meta">Un cheque recién mueve dinero cuando confirmás que se cobró o se pagó.</p>
+            </div>
             <button type="button" class="btn-filtros-toggle" id="btnToggleFiltros" aria-expanded="false">
                 <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
                     <path d="M2 4H14M4.5 8H11.5M7 12H9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
@@ -95,7 +100,7 @@
     <!-- ══════════════════════════════════
          TABLA
     ══════════════════════════════════ -->
-    <section class="chq-section">
+    <section class="chq-section chq-panel chq-panel--table">
         <div class="chq-tabla-wrap">
             <table class="chq-tabla">
                 <thead>
@@ -123,11 +128,18 @@
 <!-- ══════════════════════════════════
      MODAL NUEVO/EDITAR CHEQUE
 ══════════════════════════════════ -->
-<div class="modal" id="modalCheque" hidden>
+<div class="modal" id="modalCheque" role="dialog" aria-modal="true" aria-labelledby="modalChequeTitulo" tabindex="-1" hidden>
     <div class="modal-backdrop" id="modalBackdrop"></div>
-    <div class="modal-content">
+    <div class="modal-content chq-modal">
         <div class="modal-header">
-            <h2 class="modal-title" id="modalChequeTitulo">Nuevo cheque</h2>
+            <div class="chq-modal-heading">
+                <span class="chq-modal-icon" aria-hidden="true">Ch</span>
+                <div>
+                    <span class="chq-modal-kicker" id="modalChequeKicker">Movimiento diferido</span>
+                    <h2 class="modal-title" id="modalChequeTitulo">Nuevo cheque</h2>
+                    <p class="chq-modal-subtitle" id="modalChequeSubtitle">Cargá los datos del cheque y cuándo debería cobrarse.</p>
+                </div>
+            </div>
             <button type="button" class="modal-close" id="btnCerrarModal" aria-label="Cerrar">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                     <path d="M5 5L15 15M5 15L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -137,11 +149,20 @@
         <form id="formCheque" class="modal-body">
             <input type="hidden" id="chqPk">
 
+            <div class="chq-nota-cuota-deuda" id="chqNotaCuotaDeuda" role="status" hidden>
+                <span class="chq-nota-cuota-deuda-icon" aria-hidden="true">↗</span>
+                <div>
+                    <strong>Cheque vinculado a una deuda</strong>
+                    <span id="chqNotaCuotaDeudaTexto"></span>
+                    <a href="#" id="chqNotaCuotaDeudaLink" rel="noopener" hidden>Volver al detalle de la deuda →</a>
+                </div>
+            </div>
+
             <div class="form-campo">
                 <label>Tipo *</label>
-                <div class="chq-tipo-toggle">
-                    <button type="button" class="chq-tipo-btn chq-tipo-btn--cobrar chq-tipo-btn--active" data-tipo="a_cobrar">A cobrar (de terceros)</button>
-                    <button type="button" class="chq-tipo-btn chq-tipo-btn--pagar" data-tipo="a_pagar">A pagar (propio)</button>
+                <div class="chq-tipo-toggle" role="group" aria-label="Tipo de cheque">
+                    <button type="button" class="chq-tipo-btn chq-tipo-btn--cobrar chq-tipo-btn--active" data-tipo="a_cobrar" aria-pressed="true">A cobrar (de terceros)</button>
+                    <button type="button" class="chq-tipo-btn chq-tipo-btn--pagar" data-tipo="a_pagar" aria-pressed="false">A pagar (propio)</button>
                 </div>
                 <input type="hidden" id="f_tipo" value="a_cobrar">
             </div>
@@ -219,6 +240,7 @@
             </div>
 
             <div class="modal-footer">
+                <button type="button" class="btn btn-ghost chq-btn-danger" id="btnEliminarDesdeModal" hidden>Eliminar cheque</button>
                 <button type="button" class="btn btn-ghost" id="btnCancelarModal">Cancelar</button>
                 <button type="submit" class="btn btn-primary" id="btnGuardarCheque">Guardar</button>
             </div>
@@ -229,11 +251,18 @@
 <!-- ══════════════════════════════════
      MODAL CONFIRMAR CHEQUE A COBRAR (elegir cuenta destino)
 ══════════════════════════════════ -->
-<div class="modal" id="modalConfirmarCheque" hidden>
+<div class="modal" id="modalConfirmarCheque" role="dialog" aria-modal="true" aria-labelledby="modalConfirmarChequeTitle" tabindex="-1" hidden>
     <div class="modal-backdrop" id="modalConfirmarBackdrop"></div>
-    <div class="modal-content">
+    <div class="modal-content chq-modal chq-modal--compact">
         <div class="modal-header">
-            <h2 class="modal-title">Confirmar cobro</h2>
+            <div class="chq-modal-heading">
+                <span class="chq-modal-icon chq-modal-icon--success" aria-hidden="true">$</span>
+                <div>
+                    <span class="chq-modal-kicker">Movimiento de caja</span>
+                    <h2 class="modal-title" id="modalConfirmarChequeTitle">Confirmar cobro</h2>
+                    <p class="chq-modal-subtitle">Elegí dónde ingresó el dinero del cheque.</p>
+                </div>
+            </div>
             <button type="button" class="modal-close" id="btnCerrarConfirmar" aria-label="Cerrar">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                     <path d="M5 5L15 15M5 15L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -270,11 +299,12 @@
         eliminar: '{{ url_eliminar }}',
         confirmar: '{{ url_confirmar }}',
         rechazar: '{{ url_rechazar }}',
+        deudas: '{{ url_deudas }}',
     };
     window.chequesToday = '{{ today }}';
     window.chequesPuedeEditar = {{ puede_editar|yesno:"true,false" }};
     window.chequesPuedeEliminar = {{ puede_eliminar|yesno:"true,false" }};
     window.chequesPuedeConfirmar = {{ puede_confirmar|yesno:"true,false" }};
 </script>
-<script src="{% static 'caja/js/cheques.js' %}?v=20260910"></script>
+<script src="{% static 'caja/js/cheques.js' %}?v=20260921f"></script>
 {% endblock %}

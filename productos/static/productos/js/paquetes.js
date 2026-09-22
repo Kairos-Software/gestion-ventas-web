@@ -133,12 +133,12 @@ function _actualizarPreviewPrecioPaquete() {
     html += `
         <div class="pq-precio-breakdown-row pq-precio-breakdown-row--total">
             <span class="pq-precio-breakdown-nombre">Precio de venta</span>
-            <span class="pq-precio-breakdown-monto">${KaiFormat.moneda(precioFinal)}</span>
+            <span class="pq-precio-breakdown-monto">${KaiFormat.moneda(precioFinal, 4)}</span>
         </div>`;
     breakdown.innerHTML = html;
     breakdown.hidden = false;
 
-    document.getElementById('pqPrecioVenta').value = precioFinal.toFixed(2);
+    document.getElementById('pqPrecioVenta').value = precioFinal.toFixed(4);
 }
 
 /** Dibuja el código de barras (Code128) en la vista previa del formulario. */
@@ -503,7 +503,7 @@ function _renderComponentes() {
                 <span class="pq-componente-nombre">${c.nombre}</span>
                 <span class="pq-componente-codigo">${c.codigo || ''}</span>
             </div>
-            <span class="pq-componente-precio">${c.precio_venta !== undefined && c.precio_venta !== '' && c.precio_venta !== null ? KaiFormat.moneda(c.precio_venta) : 'Sin precio'}</span>
+            <span class="pq-componente-precio">${c.precio_venta !== undefined && c.precio_venta !== '' && c.precio_venta !== null ? KaiFormat.moneda(c.precio_venta, 4) : 'Sin precio'}</span>
             <input type="number" class="pq-componente-cantidad" min="0.001" step="0.001"
                    value="${c.cantidad}" data-pk="${c.producto_pk}" title="Cantidad de este componente por paquete">
             <button type="button" class="pq-componente-quitar" data-pk="${c.producto_pk}" title="Quitar">✕</button>
@@ -549,7 +549,7 @@ document.getElementById('pqComponenteBuscar')?.addEventListener('input', (e) => 
             ? results.map(p => `
                 <div class="prd-of-dropdown-option" data-pk="${p.pk}" data-nombre="${p.nombre.replace(/"/g, '&quot;')}" data-codigo="${p.codigo}" data-precio="${p.precio || ''}">
                     <span>[${p.codigo}] ${p.nombre}</span>
-                    <span class="pq-of-dropdown-precio">${p.precio ? KaiFormat.moneda(p.precio) : 'Sin precio'}</span>
+                    <span class="pq-of-dropdown-precio">${p.precio ? KaiFormat.moneda(p.precio, 4) : 'Sin precio'}</span>
                 </div>`).join('')
             : '<div class="prd-of-dropdown-option">Sin resultados</div>';
         dropdown.querySelectorAll('.prd-of-dropdown-option[data-pk]').forEach(el => {

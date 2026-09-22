@@ -1,0 +1,27 @@
+/* Compras: indicadores y desgloses compactos sobre el patrón de Ventas. */
+.est-purchases-page .est-summary-highlight--cash { border-left-color: var(--brand-blue); }
+.est-purchases-page .est-summary-highlight--sales { border-left-color: var(--brand-orange); }
+.est-purchases-page .est-summary-highlight--position { border-left-color: var(--success); }
+.est-purchases-change { color: var(--brand-blue); }
+.est-purchases-empty-panel { margin-bottom: 0.75rem; }
+.est-purchases-main-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-items: stretch; gap: 0.7rem; margin-bottom: 0.75rem; }
+.est-purchases-main-grid > .est-sales-panel { min-width: 0; }
+.est-purchases-main-grid .est-sales-panel-heading { align-items: start; }
+.est-purchases-main-grid .est-sales-panel-heading h2 { margin: 0; font-family: var(--font-heading); font-size: 0.84rem; font-weight: 750; }
+.est-purchases-main-grid .est-sales-panel-heading p { margin: 0.15rem 0 0; color: var(--text-muted); font-size: 0.68rem; }
+.est-purchases-chart .est-chart-wrap { height: 220px; margin-top: 0.25rem; }
+.est-purchases-chart canvas { display: block; max-width: 100%; }
+.est-purchases-page .est-sales-rank-value { color: var(--brand-blue); }
+.est-purchases-payment { width: 100%; }
+.est-purchases-payment .est-sales-note { margin-top: 0.55rem; }
+.est-purchases-payment-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 220px); align-items: center; gap: 0.75rem; }
+.est-purchases-payment-chart { height: 200px; }
+.est-purchases-payment-chart canvas { display: block; max-width: 100%; }
+@media (max-width: 900px) {
+    .est-purchases-main-grid { grid-template-columns: 1fr; }
+    .est-purchases-payment-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 620px) {
+    .est-purchases-page .est-summary-highlight:last-child { grid-column: 1 / -1; }
+    .est-purchases-chart .est-chart-wrap { height: 190px; }
+}

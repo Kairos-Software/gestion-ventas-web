@@ -34,6 +34,7 @@ urlpatterns = [
     path('estadisticas/ventas/', views_estadisticas.ventas, name='estadisticas_ventas'),
     path('estadisticas/compras/', views_estadisticas.compras, name='estadisticas_compras'),
     path('estadisticas/productos/', views_estadisticas.productos, name='estadisticas_productos'),
+    path('estadisticas/predicciones/', views_estadisticas.predicciones, name='estadisticas_predicciones'),
     path('estadisticas/clientes/', views_estadisticas.clientes, name='estadisticas_clientes'),
     path('estadisticas/clientes/<int:pk>/', views_estadisticas.cliente_perfil, name='estadisticas_cliente_perfil'),
     path('estadisticas/caja/', views_estadisticas.caja, name='estadisticas_caja'),

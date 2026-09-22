@@ -15,6 +15,7 @@ from django.db.models import Count, Max, Sum
 from django.utils import timezone
 
 from core.models import Cliente
+from productos.models import Moneda
 from ventas.models import ItemVenta, EstadoVenta
 from caja.models import CuentaPorCobrar, CuotaCobro, EstadoCuota, EstadoDeuda, ModoCuotas
 
@@ -34,21 +35,26 @@ def _items_confirmados_con_cliente(desde, hasta):
 #  MEJORES CLIENTES DEL PERÍODO
 # ══════════════════════════════════════════════════════════════════
 
-def mejores_clientes(desde, hasta, top=10):
-    items = _items_confirmados_con_cliente(desde, hasta)
+def mejores_clientes(desde, hasta, top=10, moneda=Moneda.ARS):
+    # Un ranking de montos solo tiene sentido dentro de una moneda.
+    items = _items_confirmados_con_cliente(desde, hasta).filter(moneda=moneda)
 
     ranking = (
-        items.values('cliente__id', 'cliente_nombre')
+        items.values('cliente__id')
         .annotate(
             total_comprado=Sum('subtotal_calc'),
             cant_ventas=Count('venta', distinct=True),
         )
         .order_by('-total_comprado')[:top]
     )
+    nombres = {
+        cliente.id: cliente.get_nombre_display()
+        for cliente in Cliente.objects.filter(id__in=[fila['cliente__id'] for fila in ranking])
+    }
     return [
         {
             'id': fila['cliente__id'],
-            'nombre': fila['cliente_nombre'],
+            'nombre': nombres.get(fila['cliente__id'], '(cliente eliminado)'),
             'total_comprado': fila['total_comprado'] or Decimal('0'),
             'cant_ventas': fila['cant_ventas'],
         }
@@ -103,7 +109,7 @@ def clientes_inactivos(dias_sin_comprar=60, top=20):
         fila['cliente__id']: fila['ultima']
         for fila in (
             ItemVenta.objects
-            .filter(venta__estado=EstadoVenta.CONFIRMADA)
+            .filter(venta__estado=EstadoVenta.CONFIRMADA, venta__fecha__lte=hoy)
             .exclude(cliente__isnull=True)
             .values('cliente__id')
             .annotate(ultima=Max('venta__fecha'))
@@ -111,7 +117,7 @@ def clientes_inactivos(dias_sin_comprar=60, top=20):
     }
 
     inactivos = []
-    for cliente in Cliente.objects.filter(estado='activo').order_by('nombre', 'razon_social')[:200]:
+    for cliente in Cliente.objects.filter(estado='activo').iterator(chunk_size=500):
         ultima = ultima_compra_por_cliente.get(cliente.id)
         if ultima is None or ultima < limite:
             inactivos.append({
@@ -120,10 +126,13 @@ def clientes_inactivos(dias_sin_comprar=60, top=20):
                 'codigo': cliente.codigo,
                 'ultima_compra': ultima,
             })
-            if len(inactivos) >= top:
-                break
-
-    return inactivos
+    # Primero quienes llevan más tiempo sin comprar; los que nunca
+    # compraron quedan al final, porque no son clientes "perdidos".
+    inactivos.sort(key=lambda c: (
+        c['ultima_compra'] is None,
+        c['ultima_compra'] or hoy,
+    ))
+    return inactivos[:top]
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -177,75 +186,98 @@ def cuentas_por_cobrar(desde, hasta, dias_proximo_vencimiento=15, top=10):
     cuotas_pendientes = CuotaCobro.objects.filter(
         estado=EstadoCuota.PENDIENTE, cuenta_por_cobrar__estado=EstadoDeuda.ACTIVA,
     )
-    total_fijas = cuotas_pendientes.aggregate(total=Sum('monto'))['total'] or Decimal('0')
-    cantidad_fijas = cuotas_pendientes.count()
+    por_moneda = {}
+
+    def datos_moneda(moneda):
+        return por_moneda.setdefault(moneda, {
+            'moneda': moneda,
+            'total_pendiente': Decimal('0'), 'cantidad_pendiente': 0,
+            'total_vencido': Decimal('0'), 'cantidad_vencidas': 0,
+            'total_proximo': Decimal('0'), 'cantidad_proximas': 0,
+            'cobrado_periodo': Decimal('0'), 'ranking_deudores': [],
+        })
+
+    def acumular_cuotas(queryset, total_key, count_key):
+        for fila in (
+            queryset.values('cuenta_por_cobrar__moneda')
+            .annotate(total=Sum('monto'), cantidad=Count('id'))
+        ):
+            datos = datos_moneda(fila['cuenta_por_cobrar__moneda'])
+            datos[total_key] += fila['total'] or Decimal('0')
+            datos[count_key] += fila['cantidad']
+
+    acumular_cuotas(cuotas_pendientes, 'total_pendiente', 'cantidad_pendiente')
 
     vencidas = cuotas_pendientes.filter(fecha_vencimiento__lt=hoy)
-    total_vencido = vencidas.aggregate(total=Sum('monto'))['total'] or Decimal('0')
-    cantidad_vencidas = vencidas.count()
+    acumular_cuotas(vencidas, 'total_vencido', 'cantidad_vencidas')
 
     proximas = cuotas_pendientes.filter(
         fecha_vencimiento__gte=hoy,
         fecha_vencimiento__lte=hoy + timedelta(days=dias_proximo_vencimiento),
     )
-    total_proximo = proximas.aggregate(total=Sum('monto'))['total'] or Decimal('0')
-    cantidad_proximas = proximas.count()
+    acumular_cuotas(proximas, 'total_proximo', 'cantidad_proximas')
 
     cuentas_libres = CuentaPorCobrar.objects.filter(
         estado=EstadoDeuda.ACTIVA, modo_cuotas=ModoCuotas.LIBRE,
     )
-    libres_con_saldo = [(c, c.saldo_pendiente) for c in cuentas_libres]
-    libres_con_saldo = [(c, s) for c, s in libres_con_saldo if s > 0]
-    total_libres = sum((s for _, s in libres_con_saldo), Decimal('0'))
-    cantidad_libres = len(libres_con_saldo)
+    libres_con_saldo = []
+    for cuenta in cuentas_libres:
+        saldo = cuenta.saldo_pendiente
+        if saldo > 0:
+            libres_con_saldo.append((cuenta, saldo))
+            datos = datos_moneda(cuenta.moneda)
+            datos['total_pendiente'] += saldo
+            datos['cantidad_pendiente'] += 1
 
-    total_pendiente = total_fijas + total_libres
-    cantidad_pendiente = cantidad_fijas + cantidad_libres
-
-    cobrado_periodo = CuotaCobro.objects.filter(
-        estado=EstadoCuota.CONFIRMADA, fecha_confirmacion__date__range=(desde, hasta),
-    ).aggregate(total=Sum('monto'))['total'] or Decimal('0')
+    cobrado = CuotaCobro.objects.filter(
+        estado=EstadoCuota.CONFIRMADA, es_historica=False,
+        fecha_confirmacion__date__range=(desde, hasta),
+    )
+    for fila in (
+        cobrado.values('cuenta_por_cobrar__moneda')
+        .annotate(total=Sum('monto'))
+    ):
+        datos_moneda(fila['cuenta_por_cobrar__moneda'])['cobrado_periodo'] += fila['total'] or Decimal('0')
 
     deuda_por_cliente = {}
     for f in (
-        cuotas_pendientes.values('cuenta_por_cobrar__cliente__id')
+        cuotas_pendientes.values('cuenta_por_cobrar__cliente__id', 'cuenta_por_cobrar__moneda')
         .annotate(total=Sum('monto'), cantidad=Count('id'))
     ):
+        clave = (f['cuenta_por_cobrar__cliente__id'], f['cuenta_por_cobrar__moneda'])
         acumulado = deuda_por_cliente.setdefault(
-            f['cuenta_por_cobrar__cliente__id'], {'total': Decimal('0'), 'cantidad': 0})
+            clave, {'total': Decimal('0'), 'cantidad': 0})
         acumulado['total'] += f['total'] or Decimal('0')
         acumulado['cantidad'] += f['cantidad']
     for cxc, saldo in libres_con_saldo:
         acumulado = deuda_por_cliente.setdefault(
-            cxc.cliente_id, {'total': Decimal('0'), 'cantidad': 0})
+            (cxc.cliente_id, cxc.moneda), {'total': Decimal('0'), 'cantidad': 0})
         acumulado['total'] += saldo
         acumulado['cantidad'] += 1
 
-    top_clientes = sorted(
-        deuda_por_cliente.items(), key=lambda kv: kv[1]['total'], reverse=True)[:top]
     clientes_dict = {
-        c.id: c for c in Cliente.objects.filter(id__in=[cid for cid, _ in top_clientes])
+        c.id: c for c in Cliente.objects.filter(
+            id__in=[cid for cid, _moneda in deuda_por_cliente]
+        )
     }
-    ranking_deudores = [
-        {
-            'id': cid,
-            'nombre': (
-                clientes_dict[cid].get_nombre_display()
-                if cid in clientes_dict else '(cliente eliminado)'
-            ),
-            'total': datos['total'],
-            'cantidad_cuotas': datos['cantidad'],
-        }
-        for cid, datos in top_clientes
-    ]
+    for moneda, datos in por_moneda.items():
+        top_clientes = sorted(
+            ((cid, valores) for (cid, divisa), valores in deuda_por_cliente.items() if divisa == moneda),
+            key=lambda kv: kv[1]['total'], reverse=True,
+        )[:top]
+        datos['ranking_deudores'] = [
+            {
+                'id': cid,
+                'nombre': clientes_dict[cid].get_nombre_display() if cid in clientes_dict else '(cliente eliminado)',
+                'total': valores['total'],
+                'cantidad_cuotas': valores['cantidad'],
+            }
+            for cid, valores in top_clientes
+        ]
 
-    return {
-        'total_pendiente': total_pendiente,
-        'cantidad_pendiente': cantidad_pendiente,
-        'total_vencido': total_vencido,
-        'cantidad_vencidas': cantidad_vencidas,
-        'total_proximo': total_proximo,
-        'cantidad_proximas': cantidad_proximas,
-        'cobrado_periodo': cobrado_periodo,
-        'ranking_deudores': ranking_deudores,
-    }
+    pesos = datos_moneda(Moneda.ARS)
+    pesos['otras_monedas'] = [
+        por_moneda[moneda] for moneda in (Moneda.USD, Moneda.EUR)
+        if moneda in por_moneda
+    ]
+    return pesos

@@ -1,0 +1,219 @@
+{% extends 'core/base.html' %}
+
+{% load static %}
+
+{% block title %}Resúmenes de tarjeta{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'caja/css/deudas.css' %}?v=20260921d">
+{% endblock %}
+
+{% block content %}
+<div class="deudas-container">
+    {% if sin_permiso %}
+    <div class="deudas-sin-permiso">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M12 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="12" cy="16.2" r="0.9" fill="currentColor"/>
+        </svg>
+        <p>No tenés permiso para ver resúmenes de tarjeta.</p>
+    </div>
+    {% else %}
+    <!-- ══════════════════════════════════
+         ENCABEZADO
+    ══════════════════════════════════ -->
+    <header class="deudas-header">
+        <div class="deudas-header-copy">
+            <span class="deudas-eyebrow">Finanzas</span>
+            <h1 class="deudas-title">Resúmenes de tarjeta</h1>
+            <p class="deudas-subtitle">Revisá cada cierre, conciliá los cargos de la tarjeta y pagá el período completo.</p>
+        </div>
+        <a href="{{ url_deudas }}" class="btn btn-ghost">← Créditos y préstamos</a>
+    </header>
+
+    <!-- ══════════════════════════════════
+         FILTROS + GRILLA
+    ══════════════════════════════════ -->
+    <section class="deudas-section deudas-panel deudas-resumenes-page">
+        <div class="deudas-filtros-header">
+            <div class="deudas-cuotas-headrow-actions">
+                <div>
+                    <span class="deudas-section-kicker">Períodos</span>
+                    <h2 class="deudas-section-title">Todos los resúmenes</h2>
+                </div>
+                <div class="deudas-modo-seg" id="segResumenVista" role="group" aria-label="Mostrar pendientes o pagados">
+                    <button type="button" class="deudas-modo-seg-btn deudas-modo-seg-btn--active" data-vista="pendientes" aria-pressed="true">Pendientes</button>
+                    <button type="button" class="deudas-modo-seg-btn" data-vista="pagados" aria-pressed="false">Pagados</button>
+                </div>
+            </div>
+            <button type="button" class="btn-filtros-toggle" id="btnToggleFiltrosResumen" aria-expanded="false">
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                    <path d="M2 4H14M4.5 8H11.5M7 12H9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                </svg>
+                Filtros
+            </button>
+        </div>
+
+        <form id="formFiltrosResumen" class="deudas-filtros" hidden>
+            <div class="filtro-campo">
+                <label for="fResumenTarjeta">Tarjeta</label>
+                <select id="fResumenTarjeta" name="cuenta_tarjeta_pk">
+                    <option value="">Todas</option>
+                    {% for t in tarjetas %}
+                    <option value="{{ t.pk }}">{{ t.nombre }}{% if t.titular %} · {{ t.titular }}{% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filtro-campo">
+                <label for="fResumenEstado">Estado</label>
+                <select id="fResumenEstado" name="estado">
+                    <option value="">Todos</option>
+                    <option value="pendiente">Pendiente</option>
+                    <option value="parcial">Pago parcial</option>
+                    <option value="pagado">Pagado</option>
+                </select>
+            </div>
+            <div class="filtro-acciones">
+                <button type="submit" class="btn btn-primary">Filtrar</button>
+                <button type="button" class="btn btn-ghost" id="btnLimpiarFiltrosResumen">Limpiar</button>
+            </div>
+        </form>
+
+        <div class="deudas-resumenes-wrap" id="resumenesTarjetaWrap">
+            <p class="deudas-tabla-loading">Cargando…</p>
+        </div>
+    </section>
+
+    <!-- ══════════════════════════════════
+         MODAL RESUMEN DE TARJETA (detalle + cargo propio + pagar todo junto)
+    ══════════════════════════════════ -->
+    <div class="modal" id="modalResumenTarjeta" role="dialog" aria-modal="true" aria-labelledby="rtTitle" tabindex="-1" hidden>
+        <div class="modal-backdrop" id="modalResumenTarjetaBackdrop"></div>
+        <div class="modal-content deudas-resumen-modal">
+            <div class="modal-header">
+                <div class="deudas-modal-heading">
+                    <span class="deudas-modal-icon deudas-modal-icon--detail" aria-hidden="true">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                            <path d="M7 3.5h10A2.5 2.5 0 0 1 19.5 6v12A2.5 2.5 0 0 1 17 20.5H7A2.5 2.5 0 0 1 4.5 18V6A2.5 2.5 0 0 1 7 3.5Z" stroke="currentColor" stroke-width="1.7"/>
+                            <path d="M8 8h8M8 12h8M8 16h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+                        </svg>
+                    </span>
+                    <div>
+                        <h2 class="modal-title" id="rtTitle">Resumen de tarjeta</h2>
+                        <p class="deudas-modal-subtitle" id="rtSubtitle"></p>
+                    </div>
+                </div>
+                <button type="button" class="modal-close" id="btnCerrarResumenTarjeta" aria-label="Cerrar">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M5 5L15 15M5 15L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body deudas-detalle-body">
+                <div class="deudas-detalle-resumen" id="rtResumenTop"></div>
+                <div class="deudas-cuotas-headrow-actions deudas-resumen-fechas-help">
+                    <span>¿Qué son "Cierra" y "Vence"?</span>
+                    <button type="button" class="kai-help-btn" data-help-target="ayuda_fechas_resumen" aria-label="Qué son cierre y vencimiento">?</button>
+                </div>
+                <div class="kai-help-popover" id="ayuda_fechas_resumen">
+                    <strong>Cierre</strong>: el día del mes en que la tarjeta corta el resumen — las compras
+                    que hagas después de esa fecha ya entran en el resumen del mes siguiente, no en este.
+                    <strong>Vencimiento</strong>: el día en que hay que pagarle a la tarjeta este resumen ya
+                    cerrado (puede caer en el mismo mes o en el siguiente, según cómo esté configurado). Los
+                    dos se cargan una sola vez por tarjeta, no mes a mes: en Configuración → Cuentas → editar
+                    la tarjeta → "Día de cierre" / "Día de vencimiento" — el sistema calcula solo la fecha de
+                    cada resumen a partir de esos dos días.
+                </div>
+
+                <section class="deudas-detail-section">
+                    <h3 class="deudas-cuotas-title">Compras incluidas</h3>
+                    <div class="deudas-cuotas-wrap">
+                        <table class="deudas-cuotas-tabla deudas-cuotas-tabla--detalle">
+                            <thead>
+                                <tr>
+                                    <th>Compra</th>
+                                    <th>Cuota</th>
+                                    <th>Vencimiento</th>
+                                    <th class="th-monto">Monto</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rtCuotasBody"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                {% if puede_editar %}
+                <section class="deudas-detail-section" id="rtBloqueAjuste">
+                    <div class="deudas-cuotas-headrow-actions">
+                        <h3 class="deudas-cuotas-title">Cargo propio del resumen</h3>
+                        <button type="button" class="kai-help-btn" data-help-target="ayuda_ajuste_resumen" aria-label="Qué es esto">?</button>
+                    </div>
+                    <div class="kai-help-popover" id="ayuda_ajuste_resumen">
+                        Lo que la tarjeta cobra aparte de las compras financiadas (interés, IVA, seguro,
+                        mantenimiento) — cargalo acá para que el total coincida con el resumen real en papel.
+                    </div>
+                    <div class="deudas-form-grid">
+                        <div class="form-campo">
+                            <label for="rtAjusteMonto">Monto</label>
+                            <div class="deudas-money-input">
+                                <span aria-hidden="true">$</span>
+                                <input type="number" id="rtAjusteMonto" step="0.01" min="0" placeholder="0,00" inputmode="decimal">
+                            </div>
+                        </div>
+                        <div class="form-campo">
+                            <label for="rtAjusteDescripcion">Descripción</label>
+                            <input type="text" id="rtAjusteDescripcion" maxlength="200" placeholder="Ej: interés + IVA">
+                        </div>
+                    </div>
+                    <div id="rtAjusteMsg" class="deudas-inline-msg"></div>
+                    <div class="deudas-registrar-abono-acciones deudas-actions-start">
+                        <button type="button" class="btn btn-ghost btn-sm" id="btnGuardarAjusteResumen">Guardar cargo</button>
+                        <button type="button" class="btn btn-ghost btn-sm deudas-btn-danger" id="btnQuitarAjusteResumen" hidden>Quitar cargo</button>
+                    </div>
+                    <p class="deudas-edicion-nota" id="rtAjustePagadoNota" hidden>Ya se pagó el cargo de este resumen — no se puede editar.</p>
+                </section>
+                {% endif %}
+
+                {% if puede_confirmar %}
+                <section class="deudas-detail-section" id="rtBloquePago">
+                    <div class="deudas-registrar-abono" id="rtSaldoWrap">
+                        <div>
+                            <span>Saldo pendiente</span>
+                            <strong id="rtSaldoLabel"></strong>
+                        </div>
+                    </div>
+                    <div class="form-campo" id="rtCampoCuentaPago">
+                        <label for="rtCuentaPago">Pagar todo el resumen con</label>
+                        <select id="rtCuentaPago"></select>
+                    </div>
+                    <div id="rtPagoMsg" class="deudas-inline-msg"></div>
+                    <div class="deudas-registrar-abono-acciones">
+                        <button type="button" class="btn btn-primary" id="btnPagarResumen">Pagar resumen completo</button>
+                        <button type="button" class="btn btn-ghost" id="btnDeshacerPagoResumen" hidden>Deshacer pago</button>
+                    </div>
+                </section>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script id="cuentas-data" type="application/json">{{ cuentas_json|safe }}</script>
+<script>
+    window.resumenesTarjetaUrls = {
+        listar: '{{ url_listar }}',
+        detalle: '{{ url_detalle }}',
+        editarAjuste: '{{ url_editar_ajuste }}',
+        pagar: '{{ url_pagar }}',
+        deshacerPago: '{{ url_deshacer_pago }}',
+    };
+    window.resumenesTarjetaPuedeConfirmar = {{ puede_confirmar|yesno:"true,false" }};
+    window.resumenesTarjetaPuedeEditar = {{ puede_editar|yesno:"true,false" }};
+</script>
+<script src="{% static 'caja/js/resumenes_tarjeta.js' %}?v=20260921f"></script>
+{% endblock %}

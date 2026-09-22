@@ -79,7 +79,7 @@ class ItemPresupuesto(models.Model):
     combinacion_descripcion = models.CharField(max_length=300, blank=True)
 
     cantidad = models.DecimalField(max_digits=12, decimal_places=3)
-    precio_unitario = models.DecimalField('Precio unitario', max_digits=12, decimal_places=2)
+    precio_unitario = models.DecimalField('Precio unitario', max_digits=14, decimal_places=4)
     descuento_pct = models.DecimalField('Descuento (%)', max_digits=8, decimal_places=4, default=0)
     lista_descuento_nombre = models.CharField('Lista de descuento aplicada', max_length=100, blank=True)
 

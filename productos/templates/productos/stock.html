@@ -123,7 +123,7 @@
                         data-maximo="{{ p.stock_maximo|default:'' }}"
                         data-unidad="{{ p.get_unidad_medida_display }}"
                         data-colores="{{ p.combinaciones_json_str }}"
-                        data-costo="{{ p.costo|default:'' }}">
+                        data-costo="{{ p.costo|default_if_none:''|stringformat:'s' }}">
 
                         <td>
                             <div class="prod-info">
@@ -353,7 +353,7 @@
                         Costo unitario
                         <span style="color:var(--text-muted);font-weight:400">(no afecta la caja)</span>
                     </label>
-                    <input type="number" id="ajusteCosto" class="form-control" placeholder="0.00" min="0" step="0.01">
+                    <input type="number" id="ajusteCosto" class="form-control" placeholder="0.0000" min="0" step="0.0001">
                     <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.3rem;">
                         Cuánto vale esta mercadería, para que las pérdidas y las estadísticas la reflejen bien. Ya
                         precargado con el "Costo de referencia" del producto — cambialo si esta partida costó distinto.

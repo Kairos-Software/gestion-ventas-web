@@ -109,7 +109,7 @@ function _actualizarPreviewAutomatico() {
     const base = costoEfectivo * (1 + margen / 100);
     const alicuota = parseFloat(document.getElementById('f_alicuota_iva').value) || 0;
     const precioFinal = _incluyeIva() ? base : base * (1 + alicuota / 100);
-    inputPrecio.value = precioFinal.toFixed(2);
+    inputPrecio.value = precioFinal.toFixed(4);
 }
 document.getElementById('f_costo').addEventListener('input', _actualizarPreviewAutomatico);
 document.getElementById('f_porcentaje_ganancia').addEventListener('input', _actualizarPreviewAutomatico);
@@ -149,7 +149,7 @@ function _actualizarHintAlicuota() {
     }
     const precioFinal = base * (1 + parseFloat(alicuota) / 100);
     preview.hidden = false;
-    preview.textContent = `Precio final (con IVA): $${precioFinal.toFixed(2)}`;
+    preview.textContent = `Precio final (con IVA): $${precioFinal.toFixed(4)}`;
 }
 document.getElementById('f_alicuota_iva').addEventListener('change', _actualizarHintAlicuota);
 document.getElementById('f_precio_venta').addEventListener('input', _actualizarHintAlicuota);
@@ -182,10 +182,10 @@ function actualizarBadgeCosto(costoActual, esReal) {
         badge.textContent = 'Sin compras registradas todavía.';
         hintCosto.textContent = 'Para stock que ya tenías antes de usar el sistema.';
     } else if (esReal) {
-        badge.textContent = `Último costo de compra: $${parseFloat(costoActual).toFixed(2)} — es el que se usa para el precio automático.`;
+        badge.textContent = `Último costo de compra: $${parseFloat(costoActual).toFixed(4)} — es el que se usa para el precio automático.`;
         hintCosto.textContent = 'Ya hay una compra real registrada. Si subió el precio de reposición sin haber comprado todavía, cargá el nuevo costo y tocá "Activar".';
     } else {
-        badge.textContent = `Costo de referencia en uso: $${parseFloat(costoActual).toFixed(2)}.`;
+        badge.textContent = `Costo de referencia en uso: $${parseFloat(costoActual).toFixed(4)}.`;
         hintCosto.textContent = 'Para stock que ya tenías antes de usar el sistema, o para avisar una reposición más cara.';
     }
     _actualizarPreviewAutomatico();
@@ -1686,7 +1686,7 @@ function _buildRowHtml(d) {
 
     // Precio
     const precioHtml = d.precio_venta
-        ? `<span class="prd-precio">$${parseFloat(d.precio_venta).toFixed(2)}</span>`
+        ? `<span class="prd-precio">$${parseFloat(d.precio_venta).toFixed(4)}</span>`
         : '<span class="prd-muted">—</span>';
 
     // Stock

@@ -5,6 +5,22 @@ document.addEventListener('DOMContentLoaded', function () {
     const puedeEliminar = window.chequesPuedeEliminar;
     const puedeConfirmar = window.chequesPuedeConfirmar;
 
+    function esc(str) {
+        return String(str == null ? '' : str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function fmtFecha(fechaIso) {
+        if (!fechaIso) return '—';
+        const partes = String(fechaIso).slice(0, 10).split('-').map(Number);
+        if (partes.length !== 3 || partes.some(Number.isNaN)) return esc(fechaIso);
+        return new Intl.DateTimeFormat('es-AR').format(new Date(partes[0], partes[1] - 1, partes[2]));
+    }
+
     // ── Cuentas propias (caja grande, sin tarjetas) ──────────────────
     const cuentasDataEl = document.getElementById('cuentas-data');
     const CUENTAS = cuentasDataEl ? JSON.parse(cuentasDataEl.textContent) : [];
@@ -29,8 +45,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function poblarSelect(select, opciones, seleccionarPk, placeholder) {
-        select.innerHTML = `<option value="">${placeholder || '— Elegí una cuenta —'}</option>` +
-            opciones.map(c => `<option value="${c.pk}">${c.nombre}${c.titular ? ' · ' + c.titular : ''}</option>`).join('');
+        select.innerHTML = `<option value="">${esc(placeholder || '— Elegí una cuenta —')}</option>` +
+            opciones.map(c => `<option value="${c.pk}">${esc(c.nombre)}${c.titular ? ' · ' + esc(c.titular) : ''}</option>`).join('');
         if (seleccionarPk) select.value = String(seleccionarPk);
     }
 
@@ -66,7 +82,13 @@ document.addEventListener('DOMContentLoaded', function () {
     const btnCancelarModal = document.getElementById('btnCancelarModal');
     const formCheque = document.getElementById('formCheque');
     const modalChequeTitulo = document.getElementById('modalChequeTitulo');
+    const modalChequeKicker = document.getElementById('modalChequeKicker');
+    const modalChequeSubtitle = document.getElementById('modalChequeSubtitle');
     const btnGuardarCheque = document.getElementById('btnGuardarCheque');
+    const notaCuotaDeuda = document.getElementById('chqNotaCuotaDeuda');
+    const notaCuotaDeudaTexto = document.getElementById('chqNotaCuotaDeudaTexto');
+    const notaCuotaDeudaLink = document.getElementById('chqNotaCuotaDeudaLink');
+    const btnEliminarDesdeModal = document.getElementById('btnEliminarDesdeModal');
     const f_tipo = document.getElementById('f_tipo');
     const f_moneda = document.getElementById('f_moneda');
     const f_cuenta_origen = document.getElementById('f_cuenta_origen');
@@ -91,7 +113,9 @@ document.addEventListener('DOMContentLoaded', function () {
     function setTipo(tipo) {
         f_tipo.value = tipo;
         botonesTipo.forEach(btn => {
-            btn.classList.toggle('chq-tipo-btn--active', btn.dataset.tipo === tipo);
+            const activo = btn.dataset.tipo === tipo;
+            btn.classList.toggle('chq-tipo-btn--active', activo);
+            btn.setAttribute('aria-pressed', String(activo));
         });
         const esPagar = tipo === 'a_pagar';
         const esNuevo = !document.getElementById('chqPk').value;
@@ -186,23 +210,29 @@ document.addEventListener('DOMContentLoaded', function () {
             if (c.estado === 'confirmado' && puedeConfirmar) {
                 acciones.push(`<button type="button" class="icon-btn icon-btn--danger" onclick="rechazarCheque(${c.pk})" title="Marcar como rebotado (sin fondos / no se pudo cobrar)">${ICONO_RECHAZAR}</button>`);
             }
-            if (puedeEditar && c.estado === 'pendiente') {
+            // Un cheque de cuota_deuda solo se edita entrando desde Deudas
+            // (ver window.editarCheque más abajo) — acá, aunque esté
+            // pendiente, el ícono es "Ver detalle", no "Editar".
+            if (puedeEditar && c.estado === 'pendiente' && !c.origen_cuota_deuda) {
                 acciones.push(`<button type="button" class="icon-btn" onclick="editarCheque(${c.pk})" title="Editar">${ICONO_EDITAR}</button>`);
             } else {
                 acciones.push(`<button type="button" class="icon-btn" onclick="editarCheque(${c.pk})" title="Ver detalle">${ICONO_VER}</button>`);
             }
-            if (puedeEliminar && c.estado !== 'confirmado') {
+            // Mismo criterio que el ícono de editar: un cheque de cuota_deuda
+            // solo se elimina entrando desde Deudas (ver botón dentro del
+            // modal, más abajo) — acá ni aparece el ícono.
+            if (puedeEliminar && c.estado !== 'confirmado' && !c.origen_cuota_deuda) {
                 acciones.push(`<button type="button" class="icon-btn" onclick="eliminarCheque(${c.pk})" title="Eliminar">${ICONO_ELIMINAR}</button>`);
             }
             return `
             <tr>
-                <td><span class="chq-badge-tipo chq-badge-tipo--${c.tipo}">${c.tipo_display}</span></td>
-                <td>${c.numero_cheque || '-'}</td>
-                <td>${(c.tipo === 'a_pagar' ? c.receptor : c.emisor) || '-'}</td>
-                <td class="chq-monto">${fmtMoneda(c.monto, c.moneda)}</td>
-                <td>${c.fecha_cobro}</td>
-                <td><span class="chq-badge-estado chq-badge-estado--${c.estado}">${c.estado_display}</span></td>
-                <td><div class="chq-tabla-acciones">${acciones.join('')}</div></td>
+                <td data-label="Tipo"><span class="chq-badge-tipo chq-badge-tipo--${esc(c.tipo)}">${esc(c.tipo_display)}</span></td>
+                <td data-label="Número">${esc(c.numero_cheque || 'Sin número')}</td>
+                <td data-label="Contraparte">${esc((c.tipo === 'a_pagar' ? c.receptor : c.emisor) || 'Sin especificar')}</td>
+                <td data-label="Monto" class="chq-monto">${fmtMoneda(c.monto, c.moneda)}</td>
+                <td data-label="Fecha de cobro">${fmtFecha(c.fecha_cobro)}</td>
+                <td data-label="Estado"><span class="chq-badge-estado chq-badge-estado--${esc(c.estado)}">${esc(c.estado_display)}</span></td>
+                <td data-label="Acciones"><div class="chq-tabla-acciones">${acciones.join('')}</div></td>
             </tr>`;
         }).join('');
     }
@@ -233,14 +263,21 @@ document.addEventListener('DOMContentLoaded', function () {
     };
 
     // ── Modal alta/edición ───────────────────────────────────────────
-    function abrirModal() {
+    let focoAntesModalCheque = null;
+    let focoAntesModalConfirmar = null;
+
+    function abrirModal(focoInicial) {
+        focoAntesModalCheque = document.activeElement;
         modalCheque.hidden = false;
         document.body.style.overflow = 'hidden';
+        window.requestAnimationFrame(() => (focoInicial || modalCheque).focus({ preventScroll: true }));
     }
 
     function cerrarModal() {
         modalCheque.hidden = true;
         document.body.style.overflow = '';
+        if (notaCuotaDeuda) notaCuotaDeuda.hidden = true;
+        if (btnEliminarDesdeModal) { btnEliminarDesdeModal.hidden = true; btnEliminarDesdeModal.onclick = null; }
         formCheque.reset();
         [...formCheque.querySelectorAll('input, select, button.chq-tipo-btn')].forEach(el => { el.disabled = false; });
         btnGuardarCheque.hidden = false;
@@ -249,16 +286,22 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('f_fecha_emision').value = today;
         document.getElementById('f_fecha_cobro').value = today;
         setTipo('a_cobrar');
+        if (focoAntesModalCheque && focoAntesModalCheque.isConnected) {
+            window.requestAnimationFrame(() => focoAntesModalCheque.focus({ preventScroll: true }));
+        }
+        focoAntesModalCheque = null;
     }
 
     btnNuevoCheque?.addEventListener('click', () => {
         modalChequeTitulo.textContent = 'Nuevo cheque';
+        if (modalChequeKicker) modalChequeKicker.textContent = 'Movimiento diferido';
+        if (modalChequeSubtitle) modalChequeSubtitle.textContent = 'Cargá los datos del cheque y cuándo debería cobrarse.';
         btnGuardarCheque.hidden = false;
         btnCancelarModal.textContent = 'Cancelar';
         document.getElementById('f_fecha_emision').value = today;
         document.getElementById('f_fecha_cobro').value = today;
         setTipo('a_cobrar');
-        abrirModal();
+        abrirModal(document.getElementById('f_numero_cheque'));
     });
 
     btnCerrarModal.addEventListener('click', cerrarModal);
@@ -322,12 +365,59 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    window.editarCheque = function (pk) {
+    window.editarCheque = function (pk, opts = {}) {
         const cheque = CHEQUES_CACHE.find(c => c.pk === pk);
         if (!cheque) return;
 
-        const soloVer = cheque.estado !== 'pendiente';
+        // Un cheque que paga una cuota puntual de una Deuda (no una
+        // venta/compra completa, ver origen_cuota_deuda) sigue editable
+        // mientras está PENDIENTE — su monto se corrige junto con el de la
+        // cuota (ver EditarChequeAjax) — pero solo entrando desde el link
+        // "Cheque #N" de Deudas (opts.viaDeepLink), para que quien lo edita
+        // vea el contexto de la deuda (saldo, plan). Entrando directo desde
+        // la lista general de Cheques queda de solo lectura. Una vez
+        // CONFIRMADO (ya se cobró/pagó de verdad) queda de solo lectura
+        // SIEMPRE, ahora también entrando por el link — igual que
+        // cualquier otro cheque con origen real: si el monto está mal, hay
+        // que rechazarlo (revierte el movimiento real) y registrar el pago
+        // correcto aparte, no reescribir en silencio una plata que ya se
+        // movió (ver EditarChequeAjax).
+        const esCuotaDeuda = !!cheque.origen_cuota_deuda;
+        const puedeEditarCuotaDeuda = esCuotaDeuda && !!opts.viaDeepLink && cheque.estado === 'pendiente';
+        const bloqueadoPorOrigenDeuda = esCuotaDeuda && !puedeEditarCuotaDeuda;
+        const soloVer = bloqueadoPorOrigenDeuda ? true : cheque.estado !== 'pendiente';
+
+        if (notaCuotaDeuda) {
+            notaCuotaDeuda.hidden = !esCuotaDeuda;
+            if (esCuotaDeuda) {
+                if (notaCuotaDeudaTexto) {
+                    notaCuotaDeudaTexto.textContent = cheque.estado === 'confirmado'
+                        ? 'Este cheque ya se cobró/pagó de verdad — no se puede editar, ni el monto ni '
+                          + 'ningún otro dato. Si está mal, primero rechazalo (revierte el movimiento de '
+                          + 'caja, ver el ícono en la lista) y después registrá el pago correcto desde la deuda. '
+                        : puedeEditarCuotaDeuda
+                            ? 'Llegaste desde la deuda. Mientras siga pendiente podés corregir el monto y los datos del cheque; el importe de la cuota se actualiza junto con él. '
+                        : 'Este cheque paga una cuota de una deuda registrada en Créditos y préstamos — '
+                          + 'para editarlo o corregir su monto, hacelo desde ahí. ';
+                }
+                if (cheque.deuda_pk && urls.deudas) {
+                    notaCuotaDeudaLink.href = `${urls.deudas}?ver=${cheque.deuda_pk}`;
+                    notaCuotaDeudaLink.hidden = false;
+                } else if (notaCuotaDeudaLink) {
+                    notaCuotaDeudaLink.hidden = true;
+                }
+            }
+        }
+
         modalChequeTitulo.textContent = soloVer ? 'Ver cheque' : 'Editar cheque';
+        if (modalChequeKicker) modalChequeKicker.textContent = esCuotaDeuda ? 'Pago vinculado' : 'Gestión de cheque';
+        if (modalChequeSubtitle) {
+            modalChequeSubtitle.textContent = soloVer
+                ? 'Consultá los datos registrados y el estado actual.'
+                : esCuotaDeuda
+                    ? 'Corregí el cheque pendiente sin perder el vínculo con la deuda.'
+                    : 'Actualizá los datos antes de que el cheque sea confirmado.';
+        }
         btnGuardarCheque.hidden = soloVer;
         btnCancelarModal.textContent = soloVer ? 'Cerrar' : 'Cancelar';
         document.getElementById('chqPk').value = cheque.pk;
@@ -350,32 +440,48 @@ document.addEventListener('DOMContentLoaded', function () {
             el.disabled = soloVer;
         });
 
-        // Mientras está pendiente, un cheque con origen real (nació de una
-        // venta/compra/cuota) sigue dejando ver el formulario completo,
-        // pero el backend va a rechazar monto/moneda/fechas/cuenta si se
-        // tocan (ver EditarChequeAjax) — reflejarlo acá, mismo criterio
-        // que ya se aplicó en deudas.js/cuentas_cobrar.js. numero_cheque
-        // (el número físico real, escrito a mano por quien lo emitió)
-        // sigue editable siempre, en ambos tipos.
+        // Mientras está pendiente, un cheque con origen real sigue dejando
+        // ver el formulario completo, pero el backend va a rechazar
+        // algunos campos si se tocan (ver EditarChequeAjax) — reflejarlo
+        // acá, mismo criterio que ya se aplicó en deudas.js/
+        // cuentas_cobrar.js. numero_cheque (el número físico real, escrito
+        // a mano por quien lo emitió) sigue editable siempre, en ambos
+        // tipos.
         if (!soloVer && cheque.tiene_origen_real) {
-            document.getElementById('f_monto').disabled = true;
-            f_moneda.disabled = true;
-            document.getElementById('f_fecha_emision').disabled = true;
-            document.getElementById('f_fecha_cobro').disabled = true;
-            if (cheque.tipo === 'a_pagar') f_cuenta_origen.disabled = true;
-            // numero_factura: en a_pagar es la factura real del proveedor
-            // (tipeada a mano, puede corregirse) — solo se bloquea en
-            // a_cobrar, donde es nuestro propio N° de venta.
-            if (cheque.tipo === 'a_cobrar') {
-                document.getElementById('f_numero_factura').disabled = true;
+            if (esCuotaDeuda) {
+                // Caso especial: el monto SÍ se puede corregir (se
+                // corrige junto con la cuota que paga) — solo la moneda
+                // (la define la deuda) y el tipo de cheque quedan fijos.
+                f_moneda.disabled = true;
+                formCheque.querySelectorAll('button.chq-tipo-btn').forEach(b => { b.disabled = true; });
+            } else {
+                document.getElementById('f_monto').disabled = true;
+                f_moneda.disabled = true;
+                document.getElementById('f_fecha_emision').disabled = true;
+                document.getElementById('f_fecha_cobro').disabled = true;
+                if (cheque.tipo === 'a_pagar') f_cuenta_origen.disabled = true;
+                // numero_factura: en a_pagar es la factura real del proveedor
+                // (tipeada a mano, puede corregirse) — solo se bloquea en
+                // a_cobrar, donde es nuestro propio N° de venta.
+                if (cheque.tipo === 'a_cobrar') {
+                    document.getElementById('f_numero_factura').disabled = true;
+                }
             }
         }
 
-        abrirModal();
+        // Igual que la edición: eliminar un cheque de cuota_deuda solo se
+        // deja hacer entrando por el link desde Deudas, y solo mientras
+        // está pendiente (confirmado ya lo bloquea el backend igual).
+        if (btnEliminarDesdeModal) {
+            btnEliminarDesdeModal.hidden = !(puedeEditarCuotaDeuda && puedeEliminar && cheque.estado === 'pendiente');
+            btnEliminarDesdeModal.onclick = () => eliminarCheque(cheque.pk);
+        }
+
+        abrirModal(document.getElementById(soloVer ? 'btnCancelarModal' : 'f_numero_cheque'));
     };
 
     window.eliminarCheque = async function (pk) {
-        const cheque = ultimosCheques.find(c => c.pk === pk);
+        const cheque = ultimosCheques.find(c => c.pk === pk) || CHEQUES_CACHE.find(c => c.pk === pk);
         const mensaje = cheque && cheque.tiene_origen_real
             ? 'Este cheque nació de una venta/compra/cuota — si lo eliminás se pierde ese historial para siempre. ' +
               'Es mejor "Rechazar" desde acá si lo que pasó es que rebotó. ¿Eliminarlo igual?'
@@ -390,6 +496,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const result = await response.json();
 
             if (result.success) {
+                if (!modalCheque.hidden && document.getElementById('chqPk').value == pk) cerrarModal();
                 cargarCheques();
             } else {
                 KaiToast.show(result.error || 'Error al eliminar', 'danger');
@@ -417,12 +524,18 @@ document.addEventListener('DOMContentLoaded', function () {
         poblarSelect(conf_cuenta_destino, bancosDest, cuentaPrincipalEn(bancosDest));
         modalConfirmarCheque.hidden = false;
         document.body.style.overflow = 'hidden';
+        focoAntesModalConfirmar = document.activeElement;
+        window.requestAnimationFrame(() => conf_cuenta_destino.focus({ preventScroll: true }));
     };
 
     function cerrarModalConfirmar() {
         modalConfirmarCheque.hidden = true;
         document.body.style.overflow = '';
         chequeConfirmarActual = null;
+        if (focoAntesModalConfirmar && focoAntesModalConfirmar.isConnected) {
+            window.requestAnimationFrame(() => focoAntesModalConfirmar.focus({ preventScroll: true }));
+        }
+        focoAntesModalConfirmar = null;
     }
     btnCerrarConfirmar.addEventListener('click', cerrarModalConfirmar);
     btnCancelarConfirmar.addEventListener('click', cerrarModalConfirmar);
@@ -503,6 +616,17 @@ document.addEventListener('DOMContentLoaded', function () {
         cargarCheques();
     });
 
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+        if (!modalConfirmarCheque.hidden) {
+            event.preventDefault();
+            cerrarModalConfirmar();
+        } else if (!modalCheque.hidden) {
+            event.preventDefault();
+            cerrarModal();
+        }
+    });
+
     // ── Helpers ─────────────────────────────────────────────────────
     function getCookie(name) {
         const value = `; ${document.cookie}`;
@@ -536,4 +660,21 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     cargarCheques();
+
+    // Deep-link puntual desde otra pantalla (ej. "Cheque #123" en Ver
+    // cuotas de Deudas) — abre directo el modal de ese cheque, sin
+    // depender de que esté en la página/filtro actual de la tabla.
+    const chequeAAbrir = paramsUrl.get('cheque');
+    if (chequeAAbrir) {
+        fetch(`${urls.listar}?pk=${chequeAAbrir}`)
+            .then(r => r.json())
+            .then(data => {
+                const c = (data.results || [])[0];
+                if (!c) return;
+                if (!CHEQUES_CACHE.some(x => x.pk === c.pk)) CHEQUES_CACHE.push(c);
+                if (!ultimosCheques.some(x => x.pk === c.pk)) ultimosCheques.push(c);
+                editarCheque(c.pk, { viaDeepLink: true });
+            })
+            .catch((error) => console.error('Error al abrir el cheque desde el link:', error));
+    }
 });

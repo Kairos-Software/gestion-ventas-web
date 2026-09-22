@@ -1,258 +1,191 @@
 {% extends "core/base.html" %}
-{% load static humanize %}
+{% load static kai_formato %}
 
 {% block title %}{{ cliente.get_nombre_display }} — Estadísticas{% endblock %}
 {% block breadcrumb %}<a href="{% url 'core:estadisticas_clientes' %}">Estadísticas</a> · Clientes · <strong>{{ cliente.get_nombre_display }}</strong>{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'core/css/estadisticas.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas_resumen.css' %}?v=20260921c">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas_ventas.css' %}?v=20260921a">
 <link rel="stylesheet" href="{% static 'core/css/detalle_cliente.css' %}">
 <link rel="stylesheet" href="{% static 'core/css/estadisticas_cliente_perfil.css' %}?v=20260917">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas_cliente_panel.css' %}?v=20260922a">
 {% endblock %}
 
 {% block content %}
-
 {% if sin_permiso %}
-<div class="est-sin-permiso">
-    <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
-        <path d="M12 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-        <circle cx="12" cy="16.2" r="0.9" fill="currentColor"/>
-    </svg>
-    <p>No tenés permiso para ver estadísticas de clientes.</p>
-</div>
+<div class="est-sin-permiso"><p>No tenés permiso para ver estadísticas de clientes.</p></div>
 {% else %}
-<div class="cp-page">
-
-<a href="{% url 'core:estadisticas_clientes' %}" class="cp-back-link">← Volver a Estadísticas de clientes</a>
-
-{# ══════════ HERO ══════════ #}
-<div class="cp-hero">
-    <div class="cp-hero-info">
-        <div class="cp-hero-badges">
-            <span class="tipo-badge tipo-{{ cliente.tipo }}">{% if cliente.tipo == 'empresa' %}Empresa{% else %}Persona{% endif %}</span>
-            <span class="estado-badge estado-{{ cliente.estado }}">{{ cliente.get_estado_display }}</span>
+<div class="est-summary-page est-client-profile">
+    <a href="{% url 'core:estadisticas_clientes' %}" class="cp-back-link">← Volver a clientes</a>
+    <header class="cp-hero est-client-profile-hero">
+        <div class="cp-hero-info">
+            <div class="cp-hero-badges"><span class="tipo-badge tipo-{{ cliente.tipo }}">{% if cliente.tipo == 'empresa' %}Empresa{% else %}Persona{% endif %}</span><span class="estado-badge estado-{{ cliente.estado }}">{{ cliente.get_estado_display }}</span></div>
+            <h1 class="cp-hero-nombre">{{ cliente.get_nombre_display }}</h1>
+            <div class="cp-hero-meta"><span class="meta-chip">{{ cliente.codigo }}</span><a href="{% url 'core:cliente_detalle' cliente.pk %}" class="cp-hero-link">Ver ficha de contacto →</a></div>
         </div>
-        <h1 class="cp-hero-nombre">{{ cliente.get_nombre_display }}</h1>
-        <div class="cp-hero-meta">
-            <span class="meta-chip">{{ cliente.codigo }}</span>
-            <a href="{% url 'core:cliente_detalle' cliente.pk %}" class="cp-hero-link">Ver ficha de contacto completa →</a>
-        </div>
-    </div>
-    <div class="cp-hero-ganancia">
-        <span class="cp-hero-ganancia-label">Ganancia real generada</span>
-        <span class="cp-hero-ganancia-valor">${{ perfil_valor.ganancia|floatformat:0|intcomma }}</span>
-        <span class="cp-hero-ganancia-sub">Margen {{ perfil_valor.margen_pct }}%</span>
-    </div>
-</div>
+        {% if puede_ver_deuda and scoring_historial %}<span class="sco-badge sco-badge--{{ cliente.scoring_banda }}">{{ cliente.scoring_banda_label }}</span>{% endif %}
+    </header>
 
-{# ══════════ VALOR DEL CLIENTE ══════════ #}
-<div class="card mb-4">
-    <div class="card-header">
-        <div>
-            <p class="card-title">¿Cuánto vale este cliente?</p>
-            <p class="text-muted" style="font-size:.8125rem;">Todo el historial — ingresos y ganancia calculados con el costo real de la mercadería vendida</p>
+    <section class="est-client-profile-section" aria-labelledby="estPerfilResumen">
+        <div class="est-client-profile-heading"><div><h2 id="estPerfilResumen">De un vistazo</h2><p>La deuda es de hoy; las ventas y la ganancia abarcan todo el historial.</p></div></div>
+        <div class="est-summary-highlights">
+            {% if puede_ver_deuda %}
+            <article class="est-summary-highlight est-client-profile-highlight--debt {% if comportamiento_pago.saldo_actual %}is-negative{% endif %}">
+                <div class="est-summary-label-row"><span class="est-summary-highlight-label">Saldo pendiente hoy · ARS</span><button type="button" class="kai-help-btn" data-help-target="ayuda_perfil_saldo" aria-label="Qué significa saldo pendiente" aria-controls="ayuda_perfil_saldo">?</button></div>
+                <div class="kai-help-popover" id="ayuda_perfil_saldo">Es lo que este cliente todavía debe en pesos. Otras monedas se muestran aparte.</div>
+                <strong class="est-summary-highlight-value">${{ comportamiento_pago.saldo_actual|pesos }}</strong>
+                <p>{{ comportamiento_pago.cantidad_cuentas_ars }} cuenta{{ comportamiento_pago.cantidad_cuentas_ars|pluralize }} en pesos con saldo</p>
+                <a href="#estPerfilDeuda">Ver cuentas <span aria-hidden="true">→</span></a>
+            </article>
+            <article class="est-summary-highlight est-client-profile-highlight--overdue {% if comportamiento_pago.mora_total %}is-negative{% endif %}">
+                <div class="est-summary-label-row"><span class="est-summary-highlight-label">Cuotas vencidas hoy · ARS</span><button type="button" class="kai-help-btn" data-help-target="ayuda_perfil_mora" aria-label="Qué significa cuotas vencidas" aria-controls="ayuda_perfil_mora">?</button></div>
+                <div class="kai-help-popover" id="ayuda_perfil_mora">Son cuotas en pesos que ya vencieron y todavía no pagó. No incluye cuentas sin vencimiento.</div>
+                <strong class="est-summary-highlight-value">${{ comportamiento_pago.mora_total|pesos }}</strong>
+                <p>{{ comportamiento_pago.mora_cantidad }} cuota{{ comportamiento_pago.mora_cantidad|pluralize }} vencida{{ comportamiento_pago.mora_cantidad|pluralize }}</p>
+            </article>
+            {% endif %}
+            <article class="est-summary-highlight est-client-profile-highlight--sales">
+                <div class="est-summary-label-row"><span class="est-summary-highlight-label">Ventas al cliente · ARS</span><button type="button" class="kai-help-btn" data-help-target="ayuda_perfil_ventas" aria-label="Qué significa ventas al cliente" aria-controls="ayuda_perfil_ventas">?</button></div>
+                <div class="kai-help-popover" id="ayuda_perfil_ventas">Suma de sus ventas confirmadas en pesos. No significa que ya se hayan cobrado.</div>
+                <strong class="est-summary-highlight-value">${{ perfil_valor.ingresos|pesos }}</strong>
+                <p>{{ perfil_valor.cant_ventas }} venta{{ perfil_valor.cant_ventas|pluralize }} confirmada{{ perfil_valor.cant_ventas|pluralize }} en ARS</p>
+            </article>
+            <article class="est-summary-highlight est-client-profile-highlight--profit {% if perfil_valor.ganancia < 0 %}is-negative{% endif %}">
+                <div class="est-summary-label-row"><span class="est-summary-highlight-label">Ganancia bruta estimada · ARS</span><button type="button" class="kai-help-btn" data-help-target="ayuda_perfil_ganancia" aria-label="Qué significa ganancia bruta estimada" aria-controls="ayuda_perfil_ganancia">?</button></div>
+                <div class="kai-help-popover" id="ayuda_perfil_ganancia">Ventas en pesos menos el costo estimado de la mercadería vendida. No incluye gastos.</div>
+                <strong class="est-summary-highlight-value">${{ perfil_valor.ganancia|pesos }}</strong>
+                <p>Margen bruto {{ perfil_valor.margen_pct|cantidad }}%</p>
+            </article>
         </div>
-    </div>
-    <div class="card-body">
-        <div class="est-mini-stat-grid">
-            <div class="est-mini-stat">
-                <div class="est-mini-stat-valor">${{ perfil_valor.ingresos|floatformat:0|intcomma }}</div>
-                <div class="est-mini-stat-label">Facturación total</div>
-            </div>
-            <div class="est-mini-stat">
-                <div class="est-mini-stat-valor">${{ perfil_valor.ticket_promedio|floatformat:0|intcomma }}</div>
-                <div class="est-mini-stat-label">Ticket promedio</div>
-            </div>
-            <div class="est-mini-stat">
-                <div class="est-mini-stat-valor">{{ perfil_valor.cant_ventas }}</div>
-                <div class="est-mini-stat-label">Venta{{ perfil_valor.cant_ventas|pluralize }} confirmada{{ perfil_valor.cant_ventas|pluralize }}</div>
-            </div>
-            <div class="est-mini-stat">
-                <div class="est-mini-stat-valor">{% if perfil_valor.ultima_compra %}{{ perfil_valor.ultima_compra|date:'d/m/Y' }}{% else %}—{% endif %}</div>
-                <div class="est-mini-stat-label">Última compra</div>
-            </div>
-        </div>
-    </div>
-</div>
+        {% for venta in perfil_valor.ventas_otras_monedas %}
+        <div class="est-client-profile-foreign"><strong>Ventas en {{ venta.moneda }}</strong><span>${{ venta.ingresos|pesos }} {{ venta.moneda }}</span><span>{{ venta.cant_ventas }} venta{{ venta.cant_ventas|pluralize }} confirmada{{ venta.cant_ventas|pluralize }}</span></div>
+        {% endfor %}
+        {% for divisa in comportamiento_pago.otras_monedas %}
+        <div class="est-client-profile-foreign"><strong>Cuenta en {{ divisa.moneda }}</strong><span>Pendiente: ${{ divisa.saldo_actual|pesos }} {{ divisa.moneda }}</span><span>Vencido: ${{ divisa.mora_total|pesos }} {{ divisa.moneda }}</span></div>
+        {% endfor %}
+    </section>
 
-{% if not puede_ver_deuda %}
-    <div class="empty-state"><p>No tenés permiso para ver la deuda ni el historial de cobros de este cliente.</p></div>
-{% else %}
+    {% if not puede_ver_deuda %}
+    <p class="est-sales-empty">No tenés permiso para ver la deuda ni el historial de cobros de este cliente.</p>
+    {% endif %}
 
-{# ══════════ COMPORTAMIENTO DE PAGO ══════════ #}
-<div class="card mb-4">
-    <div class="card-header">
-        <div>
-            <p class="card-title">¿Qué tan cumplidor es pagando?</p>
-            <p class="text-muted" style="font-size:.8125rem;">Sobre las cuotas de sus cuentas por cobrar</p>
-        </div>
-        <span class="cp-pill">Tiempo real</span>
-    </div>
-    <div class="card-body">
-        <div class="cp-pago-grid">
-            <div class="cp-pago-donut">
+    {% if puede_ver_deuda %}
+    <section class="est-client-profile-section" aria-labelledby="estPerfilHoy">
+        <div class="est-client-profile-heading"><div><h2 id="estPerfilHoy">Deuda y pagos</h2><p>Estado actual de sus cuentas y comportamiento al pagar.</p></div></div>
+        <div class="est-client-profile-main-grid">
+            <article class="est-sales-panel" id="estPerfilDeuda">
+                <div class="est-sales-panel-heading"><h3>Cuentas con saldo</h3>{% if deudas_activas %}<button type="button" class="btn btn-ghost btn-sm" id="btnImprimirDeudaTotal">Imprimir deuda</button>{% endif %}</div>
+                {% if deudas_activas %}
+                <div class="est-client-profile-debt-list">{% for d in deudas_activas|slice:':3' %}
+                    <div class="est-client-profile-debt-row"><div><strong>{{ d.titulo }}</strong><small>{{ d.estado_display }}{% if d.cantidad_cuotas %} · {{ d.cuotas_cobradas }}/{{ d.cantidad_cuotas }} cuotas cobradas{% endif %}</small></div><div class="est-client-profile-debt-monto"><b>${{ d.saldo_pendiente|pesos }} {{ d.moneda }}</b><small>de ${{ d.monto_total|pesos }} total</small></div></div>
+                {% endfor %}</div>
+                {% if deudas_activas|length > 3 %}<details class="est-sales-expand"><summary>Ver más cuentas</summary><div class="est-client-profile-debt-list">{% for d in deudas_activas|slice:'3:' %}
+                    <div class="est-client-profile-debt-row"><div><strong>{{ d.titulo }}</strong><small>{{ d.estado_display }}{% if d.cantidad_cuotas %} · {{ d.cuotas_cobradas }}/{{ d.cantidad_cuotas }} cuotas cobradas{% endif %}</small></div><div class="est-client-profile-debt-monto"><b>${{ d.saldo_pendiente|pesos }} {{ d.moneda }}</b><small>de ${{ d.monto_total|pesos }} total</small></div></div>
+                {% endfor %}</div></details>{% endif %}
+                {% else %}<p class="est-sales-empty">Este cliente no tiene cuentas activas con saldo.</p>{% endif %}
+            </article>
+            <article class="est-sales-panel">
+                <div class="est-sales-panel-heading"><h3>Cómo viene pagando</h3><button type="button" class="kai-help-btn" data-help-target="ayuda_perfil_pagos" aria-label="Cómo se calcula la puntualidad" aria-controls="ayuda_perfil_pagos">?</button></div>
+                <div class="kai-help-popover" id="ayuda_perfil_pagos">Compara la fecha de pago con el vencimiento de cada cuota cobrada. No cuenta pagos históricos sin fecha real.</div>
                 {% if comportamiento_pago.cantidad_evaluadas %}
-                <div class="est-chart-wrap chico">
-                    <canvas id="chartPuntualidad"></canvas>
+                <div class="cp-pago-donut">
+                    <div class="est-chart-wrap chico"><canvas id="chartPuntualidad"></canvas></div>
+                    <div class="cp-donut-leyenda">
+                        <span class="cp-leyenda-item"><i class="cp-dot cp-dot-success"></i>A término — {{ comportamiento_pago.cantidad_a_termino }}</span>
+                        <span class="cp-leyenda-item"><i class="cp-dot cp-dot-danger"></i>Con atraso — {{ comportamiento_pago.cantidad_con_atraso }}</span>
+                    </div>
                 </div>
-                <div class="cp-donut-leyenda">
-                    <span class="cp-leyenda-item"><i class="cp-dot cp-dot-success"></i>A término — {{ comportamiento_pago.cantidad_a_termino }}</span>
-                    <span class="cp-leyenda-item"><i class="cp-dot cp-dot-danger"></i>Con atraso — {{ comportamiento_pago.cantidad_con_atraso }}</span>
+                <div class="est-client-profile-payment">
+                    <div><span>Pagó a tiempo</span><strong>{{ comportamiento_pago.pct_a_termino|cantidad }}%</strong><small>{{ comportamiento_pago.cantidad_a_termino }} de {{ comportamiento_pago.cantidad_evaluadas }} cuotas evaluadas</small></div>
+                    <div><span>Pagó tarde</span><strong>{{ comportamiento_pago.cantidad_con_atraso }}</strong><small>Cuotas con atraso</small></div>
+                    <div><span>Atraso promedio</span><strong>{{ comportamiento_pago.atraso_promedio_dias|cantidad }} días</strong><small>Solo cuando pagó tarde</small></div>
+                    {% if comportamiento_pago.uso_credito_pct is not None %}<div><span>Uso del crédito otorgado</span><strong>{{ comportamiento_pago.uso_credito_pct|cantidad }}%</strong><small>Saldo actual sobre el total otorgado</small></div>{% endif %}
                 </div>
-                {% else %}
-                <div class="empty-state"><p>Todavía no pagó ninguna cuota que se pueda evaluar.</p></div>
-                {% endif %}
-            </div>
-            <div class="est-mini-stat-grid">
-                <div class="est-mini-stat">
-                    <div class="est-mini-stat-valor">{% if comportamiento_pago.pct_a_termino is not None %}{{ comportamiento_pago.pct_a_termino }}%{% else %}—{% endif %}</div>
-                    <div class="est-mini-stat-label">Paga a término</div>
-                </div>
-                <div class="est-mini-stat">
-                    <div class="est-mini-stat-valor">{{ comportamiento_pago.atraso_promedio_dias }} días</div>
-                    <div class="est-mini-stat-label">Atraso promedio (cuando llega tarde)</div>
-                </div>
-                <div class="est-mini-stat est-mini-stat--danger">
-                    <div class="est-mini-stat-valor">${{ comportamiento_pago.mora_total|floatformat:0|intcomma }}</div>
-                    <div class="est-mini-stat-label">En mora hoy ({{ comportamiento_pago.mora_cantidad }} cuota{{ comportamiento_pago.mora_cantidad|pluralize }})</div>
-                </div>
-                <div class="est-mini-stat">
-                    <div class="est-mini-stat-valor">{% if comportamiento_pago.uso_credito_pct is not None %}{{ comportamiento_pago.uso_credito_pct }}%{% else %}—{% endif %}</div>
-                    <div class="est-mini-stat-label">Uso del crédito otorgado</div>
-                </div>
-            </div>
+                {% else %}<p class="est-sales-empty">Aún no hay cuotas pagadas con fecha suficiente para evaluar puntualidad.</p>{% endif %}
+            </article>
         </div>
-    </div>
-</div>
+    </section>
+    {% endif %}
 
-{# ══════════ HISTORIAL DE SCORING ══════════ #}
-<div class="card mb-4">
-    <div class="card-header">
-        <div>
-            <p class="card-title">Historial de scoring</p>
-            <p class="text-muted" style="font-size:.8125rem;">Todo cliente arranca en 1000 (Excelente) — acá se ven los cambios reales desde ese punto. Hacé click en el gráfico o en un evento para ver el detalle.</p>
-        </div>
-        {% if scoring_historial %}
-        <div style="display:flex; align-items:center; gap:.6rem;">
-            <span class="sco-badge sco-badge--{{ cliente.scoring_banda }}">{{ cliente.scoring_banda_label }}</span>
-            <button type="button" class="btn btn-ghost btn-sm" id="btnImprimirScoring">Imprimir</button>
-        </div>
-        {% endif %}
-    </div>
-    <div class="card-body">
-        {% if scoring_historial %}
-        <div class="sco-filtro-rango" id="scoFiltroRango"></div>
-        <div class="est-mini-stat-grid sco-resumen-grid" id="scoResumen"></div>
-        <div class="est-chart-wrap">
-            <canvas id="chartScoringHistorial"></canvas>
-            <div class="empty-state" id="chartSinDatosRango" style="display:none"><p>No hay puntos en este rango — probá "Todo".</p></div>
-        </div>
-        <div class="sco-leyenda" id="scoLeyenda"></div>
-        <div class="sco-eventos-header">Línea de eventos — más reciente primero</div>
-        <div class="sco-eventos-lista" id="scoEventosLista"></div>
-        <div class="sco-historial-desglose" id="scoHistDesglose"></div>
-        {% else %}
-            <div class="empty-state"><p>Este cliente todavía no tiene historial de scoring — recién se genera cuando compra en cuotas o paga con cheque.</p></div>
-        {% endif %}
-    </div>
-</div>
-
-{# ══════════ DEUDA ACTUAL CONSOLIDADA ══════════ #}
-<div class="card mb-4">
-    <div class="card-header">
-        <div>
-            <p class="card-title">Deuda actual</p>
-            <p class="text-muted" style="font-size:.8125rem;">Todas las cuentas por cobrar activas con saldo pendiente, juntas</p>
-        </div>
-        {% if deudas_activas %}
-        <button type="button" class="btn btn-ghost btn-sm" id="btnImprimirDeudaTotal">Imprimir deuda total</button>
-        {% endif %}
-    </div>
-    <div class="card-body">
-        {% if deudas_activas %}
-            {% for d in deudas_activas %}
-            <div class="cp-deuda-row">
-                <div class="cp-deuda-left">
-                    <div class="cp-deuda-titulo">{{ d.titulo }}</div>
-                    <div class="cp-deuda-sub">{{ d.cuotas_cobradas }}/{{ d.cantidad_cuotas|default:"—" }} cuotas cobradas · {{ d.estado_display }}</div>
+    <section class="est-client-profile-section" aria-labelledby="estPerfilMas">
+        <div class="est-client-profile-heading"><div><h2 id="estPerfilMas">Más información</h2><p>Abrí solo el detalle que necesites consultar.</p></div></div>
+        <div class="est-client-profile-detail-grid">
+            <details class="est-sales-detail">
+                <summary><span><strong>Actividad comercial</strong><small>Promedio por venta, última compra y margen</small></span></summary>
+                <div class="est-sales-detail-body">
+                    <div class="est-sales-simple-row"><span>Venta promedio en ARS</span><strong>${{ perfil_valor.ticket_promedio|pesos }}</strong></div>
+                    <div class="est-sales-simple-row"><span>Última compra (cualquier moneda)</span><strong>{% if perfil_valor.ultima_compra %}{{ perfil_valor.ultima_compra|date:'d/m/Y' }}{% else %}Sin compras{% endif %}</strong></div>
+                    <div class="est-sales-simple-row"><span>Costo estimado de mercadería · ARS</span><strong>${{ perfil_valor.costo|pesos }}</strong></div>
+                    <div class="est-sales-simple-row"><span>Margen bruto</span><strong>{{ perfil_valor.margen_pct|cantidad }}%</strong></div>
                 </div>
-                <div class="cp-deuda-right">
-                    <div class="cp-deuda-saldo">${{ d.saldo_pendiente|floatformat:0|intcomma }}</div>
-                    <div class="cp-deuda-total-label">de ${{ d.monto_total|floatformat:0|intcomma }}</div>
+            </details>
+            {% if puede_ver_deuda %}
+            <details class="est-sales-detail" id="estPerfilScoring">
+                <summary><span><strong>Scoring e historial de cambios</strong><small>{% if scoring_historial %}Puntaje actual: {{ cliente.scoring }} · {{ cliente.scoring_banda_label }}{% else %}Sin cambios registrados todavía{% endif %}</small></span></summary>
+                <div class="est-sales-detail-body">
+                    {% if scoring_historial %}
+                    <div class="est-client-profile-detail-actions"><p>Los cambios de puntaje aparecen de más reciente a más antiguo.</p><button type="button" class="btn btn-ghost btn-sm" id="btnImprimirScoring">Imprimir scoring</button></div>
+                    <div class="sco-filtro-rango" id="scoFiltroRango"></div>
+                    <div class="est-mini-stat-grid sco-resumen-grid" id="scoResumen"></div>
+                    <div class="est-chart-wrap"><canvas id="chartScoringHistorial"></canvas><div class="empty-state" id="chartSinDatosRango" style="display:none"><p>No hay puntos en este rango; probá “Todo”.</p></div></div>
+                    <div class="sco-leyenda" id="scoLeyenda"></div>
+                    <div class="sco-eventos-header">Cambios de puntaje</div>
+                    <div class="sco-eventos-lista" id="scoEventosLista"></div>
+                    <div class="sco-historial-desglose" id="scoHistDesglose"></div>
+                    {% else %}<p class="est-sales-empty">El historial se genera cuando este cliente compra en cuotas o paga con cheque.</p>{% endif %}
                 </div>
-            </div>
-            {% endfor %}
-        {% else %}
-            <div class="empty-state"><p>Este cliente no tiene deuda activa por el momento.</p></div>
-        {% endif %}
-    </div>
-</div>
-
-{# ══════════ HISTORIAL ══════════ #}
-<div class="card">
-    <div class="card-header">
-        <div>
-            <p class="card-title">Historial de ventas y pagos</p>
-            <p class="text-muted" style="font-size:.8125rem;">Cada venta y cada pago de cuota, ordenado por fecha</p>
+            </details>
+            <details class="est-sales-detail" id="estPerfilHistorial">
+                <summary><span><strong>Historial de ventas y pagos</strong><small>{{ historial|length }} movimiento{{ historial|length|pluralize }} en orden de fecha</small></span></summary>
+                <div class="est-sales-detail-body">
+                    {% if historial %}
+                    <div class="est-client-profile-detail-actions"><p>El saldo muestra cómo fue cambiando lo que debía.</p><button type="button" class="btn btn-ghost btn-sm" id="btnImprimirHistorial">Imprimir historial</button></div>
+                    <div class="est-client-profile-history-wrap"><table class="table est-client-profile-history"><thead><tr><th>Fecha</th><th>Movimiento</th><th>Medio</th><th>Monto</th><th>Saldo</th></tr></thead><tbody>{% for f in historial %}
+                        <tr><td data-label="Fecha">{{ f.fecha|date:'d/m/Y' }}</td><td data-label="Movimiento">{{ f.descripcion }}</td><td data-label="Medio">{{ f.medio_pago|default:'—' }}</td><td data-label="Monto">${{ f.monto|pesos }} {{ f.moneda }}</td><td data-label="Saldo">${{ f.saldo|pesos }} {{ f.moneda }}</td></tr>
+                    {% endfor %}</tbody></table></div>
+                    {% else %}<p class="est-sales-empty">Este cliente todavía no tiene ventas ni pagos registrados.</p>{% endif %}
+                </div>
+            </details>
+            {% endif %}
         </div>
-        {% if historial %}
-        <button type="button" class="btn btn-ghost btn-sm" id="btnImprimirHistorial">Imprimir historial</button>
-        {% endif %}
-    </div>
-    <div class="card-body">
-        {% if historial %}
-        <div class="table-responsive">
-            <table class="table">
-                <thead>
-                    <tr><th>Fecha</th><th>Descripción</th><th>Medio de pago</th><th class="cp-th-monto">Monto</th><th class="cp-th-monto">Saldo</th></tr>
-                </thead>
-                <tbody>
-                    {% for f in historial %}
-                    <tr>
-                        <td>{{ f.fecha|date:'d/m/Y' }}</td>
-                        <td>{{ f.descripcion }}</td>
-                        <td>{{ f.medio_pago|default:'—' }}</td>
-                        <td class="cp-th-monto">${{ f.monto|floatformat:0|intcomma }}</td>
-                        <td class="cp-th-monto">{% if f.saldo %}${{ f.saldo|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% else %}
-            <div class="empty-state"><p>Este cliente todavía no tiene ventas confirmadas.</p></div>
-        {% endif %}
-    </div>
-</div>
-
-{% endif %}
-
+    </section>
 </div>
 {% endif %}
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-<script src="{% static 'core/js/estadisticas.js' %}?v=20260916"></script>
-<script src="{% static 'core/js/estadisticas_cliente_scoring.js' %}?v=20260917"></script>
+{% if not sin_permiso %}
+{% if scoring_historial or comportamiento_pago.cantidad_evaluadas %}<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="{% static 'core/js/estadisticas.js' %}?v=20260922a"></script>
+{% if scoring_historial %}<script src="{% static 'core/js/estadisticas_cliente_scoring.js' %}?v=20260917"></script>{% endif %}{% endif %}
+{% if puede_ver_deuda %}
 <script src="{% static 'core/js/cliente_deuda_total_imprimir.js' %}?v=2026091702"></script>
-<script src="{% static 'core/js/cliente_historial_imprimir.js' %}?v=2026091702"></script>
+<script src="{% static 'core/js/cliente_historial_imprimir.js' %}?v=20260922a"></script>
 <script src="{% static 'core/js/cliente_scoring_imprimir.js' %}?v=2026091702"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         {% if comportamiento_pago.cantidad_evaluadas %}
-        initChartDonut('chartPuntualidad', [
-            {'label': 'A término', 'cantidad': {{ comportamiento_pago.cantidad_a_termino }}},
-            {'label': 'Con atraso', 'cantidad': {{ comportamiento_pago.cantidad_con_atraso }}},
-        ], { 'A término': '#10B981', 'Con atraso': '#EF4444' });
+        if (window.Chart) {
+            initChartDonut('chartPuntualidad', [
+                {'label': 'A término', 'cantidad': {{ comportamiento_pago.cantidad_a_termino }}},
+                {'label': 'Con atraso', 'cantidad': {{ comportamiento_pago.cantidad_con_atraso }}},
+            ], { 'A término': '#10B981', 'Con atraso': '#EF4444' });
+        }
         {% endif %}
-
         {% if scoring_historial %}
-        initChartScoringHistorial({{ scoring_historial_json|default:'[]'|safe }});
+        const scoringPanel = document.getElementById('estPerfilScoring');
+        let scoringCargado = false;
+        scoringPanel.addEventListener('toggle', function () {
+            if (scoringPanel.open && !scoringCargado) {
+                scoringCargado = true;
+                requestAnimationFrame(function () { initChartScoringHistorial({{ scoring_historial_json|default:'[]'|safe }}); });
+            }
+        });
         {% endif %}
 
-        var cliente = {
+        const cliente = {
             pk: {{ cliente.pk }},
             nombre: "{{ cliente.get_nombre_display|escapejs }}",
             cuit: "{{ cliente.cuit|escapejs }}",
@@ -262,30 +195,29 @@
             direccion: "{{ cliente.get_direccion_completa|escapejs }}",
             email: "{{ cliente.email_principal|escapejs }}",
         };
-
-        var btnDeuda = document.getElementById('btnImprimirDeudaTotal');
-        if (btnDeuda) {
-            btnDeuda.addEventListener('click', function () {
-                var ventana = window.open('', '_blank', 'width=800,height=950');
-                clienteDeudaTotalImprimir(cliente, {{ deudas_activas_json|default:'[]'|safe }}, ventana);
+        const btnDeuda = document.getElementById('btnImprimirDeudaTotal');
+        if (btnDeuda) btnDeuda.addEventListener('click', function () {
+            const ventana = window.open('', '_blank', 'width=800,height=950');
+            clienteDeudaTotalImprimir(cliente, {{ deudas_activas_json|default:'[]'|safe }}, ventana);
+        });
+        const btnHistorial = document.getElementById('btnImprimirHistorial');
+        if (btnHistorial) btnHistorial.addEventListener('click', function () {
+            const ventana = window.open('', '_blank', 'width=800,height=950');
+            clienteHistorialImprimir(cliente, {{ historial_json|default:'[]'|safe }}, ventana);
+        });
+        const btnScoring = document.getElementById('btnImprimirScoring');
+        if (btnScoring) btnScoring.addEventListener('click', function () {
+            const ventana = window.open('', '_blank', 'width=800,height=950');
+            clienteScoringImprimir(cliente, {{ scoring_historial_json|default:'[]'|safe }}, ventana);
+        });
+        document.querySelectorAll('.est-client-profile a[href^="#"]').forEach(function (link) {
+            link.addEventListener('click', function () {
+                const target = document.getElementById(link.getAttribute('href').slice(1));
+                if (target && target.tagName === 'DETAILS') target.open = true;
             });
-        }
-
-        var btnHistorial = document.getElementById('btnImprimirHistorial');
-        if (btnHistorial) {
-            btnHistorial.addEventListener('click', function () {
-                var ventana = window.open('', '_blank', 'width=800,height=950');
-                clienteHistorialImprimir(cliente, {{ historial_json|default:'[]'|safe }}, ventana);
-            });
-        }
-
-        var btnScoring = document.getElementById('btnImprimirScoring');
-        if (btnScoring) {
-            btnScoring.addEventListener('click', function () {
-                var ventana = window.open('', '_blank', 'width=800,height=950');
-                clienteScoringImprimir(cliente, {{ scoring_historial_json|default:'[]'|safe }}, ventana);
-            });
-        }
+        });
     });
 </script>
+{% endif %}
+{% endif %}
 {% endblock %}

@@ -22,6 +22,13 @@ function _diFmtMoneda(v, moneda) {
     return `$ ${parseFloat(v || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${moneda || ''}`.trim();
 }
 
+function _diFmtFecha(fecha) {
+    if (!fecha) return '—';
+    const partes = String(fecha).slice(0, 10).split('-').map(Number);
+    if (partes.length !== 3 || partes.some(Number.isNaN)) return _diEsc(fecha);
+    return new Intl.DateTimeFormat('es-AR').format(new Date(partes[0], partes[1] - 1, partes[2]));
+}
+
 function _diEstadoLabel(c) {
     // Este texto lo lee quien recibe el comprobante (proveedor/acreedor),
     // no nosotros — no le interesa con qué cuenta pagamos ni si es carga
@@ -72,13 +79,13 @@ function deudaImprimir(deuda, ventanaPrevia) {
         : (deuda.cuenta_acreditacion_nombre || '-');
 
     const filasCuotas = (deuda.cuotas || []).map(c => `
-        <tr>
+        <tr class="di-fila di-fila--${_diEsc(c.estado)}">
             <td>${c.numero}</td>
-            <td>${_diEsc(c.fecha_vencimiento)}</td>
+            <td>${_diFmtFecha(c.fecha_vencimiento)}</td>
             <td class="di-monto">${_diFmtMoneda(c.monto, deuda.moneda)}</td>
-            <td>${_diEsc(_diEstadoLabel(c))}</td>
-            <td>${c.fecha_confirmacion ? _diEsc(c.fecha_confirmacion.slice(0, 10)) : '-'}</td>
-        </tr>`).join('');
+            <td><span class="di-estado di-estado--${_diEsc(c.estado)}">${_diEsc(_diEstadoLabel(c))}</span></td>
+            <td>${c.fecha_confirmacion ? _diFmtFecha(c.fecha_confirmacion) : '—'}</td>
+        </tr>`).join('') || '<tr><td colspan="5" class="di-vacio">Todavía no hay pagos cargados.</td></tr>';
 
     const html = `<!doctype html>
 <html lang="es">
@@ -87,32 +94,45 @@ function deudaImprimir(deuda, ventanaPrevia) {
 <title>Deuda — ${_diEsc(deuda.descripcion || deuda.compra_numero || ('#' + deuda.pk))}</title>
 <style>
     * { box-sizing: border-box; }
-    body { font-family: Arial, Helvetica, sans-serif; color: #1a1a1a; padding: 32px; max-width: 720px; margin: 0 auto; }
-    h1 { font-size: 1.25rem; margin: 0 0 4px; }
-    .di-membrete { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid #1E6FA8; page-break-inside: avoid; }
+    @page { size: A4; margin: 14mm; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { font-family: Arial, Helvetica, sans-serif; color: #17212b; padding: 28px; max-width: 780px; margin: 0 auto; font-size: 13px; }
+    h1 { font-size: 1.45rem; letter-spacing: -.02em; margin: 5px 0 4px; }
+    .di-membrete { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 24px; padding-bottom: 14px; border-bottom: 3px solid #1E6FA8; page-break-inside: avoid; }
     .di-marca { display: flex; align-items: center; gap: 12px; min-width: 0; }
     .di-logo { display: block; max-width: 170px; max-height: 58px; object-fit: contain; }
     .di-empresa-nombre { font-size: 1.05rem; font-weight: 700; }
     .di-eslogan { margin-top: 2px; color: #40536A; font-size: .75rem; font-style: italic; }
     .di-empresa-datos { max-width: 55%; color: #26364A; font-size: .75rem; line-height: 1.45; text-align: right; }
-    .di-acreedor { margin: 0 0 18px; padding: 9px 12px; border: 1px solid #B7CEDC; background: #F7FAFC; font-size: .8125rem; line-height: 1.45; }
+    .di-tipo { display: inline-block; color: #1E6FA8; font-size: .68rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+    .di-acreedor { margin: 0 0 18px; padding: 11px 13px; border: 1px solid #B7CEDC; border-radius: 8px; background: #F7FAFC; font-size: .8125rem; line-height: 1.45; }
     .di-acreedor > span { margin-right: 8px; color: #1E6FA8; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
     .di-subtitulo { color: #555; font-size: .875rem; margin: 0 0 20px; }
-    .di-resumen { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px; margin-bottom: 20px; font-size: .875rem; }
-    .di-resumen div { display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding: 3px 0; }
+    .di-resumen { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin-bottom: 22px; border: 1px solid #dbe4eb; border-radius: 9px; overflow: hidden; font-size: .82rem; }
+    .di-resumen div { display: flex; justify-content: space-between; gap: 12px; min-height: 37px; padding: 10px 12px; border-bottom: 1px solid #e8eef2; }
+    .di-resumen div:nth-child(odd) { border-right: 1px solid #e8eef2; }
+    .di-resumen div:nth-last-child(-n+2) { border-bottom: 0; }
     .di-resumen span { color: #666; }
-    .di-badge { display: inline-block; background: #f3f0ff; color: #5b21b6; border-radius: 4px; padding: 2px 8px; font-size: .75rem; margin-bottom: 12px; }
-    table { width: 100%; border-collapse: collapse; font-size: .8125rem; }
-    th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; }
-    th { background: #f7f7f7; }
+    .di-badge { display: inline-block; background: #f3f0ff; color: #5b21b6; border-radius: 999px; padding: 4px 9px; font-size: .7rem; font-weight: 700; margin-bottom: 12px; }
+    .di-tabla-titulo { margin: 0 0 8px; font-size: .88rem; }
+    table { width: 100%; border-collapse: separate; border-spacing: 0; overflow: hidden; border: 1px solid #dbe4eb; border-radius: 9px; font-size: .78rem; }
+    th, td { padding: 8px 9px; text-align: left; border-bottom: 1px solid #e8eef2; }
+    th { background: #edf4f8; color: #40536a; font-size: .67rem; letter-spacing: .045em; text-transform: uppercase; }
+    tr:last-child td { border-bottom: 0; }
     .di-monto { text-align: right; }
-    .di-footer { margin-top: 24px; font-size: .75rem; color: #888; }
-    @media print { body { padding: 0; } }
+    .di-estado { display: inline-block; padding: 3px 7px; border-radius: 999px; background: #fff3d7; color: #8a5a00; font-size: .68rem; font-weight: 700; }
+    .di-estado--confirmada { background: #dcf7e9; color: #08734d; }
+    .di-estado--anulada { background: #f1f3f5; color: #68737d; }
+    .di-vacio { padding: 20px; color: #68737d; text-align: center; }
+    .di-footer { display: flex; justify-content: space-between; gap: 20px; margin-top: 24px; padding-top: 10px; border-top: 1px solid #dbe4eb; font-size: .7rem; color: #7b8791; }
+    @media print { body { padding: 0; } thead { display: table-header-group; } tr { break-inside: avoid; } }
+    @media (max-width: 560px) { .di-resumen { grid-template-columns: 1fr; } .di-resumen div, .di-resumen div:nth-child(odd) { border-right: 0; border-bottom: 1px solid #e8eef2; } }
 </style>
 </head>
 <body>
     ${_diEmpresaHtml(emp)}
-    <h1>${_diEsc(deuda.tipo_display)} — ${_diEsc(deuda.descripcion || deuda.compra_numero || ('#' + deuda.pk))}</h1>
+    <span class="di-tipo">${_diEsc(deuda.tipo_display)}</span>
+    <h1>${_diEsc(deuda.descripcion || deuda.compra_numero || ('Deuda #' + deuda.pk))}</h1>
     <p class="di-subtitulo">Estado de cuenta al ${new Date().toLocaleDateString('es-AR')}</p>
     ${acreedor ? `<section class="di-acreedor"><span>Proveedor / acreedor</span><strong>${_diEsc(acreedor)}</strong></section>` : ''}
     ${deuda.es_carga_inicial ? '<div class="di-badge">Carga inicial</div>' : ''}
@@ -121,18 +141,24 @@ function deudaImprimir(deuda, ventanaPrevia) {
         ${tieneCuentaPropia ? `<div><span>${cuentaLabel}</span><strong>${_diEsc(cuentaValor)}</strong></div>` : ''}
         ${deuda.modo_cuotas === 'variable' && !deuda.capital_conocido ? '' : `<div><span>${deuda.modo_cuotas === 'variable' ? 'Capital' : 'Monto original'}</span><strong>${_diFmtMoneda(deuda.monto_original, deuda.moneda)}</strong></div>`}
         <div><span>Interés${deuda.modo_cuotas === 'variable' ? ' (calculado)' : ''}</span><strong>${deuda.modo_cuotas === 'variable' ? (deuda.interes_implicito != null ? _diEsc(deuda.interes_implicito) + '%' : '—') : _diEsc(deuda.porcentaje_interes) + '%'}</strong></div>
+        ${deuda.monto_desconocido ? `
+        <div><span>Pagado hasta ahora</span><strong>${_diFmtMoneda(deuda.monto_abonado_libre, deuda.moneda)}</strong></div>
+        <div><span>Total y tasa real</span><strong>A definir</strong></div>
+        ` : `
         <div><span>${deuda.modo_cuotas === 'variable' ? 'Total a pagar' : 'Monto total'}</span><strong>${_diFmtMoneda(deuda.monto_total, deuda.moneda)}</strong></div>
         <div><span>Saldo pendiente</span><strong>${_diFmtMoneda(deuda.saldo_pendiente, deuda.moneda)}</strong></div>
+        `}
         <div><span>Cuotas pagadas</span><strong>${deuda.cuotas_pagadas}/${deuda.cantidad_cuotas || (deuda.cuotas_cargadas != null ? deuda.cuotas_cargadas : '?')}</strong></div>
         <div><span>Estado</span><strong>${_diEsc(deuda.estado_display)}</strong></div>
     </div>
+    <h2 class="di-tabla-titulo">Plan y estado de pagos</h2>
     <table>
         <thead>
             <tr><th>#</th><th>Vencimiento</th><th class="di-monto">Monto</th><th>Estado</th><th>Fecha de pago</th></tr>
         </thead>
         <tbody>${filasCuotas}</tbody>
     </table>
-    <p class="di-footer">Generado desde Kairos.</p>
+    <div class="di-footer"><span>Generado desde Kairos.</span><span>Estado emitido el ${new Date().toLocaleDateString('es-AR')}</span></div>
     <script>window.onload = function () { setTimeout(function () { window.print(); }, 150); };</script>
 </body>
 </html>`;

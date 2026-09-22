@@ -107,9 +107,10 @@ function _esc(str) {
         .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function _fmt(v, moneda) {
+function _fmt(v, moneda, decimales) {
     const sym = { USD: 'U$S ', EUR: '€ ', ARS: '$ ' }[moneda] || '$ ';
-    return sym + parseFloat(v || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const d = decimales == null ? 2 : decimales;
+    return sym + parseFloat(v || 0).toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 
 function _fmtPeso(v) {
@@ -457,7 +458,7 @@ function _renderCarrito() {
                 </div>
             </div>
             <div class="cmp-cart-row-sub">
-                <span>${_esc(String(item.cantidad))} × ${_fmt(item.costo, item.moneda)}</span>
+                <span>${_esc(String(item.cantidad))} × ${_fmt(item.costo, item.moneda, 4)}</span>
                 <strong id="cmpSub_${item.id}">${conDesc ? `<s>${_fmt(base, item.moneda)}</s>` : ''}${_fmt(sub, item.moneda)}</strong>
             </div>
         </div>`;
@@ -559,7 +560,7 @@ function _updateField(id, campo, valor) {
         const subEl = fila.querySelector(`#cmpSub_${id}`);
         if (subEl) subEl.innerHTML = (conDesc ? `<s>${_fmt(base, item.moneda)}</s>` : '') + _fmt(sub, item.moneda);
         const lineaEl = fila.querySelector('.cmp-cart-row-sub span');
-        if (lineaEl) lineaEl.textContent = `${item.cantidad} × ${_fmt(item.costo, item.moneda)}`;
+        if (lineaEl) lineaEl.textContent = `${item.cantidad} × ${_fmt(item.costo, item.moneda, 4)}`;
     }
 
     // Quitar el aviso visual de "falta fecha" apenas se completa
@@ -762,7 +763,11 @@ function _interesLinea(l) {
 function _aplicarMedio(l, medio) {
     l.medio = medio;
     l.cuenta = ''; l.cotizacion = '';
-    l.modoCuotas = 'fijas'; l.cuotas = ''; l.interesPct = ''; l.fechaInicioDebito = '';
+    // Un cheque no tiene cronograma mensual: se cubre con los cheques que
+    // hagan falta, del monto que sea — por eso siempre nace en "libre"
+    // (ver mismo criterio en Deuda.crear_con_cuotas).
+    l.modoCuotas = medio === 'cheque' ? 'libre' : 'fijas';
+    l.cuotas = ''; l.interesPct = ''; l.fechaInicioDebito = '';
     if (medio === 'efectivo') {
         const e = _cuentaEfectivo();
         l.cuenta = e ? String(e.pk) : '';
@@ -832,14 +837,14 @@ function _pagoRenderLineas() {
             ${l.cotizacion ? `<span class="vdt-pago-equivalente">≈ ${_fmtPeso(_montoArsLinea(l))}</span>` : ''}
         </div>` : ''}
         ${plan ? `
-        <label class="vdt-credito-modo-row">
+        ${l.medio !== 'cheque' ? `<label class="vdt-credito-modo-row">
             <span class="vdt-pago-credito-label">Cuotas libres</span>
             <span class="toggle-switch">
                 <input type="checkbox" data-campo="modoCuotas" data-i="${idx}" ${l.modoCuotas === 'libre' ? 'checked' : ''}>
                 <span class="toggle-track"></span>
             </span>
-        </label>
-        ${l.medio === 'cheque' ? `<p class="vdt-cheque-plan-nota">Acá se define el plan de cuotas. Los cheques de cada cuota se cargan después, desde la deuda en Créditos y préstamos.</p>` : ''}
+        </label>` : ''}
+        ${l.medio === 'cheque' ? `<p class="vdt-cheque-plan-nota">Esta deuda no tiene un plan de cuotas fijo: se cubre con los cheques que hagan falta, del monto que sea. Los cargás uno por uno después, desde la deuda en Créditos y préstamos.</p>` : ''}
         <div class="vdt-pago-credito-extra">
             ${l.modoCuotas === 'libre' ? '' : `<div>
                 <span class="vdt-pago-credito-label">Cuotas</span>
@@ -1068,7 +1073,7 @@ if (btnConfirmar) {
             return;
         }
         if (_pagoFaltanDatos()) {
-            _toast('Datos del pago incompletos', 'Elegí la cuenta de cada línea (y cuotas/fecha si es crédito o cheque).');
+            _toast('Datos del pago incompletos', 'Elegí la cuenta de cada línea y, cuando corresponda, completá el plan de cuotas.');
             return;
         }
 

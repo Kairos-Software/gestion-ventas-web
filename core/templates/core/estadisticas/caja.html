@@ -1,248 +1,187 @@
 {% extends "core/base.html" %}
-{% load static humanize kai_formato %}
+{% load static kai_formato %}
 
 {% block title %}Estadísticas — Caja y Finanzas{% endblock %}
 {% block breadcrumb %}<strong>Estadísticas</strong> · Caja y Finanzas{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'core/css/estadisticas.css' %}">
-<link rel="stylesheet" href="{% static 'core/css/estadisticas_finanzas.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas_resumen.css' %}?v=20260921c">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas_ventas.css' %}?v=20260921a">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas_finanzas.css' %}?v=20260922b">
 {% endblock %}
 
 {% block content %}
-
 {% if sin_permiso %}
-<div class="est-sin-permiso">
-    <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
-        <path d="M12 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-        <circle cx="12" cy="16.2" r="0.9" fill="currentColor"/>
-    </svg>
-    <p>No tenés permiso para ver estadísticas de caja y finanzas.</p>
-</div>
+<div class="est-sin-permiso"><p>No tenés permiso para ver estadísticas de caja y finanzas.</p></div>
 {% else %}
+<div class="est-summary-page est-finance-page">
+    <header class="est-summary-heading">
+        <div><h1>Caja y Finanzas</h1><p>Dinero disponible hoy y movimientos del período, sin mezclar monedas.</p></div>
+        <a href="#estFinanzasPeriodo" class="est-summary-heading-link">Ver movimientos del período <span aria-hidden="true">↓</span></a>
+    </header>
 
-{% include "core/estadisticas/_filtros.html" %}
-
-<!-- ══════════ POSICIÓN FINANCIERA NETA (tiempo real) ══════════ -->
-<div class="card mb-4">
-    <div class="card-header">
-        <div>
-            <p class="card-title">Posición financiera neta</p>
-            <p class="text-muted" style="font-size:.8125rem;">Si hoy cobraras todo lo que te deben y pagaras todo lo que debés, esto es lo que te quedaría — tiempo real, no depende del filtro de arriba</p>
-        </div>
-    </div>
-    <div class="card-body">
+    <section class="est-finance-section" aria-labelledby="estFinanzasHoy">
+        <div class="est-sales-section-heading"><h2 id="estFinanzasHoy">Cómo estás hoy</h2><p>Esta información es actual y no cambia al elegir otras fechas.</p></div>
         {% if situacion_financiera.por_moneda %}
+        <div class="est-finance-currency-grid">
             {% for m in situacion_financiera.por_moneda %}
-            <div class="ef-ledger-moneda">
-                {% if situacion_financiera.por_moneda|length > 1 %}<p class="ef-ledger-moneda-titulo">{{ m.label }}</p>{% endif %}
-                <div class="est-resumen-tabla">
-                    <div class="est-resumen-fila" data-monto="{{ m.saldo|floatformat:0 }}" data-tipo="{% if m.saldo < 0 %}negativo{% else %}positivo{% endif %}">
-                        <span class="est-resumen-bar"></span>
-                        <span class="est-resumen-signo{% if m.saldo < 0 %} menos{% endif %}">+</span>
-                        <span class="est-resumen-concepto">Disponible en cuentas{% if m.saldo < 0 %} <span style="color:var(--danger);font-weight:600;">(cuenta en descubierto)</span>{% endif %}</span>
-                        <span class="est-resumen-monto{% if m.saldo < 0 %} menos{% endif %}">${{ m.saldo|pesos }}</span>
+            <article class="est-finance-currency">
+                <div class="est-finance-currency-heading"><h3>{{ m.label }}</h3><span>{{ m.moneda }}</span></div>
+                <div class="est-finance-top-values">
+                    <div class="est-finance-available {% if m.saldo < 0 %}is-negative{% endif %}">
+                        <div class="est-summary-label-row"><span>Disponible en cuentas</span><button type="button" class="kai-help-btn" data-help-target="ayuda_fin_saldo_{{ forloop.counter }}" aria-label="Qué es disponible en cuentas" aria-controls="ayuda_fin_saldo_{{ forloop.counter }}">?</button></div>
+                        <div class="kai-help-popover" id="ayuda_fin_saldo_{{ forloop.counter }}">Es el saldo actual de tus cuentas de caja, sin tarjetas de crédito.</div>
+                        <strong>${{ m.saldo|pesos }} <small>{{ m.moneda }}</small></strong>
+                        {% if m.saldo < 0 %}<small class="est-finance-descubierto">Cuenta en descubierto</small>{% endif %}
                     </div>
-                    <div class="est-resumen-fila" data-monto="{{ m.cxc|floatformat:0 }}" data-tipo="positivo">
-                        <span class="est-resumen-bar"></span>
-                        <span class="est-resumen-signo">+</span>
-                        <span class="est-resumen-concepto">Te deben (clientes en cuotas)</span>
-                        <span class="est-resumen-monto">${{ m.cxc|pesos }}</span>
-                    </div>
-                    <div class="est-resumen-fila" data-monto="{{ m.cheques_cobrar|floatformat:0 }}" data-tipo="positivo">
-                        <span class="est-resumen-bar"></span>
-                        <span class="est-resumen-signo">+</span>
-                        <span class="est-resumen-concepto">Cheques a cobrar</span>
-                        <span class="est-resumen-monto">${{ m.cheques_cobrar|pesos }}</span>
-                    </div>
-                    <div class="est-resumen-fila" data-monto="{{ m.deudas|floatformat:0 }}" data-tipo="negativo">
-                        <span class="est-resumen-bar"></span>
-                        <span class="est-resumen-signo menos">−</span>
-                        <span class="est-resumen-concepto">Debés (créditos y préstamos)</span>
-                        <span class="est-resumen-monto menos">${{ m.deudas|pesos }}</span>
-                    </div>
-                    <div class="est-resumen-fila" data-monto="{{ m.cheques_pagar|floatformat:0 }}" data-tipo="negativo">
-                        <span class="est-resumen-bar"></span>
-                        <span class="est-resumen-signo menos">−</span>
-                        <span class="est-resumen-concepto">Cheques a pagar</span>
-                        <span class="est-resumen-monto menos">${{ m.cheques_pagar|pesos }}</span>
-                    </div>
-                    <div class="est-resumen-fila total {% if m.neto < 0 %}ef-total-negativo{% else %}ef-total-positivo{% endif %}">
-                        <span class="est-resumen-signo">=</span>
-                        <span class="est-resumen-concepto">Posición neta proyectada</span>
-                        <span class="est-resumen-monto">${{ m.neto|pesos }} {{ m.moneda }}</span>
+                    <div class="est-finance-projected {% if m.neto < 0 %}is-negative{% endif %}">
+                        <div class="est-summary-label-row"><span>Posición neta</span><button type="button" class="kai-help-btn" data-help-target="ayuda_fin_neto_{{ forloop.counter }}" aria-label="Qué significa la posición neta" aria-controls="ayuda_fin_neto_{{ forloop.counter }}">?</button></div>
+                        <div class="kai-help-popover" id="ayuda_fin_neto_{{ forloop.counter }}">Es lo que quedaría en esta moneda si hoy cobraras todo lo que te deben y pagaras todas tus deudas y cheques pendientes, sumado al saldo actual de tus cuentas. Es una proyección, no dinero disponible ahora.</div>
+                        <strong>${{ m.neto|pesos }} <small>{{ m.moneda }}</small></strong>
                     </div>
                 </div>
-            </div>
+                <div class="est-finance-balance">
+                    <div><span>Te deben</span><strong>${{ m.cxc|pesos }}</strong></div>
+                    <div><span>Debés</span><strong>${{ m.deudas|pesos }}</strong></div>
+                </div>
+                {% if m.cheques_cobrar or m.cheques_pagar %}
+                <details class="est-sales-expand est-finance-cheques"><summary>Ver cheques pendientes</summary>
+                    <div class="est-sales-simple-row"><span>Cheques a cobrar, fuera de cuotas</span><strong>${{ m.cheques_cobrar|pesos }}</strong></div>
+                    <div class="est-sales-simple-row"><span>Cheques a pagar, fuera de cuotas</span><strong>${{ m.cheques_pagar|pesos }}</strong></div>
+                </details>
+                {% endif %}
+            </article>
             {% endfor %}
-        {% else %}
-            <div class="empty-state">
-                <p>Todavía no hay movimientos de caja, deudas ni cuentas por cobrar cargados.</p>
-            </div>
-        {% endif %}
-    </div>
+        </div>
+        {% else %}<div class="est-sales-empty-panel"><p>No hay saldos, deudas ni cobros pendientes registrados.</p></div>{% endif %}
+    </section>
+
+    <section class="est-finance-section" id="estFinanzasPeriodo" aria-labelledby="estFinanzasPeriodoTitulo">
+        <div class="est-sales-section-heading"><h2 id="estFinanzasPeriodoTitulo">Lo que vence y lo que se movió</h2><p>Vencimientos pendientes y pagos o cobros realizados entre {{ desde|date:'d/m/Y' }} y {{ hasta|date:'d/m/Y' }}.</p></div>
+        <form id="estFinanzasPresetForm" method="get"></form>
+        <div class="est-summary-filters" role="group" aria-label="Período de caja y finanzas">
+            <button form="estFinanzasPresetForm" type="submit" name="preset" value="hoy" class="btn btn-sm {% if preset == 'hoy' %}btn-primary{% else %}btn-secondary{% endif %}">Hoy</button>
+            <button form="estFinanzasPresetForm" type="submit" name="preset" value="semana" class="btn btn-sm {% if preset == 'semana' %}btn-primary{% else %}btn-secondary{% endif %}">7 días</button>
+            <button form="estFinanzasPresetForm" type="submit" name="preset" value="mes_actual" class="btn btn-sm {% if preset == 'mes_actual' %}btn-primary{% else %}btn-secondary{% endif %}">Este mes</button>
+            <button form="estFinanzasPresetForm" type="submit" name="preset" value="mes_anterior" class="btn btn-sm {% if preset == 'mes_anterior' %}btn-primary{% else %}btn-secondary{% endif %}">Mes anterior</button>
+            <button form="estFinanzasPresetForm" type="submit" name="preset" value="anio" class="btn btn-sm {% if preset == 'anio' %}btn-primary{% else %}btn-secondary{% endif %}">Este año</button>
+            <details class="est-summary-custom-range" {% if preset == 'personalizado' %}open{% endif %}><summary>Elegir fechas</summary>
+                <form method="get"><input type="hidden" name="preset" value="personalizado"><label>Desde <input type="date" name="desde" value="{{ desde|date:'Y-m-d' }}" required></label><label>Hasta <input type="date" name="hasta" value="{{ hasta|date:'Y-m-d' }}" required></label><button type="submit" class="btn btn-sm btn-primary">Aplicar</button></form>
+            </details>
+        </div>
+        <div class="est-finance-period-grid">
+            <article class="est-sales-panel">
+                <div class="est-sales-panel-heading"><h3>Pagos</h3><button type="button" class="kai-help-btn" data-help-target="ayuda_fin_pagos" aria-label="Qué muestran los pagos" aria-controls="ayuda_fin_pagos">?</button></div>
+                <div class="kai-help-popover" id="ayuda_fin_pagos">Pendiente: pagos que vencen en estas fechas. Pagado: dinero que salió en estas fechas, aunque venciera antes.</div>
+                {% for m in obligaciones_periodo.por_moneda %}
+                <div class="est-finance-period-row"><span class="est-finance-code">{{ m.moneda }}</span><div><small>Pendiente por vencer</small><strong class="is-negative">${{ m.a_pagar|pesos }}</strong></div><div><small>Ya pagado</small><strong>${{ m.pagado|pesos }}</strong></div></div>
+                {% empty %}<p class="est-sales-empty">No hay pagos ni vencimientos registrados en este período.</p>{% endfor %}
+            </article>
+            <article class="est-sales-panel">
+                <div class="est-sales-panel-heading"><h3>Cobros de clientes</h3><button type="button" class="kai-help-btn" data-help-target="ayuda_fin_cobros" aria-label="Qué muestran los cobros de clientes" aria-controls="ayuda_fin_cobros">?</button></div>
+                <div class="kai-help-popover" id="ayuda_fin_cobros">Pendiente: cuotas de clientes que vencen en estas fechas. Cobrado: cuotas que se cobraron en estas fechas, aunque vencieran antes.</div>
+                {% for m in cobros_periodo.por_moneda %}
+                <div class="est-finance-period-row"><span class="est-finance-code">{{ m.moneda }}</span><div><small>Pendiente por cobrar</small><strong>${{ m.a_cobrar|pesos }}</strong></div><div><small>Ya cobrado</small><strong>${{ m.cobrado|pesos }}</strong></div></div>
+                {% empty %}<p class="est-sales-empty">No hay cuotas por cobrar ni cobros registrados en este período.</p>{% endfor %}
+            </article>
+        </div>
+        <p class="est-sales-note">Los montos pendientes y los realizados son conjuntos distintos: no se restan entre sí. Pagos incluye gastos manuales, cuotas, cheques sueltos y movimientos programados; cobros muestra cuotas de clientes.</p>
+    </section>
+
+    <section class="est-finance-section" aria-labelledby="estFinanzasDetalle">
+        <div class="est-sales-section-heading"><h2 id="estFinanzasDetalle">Explorar el detalle</h2><p>Abrí solo el análisis que necesites.</p></div>
+        <div class="est-finance-detail-grid">
+            <details class="est-sales-detail" id="estFinanzasEgresosConcepto"><summary><span><strong>Gastos por concepto</strong><small>Egresos manuales del período</small></span></summary>
+                <div class="est-sales-detail-body">
+                    <p class="est-sales-note">No incluye compras de mercadería ni pagos de cuotas. Los importes se muestran por moneda.</p>
+                    {% for grupo in mov_concepto.por_moneda %}
+                    <div class="est-finance-concept-group"><h4>{{ grupo.label }}</h4><div class="est-finance-concept-total"><span>Gastos manuales</span><strong>${{ grupo.total_egresos|pesos }} {{ grupo.moneda }}</strong></div>
+                        <div class="est-sales-fact-row-grid">
+                            <div>{% for e in grupo.egresos %}<div class="est-sales-simple-row"><span>{{ e.concepto }} <small>· {{ e.cantidad }} movimiento{{ e.cantidad|pluralize }} · {{ e.pct|floatformat:1 }}%</small></span><strong>${{ e.total|pesos }}</strong></div>{% empty %}<p class="est-sales-empty">Sin gastos manuales.</p>{% endfor %}</div>
+                            {% if grupo.egresos %}<div class="est-chart-wrap est-sales-fact-chart"><canvas id="chartEgresosConcepto_{{ grupo.moneda }}" aria-label="Gastos por concepto en {{ grupo.label }}" role="img"></canvas></div>{% endif %}
+                        </div>
+                    </div>
+                    {% empty %}<p class="est-sales-empty">No hay movimientos manuales en este período.</p>{% endfor %}
+                </div>
+            </details>
+            <details class="est-sales-detail" id="estFinanzasIngresosConcepto"><summary><span><strong>Otros ingresos por concepto</strong><small>Aportes, reintegros y otros ingresos que no son ventas</small></span></summary>
+                <div class="est-sales-detail-body">
+                    {% if tiene_otros_ingresos %}
+                    {% for grupo in mov_concepto.por_moneda %}{% if grupo.ingresos %}
+                    <div class="est-finance-concept-group"><h4>{{ grupo.label }}</h4><div class="est-finance-concept-total"><span>Total</span><strong>${{ grupo.total_ingresos|pesos }} {{ grupo.moneda }}</strong></div>
+                        <div class="est-sales-fact-row-grid">
+                            <div>{% for i in grupo.ingresos %}<div class="est-sales-simple-row"><span>{{ i.concepto }} <small>· {{ i.cantidad }} movimiento{{ i.cantidad|pluralize }} · {{ i.pct|floatformat:1 }}%</small></span><strong>${{ i.total|pesos }}</strong></div>{% endfor %}</div>
+                            <div class="est-chart-wrap est-sales-fact-chart"><canvas id="chartIngresosConcepto_{{ grupo.moneda }}" aria-label="Otros ingresos por concepto en {{ grupo.label }}" role="img"></canvas></div>
+                        </div>
+                    </div>{% endif %}{% endfor %}
+                    {% else %}<p class="est-sales-empty">No hay otros ingresos en este período.</p>{% endif %}
+                </div>
+            </details>
+            <details class="est-sales-detail" id="estFinanzasTendencia"><summary><span><strong>Gastos manuales de los últimos 6 meses</strong><small>Por concepto y moneda; independiente del filtro de fechas</small></span></summary>
+                <div class="est-sales-detail-body">
+                    {% for grupo in serie_conceptos.por_moneda %}<div class="est-finance-trend"><h4>{{ grupo.label }}</h4><div class="est-chart-wrap"><canvas id="chartConceptosMensual_{{ grupo.moneda }}" aria-label="Gastos por concepto en {{ grupo.label }} durante los últimos seis meses" role="img"></canvas></div></div>
+                    {% empty %}<p class="est-sales-empty">No hay gastos manuales en los últimos seis meses.</p>{% endfor %}
+                </div>
+            </details>
+            <details class="est-sales-detail"><summary><span><strong>Arqueos de caja</strong><small>{{ historial_arqueos.cantidad_turnos }} turno{{ historial_arqueos.cantidad_turnos|pluralize }} cerrado{{ historial_arqueos.cantidad_turnos|pluralize }} · {{ historial_arqueos.cantidad_con_diferencia }} con diferencia</small></span></summary>
+                <div class="est-sales-detail-body">
+                    <div class="est-finance-audit-summary"><div><small>Sobrante acumulado</small><strong>${{ historial_arqueos.total_sobrante|pesos }} ARS</strong></div><div><small>Faltante acumulado</small><strong>${{ historial_arqueos.total_faltante|pesos }} ARS</strong></div></div>
+                    {% for t in historial_arqueos.detalle %}<div class="est-sales-simple-row"><span>Turno #{{ t.numero }} <small>· {{ t.fecha_cierre|date:'d/m/Y H:i' }} · {{ t.cerrado_por|default:'Sin responsable' }}</small></span><strong class="{% if t.diferencia_efectivo < 0 %}is-negative{% endif %}">{% if t.diferencia_efectivo > 0 %}Sobró ${{ t.diferencia_efectivo|pesos }}{% elif t.diferencia_efectivo < 0 %}Faltó ${{ t.diferencia_efectivo|pesos|cut:'-' }}{% else %}Cuadró{% endif %}</strong></div>
+                    {% empty %}<p class="est-sales-empty">No hay turnos cerrados en este período.</p>{% endfor %}
+                </div>
+            </details>
+        </div>
+    </section>
 </div>
-
-<!-- ══════════ EGRESOS POR CONCEPTO ══════════ -->
-<div class="card">
-    <div class="card-header">
-        <div>
-            <p class="card-title">¿En qué se te va la plata?</p>
-            <p class="text-muted" style="font-size:.8125rem;">Ingresos y egresos manuales del período, agrupados por concepto — no incluye compras de mercadería ni pago a proveedores</p>
-        </div>
-        <div class="est-mini-stat" style="text-align:right;">
-            <div class="est-mini-stat-valor" style="color:var(--danger);">${{ mov_concepto.total_egresos|pesos }}</div>
-            <div class="est-mini-stat-label">Total egresos del período</div>
-        </div>
-    </div>
-    <div class="card-body">
-        {% if mov_concepto.egresos %}
-            <div class="est-chart-wrap">
-                <canvas id="chartEgresosConcepto"></canvas>
-            </div>
-            <div class="table-responsive mt-3">
-                <table class="table">
-                    <thead><tr><th>Concepto</th><th>Movimientos</th><th style="text-align:right;">Total</th><th style="text-align:right;">% del gasto</th></tr></thead>
-                    <tbody>
-                        {% for e in mov_concepto.egresos %}
-                        <tr>
-                            <td class="font-semibold">{{ e.concepto }}</td>
-                            <td>{{ e.cantidad }}</td>
-                            <td style="text-align:right;">${{ e.total|pesos }}</td>
-                            <td style="text-align:right;">{{ e.pct|floatformat:1 }}%</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        {% else %}
-            <div class="empty-state">
-                <p>Todavía no cargaste ingresos ni egresos manuales en este período.</p>
-            </div>
-        {% endif %}
-    </div>
-</div>
-
-<!-- ══════════ CUÁNTO GASTÁS POR MES EN CADA RUBRO ══════════ -->
-<div class="card mt-4">
-    <div class="card-header">
-        <div>
-            <p class="card-title">Cuánto gastás por mes en cada rubro</p>
-            <p class="text-muted" style="font-size:.8125rem;">Últimos 6 meses — los conceptos con más gasto, el resto junto en "Otros". No depende del filtro de arriba.</p>
-        </div>
-    </div>
-    <div class="card-body">
-        <div class="est-chart-wrap">
-            <canvas id="chartConceptosMensual"></canvas>
-        </div>
-    </div>
-</div>
-
-<!-- ══════════ INGRESOS POR CONCEPTO (fuera de ventas) ══════════ -->
-{% if mov_concepto.ingresos %}
-<div class="card mt-4">
-    <div class="card-header">
-        <div>
-            <p class="card-title">Ingresos que no son ventas</p>
-            <p class="text-muted" style="font-size:.8125rem;">Aportes, préstamos de terceros, reintegros… del período elegido arriba</p>
-        </div>
-        <div class="est-mini-stat" style="text-align:right;">
-            <div class="est-mini-stat-valor" style="color:var(--success);">${{ mov_concepto.total_ingresos|pesos }}</div>
-            <div class="est-mini-stat-label">Total en el período</div>
-        </div>
-    </div>
-    <div class="card-body">
-        <div class="est-chart-wrap">
-            <canvas id="chartIngresosConcepto"></canvas>
-        </div>
-        <div class="table-responsive mt-3">
-            <table class="table">
-                <thead><tr><th>Concepto</th><th>Movimientos</th><th style="text-align:right;">Total</th><th style="text-align:right;">% del ingreso</th></tr></thead>
-                <tbody>
-                    {% for i in mov_concepto.ingresos %}
-                    <tr>
-                        <td class="font-semibold">{{ i.concepto }}</td>
-                        <td>{{ i.cantidad }}</td>
-                        <td style="text-align:right;">${{ i.total|pesos }}</td>
-                        <td style="text-align:right;">{{ i.pct|floatformat:1 }}%</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-{% endif %}
-
-<!-- ══════════ HISTORIAL DE ARQUEOS ══════════ -->
-<div class="card mt-4">
-    <div class="card-header">
-        <div>
-            <p class="card-title">Historial de arqueos</p>
-            <p class="text-muted" style="font-size:.8125rem;">Diferencia entre lo esperado y lo contado al cerrar cada turno, en este período</p>
-        </div>
-    </div>
-    <div class="card-body">
-        <div class="est-mini-stat-grid mb-3">
-            <div class="est-mini-stat">
-                <div class="est-mini-stat-valor">{{ historial_arqueos.cantidad_turnos }}</div>
-                <div class="est-mini-stat-label">Turnos cerrados</div>
-            </div>
-            <div class="est-mini-stat">
-                <div class="est-mini-stat-valor">{{ historial_arqueos.cantidad_con_diferencia }}</div>
-                <div class="est-mini-stat-label">Con diferencia</div>
-            </div>
-            <div class="est-mini-stat">
-                <div class="est-mini-stat-valor" style="color:var(--success);">${{ historial_arqueos.total_sobrante|pesos }}</div>
-                <div class="est-mini-stat-label">Total sobrante</div>
-            </div>
-            <div class="est-mini-stat">
-                <div class="est-mini-stat-valor" style="color:var(--danger);">${{ historial_arqueos.total_faltante|pesos }}</div>
-                <div class="est-mini-stat-label">Total faltante</div>
-            </div>
-        </div>
-
-        {% if historial_arqueos.detalle %}
-        <div class="table-responsive">
-            <table class="table">
-                <thead><tr><th>Turno</th><th>Cierre</th><th>Cerrado por</th><th>Diferencia</th></tr></thead>
-                <tbody>
-                    {% for t in historial_arqueos.detalle %}
-                    <tr>
-                        <td>#{{ t.numero }}</td>
-                        <td>{{ t.fecha_cierre|date:'d/m/Y H:i' }}</td>
-                        <td>{{ t.cerrado_por|default:'—' }}</td>
-                        <td class="font-semibold {% if t.diferencia_efectivo > 0 %}text-success{% elif t.diferencia_efectivo < 0 %}text-danger{% endif %}">
-                            {% if t.diferencia_efectivo > 0 %}Sobró ${{ t.diferencia_efectivo|pesos }}
-                            {% elif t.diferencia_efectivo < 0 %}Faltó ${{ t.diferencia_efectivo|pesos|cut:"-" }}
-                            {% else %}Cuadró{% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% else %}
-            <div class="empty-state">
-                <p>No hay turnos cerrados en este período.</p>
-            </div>
-        {% endif %}
-    </div>
-</div>
-
 {% endif %}
 {% endblock %}
 
 {% block extra_js %}
+{% if not sin_permiso %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-<script src="{% static 'core/js/estadisticas.js' %}?v=20260903"></script>
+<script src="{% static 'core/js/estadisticas.js' %}?v=20260922b"></script>
+{{ serie_conceptos_data|json_script:"finanzasSerieJson" }}
+{{ mov_concepto_chart_data|json_script:"finanzasConceptoJson" }}
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        initChartGastos({{ egresos_concepto_json|safe }}, 'chartEgresosConcepto', '#F26A1B');
-        initChartGastos({{ ingresos_concepto_json|safe }}, 'chartIngresosConcepto', '#16a34a');
-        initChartConceptosMensual({{ serie_conceptos_json|safe }});
-        initResumenBars();
+        const detalle = document.getElementById('estFinanzasTendencia');
+        const datos = JSON.parse(document.getElementById('finanzasSerieJson').textContent);
+        if (detalle) {
+            detalle.addEventListener('toggle', function () {
+                if (!detalle.open || detalle.dataset.loaded || typeof Chart === 'undefined') return;
+                datos.por_moneda.forEach(function (grupo) {
+                    initChartConceptosMensual({meses: datos.meses, series: grupo.series}, 'chartConceptosMensual_' + grupo.moneda);
+                });
+                detalle.dataset.loaded = 'true';
+            });
+        }
+
+        // Gastos e ingresos por concepto: viven dentro de <details>
+        // colapsados, se inicializan recién al abrirse (Chart.js mide un
+        // lienzo oculto como 0x0).
+        const conceptoData = JSON.parse(document.getElementById('finanzasConceptoJson').textContent);
+        const detEgresos = document.getElementById('estFinanzasEgresosConcepto');
+        if (detEgresos) {
+            detEgresos.addEventListener('toggle', function () {
+                if (!detEgresos.open || detEgresos.dataset.loaded || typeof Chart === 'undefined') return;
+                conceptoData.por_moneda.forEach(function (grupo) {
+                    if (grupo.egresos.length) initChartGastos(grupo.egresos, 'chartEgresosConcepto_' + grupo.moneda, '#F26A1B');
+                });
+                detEgresos.dataset.loaded = 'true';
+            });
+        }
+        const detIngresos = document.getElementById('estFinanzasIngresosConcepto');
+        if (detIngresos) {
+            detIngresos.addEventListener('toggle', function () {
+                if (!detIngresos.open || detIngresos.dataset.loaded || typeof Chart === 'undefined') return;
+                conceptoData.por_moneda.forEach(function (grupo) {
+                    if (grupo.ingresos.length) initChartGastos(grupo.ingresos, 'chartIngresosConcepto_' + grupo.moneda, '#10B981');
+                });
+                detIngresos.dataset.loaded = 'true';
+            });
+        }
     });
 </script>
+{% endif %}
 {% endblock %}

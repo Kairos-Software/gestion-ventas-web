@@ -51,6 +51,36 @@ document.addEventListener('DOMContentLoaded', function () {
     let porPagina = 50;
     let deudaDetalleActual = null;
 
+    // Mantiene el bloqueo de scroll mientras exista al menos un modal abierto.
+    // Es importante en los flujos apilados (detalle -> pago -> cheque): cerrar
+    // el modal superior no debe liberar la pantalla que sigue debajo.
+    function sincronizarScrollModales() {
+        window.requestAnimationFrame(() => {
+            const hayModalAbierto = !!document.querySelector('.modal:not([hidden])');
+            document.body.style.overflow = hayModalAbierto ? 'hidden' : '';
+            document.body.classList.toggle('deudas-modal-open', hayModalAbierto);
+        });
+    }
+
+    function mostrarModalDeudas(modal, foco) {
+        if (!modal) return;
+        modal._deudasPreviousFocus = document.activeElement;
+        modal.hidden = false;
+        sincronizarScrollModales();
+        window.requestAnimationFrame(() => (foco || modal).focus({ preventScroll: true }));
+    }
+
+    function ocultarModalDeudas(modal) {
+        if (!modal) return;
+        modal.hidden = true;
+        sincronizarScrollModales();
+        const focoAnterior = modal._deudasPreviousFocus;
+        if (focoAnterior && focoAnterior.isConnected) {
+            window.requestAnimationFrame(() => focoAnterior.focus({ preventScroll: true }));
+        }
+        modal._deudasPreviousFocus = null;
+    }
+
     // Modo edición de #modalDeuda: reusa el mismo formulario de alta,
     // prellenado, en vez de un modal aparte (ver editarDeuda()).
     let modoEdicion = false;
@@ -114,10 +144,14 @@ document.addEventListener('DOMContentLoaded', function () {
     const dMontoHint = document.getElementById('dMontoHint');
     const dMontoHintBtn = document.getElementById('dMontoHintBtn');
     const dPlanTotal = document.getElementById('dPlanTotal');
+    const campoPlanTotal = document.getElementById('campoPlanTotal');
+    const btnMostrarPlanTotal = document.getElementById('btnMostrarPlanTotal');
     const dTotalPagar = document.getElementById('dTotalPagar');
     const dMontoCuota = document.getElementById('dMontoCuota');
     const interesCalcHint = document.getElementById('interesCalcHint');
     const botonesInteres = document.querySelectorAll('.deudas-interes-seg-btn[data-int]');
+    const btnIntDesconocido = document.getElementById('btnIntDesconocido');
+    const dMontoDesconocido = document.getElementById('dMontoDesconocido');
     const dCuotasVarN = document.getElementById('dCuotasVarN');
     const dCuotasVarFecha = document.getElementById('dCuotasVarFecha');
     const dCuotasVarMonto = document.getElementById('dCuotasVarMonto');
@@ -146,8 +180,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const btnImprimirDeuda = document.getElementById('btnImprimirDeuda');
     const deudasDocumentos = document.getElementById('deudasDocumentos');
     const deudasRegistrarAbono = document.getElementById('deudasRegistrarAbono');
+    const raSaldoTitle = document.getElementById('raSaldoTitle');
     const raSaldoLabel = document.getElementById('raSaldoLabel');
     const btnAbonar = document.getElementById('btnAbonar');
+    const deudasCerrarMontoDesconocido = document.getElementById('deudasCerrarMontoDesconocido');
+    const btnCerrarMontoDesconocido = document.getElementById('btnCerrarMontoDesconocido');
     const btnConvertirVariable = document.getElementById('btnConvertirVariable');
     const btnAyudaConvertirVariable = document.getElementById('btnAyudaConvertirVariable');
     const deudasEditarCuotas = document.getElementById('deudasEditarCuotas');
@@ -176,6 +213,15 @@ document.addEventListener('DOMContentLoaded', function () {
             dMontoLabel.textContent = variable ? 'Capital / cuánto se pidió' : 'Monto *';
         }
     }
+    // Una deuda de cheques no tiene cronograma: se cubre con los cheques
+    // que hagan falta, del monto que sea, a medida que se emiten — no
+    // existe "cuota 3 de 12" acá (ver mismo chequeo en Deuda.crear_con_cuotas).
+    // Por eso el selector fijas/variable/libre ni se muestra: se fuerza
+    // "libre" solo, y se restaura el modo anterior si se cambia de tipo.
+    const modoSegRow = document.querySelector('.deudas-modo-seg');
+    const HINT_CHEQUE_LIBRE = 'Una deuda de cheques no tiene cuotas ni cronograma — se cubre con los cheques que hagan falta, del monto que sea, hasta llegar al total. Los vas cargando de a uno desde "Registrar un pago" → Pagar con cheque.';
+    let modoForzadoPorCheque = false;
+
     function setTipo(tipo) {
         dTipo.value = tipo;
         botonesTipo.forEach(btn => {
@@ -192,6 +238,26 @@ document.addEventListener('DOMContentLoaded', function () {
         actualizarEtiquetaMonto();
         poblarSelectsCuentas();
         actualizarMontoAcreditadoHint();
+
+        const esCheque = tipo === 'cheque';
+        if (modoSegRow) modoSegRow.hidden = esCheque;
+        if (esCheque) {
+            if (modoCuotas() !== 'libre') modoForzadoPorCheque = true;
+            setModoCuotas('libre');
+            dModoCuotasHint.textContent = HINT_CHEQUE_LIBRE;
+        } else if (modoForzadoPorCheque) {
+            modoForzadoPorCheque = false;
+            setModoCuotas('fijas');
+        }
+
+        // "No lo sé todavía" (monto_desconocido) solo tiene sentido en un
+        // préstamo u "otra deuda" libre — una compra con tarjeta o una
+        // deuda de cheques ya tienen el total conocido de entrada (ver
+        // mismo chequeo en Deuda.crear_con_cuotas). Solo al crear, nunca
+        // al editar una deuda existente (ver refrescarFormularioEdicion).
+        const permiteDesconocido = !modoEdicion && (tipo === 'prestamo' || tipo === 'otro') && modoCuotas() === 'libre';
+        if (btnIntDesconocido) btnIntDesconocido.hidden = !permiteDesconocido;
+        if (!permiteDesconocido && modoInteres === 'desconocido') setModoInteres('pct');
     }
     botonesTipo.forEach(btn => {
         btn.addEventListener('click', () => setTipo(btn.dataset.tipo));
@@ -245,7 +311,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let modoInteres = 'pct';   // pct | total | cuota
 
     function setModoInteres(m) {
-        if (!['pct', 'total', 'cuota'].includes(m)) m = 'pct';
+        if (!['pct', 'total', 'cuota', 'desconocido'].includes(m)) m = 'pct';
         modoInteres = m;
         botonesInteres.forEach(b => {
             const activo = b.dataset.int === m;
@@ -255,6 +321,8 @@ document.addEventListener('DOMContentLoaded', function () {
         dInteres.hidden = m !== 'pct';
         dTotalPagar.hidden = m !== 'total';
         dMontoCuota.hidden = m !== 'cuota';
+        if (dMontoDesconocido) dMontoDesconocido.value = m === 'desconocido' ? '1' : '';
+        if (m === 'desconocido') dInteres.value = '0';
         recalcularInteres();
     }
     botonesInteres.forEach(b => b.addEventListener('click', () => setModoInteres(b.dataset.int)));
@@ -265,6 +333,11 @@ document.addEventListener('DOMContentLoaded', function () {
     function recalcularInteres() {
         if (esModoVariable()) {
             interesCalcHint.textContent = '';
+            return;
+        }
+        if (modoInteres === 'desconocido') {
+            interesCalcHint.textContent = 'El total a devolver y la tasa real recién se van a saber cuando '
+                + 'termines de pagar — mientras tanto podés registrar abonos de cualquier monto, sin techo.';
             return;
         }
         const capital = parseFloat(dMonto.value) || 0;
@@ -315,12 +388,24 @@ document.addEventListener('DOMContentLoaded', function () {
         gridPlanFijo.hidden = libre || variable;
         gridPlanVariable.hidden = !variable;
         deudasCuotasVariables.hidden = !variable;
+        // Al entrar a variable arranca colapsado — se expande solo si lo
+        // piden (ver btnMostrarPlanTotal) o si es edición de una deuda que
+        // ya lo tenía distinto de la cantidad cargada (refrescarFormularioEdicion).
+        if (variable && campoPlanTotal && !modoEdicion) {
+            campoPlanTotal.hidden = true;
+            if (btnMostrarPlanTotal) btnMostrarPlanTotal.hidden = false;
+        }
         bloqueInteres.hidden = variable;            // en variables el interés se calcula solo
         dModoCuotasHint.textContent = variable ? HINT_VARIABLE : (libre ? HINT_LIBRE : HINT_FIJAS);
 
         // "Monto de cada cuota" no aplica sin un plan de cuotas fijo (libre).
         const btnIntCuota = document.querySelector('.deudas-interes-seg-btn[data-int="cuota"]');
         if (btnIntCuota) btnIntCuota.hidden = libre;
+
+        // "No lo sé todavía" (monto_desconocido): solo libre, solo al crear
+        // (nunca editando) y solo préstamo/otro — ver mismo chequeo en setTipo.
+        const permiteDesconocido = !modoEdicion && libre && (dTipo.value === 'prestamo' || dTipo.value === 'otro');
+        if (btnIntDesconocido) btnIntDesconocido.hidden = !permiteDesconocido;
 
         // El capital es obligatorio salvo en cuotas variables.
         dMonto.required = !variable;
@@ -331,6 +416,7 @@ document.addEventListener('DOMContentLoaded', function () {
         dMontoHintBtn?.classList.remove('is-active');
 
         if (libre && modoInteres === 'cuota') setModoInteres('total');
+        else if (!permiteDesconocido && modoInteres === 'desconocido') setModoInteres('pct');
         else recalcularInteres();
 
         if (variable && !deudasCuotasVariablesWrap.children.length) agregarFilaCuotaVariable();
@@ -523,6 +609,12 @@ document.addEventListener('DOMContentLoaded', function () {
     dCuotasVarMonto?.addEventListener('input', () => { aplicarMontoVariables(); actualizarResumenVariables(); });
     dPlanTotal?.addEventListener('input', () => { planTotalTocado = true; actualizarResumenVariables(); });
 
+    btnMostrarPlanTotal?.addEventListener('click', () => {
+        campoPlanTotal.hidden = false;
+        btnMostrarPlanTotal.hidden = true;
+        dPlanTotal.focus();
+    });
+
     // Numeración visual (1, 2, 3…) de las filas cargadas a mano — se recalcula
     // sola cada vez que se agrega/saca una fila (ver actualizarResumenVariables).
     function renumerarCuotasVariables() {
@@ -692,6 +784,14 @@ document.addEventListener('DOMContentLoaded', function () {
         const montos = Array.from(deudasAbonosHistoricosWrap.querySelectorAll('.dah-monto'))
             .map(inp => parseFloat(inp.value) || 0);
         const totalAbonado = montos.reduce((a, b) => a + b, 0);
+        // Con "no lo sé todavía" no hay total contra el cual comparar —
+        // cualquier monto es válido, no hay "excede".
+        if (modoInteres === 'desconocido') {
+            deudasAbonosHistoricosTotal.textContent =
+                `Total ya pagado: ${fmtMoneda(totalAbonado, dMoneda.value)} (el total a devolver todavía no se sabe)`;
+            deudasAbonosHistoricosTotal.style.color = '';
+            return;
+        }
         const monto = parseFloat(dMonto.value) || 0;
         const interes = parseFloat(dInteres.value) || 0;
         const totalDeuda = monto * (1 + interes / 100);
@@ -827,6 +927,23 @@ document.addEventListener('DOMContentLoaded', function () {
         return String(str == null ? '' : str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
     }
 
+    // Bug real reportado por el usuario: "Cheque #123" en Ver cuotas era
+    // solo texto — para corregir un error de carga (monto, fecha, número)
+    // había que ir a mano a la pantalla de Cheques y buscarlo ahí. Ahora
+    // es un link directo que lo abre ya cargado (mismo patrón que
+    // ?resumen= en Resúmenes de tarjeta). Se abre en pestaña nueva para no
+    // perder el modal de la deuda que se estaba mirando.
+    function linkCheque(pk, texto) {
+        if (!urls.cheques || !pk) return _deudaEscInput(texto);
+        return `<a href="${urls.cheques}?cheque=${pk}" target="_blank" rel="noopener">${_deudaEscInput(texto)}</a>`;
+    }
+
+    function etiquetaCheque(numero, minuscula = false) {
+        const tieneNumero = numero && String(numero).toLowerCase() !== 's/n';
+        if (tieneNumero) return `${minuscula ? 'cheque' : 'Cheque'} #${numero}`;
+        return minuscula ? 'cheque sin número' : 'Cheque sin número';
+    }
+
     function renderizarDeudas(deudas) {
         if (!deudas || deudas.length === 0) {
             deudasBody.innerHTML = '<tr><td colspan="7" class="deudas-tabla-loading">No hay deudas registradas</td></tr>';
@@ -835,19 +952,19 @@ document.addEventListener('DOMContentLoaded', function () {
 
         deudasBody.innerHTML = deudas.map(d => `
             <tr>
-                <td><span class="deudas-badge-tipo deudas-badge-tipo--${d.tipo}">${d.tipo_display}</span></td>
-                <td>${d.descripcion || d.compra_numero || '-'}</td>
-                <td>${d.numero_comprobante || '-'}</td>
-                <td class="deudas-monto">${fmtMoneda(d.monto_total, d.moneda)}</td>
-                <td>${
+                <td data-label="Tipo"><span class="deudas-badge-tipo deudas-badge-tipo--${d.tipo}">${_deudaEscInput(d.tipo_display)}</span></td>
+                <td data-label="Descripción">${_deudaEscInput(d.descripcion || d.compra_numero || '-')}</td>
+                <td data-label="Comprobante">${_deudaEscInput(d.numero_comprobante || '-')}</td>
+                <td data-label="Monto total" class="deudas-monto">${d.monto_desconocido ? '<span class="deudas-resumen-muted">A definir</span>' : fmtMoneda(d.monto_total, d.moneda)}</td>
+                <td data-label="Pagos">${
                     d.modo_cuotas === 'libre'
                         ? `${d.cuotas_pagadas} abono${d.cuotas_pagadas === 1 ? '' : 's'}`
                         : d.modo_cuotas === 'variable'
                             ? `${d.cuotas_pagadas}/${d.cantidad_cuotas || d.cuotas_cargadas}`
                             : `${d.cuotas_pagadas}/${d.cantidad_cuotas}`
                 }</td>
-                <td><span class="deudas-badge-estado deudas-badge-estado--${d.estado}">${d.estado_display}</span></td>
-                <td>
+                <td data-label="Estado"><span class="deudas-badge-estado deudas-badge-estado--${d.estado}">${_deudaEscInput(d.estado_display)}</span></td>
+                <td data-label="Acciones">
                     <div class="deudas-tabla-acciones">
                         <button type="button" class="btn btn-ghost btn--sm" onclick="verDeuda(${d.pk})">Ver cuotas</button>
                         ${window.deudasPuedeEditar && d.estado === 'activa' && !d.compra_numero
@@ -870,7 +987,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!deudasTotales) return;
         const entradas = Object.entries(totalesPendientes || {});
         if (entradas.length === 0) {
-            deudasTotales.innerHTML = '';
+            deudasTotales.innerHTML = '<div class="deudas-total-empty"><span aria-hidden="true">✓</span><div><strong>No hay saldos pendientes</strong><small>Tus deudas activas están al día.</small></div></div>';
             return;
         }
         deudasTotales.innerHTML = entradas.map(([moneda, total]) => `
@@ -908,14 +1025,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // ── Modal alta ────────────────────────────────────────────────
     function abrirModal() {
-        modalDeuda.hidden = false;
-        document.body.style.overflow = 'hidden';
-        window.requestAnimationFrame(() => dDescripcion?.focus());
+        mostrarModalDeudas(modalDeuda, dDescripcion);
     }
 
     function cerrarModal() {
-        modalDeuda.hidden = true;
-        document.body.style.overflow = '';
+        ocultarModalDeudas(modalDeuda);
         formDeuda.reset();
         document.getElementById('dFechaInicio').value = today;
         planTotalTocado = false;
@@ -965,10 +1079,6 @@ document.addEventListener('DOMContentLoaded', function () {
     btnCancelarModal.addEventListener('click', cerrarModal);
     // El modal solo se cierra con los botones — un clic afuera no descarta
     // sin querer lo que ya se cargó.
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && !modalDeuda.hidden) cerrarModal();
-    });
-
     formDeuda.addEventListener('submit', async (e) => {
         e.preventDefault();
 
@@ -1028,10 +1138,17 @@ document.addEventListener('DOMContentLoaded', function () {
     function aplicarBloqueosEdicion(d) {
         const hayPagos = d.cuotas.some(c => c.estado === 'confirmada');
         const esVariable = d.modo_cuotas === 'variable';
+        const esPrestamo = d.tipo === 'prestamo';
 
         dMoneda.disabled = hayPagos;
         dCuentaTarjeta.disabled = hayPagos;
-        dCuentaAcreditacion.disabled = hayPagos;
+        // La cuenta que recibió el préstamo es un dato informativo de
+        // dónde entró la plata, no parte del plan de pago — a diferencia
+        // de cuenta_tarjeta (que define el agrupamiento por Resumen de
+        // tarjeta), se puede corregir siempre que haya un error de carga,
+        // aunque ya haya cuotas confirmadas (ver Deuda.editar en backend;
+        // igual se bloquea si el ingreso quedó en un turno ya cerrado).
+        dCuentaAcreditacion.disabled = false;
 
         if (esVariable) {
             dMonto.disabled = false;
@@ -1051,9 +1168,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (notaBloqueoEdicion) {
             notaBloqueoEdicion.hidden = !hayPagos;
+            const notaCuenta = esPrestamo
+                ? ' La cuenta que recibió el préstamo sí (por si te equivocaste al elegirla).'
+                : '';
             notaBloqueoEdicion.textContent = esVariable
-                ? 'Ya hay cuotas confirmadas — la moneda y la cuenta ya no se pueden cambiar. El capital y el plan total sí (solo recalculan el interés).'
-                : 'Esta deuda ya tiene cuotas confirmadas — el monto, interés, cantidad de cuotas, fecha de inicio, moneda y cuenta ya no se pueden editar. El monto/fecha de UNA cuota puntual sí, en la tabla de arriba.';
+                ? `Ya hay cuotas confirmadas — la moneda ya no se puede cambiar.${notaCuenta} El capital y el plan total sí (solo recalculan el interés).`
+                : `Esta deuda ya tiene cuotas confirmadas — el monto, interés, cantidad de cuotas, fecha de inicio y moneda ya no se pueden editar.${notaCuenta} El monto/fecha de UNA cuota puntual sí, en la tabla de arriba.`;
         }
 
         // Reporte real de usuario: con el plan de pago (mayormente
@@ -1090,6 +1210,14 @@ document.addEventListener('DOMContentLoaded', function () {
         // aplican acá — para variable, agregar cuotas es el panel de abajo.
         if (bloqueGenerarCuotasVar) bloqueGenerarCuotasVar.hidden = true;
         if (deudasCuotasVariables) deudasCuotasVariables.hidden = true;
+        // Acá "Cantidad total de cuotas" SÍ se edita siempre (ver nota de
+        // aplicarBloqueosEdicion) — sin el generador al lado no hay ninguna
+        // confusión con "cantidad de cuotas", así que va directo, sin el
+        // toggle que colapsa este campo en el alta.
+        if (d.modo_cuotas === 'variable' && campoPlanTotal) {
+            campoPlanTotal.hidden = false;
+            if (btnMostrarPlanTotal) btnMostrarPlanTotal.hidden = true;
+        }
 
         dMonto.value = d.monto_original || '';
         if (d.modo_cuotas === 'variable') {
@@ -1229,13 +1357,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // ── Modal detalle (cuotas) ───────────────────────────────────────
     function abrirDetalle() {
-        modalDetalle.hidden = false;
-        document.body.style.overflow = 'hidden';
+        mostrarModalDeudas(modalDetalle);
     }
 
     function cerrarDetalle() {
-        modalDetalle.hidden = true;
-        document.body.style.overflow = '';
+        ocultarModalDeudas(modalDetalle);
         deudaDetalleActual = null;
     }
 
@@ -1309,11 +1435,67 @@ document.addEventListener('DOMContentLoaded', function () {
         const mostrarDescuento = d.tipo === 'prestamo' && parseFloat(d.descuento_acreditacion || 0) > 0;
 
         const item = (label, valor, wide, highlight) => `<div class="deudas-resumen-item${wide ? ' deudas-resumen-item--wide' : ''}${highlight ? ' deudas-resumen-item--highlight' : ''}"><span class="deudas-resumen-label">${label}</span><div class="deudas-resumen-value">${valor}</div></div>`;
+        const desconocido = !!d.monto_desconocido;
+        const esLibre = d.modo_cuotas === 'libre';
         const totalNum = parseFloat(d.monto_total) || 0;
         const saldoNum = Math.max(0, parseFloat(d.saldo_pendiente) || 0);
-        const pagadoNum = Math.max(0, totalNum - saldoNum);
-        const progreso = totalNum > 0 ? Math.max(0, Math.min(100, pagadoNum / totalNum * 100)) : 0;
+        const abonadoLibreNum = parseFloat(d.monto_abonado_libre) || 0;
+        // En modo libre, `monto_abonado_libre`/`saldo_pendiente` ya restan un
+        // cheque emitido-pero-sin-cobrar (para no dejar comprometer esa
+        // plata dos veces, ver Deuda.saldo_pendiente) — pero eso todavía NO
+        // es un pago real, así que no puede aparecer bajo "Pagado" sin
+        // aclarar: se separa en su propia métrica ("Emitido, sin cobrar").
+        const enTramiteNum = esLibre ? (parseFloat(d.monto_en_tramite_libre) || 0) : 0;
+        const pagadoNum = esLibre ? Math.max(0, abonadoLibreNum - enTramiteNum) : Math.max(0, totalNum - saldoNum);
+        const progreso = (!desconocido && totalNum > 0) ? Math.max(0, Math.min(100, pagadoNum / totalNum * 100)) : 0;
+        const metricTramiteHtml = enTramiteNum > 0
+            ? `<div class="deudas-detail-metric deudas-detail-metric--tramite">
+                    <span>Emitido, sin cobrar</span>
+                    <strong>${fmtMoneda(enTramiteNum, d.moneda)}</strong>
+                </div>`
+            : '';
         const estadoHtml = `<span class="deudas-badge-estado deudas-badge-estado--${d.estado}">${d.estado_display}</span>${d.es_carga_inicial ? ' <span class="deudas-badge-carga-inicial">Carga inicial</span>' : ''}`;
+        const metricsHtml = desconocido ? `
+                <div class="deudas-detail-metrics${enTramiteNum > 0 ? ' deudas-detail-metrics--4' : ''}">
+                    <div class="deudas-detail-metric">
+                        <span>Capital prestado</span>
+                        <strong>${fmtMoneda(d.monto_original, d.moneda)}</strong>
+                    </div>
+                    <div class="deudas-detail-metric deudas-detail-metric--paid">
+                        <span>Pagado hasta ahora</span>
+                        <strong>${fmtMoneda(pagadoNum, d.moneda)}</strong>
+                    </div>
+                    ${metricTramiteHtml}
+                    <div class="deudas-detail-metric deudas-detail-metric--pending">
+                        <span>Total y tasa real</span>
+                        <strong>A definir</strong>
+                    </div>
+                </div>
+                <p class="deudas-campo-hint">El total a devolver y la tasa de interés real todavía no se conocen
+                    — se calculan cuando toques "Ya no debo nada más" (abajo, en "Registrar un pago"). Mientras
+                    tanto podés registrar abonos de cualquier monto, sin techo.</p>` : `
+                <div class="deudas-detail-metrics${enTramiteNum > 0 ? ' deudas-detail-metrics--4' : ''}">
+                    <div class="deudas-detail-metric">
+                        <span>Total de la deuda</span>
+                        <strong>${fmtMoneda(totalNum, d.moneda)}</strong>
+                    </div>
+                    <div class="deudas-detail-metric deudas-detail-metric--paid">
+                        <span>Pagado</span>
+                        <strong>${fmtMoneda(pagadoNum, d.moneda)}</strong>
+                    </div>
+                    ${metricTramiteHtml}
+                    <div class="deudas-detail-metric deudas-detail-metric--pending">
+                        <span>Saldo pendiente</span>
+                        <strong>${fmtMoneda(saldoNum, d.moneda)}</strong>
+                    </div>
+                </div>
+                ${enTramiteNum > 0 ? '<p class="deudas-campo-hint">"Emitido, sin cobrar" son cheques ya entregados para pagar una cuota, pero todavía no confirmados desde Cheques — no cuentan como pagado de verdad hasta que se cobren. Si alguno rebota, esa plata vuelve a estar disponible.</p>' : ''}
+                <div class="deudas-detail-progress">
+                    <div><span>Progreso de pago</span><strong>${progreso.toFixed(0)}%</strong></div>
+                    <div class="deudas-detail-progress-track" role="progressbar" aria-label="Progreso de pago" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progreso.toFixed(0)}">
+                        <span style="width:${progreso.toFixed(2)}%"></span>
+                    </div>
+                </div>`;
         const overviewHtml = `
             <div class="deudas-detail-overview">
                 <div class="deudas-detail-overview-head">
@@ -1323,26 +1505,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     </div>
                     <span class="deudas-detail-moneda">${d.moneda}</span>
                 </div>
-                <div class="deudas-detail-metrics">
-                    <div class="deudas-detail-metric">
-                        <span>Total de la deuda</span>
-                        <strong>${fmtMoneda(totalNum, d.moneda)}</strong>
-                    </div>
-                    <div class="deudas-detail-metric deudas-detail-metric--paid">
-                        <span>Pagado</span>
-                        <strong>${fmtMoneda(pagadoNum, d.moneda)}</strong>
-                    </div>
-                    <div class="deudas-detail-metric deudas-detail-metric--pending">
-                        <span>Saldo pendiente</span>
-                        <strong>${fmtMoneda(saldoNum, d.moneda)}</strong>
-                    </div>
-                </div>
-                <div class="deudas-detail-progress">
-                    <div><span>Progreso de pago</span><strong>${progreso.toFixed(0)}%</strong></div>
-                    <div class="deudas-detail-progress-track" role="progressbar" aria-label="Progreso de pago" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progreso.toFixed(0)}">
-                        <span style="width:${progreso.toFixed(2)}%"></span>
-                    </div>
-                </div>
+                ${metricsHtml}
             </div>`;
 
         if (detalleSubtitle) {
@@ -1383,7 +1546,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 ${mostrarDescuento ? item('Monto acreditado', d.monto_acreditado ? fmtMoneda(d.monto_acreditado, d.moneda) : '—') : ''}
                 ${item('Moneda', d.moneda)}
                 ${item('Monto original', fmtMoneda(d.monto_original, d.moneda))}
-                ${item('Interés %', `${d.porcentaje_interes}%`)}
+                ${item('Interés %', desconocido ? '<span class="deudas-resumen-muted">a definir</span>' : `${d.porcentaje_interes}%`)}
                 ${d.modo_cuotas === 'libre' ? '' : `
                 ${item('Cantidad de cuotas', `${d.cuotas_pagadas}/${d.cantidad_cuotas}`)}
                 ${item('Inicio de débito', d.fecha_inicio)}`}
@@ -1411,16 +1574,26 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         const saldoPendienteNum = parseFloat(d.saldo_pendiente) || 0;
+        // Con monto_desconocido no hay saldo (es null) pero igual se puede
+        // seguir abonando sin techo — ver Deuda.registrar_abono.
         const mostrarRegistrarAbono = d.modo_cuotas === 'libre' && d.estado === 'activa'
-            && saldoPendienteNum > 0 && puedeConfirmar;
+            && (desconocido || saldoPendienteNum > 0) && puedeConfirmar;
         // Una deuda tipo Cheque se paga SOLO con cheque — nunca con cuentas.
         const soloCheque = d.tipo === 'cheque';
 
         if (deudasRegistrarAbono) {
             deudasRegistrarAbono.hidden = !mostrarRegistrarAbono;
-            if (mostrarRegistrarAbono && raSaldoLabel) {
-                raSaldoLabel.textContent = fmtMoneda(d.saldo_pendiente, d.moneda);
+            if (mostrarRegistrarAbono) {
+                if (raSaldoTitle) raSaldoTitle.textContent = desconocido ? 'Pagado hasta ahora' : 'Saldo pendiente';
+                if (raSaldoLabel) {
+                    raSaldoLabel.textContent = desconocido
+                        ? fmtMoneda(pagadoNum, d.moneda)
+                        : fmtMoneda(d.saldo_pendiente, d.moneda);
+                }
             }
+        }
+        if (deudasCerrarMontoDesconocido) {
+            deudasCerrarMontoDesconocido.hidden = !(desconocido && d.estado === 'activa' && puedeEditar);
         }
 
         // "Editar deuda" — misma condición con la que se decide mostrar el
@@ -1433,11 +1606,11 @@ document.addEventListener('DOMContentLoaded', function () {
         cuotasBody.innerHTML = d.cuotas.map(c => {
             const chequeActivo = c.cheque_pk && (c.cheque_estado === 'pendiente' || c.cheque_estado === 'confirmado');
             const notaChequeRechazado = (c.cheque_pk && c.cheque_estado === 'rechazado' && c.estado === 'pendiente')
-                ? `<span class="deudas-cuota-nota">Cheque #${c.cheque_numero} rechazado</span> ` : '';
+                ? `<span class="deudas-cuota-nota">${linkCheque(c.cheque_pk, etiquetaCheque(c.cheque_numero))} rechazado</span> ` : '';
 
             let accion = '<span class="deudas-cuota-nota">—</span>';
             if (c.estado === 'pendiente' && chequeActivo) {
-                accion = `<span class="deudas-cuota-nota">Cheque #${c.cheque_numero} en trámite</span>`;
+                accion = `<span class="deudas-cuota-nota">${linkCheque(c.cheque_pk, etiquetaCheque(c.cheque_numero))} en trámite</span>`;
             } else if (c.estado === 'pendiente' && puedeConfirmar && (c.habilitada || soloCheque)) {
                 accion = notaChequeRechazado + (soloCheque
                     ? `<button type="button" class="btn btn-primary btn--sm" onclick="pagarCuota(${c.pk})">Pagar con cheque</button>`
@@ -1449,15 +1622,15 @@ document.addEventListener('DOMContentLoaded', function () {
             } else if (c.estado === 'pendiente') {
                 accion = notaChequeRechazado + `<span class="deudas-cuota-nota">Vence ${fmtFecha(c.fecha_vencimiento)}</span>`;
             } else if (c.estado === 'anulada' && c.cheque_pk) {
-                accion = `<span class="deudas-cuota-nota">Cheque #${c.cheque_numero} rechazado — no cuenta</span>`;
+                accion = `<span class="deudas-cuota-nota">${linkCheque(c.cheque_pk, etiquetaCheque(c.cheque_numero))} rechazado — no cuenta</span>`;
             } else if (c.estado === 'confirmada' && c.es_historica) {
                 let detallePago = 'carga inicial';
-                if (c.cheque_pk && c.cheque_es_historico) detallePago = `cheque #${c.cheque_numero}`;
+                if (c.cheque_pk && c.cheque_es_historico) detallePago = linkCheque(c.cheque_pk, etiquetaCheque(c.cheque_numero, true));
                 else if (c.cuenta_pago_historica_nombre) detallePago = _deudaEscInput(c.cuenta_pago_historica_nombre);
                 else if (c.medio_pago_historico) detallePago = _deudaEscInput(c.medio_pago_historico);
                 accion = `<span class="deudas-cuota-pago">${detallePago}</span><span class="deudas-cuota-nota">no afectó caja</span>`;
             } else if (c.estado === 'confirmada' && c.cheque_pk) {
-                accion = `<span class="deudas-cuota-pago">Cheque #${c.cheque_numero}</span>`;
+                accion = `<span class="deudas-cuota-pago">${linkCheque(c.cheque_pk, etiquetaCheque(c.cheque_numero))}</span>`;
             } else if (c.estado === 'confirmada' && c.pagos && c.pagos.length) {
                 accion = c.pagos.map(p =>
                     `<span class="deudas-cuota-pago">${_deudaEscInput(p.cuenta_nombre)} ${fmtMoneda(p.monto, d.moneda)}</span>`
@@ -1565,6 +1738,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const modalPagoCuota = document.getElementById('modalPagoCuota');
     const modalPagoCuotaBackdrop = document.getElementById('modalPagoCuotaBackdrop');
     const btnCerrarPagoCuota = document.getElementById('btnCerrarPagoCuota');
+    const btnCancelarPagoCuota = document.getElementById('btnCancelarPagoCuota');
     const pagoCuotaTitle = document.getElementById('pagoCuotaTitle');
     const pagoCuotaObjetivo = document.getElementById('pagoCuotaObjetivo');
     const pagoCuotaObjetivoFijo = document.getElementById('pagoCuotaObjetivoFijo');
@@ -1582,11 +1756,11 @@ document.addEventListener('DOMContentLoaded', function () {
     let pagoCtx = null;
 
     function cerrarModalPagoCuota() {
-        modalPagoCuota.hidden = true;
-        document.body.style.overflow = '';
+        ocultarModalDeudas(modalPagoCuota);
         pagoCtx = null;
     }
     btnCerrarPagoCuota.addEventListener('click', cerrarModalPagoCuota);
+    btnCancelarPagoCuota.addEventListener('click', cerrarModalPagoCuota);
 
     function agregarLineaPago(preset) {
         preset = preset || {};
@@ -1605,6 +1779,7 @@ document.addEventListener('DOMContentLoaded', function () {
         fila.querySelector('.dpl-monto').addEventListener('input', actualizarResumenPago);
         fila.querySelector('.deudas-cv-quitar').addEventListener('click', () => {
             fila.remove();
+            sincronizarLineaUnicaAbono();
             actualizarResumenPago();
         });
         pagoCuotaLineas.appendChild(fila);
@@ -1623,6 +1798,21 @@ document.addEventListener('DOMContentLoaded', function () {
         return pagoCtx ? pagoCtx.objetivo : 0;
     }
 
+    // Bug real reportado por el usuario: en "Registrar un pago" (modo
+    // abono), el monto se pedía DOS VECES — una en "Monto a pagar" y otra
+    // en el monto de la línea de cuenta, que no se actualizaba sola. Con
+    // una sola cuenta (el caso normal, sin repartir el pago) esa segunda
+    // entrada es pura fricción/confusión: acá se sincroniza. Si el usuario
+    // agrega una 2ª línea para repartir el pago, deja de auto-sincronizar
+    // (ahí sí hace falta tipear cada monto a mano, es un reparto real).
+    function sincronizarLineaUnicaAbono() {
+        if (!pagoCtx || pagoCtx.modo !== 'abono') return;
+        const filas = pagoCuotaLineas.querySelectorAll('.deudas-pago-linea');
+        if (filas.length === 1) {
+            filas[0].querySelector('.dpl-monto').value = pagoCuotaMonto.value;
+        }
+    }
+
     function actualizarResumenPago() {
         if (!pagoCtx) return;
         const objetivo = _objetivoActual();
@@ -1635,7 +1825,10 @@ document.addEventListener('DOMContentLoaded', function () {
                   : (dif > 0 ? `Faltan ${fmtMoneda(dif, pagoCtx.moneda)}` : `Sobran ${fmtMoneda(-dif, pagoCtx.moneda)}`));
         pagoCuotaResumen.classList.toggle('deudas-pago-resumen--ok', ok);
     }
-    pagoCuotaMonto.addEventListener('input', actualizarResumenPago);
+    pagoCuotaMonto.addEventListener('input', () => {
+        sincronizarLineaUnicaAbono();
+        actualizarResumenPago();
+    });
 
     function abrirModalPagoCuota(ctx) {
         pagoCtx = ctx;
@@ -1644,8 +1837,15 @@ document.addEventListener('DOMContentLoaded', function () {
         pagoCuotaObjetivoFijo.hidden = esAbono;
         pagoCuotaCamposAbono.hidden = !esAbono;
         if (esAbono) {
-            pagoCuotaMonto.value = ctx.objetivo;
-            pagoCuotaMonto.max = ctx.objetivo;
+            // objetivo == null: deuda de monto_desconocido — no hay saldo
+            // que prefillear ni techo que poner (ver btnAbonar).
+            if (ctx.objetivo != null) {
+                pagoCuotaMonto.value = ctx.objetivo;
+                pagoCuotaMonto.max = ctx.objetivo;
+            } else {
+                pagoCuotaMonto.value = '';
+                pagoCuotaMonto.removeAttribute('max');
+            }
             pagoCuotaFecha.value = today;
             pagoCuotaFecha.max = today;
         } else {
@@ -1655,23 +1855,23 @@ document.addEventListener('DOMContentLoaded', function () {
         pagoCuotaLineas.innerHTML = '';
         agregarLineaPago({ monto: ctx.objetivo });
         actualizarResumenPago();
-        // Cheque no admite pago con cuenta.
-        btnConfirmarPagoCuota.hidden = ctx.soloCheque;
-        btnAgregarLineaPago.hidden = ctx.soloCheque;
-        pagoCuotaLineas.hidden = ctx.soloCheque;
-        pagoCuotaResumen.hidden = ctx.soloCheque;
-        modalPagoCuota.hidden = false;
-        document.body.style.overflow = 'hidden';
+        mostrarModalDeudas(modalPagoCuota, esAbono ? pagoCuotaMonto : modalPagoCuota);
     }
 
     window.pagarCuota = function (cuotaPk, adelantar = false) {
         const c = deudaDetalleActual.cuotas.find(x => x.pk === cuotaPk);
         if (!c) return;
+        if (deudaDetalleActual.tipo === 'cheque') {
+            abrirPagoDirectoConCheque({
+                modo: 'cuota', cuotaPk, adelantar: !!adelantar,
+                objetivo: parseFloat(c.monto), moneda: deudaDetalleActual.moneda,
+            });
+            return;
+        }
         abrirModalPagoCuota({
             modo: 'cuota', cuotaPk, adelantar: !!adelantar,
             deudaPk: deudaDetalleActual.pk, moneda: deudaDetalleActual.moneda,
             objetivo: parseFloat(c.monto), pedirFecha: false,
-            soloCheque: deudaDetalleActual.tipo === 'cheque',
         });
     };
 
@@ -1743,8 +1943,18 @@ document.addEventListener('DOMContentLoaded', function () {
     const btnGuardarChequeCuota = document.getElementById('btnGuardarChequeCuota');
     let chequeCuotaActual = null;
 
-    function _prepararModalChequeComun(monto, moneda) {
+    function _prepararModalChequeComun(monto, moneda, opts = {}) {
+        const { montoEditable = false, montoMax = null, titulo = 'Pagar cuota con cheque' } = opts;
+        document.getElementById('modalChequeCuotaTitle').textContent = titulo;
+        document.getElementById('cchcMontoNota').hidden = montoEditable;
         document.getElementById('cchcMontoLabel').textContent = fmtMoneda(monto, moneda);
+        const cchcCampoMonto = document.getElementById('cchcCampoMonto');
+        const cchcMonto = document.getElementById('cchcMonto');
+        cchcCampoMonto.hidden = !montoEditable;
+        if (montoEditable) {
+            cchcMonto.value = monto || '';
+            if (montoMax != null) cchcMonto.max = montoMax; else cchcMonto.removeAttribute('max');
+        }
         document.getElementById('cchc_numero_cheque').value = '';
         document.getElementById('cchc_fecha_emision').value = today;
         document.getElementById('cchc_fecha_cobro').value = today;
@@ -1761,13 +1971,11 @@ document.addEventListener('DOMContentLoaded', function () {
         financiadoraSelect.innerHTML = '<option value="">— No hace falta, ya tiene fondos —</option>' +
             financiadoras.map(c => `<option value="${c.pk}">${c.nombre}${c.titular ? ' · ' + c.titular : ''}</option>`).join('');
 
-        modalChequeCuota.hidden = false;
-        document.body.style.overflow = 'hidden';
+        mostrarModalDeudas(modalChequeCuota, document.getElementById(montoEditable ? 'cchcMonto' : 'cchc_numero_cheque'));
     }
 
     function cerrarModalChequeCuota() {
-        modalChequeCuota.hidden = true;
-        document.body.style.overflow = '';
+        ocultarModalDeudas(modalChequeCuota);
         chequeCuotaActual = null;
     }
     btnCerrarChequeCuota.addEventListener('click', cerrarModalChequeCuota);
@@ -1782,9 +1990,29 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!cuentaOrigenPk) { msg.textContent = 'Elegí la cuenta bancaria (chequera).'; return; }
         if (!fechaEmision || !fechaCobro) { msg.textContent = 'Indicá fecha de emisión y de cobro.'; return; }
 
+        // Solo cuando este modal se abrió directo (deuda cheque-only, ver
+        // abrirPagoDirectoConCheque) el monto se edita acá mismo, no en un
+        // paso previo.
+        const cchcCampoMonto = document.getElementById('cchcCampoMonto');
+        if (!cchcCampoMonto.hidden) {
+            const cchcMonto = document.getElementById('cchcMonto');
+            const montoIngresado = parseFloat(cchcMonto.value);
+            if (!montoIngresado || montoIngresado <= 0) { msg.textContent = 'Indicá cuánto pagás.'; return; }
+            if (cchcMonto.max && montoIngresado > parseFloat(cchcMonto.max)) {
+                msg.textContent = `No puede superar el saldo pendiente (${fmtMoneda(cchcMonto.max, deudaDetalleActual.moneda)}).`;
+                return;
+            }
+            chequeCuotaActual.monto = montoIngresado;
+        }
+        // Misma razón: sin el paso previo no hay un campo aparte para "fecha
+        // del pago" — la fecha de emisión del cheque hace ese papel.
+        if (chequeCuotaActual.modoAbono && chequeCuotaActual.usarFechaEmisionComoAbono) {
+            chequeCuotaActual.fecha = fechaEmision;
+        }
+
         const mensajeConfirmacion = chequeCuotaActual.modoAbono
-            ? '¿Registrar este abono con este cheque? Queda confirmado ya mismo; el egreso real de caja se genera recién cuando confirmes el cheque desde la pantalla de Cheques.'
-            : '¿Pagar esta cuota con este cheque? La cuota queda confirmada ya mismo; el egreso real de caja se genera recién cuando confirmes el cheque desde la pantalla de Cheques.';
+            ? '¿Emitir este cheque para el abono? El pago quedará en trámite y recién se confirmará cuando marques el cheque como pagado desde la pantalla de Cheques.'
+            : '¿Emitir este cheque para pagar la cuota? La cuota quedará en trámite y recién se confirmará cuando marques el cheque como pagado desde la pantalla de Cheques.';
         if (!await KaiConfirm(mensajeConfirmacion)) return;
 
         const chequeData = {
@@ -1831,16 +2059,86 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
+    // Una deuda tipo "cheque" SOLO se puede pagar con cheque (ver
+    // HINT_CHEQUE_LIBRE) — no hay ninguna decisión real que tomar en
+    // "Registrar un pago" (monto + fecha) antes de terminar igual en el
+    // único botón habilitado ahí, "Pagar con cheque". Reportado por el
+    // usuario como fricción sin sentido: acá se va derecho al modal del
+    // cheque, con el monto (si corresponde elegirlo) adentro del mismo.
+    function abrirPagoDirectoConCheque(ctx) {
+        chequeCuotaActual = ctx.modo === 'abono'
+            ? {
+                modoAbono: true, deudaPk: ctx.deudaPk, monto: ctx.objetivo || 0,
+                fecha: today, usarFechaEmisionComoAbono: true,
+            }
+            : { modoAbono: false, cuotaPk: ctx.cuotaPk, adelantar: !!ctx.adelantar, monto: ctx.objetivo };
+        _prepararModalChequeComun(ctx.objetivo, ctx.moneda, {
+            montoEditable: ctx.modo === 'abono',
+            montoMax: ctx.objetivoMax,
+            titulo: ctx.modo === 'abono' ? 'Registrar pago con cheque' : 'Pagar cuota con cheque',
+        });
+    }
+
     // ── Registrar abono (modo_cuotas=libre) — abre el modal de pago ───
     btnAbonar?.addEventListener('click', () => {
         if (!deudaDetalleActual) return;
+        const soloCheque = deudaDetalleActual.tipo === 'cheque';
+        // monto_desconocido: no hay saldo (no se sabe el total) — no hay
+        // techo, se deja el campo vacío para que se tipee lo que sea.
+        if (deudaDetalleActual.monto_desconocido) {
+            if (soloCheque) {
+                abrirPagoDirectoConCheque({
+                    modo: 'abono', deudaPk: deudaDetalleActual.pk, moneda: deudaDetalleActual.moneda,
+                    objetivo: null, objetivoMax: null,
+                });
+                return;
+            }
+            abrirModalPagoCuota({
+                modo: 'abono', deudaPk: deudaDetalleActual.pk, moneda: deudaDetalleActual.moneda,
+                objetivo: null, pedirFecha: true,
+            });
+            return;
+        }
         const saldo = parseFloat(deudaDetalleActual.saldo_pendiente) || 0;
         if (saldo <= 0) return;
+        if (soloCheque) {
+            abrirPagoDirectoConCheque({
+                modo: 'abono', deudaPk: deudaDetalleActual.pk, moneda: deudaDetalleActual.moneda,
+                objetivo: saldo, objetivoMax: saldo,
+            });
+            return;
+        }
         abrirModalPagoCuota({
             modo: 'abono', deudaPk: deudaDetalleActual.pk, moneda: deudaDetalleActual.moneda,
             objetivo: saldo, pedirFecha: true,
-            soloCheque: deudaDetalleActual.tipo === 'cheque',
         });
+    });
+
+    // ── Cerrar una deuda de monto_desconocido: fija el total real ─────
+    btnCerrarMontoDesconocido?.addEventListener('click', async () => {
+        if (!deudaDetalleActual) return;
+        if (!await KaiConfirm(
+            '¿Ya no debés nada más de esta deuda? Se va a fijar el total a devolver = lo que ya '
+            + 'abonaste hasta ahora, y se calcula desde ahí la tasa de interés real. No se puede '
+            + 'deshacer desde acá.',
+            { danger: true, confirmText: 'Sí, ya está saldada' },
+        )) return;
+        try {
+            const r = await fetch(urls.cerrarMontoDesconocido.replace('/0/', `/${deudaDetalleActual.pk}/`), {
+                method: 'POST', headers: { 'X-CSRFToken': getCookie('csrftoken') },
+            });
+            const result = await r.json();
+            if (result.success) {
+                KaiToast.show('Listo — total y tasa real definidos.', 'success');
+                window.verDeuda(deudaDetalleActual.pk);
+                cargarDeudas();
+            } else {
+                KaiToast.show(result.error || 'No se pudo cerrar.', 'danger');
+            }
+        } catch (e) {
+            console.error(e);
+            KaiToast.show('No se pudo cerrar.', 'danger');
+        }
     });
 
     // ── Agregar / editar cuotas pendientes (modo_cuotas=variable) ─────
@@ -2110,8 +2408,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let cuotaEditandoActual = null;
 
     function cerrarModalEditarCuota() {
-        modalEditarCuota.hidden = true;
-        document.body.style.overflow = '';
+        ocultarModalDeudas(modalEditarCuota);
         cuotaEditandoActual = null;
     }
     btnCerrarEditarCuota.addEventListener('click', cerrarModalEditarCuota);
@@ -2161,8 +2458,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
 
-        modalEditarCuota.hidden = false;
-        document.body.style.overflow = 'hidden';
+        mostrarModalDeudas(modalEditarCuota, ecVencimiento);
     };
 
     btnGuardarEditarCuota.addEventListener('click', async () => {
@@ -2245,8 +2541,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let cuotaMarcandoPagadaPk = null;
 
     function cerrarModalMarcarPagada() {
-        modalMarcarPagada.hidden = true;
-        document.body.style.overflow = '';
+        ocultarModalDeudas(modalMarcarPagada);
         cuotaMarcandoPagadaPk = null;
     }
     btnCerrarMarcarPagada.addEventListener('click', cerrarModalMarcarPagada);
@@ -2257,8 +2552,7 @@ document.addEventListener('DOMContentLoaded', function () {
         mpFecha.value = c.fecha_vencimiento < today ? c.fecha_vencimiento : today;
         mpFecha.max = today;
         mpMsg.textContent = '';
-        modalMarcarPagada.hidden = false;
-        document.body.style.overflow = 'hidden';
+        mostrarModalDeudas(modalMarcarPagada, mpFecha);
     };
 
     btnConfirmarMarcarPagada.addEventListener('click', async () => {
@@ -2405,6 +2699,27 @@ document.addEventListener('DOMContentLoaded', function () {
         formFiltros.reset();
         paginaActual = 1;
         cargarDeudas();
+    });
+
+    // Escape cierra solamente el diálogo que está arriba. Así, al salir
+    // de Pago se vuelve al Detalle en lugar de cerrar toda la operación.
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+        const abiertos = Array.from(document.querySelectorAll('.modal:not([hidden])'));
+        const superior = abiertos[abiertos.length - 1];
+        if (!superior) return;
+        const cierres = {
+            modalDeuda: cerrarModal,
+            modalDetalle: cerrarDetalle,
+            modalPagoCuota: cerrarModalPagoCuota,
+            modalChequeCuota: cerrarModalChequeCuota,
+            modalEditarCuota: cerrarModalEditarCuota,
+            modalMarcarPagada: cerrarModalMarcarPagada,
+        };
+        if (cierres[superior.id]) {
+            event.preventDefault();
+            cierres[superior.id]();
+        }
     });
 
     // ── Helpers ─────────────────────────────────────────────────────

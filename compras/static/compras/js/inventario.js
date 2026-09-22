@@ -144,7 +144,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         <div class="inv-barra-restante-fill" style="width:${l.porcentaje_restante}%"></div>
                     </div>
                 </td>
-                <td>$${KaiFormat.moneda(l.costo_unitario)}</td>
+                <td>$${KaiFormat.moneda(l.costo_unitario, 4)}</td>
                 <td>${badgeVencimiento(l)}</td>
                 <td>${l.fecha_compra}</td>
                 <td>${escapeHtml(l.proveedor || '—')}</td>
@@ -309,7 +309,7 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('etiquetaVariante').textContent = lote.variante_desc || '';
 
         const detalles = [];
-        detalles.push(`Costo: $${KaiFormat.moneda(lote.costo_unitario)}`);
+        detalles.push(`Costo: $${KaiFormat.moneda(lote.costo_unitario, 4)}`);
         if (lote.fecha_vencimiento) detalles.push(`Vence: ${lote.fecha_vencimiento}`);
         detalles.push(`Ingreso: ${lote.fecha_compra}`);
         document.getElementById('etiquetaDetalle').textContent = detalles.join('  ·  ');
@@ -1126,7 +1126,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         <td>${f.fecha}</td>
                         <td>${escapeHtml(f.producto_origen)} <span class="inv-unidad-medida">(${KaiFormat.cantidad(f.cantidad_total_origen)} ${escapeHtml(f.unidad_origen)})</span></td>
                         <td>${escapeHtml(f.producto_destino)} <span class="inv-unidad-medida">(${KaiFormat.cantidad(f.cantidad_paquetes)} ${escapeHtml(f.unidad_destino)})</span></td>
-                        <td>$${KaiFormat.moneda(f.costo_unitario_calculado)}</td>
+                        <td>$${KaiFormat.moneda(f.costo_unitario_calculado, 4)}</td>
                         <td>${escapeHtml(f.creado_por)}</td>
                     </tr>
                 `).join('');

@@ -53,7 +53,7 @@ function _ddBuildDocItem(doc, deudaPk) {
         </a>
         <span class="doc-fecha">${_ddEsc(doc.subido_el)}</span>
         ${window.deudasPuedeEditar ? `
-        <button class="doc-btn-eliminar" data-doc-pk="${doc.pk}" title="Eliminar documento">
+        <button type="button" class="doc-btn-eliminar" data-doc-pk="${doc.pk}" title="Eliminar documento" aria-label="Eliminar ${_ddEsc(doc.nombre)}">
             <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
                 <path d="M2 2L12 12M12 2L2 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
             </svg>
@@ -82,7 +82,7 @@ function renderizarDocumentosDeuda(deuda) {
                 </svg>
                 Adjuntar archivo
                 <input type="file" class="doc-file-input" id="ddFile_${pk}"
-                       accept="image/*,.pdf" style="display:none;">
+                       accept="image/*,.pdf">
             </label>
             <select class="doc-tipo-select" id="ddTipo_${pk}">
                 <option value="factura">Factura</option>
@@ -92,7 +92,7 @@ function renderizarDocumentosDeuda(deuda) {
             </select>
             <input type="text" class="doc-desc-input" id="ddDesc_${pk}"
                    placeholder="Descripción (opcional)" maxlength="200">
-            <span class="doc-upload-status" id="ddStatus_${pk}" style="display:none;">Subiendo…</span>
+            <span class="doc-upload-status" id="ddStatus_${pk}" role="status" hidden>Subiendo…</span>
         </div>` : '';
 
     contenedor.innerHTML = `
@@ -124,8 +124,11 @@ function _ddSubir(file, deudaPk) {
     const statusEl = document.getElementById(`ddStatus_${deudaPk}`);
     const labelEl = document.querySelector(`#ddFile_${deudaPk}`)?.closest('.doc-subir-label');
 
-    if (statusEl) statusEl.style.display = 'inline';
-    if (labelEl) labelEl.style.pointerEvents = 'none';
+    if (statusEl) statusEl.hidden = false;
+    if (labelEl) {
+        labelEl.classList.add('doc-subir-label--busy');
+        labelEl.setAttribute('aria-busy', 'true');
+    }
 
     const formData = new FormData();
     formData.append('deuda_pk', deudaPk);
@@ -140,8 +143,11 @@ function _ddSubir(file, deudaPk) {
     })
         .then(r => r.json())
         .then(data => {
-            if (statusEl) statusEl.style.display = 'none';
-            if (labelEl) labelEl.style.pointerEvents = '';
+            if (statusEl) statusEl.hidden = true;
+            if (labelEl) {
+                labelEl.classList.remove('doc-subir-label--busy');
+                labelEl.removeAttribute('aria-busy');
+            }
             if (descEl) descEl.value = '';
 
             if (data.ok && data.documento) {
@@ -163,13 +169,18 @@ function _ddSubir(file, deudaPk) {
             }
         })
         .catch(() => {
-            if (statusEl) statusEl.style.display = 'none';
-            if (labelEl) labelEl.style.pointerEvents = '';
+            if (statusEl) statusEl.hidden = true;
+            if (labelEl) {
+                labelEl.classList.remove('doc-subir-label--busy');
+                labelEl.removeAttribute('aria-busy');
+            }
             KaiToast.show('Error de red. Intentá de nuevo.', 'danger');
         });
 }
 
-function _ddEliminar(docPk, deudaPk) {
+async function _ddEliminar(docPk, deudaPk) {
+    if (!await KaiConfirm('¿Eliminar este documento adjunto?', { danger: true, confirmText: 'Eliminar' })) return;
+
     fetch(window.deudasUrls.documentoEliminar, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _ddGetCookie('csrftoken') },

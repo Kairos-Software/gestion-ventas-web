@@ -119,7 +119,7 @@
                             </td>
                             <td style="text-align:right">
                                 <span class="cdt-moneda-chip">{{ item.moneda }}</span>
-                                {{ item.precio_unitario|pesos }}
+                                {{ item.precio_unitario|pesos:4 }}
                                 {% if item.descuento_pct %}<span style="font-size:.72rem;color:var(--success)"> -{{ item.descuento_pct }}%{% if item.oferta_aplicada_nombre %} (Oferta: {{ item.oferta_aplicada_nombre }}){% elif item.lista_descuento_nombre %} ({{ item.lista_descuento_nombre }}){% endif %}</span>{% endif %}
                             </td>
                             <td style="text-align:right;font-weight:700">
@@ -186,7 +186,7 @@
                             <td>{{ item.cantidad|floatformat:"-3" }}</td>
                             <td>
                                 <span class="cdt-moneda-chip">{{ item.moneda }}</span>
-                                {{ item.precio_unitario|pesos }}
+                                {{ item.precio_unitario|pesos:4 }}
                             </td>
                             <td>{% if item.descuento_pct %}{{ item.descuento_pct }}%{% if item.oferta_aplicada_nombre %}<br><span style="font-size:.68rem;color:var(--brand-orange)" title="Oferta aplicada">Oferta: {{ item.oferta_aplicada_nombre }}</span>{% elif item.lista_descuento_nombre %}<br><span style="font-size:.68rem;color:var(--text-muted)">{{ item.lista_descuento_nombre }}</span>{% endif %}{% else %}<span
                                     class="cdt-muted">—</span>{% endif %}</td>

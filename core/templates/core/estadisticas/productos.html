@@ -1,291 +1,159 @@
 {% extends "core/base.html" %}
-{% load static humanize kai_formato %}
+{% load static kai_formato %}
 
 {% block title %}Estadísticas — Productos y Stock{% endblock %}
 {% block breadcrumb %}<strong>Estadísticas</strong> · Productos y Stock{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'core/css/estadisticas.css' %}?v=20260903">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas_resumen.css' %}?v=20260921c">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas_ventas.css' %}?v=20260921a">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas_productos.css' %}?v=20260922a">
 {% endblock %}
 
 {% block content %}
-
 {% if sin_permiso %}
-<div class="est-sin-permiso">
-    <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
-        <path d="M12 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-        <circle cx="12" cy="16.2" r="0.9" fill="currentColor"/>
-    </svg>
-    <p>No tenés permiso para ver estadísticas de productos y stock.</p>
-</div>
+<div class="est-sin-permiso"><p>No tenés permiso para ver estadísticas de productos y stock.</p></div>
 {% else %}
+<div class="est-summary-page est-stock-page">
+    <header class="est-summary-heading">
+        <div><h1>Productos y Stock</h1><p>Estado del depósito hoy, {{ hoy|date:'d/m/Y' }}</p></div>
+        <a href="#estStockPeriodo" class="est-summary-heading-link">Ver datos por período <span aria-hidden="true">↓</span></a>
+    </header>
 
-{% include "core/estadisticas/_filtros.html" %}
+    <section class="est-summary-overview" aria-label="Estado actual del stock">
+        <div class="est-stock-section-heading"><div><h2>Para revisar hoy</h2><p>Estos datos son actuales y no cambian al elegir otras fechas.</p></div></div>
+        <div class="est-summary-highlights">
+            <article class="est-summary-highlight est-stock-highlight--low {% if stock_bajo_total %}is-negative{% endif %}">
+                <div class="est-summary-label-row"><span class="est-summary-highlight-label">Productos para reponer</span><button type="button" class="kai-help-btn" data-help-target="ayuda_stock_bajo" aria-label="Qué significa productos para reponer" aria-controls="ayuda_stock_bajo">?</button></div>
+                <div class="kai-help-popover" id="ayuda_stock_bajo">Son productos agotados o con stock igual o menor al mínimo que configuraste.</div>
+                <strong class="est-summary-highlight-value">{{ stock_bajo_total }}</strong>
+                <p>Agotados o con stock en el mínimo</p>
+                <a href="#estStockBajo">Ver productos <span aria-hidden="true">→</span></a>
+            </article>
+            <article class="est-summary-highlight est-stock-highlight--soon">
+                <div class="est-summary-label-row"><span class="est-summary-highlight-label">Lotes por vencer</span><button type="button" class="kai-help-btn" data-help-target="ayuda_stock_por_vencer" aria-label="Qué significa lotes por vencer" aria-controls="ayuda_stock_por_vencer">?</button></div>
+                <div class="kai-help-popover" id="ayuda_stock_por_vencer">Son lotes que todavía tienen stock y vencen en los próximos 30 días.</div>
+                <strong class="est-summary-highlight-value">{{ perdidas_actuales.cantidad_lotes_por_vencer }}</strong>
+                <p>${{ perdidas_actuales.total_en_riesgo|pesos }} al costo en riesgo</p>
+                <a href="#estStockPorVencer">Ver lotes <span aria-hidden="true">→</span></a>
+            </article>
+            <article class="est-summary-highlight est-stock-highlight--expired {% if perdidas_actuales.cantidad_lotes_vencidos %}is-negative{% endif %}">
+                <div class="est-summary-label-row"><span class="est-summary-highlight-label">Lotes ya vencidos</span><button type="button" class="kai-help-btn" data-help-target="ayuda_stock_vencido" aria-label="Qué significa lotes ya vencidos" aria-controls="ayuda_stock_vencido">?</button></div>
+                <div class="kai-help-popover" id="ayuda_stock_vencido">Son lotes vencidos que todavía figuran con unidades en el depósito.</div>
+                <strong class="est-summary-highlight-value">{{ perdidas_actuales.cantidad_lotes_vencidos }}</strong>
+                <p>${{ perdidas_actuales.total_vencido|pesos }} al costo</p>
+                <a href="#estStockVencidos">Ver lotes <span aria-hidden="true">→</span></a>
+            </article>
+            <article class="est-summary-highlight est-stock-highlight--value">
+                <div class="est-summary-label-row"><span class="est-summary-highlight-label">Valor del stock a costo</span><button type="button" class="kai-help-btn" data-help-target="ayuda_stock_valor" aria-label="Qué significa valor del stock a costo" aria-controls="ayuda_stock_valor">?</button></div>
+                <div class="kai-help-popover" id="ayuda_stock_valor">Es lo que costó la mercadería que tenés hoy; no es ganancia ni dinero en caja.</div>
+                <strong class="est-summary-highlight-value">${{ valorizacion_stock.total_valorizado|pesos }}</strong>
+                <p>{{ valorizacion_stock.cantidad_productos }} producto{{ valorizacion_stock.cantidad_productos|pluralize }} con stock</p>
+            </article>
+            <article class="est-summary-highlight est-stock-highlight--value">
+                <div class="est-summary-label-row"><span class="est-summary-highlight-label">Valor del stock a precio de venta</span><button type="button" class="kai-help-btn" data-help-target="ayuda_stock_valor_venta" aria-label="Qué significa valor del stock a precio de venta" aria-controls="ayuda_stock_valor_venta">?</button></div>
+                <div class="kai-help-popover" id="ayuda_stock_valor_venta">Es lo que entraría a la caja si vendieras hoy todo el stock a precio de lista, sin descuentos. Sirve para comparar contra tus deudas — no es ganancia ni dinero disponible ahora.</div>
+                <strong class="est-summary-highlight-value">${{ valorizacion_stock.total_venta|pesos }}</strong>
+                <p>A precio de lista, sin descuentos</p>
+            </article>
+        </div>
+    </section>
 
-<!-- ══════════ VALORIZACIÓN DEL STOCK (tiempo real) ══════════ -->
-<div class="card mb-4">
-    <div class="card-header">
-        <div>
-            <p class="card-title">¿Cuánta plata tenés en stock?</p>
-            <p class="text-muted" style="font-size:.8125rem;">Tiempo real — no depende del filtro de fechas de arriba</p>
-        </div>
-    </div>
-    <div class="card-body">
-        <div class="est-mini-stat-grid">
-            <div class="est-mini-stat">
-                <div class="est-mini-stat-valor">${{ valorizacion_stock.total_valorizado|floatformat:0|intcomma }}</div>
-                <div class="est-mini-stat-label">Valorización a costo</div>
-            </div>
-            <div class="est-mini-stat">
-                <div class="est-mini-stat-valor">${{ valorizacion_stock.total_venta|floatformat:0|intcomma }}</div>
-                <div class="est-mini-stat-label">Si vendiera todo el stock (a precio de lista)</div>
-            </div>
-            <div class="est-mini-stat">
-                <div class="est-mini-stat-valor">{{ valorizacion_stock.cantidad_productos }}</div>
-                <div class="est-mini-stat-label">Productos con stock</div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- ══════════ RENDIMIENTO DE PAQUETES ══════════ -->
-<div class="card mb-4">
-    <div class="card-header">
-        <div>
-            <p class="card-title">¿Cómo rinden tus combos?
-                <button type="button" class="kai-help-btn" data-help-target="ayuda_rendimiento_paquetes" aria-label="Cómo se calcula">?</button>
-            </p>
-            <p class="text-muted" style="font-size:.8125rem;">Paquetes vendidos en este período, por ganancia real</p>
-            <div class="kai-help-popover" id="ayuda_rendimiento_paquetes">
-                <strong>Ganancia = vendido − costo.</strong> El costo es el de los productos reales que se descontaron al armar cada paquete (costo por lote, FIFO), no un valor fijo del combo.
-            </div>
-        </div>
-    </div>
-    <div class="card-body">
-        {% if rendimiento_paquetes %}
-            {% for pq in rendimiento_paquetes %}
-            <div class="est-ranking-row" data-valor="{{ pq.ganancia|floatformat:0 }}">
-                <span class="est-ranking-bar"></span>
-                <div class="est-ranking-left">
-                    <span class="est-ranking-pos">{{ forloop.counter }}</span>
-                    <div>
-                        <div class="est-ranking-nombre">{{ pq.nombre }}</div>
-                        <div class="est-ranking-detalle">
-                            Cód. {{ pq.codigo }} · {{ pq.unidades|cantidad }} u vendidas a ${{ pq.precio_prom|floatformat:0|intcomma }} c/u promedio{% if pq.margen_sobre_costo is not None %} · margen {{ pq.margen_sobre_costo|floatformat:0 }}% sobre el costo{% endif %}
-                        </div>
-                    </div>
-                </div>
-                <div class="est-ranking-right">
-                    <div class="est-ranking-ganancia"><span class="est-ranking-etiqueta">ganancia</span>${{ pq.ganancia|floatformat:0|intcomma }}</div>
-                    <div class="est-ranking-vendido">${{ pq.ingresos|floatformat:0|intcomma }} vendido · ${{ pq.costo|floatformat:0|intcomma }} de costo</div>
-                </div>
-            </div>
-            {% endfor %}
-        {% else %}
-            <div class="empty-state">
-                <p>Todavía no vendiste paquetes en este período.</p>
-            </div>
-        {% endif %}
-    </div>
-</div>
-
-<!-- ══════════ STOCK BAJO + SIN MOVIMIENTO (tiempo real) ══════════ -->
-<div class="est-row mb-4">
-    <div class="card">
-        <div class="card-header">
-            <div>
-                <p class="card-title">Stock bajo o crítico</p>
-                <p class="text-muted" style="font-size:.8125rem;">Con menos unidades que el mínimo que cargaste — tiempo real</p>
-            </div>
-        </div>
-        <div class="card-body">
-            {% if stock_bajo %}
-            <div class="table-responsive">
-                <table class="table">
-                    <thead><tr><th>Producto</th><th>Stock</th><th>Mínimo</th></tr></thead>
-                    <tbody>
-                        {% for p in stock_bajo %}
-                        <tr>
-                            <td>{{ p.nombre }} <span class="badge badge-secondary">{{ p.codigo }}</span></td>
-                            <td class="font-semibold text-danger">{{ p.stock_actual|cantidad }}</td>
-                            <td>{{ p.stock_minimo|cantidad }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-                <div class="empty-state">
-                    <p>Ningún producto está por debajo de su stock mínimo.</p>
-                </div>
-            {% endif %}
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="card-header">
-            <div>
-                <p class="card-title">Stock sin movimiento</p>
-                <p class="text-muted" style="font-size:.8125rem;">No se vendió en los últimos 60 días — tiempo real</p>
-            </div>
-        </div>
-        <div class="card-body">
-            {% if sin_movimiento %}
-            <div class="table-responsive">
-                <table class="table">
-                    <thead><tr><th>Producto</th><th>Stock</th><th>Valor inmovilizado</th></tr></thead>
-                    <tbody>
-                        {% for p in sin_movimiento %}
-                        <tr>
-                            <td>{{ p.nombre }} <span class="badge badge-secondary">{{ p.codigo }}</span></td>
-                            <td>{{ p.stock_actual|cantidad }}</td>
-                            <td class="font-semibold">${{ p.valor|floatformat:0|intcomma }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-                <div class="empty-state">
-                    <p>Todo tu stock tuvo movimiento en los últimos 60 días.</p>
-                </div>
-            {% endif %}
-        </div>
-    </div>
-</div>
-
-<!-- ══════════ PÉRDIDAS — EN ESTE PERÍODO ══════════ -->
-<div class="card mb-4">
-    <div class="card-header">
-        <div>
-            <p class="card-title">Pérdidas en este período</p>
-            <p class="text-muted" style="font-size:.8125rem;">Lo que se venció o se rompió/perdió entre el {{ desde|date:'d/m/Y' }} y el {{ hasta|date:'d/m/Y' }}</p>
-        </div>
-    </div>
-    <div class="card-body">
-        <div class="est-perdida-grid" style="grid-template-columns: 1fr 1fr;">
-            <div class="est-perdida-box vencido">
-                <div class="est-perdida-titulo">Se venció sin vender</div>
-                <div class="est-perdida-valor">${{ perdidas_periodo.total_vencido_periodo|floatformat:0|intcomma }}</div>
-                <div class="est-perdida-nota">{{ perdidas_periodo.cantidad_lotes_vencidos_periodo }} lote{{ perdidas_periodo.cantidad_lotes_vencidos_periodo|pluralize }}</div>
-            </div>
-            <div class="est-perdida-box merma">
-                <div class="est-perdida-titulo">Se rompió o se perdió</div>
-                <div class="est-perdida-valor">${{ perdidas_periodo.total_mermas_periodo|floatformat:0|intcomma }}</div>
-                <div class="est-perdida-nota">{{ perdidas_periodo.unidades_mermas_periodo|cantidad }} unidad{{ perdidas_periodo.unidades_mermas_periodo|pluralize }} perdida{{ perdidas_periodo.unidades_mermas_periodo|pluralize }}</div>
-            </div>
-        </div>
-
-        {% if perdidas_periodo.lotes_vencidos_periodo %}
-        <div class="table-responsive">
-            <table class="table">
-                <thead>
-                    <tr><th>Lote</th><th>Producto</th><th>Venció el</th><th>Cuántos quedaron sin vender</th><th>Cuánto perdiste</th></tr>
-                </thead>
-                <tbody>
-                    {% for lote in perdidas_periodo.lotes_vencidos_periodo %}
-                    <tr>
-                        <td><span class="badge badge-danger">{{ lote.codigo }}</span></td>
-                        <td>{{ lote.producto }}</td>
-                        <td>{{ lote.fecha_vencimiento|date:'d/m/Y' }}</td>
-                        <td>{{ lote.cantidad_actual|cantidad }}</td>
-                        <td class="font-semibold text-danger">${{ lote.valor_perdido|floatformat:0|intcomma }}</td>
-                    </tr>
+    <section class="est-stock-section" aria-labelledby="estStockAlertas">
+        <div class="est-stock-section-heading"><div><h2 id="estStockAlertas">Lo que necesita atención</h2><p>Los primeros casos aparecen acá; podés desplegar el resto.</p></div></div>
+        <div class="est-stock-alert-grid">
+            <article class="est-sales-panel" id="estStockBajo">
+                <div class="est-sales-panel-heading"><h3>Stock bajo o agotado</h3><span>{{ stock_bajo_total }} producto{{ stock_bajo_total|pluralize }}</span></div>
+                {% if stock_bajo %}
+                <ol class="est-stock-list">
+                    {% for p in stock_bajo|slice:':3' %}
+                    <li><div><strong>{{ p.nombre }}</strong><small>Cód. {{ p.codigo }} · mínimo {{ p.stock_minimo|cantidad }}</small></div><span class="{% if p.stock_actual <= 0 %}is-urgent{% endif %}">{% if p.stock_actual <= 0 %}Agotado{% else %}Quedan {{ p.stock_actual|cantidad }}{% endif %}</span></li>
                     {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% elif perdidas_periodo.total_mermas_periodo == 0 %}
-            <div class="empty-state">
-                <p>No perdiste nada por vencimiento ni por rotura en este período.</p>
-            </div>
-        {% endif %}
-    </div>
-</div>
+                </ol>
+                {% if stock_bajo|length > 3 %}<details class="est-sales-expand"><summary>Ver más productos</summary><ol class="est-stock-list">{% for p in stock_bajo|slice:'3:' %}<li><div><strong>{{ p.nombre }}</strong><small>Cód. {{ p.codigo }} · mínimo {{ p.stock_minimo|cantidad }}</small></div><span class="{% if p.stock_actual <= 0 %}is-urgent{% endif %}">{% if p.stock_actual <= 0 %}Agotado{% else %}Quedan {{ p.stock_actual|cantidad }}{% endif %}</span></li>{% endfor %}</ol>{% if stock_bajo_total > stock_bajo|length %}<p class="est-sales-note">Se muestran los primeros {{ stock_bajo|length }} productos.</p>{% endif %}</details>{% endif %}
+                {% else %}<p class="est-sales-empty">No hay productos por debajo del mínimo configurado.</p>{% endif %}
+            </article>
 
-<!-- ══════════ ESTADO ACTUAL DEL DEPÓSITO (HOY — no depende del filtro de fecha) ══════════ -->
-<div class="card">
-    <div class="card-header">
-        <div>
-            <p class="card-title">Alerta: estado del depósito hoy</p>
-            <p class="text-muted" style="font-size:.8125rem;">Esto es en tiempo real — no cambia con el filtro de fechas de arriba</p>
-        </div>
-    </div>
-    <div class="card-body">
-        <div class="est-perdida-grid" style="grid-template-columns: 1fr 1fr;">
-            <div class="est-perdida-box vencido">
-                <div class="est-perdida-titulo">Ya vencido, todavía en el depósito</div>
-                <div class="est-perdida-valor">${{ perdidas_actuales.total_vencido|floatformat:0|intcomma }}</div>
-                <div class="est-perdida-nota">{{ perdidas_actuales.lotes_vencidos|length }} lote{{ perdidas_actuales.lotes_vencidos|length|pluralize }} — ya no se puede vender</div>
-            </div>
-            <div class="est-perdida-box por-vencer">
-                <div class="est-perdida-titulo">Vence en menos de 30 días</div>
-                <div class="est-perdida-valor">${{ perdidas_actuales.total_en_riesgo|floatformat:0|intcomma }}</div>
-                <div class="est-perdida-nota">{{ perdidas_actuales.lotes_por_vencer|length }} lote{{ perdidas_actuales.lotes_por_vencer|length|pluralize }} — ¡vendelos ya!</div>
-            </div>
-        </div>
-
-        {% if perdidas_actuales.lotes_vencidos %}
-        <p class="font-semibold" style="font-size:.875rem; margin-bottom:.5rem;">Ya vencidos</p>
-        <div class="table-responsive mb-3">
-            <table class="table">
-                <thead>
-                    <tr><th>Lote</th><th>Producto</th><th>Venció el</th><th>Stock</th><th>Valor</th></tr>
-                </thead>
-                <tbody>
-                    {% for lote in perdidas_actuales.lotes_vencidos %}
-                    <tr>
-                        <td><span class="badge badge-danger">{{ lote.codigo }}</span></td>
-                        <td>{{ lote.producto }}</td>
-                        <td>{{ lote.fecha_vencimiento|date:'d/m/Y' }}</td>
-                        <td>{{ lote.cantidad_actual|cantidad }}</td>
-                        <td class="font-semibold text-danger">${{ lote.valor_perdido|floatformat:0|intcomma }}</td>
-                    </tr>
+            <article class="est-sales-panel" id="estStockPorVencer">
+                <div class="est-sales-panel-heading"><h3>Vencen en 30 días</h3><span>{{ perdidas_actuales.cantidad_lotes_por_vencer }} lote{{ perdidas_actuales.cantidad_lotes_por_vencer|pluralize }}</span></div>
+                {% if perdidas_actuales.lotes_por_vencer %}
+                <ol class="est-stock-list">
+                    {% for lote in perdidas_actuales.lotes_por_vencer|slice:':3' %}
+                    <li><div><strong>{{ lote.producto }}</strong><small>Lote {{ lote.codigo }} · vence {{ lote.fecha_vencimiento|date:'d/m/Y' }} · {{ lote.cantidad_actual|cantidad }} unidades</small></div><span>${{ lote.valor_en_riesgo|pesos }}<small>al costo</small></span></li>
                     {% endfor %}
-                </tbody>
-            </table>
+                </ol>
+                {% if perdidas_actuales.lotes_por_vencer|length > 3 %}<details class="est-sales-expand"><summary>Ver más lotes</summary><ol class="est-stock-list">{% for lote in perdidas_actuales.lotes_por_vencer|slice:'3:' %}<li><div><strong>{{ lote.producto }}</strong><small>Lote {{ lote.codigo }} · vence {{ lote.fecha_vencimiento|date:'d/m/Y' }} · {{ lote.cantidad_actual|cantidad }} unidades</small></div><span>${{ lote.valor_en_riesgo|pesos }}<small>al costo</small></span></li>{% endfor %}</ol>{% if perdidas_actuales.cantidad_lotes_por_vencer > perdidas_actuales.lotes_por_vencer|length %}<p class="est-sales-note">Se muestran los primeros {{ perdidas_actuales.lotes_por_vencer|length }} lotes.</p>{% endif %}</details>{% endif %}
+                {% else %}<p class="est-sales-empty">No hay lotes por vencer en los próximos 30 días.</p>{% endif %}
+            </article>
         </div>
-        {% endif %}
+    </section>
 
-        {% if perdidas_actuales.lotes_por_vencer %}
-        <p class="font-semibold" style="font-size:.875rem; margin-bottom:.5rem;">Por vencer pronto</p>
-        <div class="table-responsive">
-            <table class="table">
-                <thead>
-                    <tr><th>Lote</th><th>Producto</th><th>Vence el</th><th>Stock</th><th>En riesgo</th></tr>
-                </thead>
-                <tbody>
-                    {% for lote in perdidas_actuales.lotes_por_vencer %}
-                    <tr>
-                        <td><span class="badge badge-warning">{{ lote.codigo }}</span></td>
-                        <td>{{ lote.producto }}</td>
-                        <td>{{ lote.fecha_vencimiento|date:'d/m/Y' }}</td>
-                        <td>{{ lote.cantidad_actual|cantidad }}</td>
-                        <td class="font-semibold text-warning">${{ lote.valor_en_riesgo|floatformat:0|intcomma }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+    <section class="est-stock-section" aria-labelledby="estStockOtros">
+        <div class="est-stock-section-heading"><div><h2 id="estStockOtros">Más sobre el stock de hoy</h2></div></div>
+        <div class="est-stock-detail-grid">
+            <details class="est-sales-detail" id="estStockVencidos">
+                <summary><span><strong>Lotes ya vencidos</strong><small>{{ perdidas_actuales.cantidad_lotes_vencidos }} con stock en el depósito</small></span></summary>
+                <div class="est-sales-detail-body">
+                    {% for lote in perdidas_actuales.lotes_vencidos %}<div class="est-stock-detail-row"><div><strong>{{ lote.producto }}</strong><small>Lote {{ lote.codigo }} · venció {{ lote.fecha_vencimiento|date:'d/m/Y' }} · {{ lote.cantidad_actual|cantidad }} unidades</small></div><b>${{ lote.valor_perdido|pesos }}</b></div>{% empty %}<p class="est-sales-empty">No hay lotes vencidos con stock.</p>{% endfor %}
+                    {% if perdidas_actuales.cantidad_lotes_vencidos > perdidas_actuales.lotes_vencidos|length %}<p class="est-sales-note">Se muestran los primeros {{ perdidas_actuales.lotes_vencidos|length }} lotes.</p>{% endif %}
+                </div>
+            </details>
+            <details class="est-sales-detail">
+                <summary><span><strong>Stock sin ventas recientes</strong><small>Productos con stock que no se vendieron en 60 días</small></span></summary>
+                <div class="est-sales-detail-body">
+                    {% for p in sin_movimiento %}<div class="est-stock-detail-row"><div><strong>{{ p.nombre }}</strong><small>Cód. {{ p.codigo }} · {{ p.stock_actual|cantidad }} unidades</small></div><b>${{ p.valor|pesos }}</b></div>{% empty %}<p class="est-sales-empty">Todo el stock tuvo ventas en los últimos 60 días.</p>{% endfor %}
+                    {% if sin_movimiento|length == 30 %}<p class="est-sales-note">Se muestran hasta 30 productos con mayor valor inmovilizado.</p>{% endif %}
+                </div>
+            </details>
         </div>
-        {% endif %}
+    </section>
 
-        {% if not perdidas_actuales.lotes_vencidos and not perdidas_actuales.lotes_por_vencer %}
-            <div class="empty-state">
-                <p>No tenés productos vencidos ni por vencer en los próximos 30 días.</p>
-            </div>
-        {% endif %}
-    </div>
+    <section class="est-stock-section est-stock-period" id="estStockPeriodo" aria-labelledby="estStockPeriodoTitulo">
+        <div class="est-stock-section-heading"><div><h2 id="estStockPeriodoTitulo">En el período elegido</h2><p>Del {{ desde|date:'d/m/Y' }} al {{ hasta|date:'d/m/Y' }} · estos datos sí cambian con el filtro.</p></div></div>
+        <form id="estStockPresetForm" method="get"></form>
+        <div class="est-summary-filters" role="group" aria-label="Período para pérdidas y paquetes">
+            <button form="estStockPresetForm" type="submit" name="preset" value="hoy" class="btn btn-sm {% if preset == 'hoy' %}btn-primary{% else %}btn-secondary{% endif %}">Hoy</button>
+            <button form="estStockPresetForm" type="submit" name="preset" value="semana" class="btn btn-sm {% if preset == 'semana' %}btn-primary{% else %}btn-secondary{% endif %}">7 días</button>
+            <button form="estStockPresetForm" type="submit" name="preset" value="mes_actual" class="btn btn-sm {% if preset == 'mes_actual' %}btn-primary{% else %}btn-secondary{% endif %}">Este mes</button>
+            <button form="estStockPresetForm" type="submit" name="preset" value="mes_anterior" class="btn btn-sm {% if preset == 'mes_anterior' %}btn-primary{% else %}btn-secondary{% endif %}">Mes anterior</button>
+            <button form="estStockPresetForm" type="submit" name="preset" value="anio" class="btn btn-sm {% if preset == 'anio' %}btn-primary{% else %}btn-secondary{% endif %}">Este año</button>
+            <details class="est-summary-custom-range" {% if preset == 'personalizado' %}open{% endif %}>
+                <summary>Elegir fechas</summary><form method="get"><input type="hidden" name="preset" value="personalizado"><label>Desde <input type="date" name="desde" value="{{ desde|date:'Y-m-d' }}" required></label><label>Hasta <input type="date" name="hasta" value="{{ hasta|date:'Y-m-d' }}" required></label><button type="submit" class="btn btn-sm btn-primary">Aplicar</button></form>
+            </details>
+        </div>
+        <div class="est-stock-period-grid">
+            <article class="est-sales-panel">
+                <div class="est-sales-panel-heading"><div><h3>Vencidos y mermas</h3><p>Valor estimado al costo en el período</p></div><button type="button" class="kai-help-btn" data-help-target="ayuda_stock_perdidas" aria-label="Qué significa vencidos y mermas" aria-controls="ayuda_stock_perdidas">?</button></div>
+                <div class="kai-help-popover" id="ayuda_stock_perdidas">Es el costo de los lotes que vencieron y siguen en stock, más las mermas registradas en esas fechas.</div>
+                <strong class="est-stock-period-total">${{ perdidas_periodo.total_perdidas_periodo|pesos }}</strong>
+                <div class="est-stock-period-split"><div><span>Vencidos</span><strong>${{ perdidas_periodo.total_vencido_periodo|pesos }}</strong><small>{{ perdidas_periodo.cantidad_lotes_vencidos_periodo }} lote{{ perdidas_periodo.cantidad_lotes_vencidos_periodo|pluralize }}</small></div><div><span>Roturas y mermas</span><strong>${{ perdidas_periodo.total_mermas_periodo|pesos }}</strong><small>{{ perdidas_periodo.unidades_mermas_periodo|cantidad }} unidad{{ perdidas_periodo.unidades_mermas_periodo|pluralize:"es" }} perdida{{ perdidas_periodo.unidades_mermas_periodo|pluralize }}</small></div></div>
+                {% if perdidas_periodo.lotes_vencidos_periodo %}<details class="est-sales-expand"><summary>Ver lotes vencidos en el período</summary><div class="est-stock-period-lots">{% for lote in perdidas_periodo.lotes_vencidos_periodo %}<div class="est-stock-detail-row"><div><strong>{{ lote.producto }}</strong><small>Lote {{ lote.codigo }} · {{ lote.fecha_vencimiento|date:'d/m/Y' }} · {{ lote.cantidad_actual|cantidad }} unidades</small></div><b>${{ lote.valor_perdido|pesos }}</b></div>{% endfor %}</div>{% if perdidas_periodo.cantidad_lotes_vencidos_periodo > perdidas_periodo.lotes_vencidos_periodo|length %}<p class="est-sales-note">Se muestran los primeros {{ perdidas_periodo.lotes_vencidos_periodo|length }} lotes.</p>{% endif %}</details>{% endif %}
+            </article>
+
+            <article class="est-sales-panel">
+                <div class="est-sales-panel-heading"><div><h3>Paquetes que más ganancia dejaron<button type="button" class="kai-help-btn" data-help-target="ayuda_rendimiento_paquetes" aria-label="Cómo se calcula la ganancia de los paquetes" aria-controls="ayuda_rendimiento_paquetes">?</button></h3><p>Ganancia de combos vendidos antes de gastos</p></div></div>
+                <div class="kai-help-popover" id="ayuda_rendimiento_paquetes">Ganancia = vendido − costo. El costo es el de los productos reales que se descontaron al armar cada paquete (costo por lote, FIFO), no un valor fijo del combo.</div>
+                {% if rendimiento_paquetes %}
+                <ol class="est-sales-rank-list">{% for pq in rendimiento_paquetes|slice:':3' %}<li class="est-sales-rank-item"><span class="est-sales-rank-number">{{ forloop.counter }}</span><div class="est-sales-rank-info"><strong>{{ pq.nombre }}</strong><small>Cód. {{ pq.codigo }} · {{ pq.unidades|cantidad }} vendidos a ${{ pq.precio_prom|pesos }} c/u prom.{% if pq.margen_sobre_costo is not None %} · margen {{ pq.margen_sobre_costo|floatformat:0 }}% s/costo{% endif %}</small></div><div class="est-sales-rank-value {% if pq.ganancia < 0 %}is-negative{% endif %}"><strong>${{ pq.ganancia|pesos }}</strong><small>ganancia</small><small>${{ pq.ingresos|pesos }} vendido · ${{ pq.costo|pesos }} costo</small></div></li>{% endfor %}</ol>
+                {% if rendimiento_paquetes|length > 3 %}<details class="est-sales-expand"><summary>Ver más paquetes</summary><ol class="est-sales-rank-list" start="4">{% for pq in rendimiento_paquetes|slice:'3:' %}<li class="est-sales-rank-item"><span class="est-sales-rank-number">{{ forloop.counter|add:3 }}</span><div class="est-sales-rank-info"><strong>{{ pq.nombre }}</strong><small>Cód. {{ pq.codigo }} · {{ pq.unidades|cantidad }} vendidos a ${{ pq.precio_prom|pesos }} c/u prom.{% if pq.margen_sobre_costo is not None %} · margen {{ pq.margen_sobre_costo|floatformat:0 }}% s/costo{% endif %}</small></div><div class="est-sales-rank-value {% if pq.ganancia < 0 %}is-negative{% endif %}"><strong>${{ pq.ganancia|pesos }}</strong><small>ganancia</small><small>${{ pq.ingresos|pesos }} vendido · ${{ pq.costo|pesos }} costo</small></div></li>{% endfor %}</ol></details>{% endif %}
+                {% else %}<p class="est-sales-empty">No hubo paquetes vendidos en este período.</p>{% endif %}
+            </article>
+        </div>
+    </section>
 </div>
-
 {% endif %}
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'core/js/estadisticas.js' %}"></script>
+{% if not sin_permiso %}
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        initRankingBars();
+    document.querySelectorAll('.est-stock-page a[href^="#"]').forEach(function (link) {
+        link.addEventListener('click', function () {
+            const target = document.getElementById(link.getAttribute('href').slice(1));
+            if (target && target.tagName === 'DETAILS') target.open = true;
+        });
     });
 </script>
+{% endif %}
 {% endblock %}

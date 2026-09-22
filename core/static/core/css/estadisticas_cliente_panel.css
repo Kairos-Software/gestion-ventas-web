@@ -1,0 +1,68 @@
+/* Perfil de cliente: deuda y pagos a la vista; historial a demanda. */
+.est-client-profile .cp-back-link { margin-bottom: 0.55rem; font-size: 0.73rem; }
+.est-client-profile-hero { min-height: 95px; margin-bottom: 0.75rem; padding: 0.75rem 0.9rem; border-radius: var(--radius-lg); gap: 0.6rem; }
+.est-client-profile-hero .cp-hero-badges { margin-bottom: 0.25rem; }
+.est-client-profile-hero .cp-hero-nombre { margin-bottom: 0.24rem; font-size: 1.35rem; line-height: 1.2; }
+.est-client-profile-hero .cp-hero-meta { gap: 0.45rem; }
+.est-client-profile-hero .cp-hero-link { font-size: 0.73rem; }
+.est-client-profile-section { margin-bottom: 0.8rem; }
+.est-client-profile-heading { margin: 0 0 0.55rem; }
+.est-client-profile-heading h2 { margin: 0; font-family: var(--font-heading); font-size: 0.97rem; font-weight: 750; }
+.est-client-profile-heading p { margin: 0.14rem 0 0; color: var(--text-muted); font-size: 0.72rem; line-height: 1.35; }
+.est-client-profile-section .est-summary-highlights { margin-bottom: 0; }
+.est-client-profile-foreign { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 1rem; margin-top: 0.55rem; padding: 0.55rem 0.7rem; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-white); font-size: 0.71rem; }
+.est-client-profile-foreign strong { color: var(--brand-blue); }
+.est-client-profile-foreign span { font-variant-numeric: tabular-nums; }
+.est-client-profile-highlight--debt { border-left-color: var(--brand-blue); }
+.est-client-profile-highlight--overdue { border-left-color: var(--warning); }
+.est-client-profile-highlight--sales { border-left-color: var(--brand-orange); }
+.est-client-profile-highlight--profit { border-left-color: var(--success); }
+.est-client-profile-highlight--profit .est-summary-highlight-value { color: var(--success); }
+.est-client-profile-highlight--profit.is-negative .est-summary-highlight-value { color: var(--danger); }
+.est-client-profile-main-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.7rem; }
+.est-client-profile-main-grid > * { min-width: 0; }
+.est-client-profile .est-sales-panel-heading { align-items: center; }
+.est-client-profile .est-sales-panel-heading .btn { flex: 0 0 auto; }
+.est-client-profile-debt-row { display: flex; justify-content: space-between; gap: 0.55rem; padding: 0.6rem 0; border-top: 1px solid var(--border-color); }
+.est-client-profile-debt-row > div { min-width: 0; }
+.est-client-profile-debt-row strong { display: block; font-size: 0.74rem; overflow-wrap: anywhere; }
+.est-client-profile-debt-row small { display: block; margin-top: 0.14rem; color: var(--text-muted); font-size: 0.65rem; line-height: 1.3; }
+.est-client-profile-debt-row b { flex: 0 0 auto; color: var(--danger); font-size: 0.76rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.est-client-profile-debt-monto { flex: 0 0 auto; text-align: right; }
+.est-client-profile-debt-monto b { display: block; }
+.est-client-profile-debt-monto small { text-align: right; white-space: nowrap; }
+.est-client-profile .est-sales-expand .est-client-profile-debt-row:first-child { border-top: 0; }
+.est-client-profile-payment { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.45rem; padding-top: 0.4rem; }
+.est-client-profile-payment > div { min-width: 0; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: var(--radius-sm); }
+.est-client-profile-payment span { display: block; color: var(--text-secondary); font-size: 0.66rem; font-weight: 700; line-height: 1.25; }
+.est-client-profile-payment strong { display: block; margin-top: 0.18rem; font-family: var(--font-heading); font-size: 0.96rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.est-client-profile-payment small { display: block; margin-top: 0.12rem; color: var(--text-muted); font-size: 0.62rem; line-height: 1.25; }
+.est-client-profile-detail-grid { display: grid; grid-template-columns: 1fr; gap: 0.65rem; }
+.est-client-profile-detail-grid > * { min-width: 0; }
+.est-client-profile .est-sales-detail-body { padding-top: 0.4rem; }
+.est-client-profile-detail-actions { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin: 0.35rem 0 0.65rem; }
+.est-client-profile-detail-actions p { margin: 0; color: var(--text-muted); font-size: 0.68rem; }
+.est-client-profile-detail-actions .btn { flex: 0 0 auto; }
+.est-client-profile .est-chart-wrap { max-height: 300px; }
+.est-client-profile .sco-resumen-grid { margin-bottom: 0.65rem; }
+.est-client-profile .sco-resumen-grid .est-mini-stat { padding: 0.6rem; }
+.est-client-profile-history-wrap { max-height: 430px; overflow: auto; }
+.est-client-profile-history { width: 100%; margin-bottom: 0; }
+.est-client-profile-history td { font-size: 0.72rem; vertical-align: top; }
+.est-client-profile-history td:nth-last-child(-n+2),
+.est-client-profile-history th:nth-last-child(-n+2) { text-align: right; white-space: nowrap; }
+@media (max-width: 900px) {
+    .est-client-profile-main-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 620px) {
+    .est-client-profile-hero { align-items: flex-start; flex-direction: column; }
+    .est-client-profile-payment { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .est-client-profile-payment > div:first-child { grid-column: 1 / -1; }
+    .est-client-profile .est-sales-panel { padding-inline: 0.65rem; }
+    .est-client-profile-detail-actions { align-items: flex-start; flex-direction: column; }
+    .est-client-profile-history, .est-client-profile-history tbody, .est-client-profile-history tr, .est-client-profile-history td { display: block; width: 100%; }
+    .est-client-profile-history thead { display: none; }
+    .est-client-profile-history tr { margin: 0.4rem 0; padding: 0.35rem 0.5rem; border: 1px solid var(--border-color); border-radius: var(--radius-sm); }
+    .est-client-profile-history td, .est-client-profile-history td:nth-last-child(-n+2) { display: flex; justify-content: space-between; gap: 0.5rem; padding: 0.22rem 0; border: 0; text-align: right; white-space: normal; overflow-wrap: anywhere; }
+    .est-client-profile-history td::before { content: attr(data-label); flex: 0 0 75px; color: var(--text-muted); font-size: 0.64rem; text-align: left; }
+}

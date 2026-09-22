@@ -989,7 +989,7 @@ class ItemPedido(models.Model):
     # producto se borre o cambie de nombre/precio después.
     producto_nombre = models.CharField(max_length=255, blank=True)
     cantidad        = models.DecimalField(max_digits=12, decimal_places=3, default=1)
-    precio_unitario = models.DecimalField(max_digits=12, decimal_places=2)
+    precio_unitario = models.DecimalField(max_digits=14, decimal_places=4)
 
     class Meta:
         verbose_name        = 'Ítem de pedido'

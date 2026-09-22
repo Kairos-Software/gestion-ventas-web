@@ -80,6 +80,38 @@
 .est-resumen-fila.total.ef-total-negativo .est-resumen-concepto,
 .est-resumen-fila.total.ef-total-negativo .est-resumen-monto { color: var(--danger); }
 
+/* ═══════════ CAJA Y FINANZAS — compromisos de pago del período ═══════════ */
+.ef-obligaciones-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+}
+.ef-obligaciones-col {
+    display: flex;
+    gap: 1.5rem;
+    align-items: baseline;
+}
+.ef-obligaciones-valor {
+    display: flex;
+    flex-direction: column;
+    gap: .15rem;
+}
+.ef-obligaciones-valor span {
+    font-size: .72rem;
+    font-weight: 650;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .03em;
+}
+.ef-obligaciones-valor strong {
+    font-family: var(--font-heading);
+    font-size: 1.25rem;
+    font-weight: 800;
+    line-height: 1.1;
+}
+.ef-obligaciones-valor strong.positivo { color: var(--success); }
+.ef-obligaciones-valor strong.negativo { color: var(--danger); }
+
 /* ═══════════ RESUMEN — Límite contable (monotributo) ═══════════ */
 .est-limite-contable-card {
     background: var(--bg-white);
@@ -151,3 +183,66 @@
 .est-limite-contable-tabla th { color: var(--text-muted); font-weight: 600; }
 .est-limite-contable-tabla .th-monto { text-align: right; }
 .est-limite-contable-tabla .est-limite-contable-col-activa { font-weight: 700; color: var(--text-primary); }
+
+/* Caja y Finanzas: saldos actuales y actividad filtrada, separados. */
+.est-finance-section { margin-bottom: 0.9rem; scroll-margin-top: 1rem; }
+.est-finance-page .est-sales-section-heading { margin-bottom: 0.55rem; }
+.est-finance-currency-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 0.7rem; }
+.est-finance-currency { min-width: 0; padding: 0.75rem 0.85rem 0.5rem; border: 1px solid var(--border-color); border-radius: var(--radius-lg); background: var(--bg-white); box-shadow: var(--shadow-sm); }
+.est-finance-currency-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 0.4rem; margin-bottom: 0.5rem; }
+.est-finance-currency-heading h3 { margin: 0; font-family: var(--font-heading); font-size: 0.84rem; }
+.est-finance-currency-heading > span { color: var(--text-muted); font-size: 0.68rem; font-weight: 700; }
+.est-finance-top-values { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.45rem; }
+.est-finance-top-values > div { position: relative; min-width: 0; padding: 0.55rem 0.65rem; border: 1px solid var(--border-color); border-left: 3px solid var(--brand-blue); border-radius: var(--radius-sm); }
+.est-finance-top-values .est-finance-projected { border-left-color: var(--success); }
+.est-finance-top-values > div.is-negative { border-left-color: var(--danger); }
+.est-finance-top-values .est-summary-label-row { align-items: center; }
+.est-finance-top-values .est-summary-label-row span { color: var(--text-secondary); font-size: 0.7rem; font-weight: 700; }
+.est-finance-top-values strong { display: block; margin-top: 0.3rem; color: var(--text-primary); font-family: var(--font-heading); font-size: clamp(0.95rem, 1.45vw, 1.2rem); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.est-finance-top-values .est-finance-available strong { color: var(--brand-blue); }
+.est-finance-top-values > div.is-negative strong { color: var(--danger); }
+.est-finance-top-values strong small { color: var(--text-muted); font-size: 0.55em; }
+.est-finance-top-values .kai-help-popover { width: 100%; }
+.est-finance-descubierto { display: block; margin-top: 0.2rem; color: var(--danger); font-size: 0.65rem; font-weight: 700; }
+.est-finance-balance { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.45rem; margin-top: 0.45rem; }
+.est-finance-balance > div { display: flex; min-width: 0; justify-content: space-between; gap: 0.35rem; padding: 0.4rem 0.15rem; border-bottom: 1px solid var(--border-color); font-size: 0.7rem; }
+.est-finance-balance span { color: var(--text-muted); }
+.est-finance-balance strong { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; text-align: right; }
+.est-finance-cheques { margin-top: 0.2rem; }
+.est-finance-period-grid,
+.est-finance-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.7rem; }
+.est-finance-period-grid > *,
+.est-finance-detail-grid > * { min-width: 0; }
+.est-finance-period-grid .est-sales-panel { position: relative; }
+.est-finance-period-row { display: grid; grid-template-columns: 38px repeat(2, minmax(0, 1fr)); align-items: center; gap: 0.45rem; padding: 0.55rem 0; border-top: 1px solid var(--border-color); }
+.est-finance-period-row > div { min-width: 0; }
+.est-finance-period-row small { display: block; color: var(--text-muted); font-size: 0.65rem; }
+.est-finance-period-row strong { display: block; margin-top: 0.1rem; font-size: 0.83rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.est-finance-period-row strong.is-negative { color: var(--danger); }
+.est-finance-code { color: var(--brand-orange-dark); font-size: 0.68rem; font-weight: 800; }
+.est-finance-page .est-sales-detail { align-self: start; }
+.est-finance-concept-group { margin-top: 0.55rem; padding-top: 0.35rem; border-top: 1px solid var(--border-color); }
+.est-finance-concept-group:first-of-type { border-top: 0; }
+.est-finance-concept-group h4,
+.est-finance-trend h4 { margin: 0.2rem 0 0.35rem; font-size: 0.73rem; }
+.est-finance-concept-total { display: flex; justify-content: space-between; gap: 0.4rem; font-size: 0.72rem; }
+.est-finance-concept-total strong { color: var(--danger); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; text-align: right; }
+.est-finance-detail-grid > details:nth-child(2) .est-finance-concept-total strong { color: var(--success); }
+.est-finance-trend { margin-top: 0.55rem; }
+.est-finance-trend .est-chart-wrap { height: 240px; }
+.est-finance-audit-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; padding: 0.55rem 0; }
+.est-finance-audit-summary > div { min-width: 0; padding: 0.5rem 0.6rem; border: 1px solid var(--border-color); border-radius: var(--radius-sm); }
+.est-finance-audit-summary small { display: block; color: var(--text-muted); font-size: 0.66rem; }
+.est-finance-audit-summary strong { display: block; margin-top: 0.1rem; font-size: 0.8rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.est-finance-page .est-sales-simple-row strong { white-space: normal; text-align: right; }
+.est-finance-page .est-sales-simple-row span { line-height: 1.35; }
+@media (max-width: 760px) {
+    .est-finance-period-grid,
+    .est-finance-detail-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 620px) {
+    .est-finance-page .est-summary-heading-link { display: inline-flex; }
+    .est-finance-top-values { grid-template-columns: 1fr; }
+    .est-finance-balance { grid-template-columns: 1fr; gap: 0; }
+    .est-finance-page .est-summary-custom-range form { right: 0; left: auto; flex-wrap: wrap; width: min(90vw, 310px); }
+}

@@ -506,14 +506,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
         cxcBody.innerHTML = items.map(c => `
             <tr>
-                <td>${c.cliente_nombre || '-'}</td>
-                <td>${c.venta_numero || c.descripcion || '-'}</td>
-                <td>${c.numero_comprobante || '-'}</td>
-                <td class="cxc-monto">${fmtMoneda(c.monto_total, c.moneda)}</td>
-                <td class="cxc-monto">${fmtMoneda(c.saldo_pendiente, c.moneda)}</td>
-                <td>${c.modo_cuotas === 'libre' ? `${c.cuotas_cobradas} abono${c.cuotas_cobradas === 1 ? '' : 's'}` : `${c.cuotas_cobradas}/${c.cantidad_cuotas}`}</td>
-                <td><span class="cxc-badge-estado cxc-badge-estado--${c.estado}">${c.estado_display}</span></td>
-                <td>
+                <td data-label="Cliente">${c.cliente_nombre || '-'}</td>
+                <td data-label="Venta o deuda">${c.venta_numero || c.descripcion || '-'}</td>
+                <td data-label="Comprobante">${c.numero_comprobante || '-'}</td>
+                <td data-label="Monto total" class="cxc-monto">${fmtMoneda(c.monto_total, c.moneda)}</td>
+                <td data-label="Saldo pendiente" class="cxc-monto">${fmtMoneda(c.saldo_pendiente, c.moneda)}</td>
+                <td data-label="Cuotas">${c.modo_cuotas === 'libre' ? `${c.cuotas_cobradas} abono${c.cuotas_cobradas === 1 ? '' : 's'}` : `${c.cuotas_cobradas}/${c.cantidad_cuotas}`}</td>
+                <td data-label="Estado"><span class="cxc-badge-estado cxc-badge-estado--${c.estado}">${c.estado_display}</span></td>
+                <td data-label="Acciones">
                     <div class="cxc-tabla-acciones">
                         <button type="button" class="btn btn-ghost btn--sm" onclick="verCxc(${c.pk})">Ver cuotas</button>
                         <button type="button" class="btn btn-ghost btn--sm btn--icon" onclick="imprimirCxcDesdeLista(${c.pk})" title="Imprimir" aria-label="Imprimir">

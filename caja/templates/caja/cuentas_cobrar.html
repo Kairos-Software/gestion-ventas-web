@@ -5,7 +5,7 @@
 {% block title %}Cuentas por cobrar{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'caja/css/cuentas_cobrar.css' %}?v=2026090802">
+<link rel="stylesheet" href="{% static 'caja/css/cuentas_cobrar.css' %}?v=20260921a">
 <link rel="stylesheet" href="{% static 'core/css/selector_impresion.css' %}?v=2026090801">
 {% endblock %}
 
@@ -26,8 +26,13 @@
     ══════════════════════════════════ -->
     <header class="cxc-header">
         <div>
+            <span class="cxc-eyebrow">Clientes</span>
             <h1 class="cxc-title">Cuentas por cobrar</h1>
-            <p class="cxc-subtitle">Ventas financiadas en cuotas por el propio negocio (nacen solas al confirmar una venta con medio de pago "Cuotas") y deudas de clientes cargadas a mano. Ninguna cuota impacta caja hasta que se confirma su cobro.</p>
+            <p class="cxc-subtitle">Consultá las deudas individuales, sus vencimientos y cada cobro.</p>
+            <details class="cxc-page-help">
+                <summary>¿Cómo funcionan estas cuentas?</summary>
+                <p>Las ventas financiadas se cargan al confirmar una venta con medio de pago "Cuotas". También podés cargar deudas manuales. Una cuota impacta en caja cuando confirmás su cobro.</p>
+            </details>
         </div>
         {% if puede_crear %}
         <button type="button" class="btn btn-primary" id="btnNuevaCxc">
@@ -42,9 +47,12 @@
     <!-- ══════════════════════════════════
          FILTROS
     ══════════════════════════════════ -->
-    <section class="cxc-section">
+    <section class="cxc-section cxc-section--filters">
         <div class="cxc-filtros-header">
-            <h2 class="cxc-section-title">Historial</h2>
+            <div>
+                <span class="cxc-section-kicker">Todos los movimientos</span>
+                <h2 class="cxc-section-title">Historial de cuentas</h2>
+            </div>
             <div class="cxc-filtros-resumen">
                 <div class="cxc-totales" id="cxcTotales" aria-live="polite"></div>
                 <button type="button" class="btn-filtros-toggle" id="btnToggleFiltros" aria-expanded="false">
@@ -88,7 +96,7 @@
     <!-- ══════════════════════════════════
          TABLA
     ══════════════════════════════════ -->
-    <section class="cxc-section">
+    <section class="cxc-section cxc-section--table">
         <div class="cxc-tabla-wrap">
             <table class="cxc-tabla">
                 <thead>
@@ -116,7 +124,7 @@
 <!-- ══════════════════════════════════
      MODAL NUEVA CUENTA POR COBRAR
 ══════════════════════════════════ -->
-<div class="modal" id="modalCxc" hidden role="dialog" aria-modal="true" aria-labelledby="modalCxcTitle">
+<div class="modal" id="modalCxc" hidden role="dialog" aria-modal="true" aria-labelledby="modalCxcTitle" tabindex="-1">
     <div class="modal-backdrop" id="modalBackdrop"></div>
     <div class="modal-content modal-content--ancho">
         <div class="modal-header">
@@ -256,7 +264,7 @@
 <!-- ══════════════════════════════════
      MODAL DETALLE (cuotas)
 ══════════════════════════════════ -->
-<div class="modal" id="modalDetalle" hidden role="dialog" aria-modal="true" aria-labelledby="detalleTitle">
+<div class="modal" id="modalDetalle" hidden role="dialog" aria-modal="true" aria-labelledby="detalleTitle" tabindex="-1">
     <div class="modal-backdrop" id="modalDetalleBackdrop"></div>
     <div class="modal-content modal-content--ancho">
         <div class="modal-header">
@@ -344,7 +352,7 @@
 <!-- ══════════════════════════════════
      MODAL COBRAR CUOTA CON CHEQUE
 ══════════════════════════════════ -->
-<div class="modal" id="modalChequeCuota" hidden role="dialog" aria-modal="true" aria-labelledby="modalChequeCuotaTitle">
+<div class="modal" id="modalChequeCuota" hidden role="dialog" aria-modal="true" aria-labelledby="modalChequeCuotaTitle" tabindex="-1">
     <div class="modal-backdrop" id="modalChequeCuotaBackdrop"></div>
     <div class="modal-content">
         <div class="modal-header">
@@ -424,7 +432,7 @@
     window.cxcPuedeEditar = {{ puede_editar|yesno:"true,false" }};
 </script>
 <script src="{% static 'core/js/selector_impresion.js' %}?v=2026090801"></script>
-<script src="{% static 'caja/js/cuentas_cobrar.js' %}?v=2026090802"></script>
+<script src="{% static 'caja/js/cuentas_cobrar.js' %}?v=20260921a"></script>
 <script src="{% static 'caja/js/cuentas_cobrar_documentos.js' %}"></script>
 <script src="{% static 'caja/js/cuentas_cobrar_pagare.js' %}"></script>
 <script src="{% static 'caja/js/cuentas_cobrar_imprimir.js' %}?v=2026091702"></script>

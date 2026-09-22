@@ -862,12 +862,29 @@
                         </div>
                         <div class="config-row config-form-pair config-modal-row" id="cuentaCreditoFields" style="display:none;">
                             <div class="config-field">
-                                <label class="config-row-label" for="cuentaDiaCierre">Día de cierre</label>
+                                <label class="config-row-label kai-label-help" for="cuentaDiaCierre">
+                                    Día de cierre
+                                    <button type="button" class="kai-help-btn" data-help-target="ayuda_dia_cierre" aria-label="Qué es el día de cierre">?</button>
+                                </label>
                                 <input type="number" min="1" max="31" class="form-control" id="cuentaDiaCierre">
+                                <div class="kai-help-popover" id="ayuda_dia_cierre">
+                                    El día del mes en que la tarjeta "corta" el resumen: las compras hasta
+                                    ese día entran en el resumen de este mes; las que hagas después ya caen
+                                    en el resumen del mes siguiente. Opcional — si no lo sabés, dejalo vacío.
+                                </div>
                             </div>
                             <div class="config-field">
-                                <label class="config-row-label" for="cuentaDiaVencimiento">Día de vencimiento</label>
+                                <label class="config-row-label kai-label-help" for="cuentaDiaVencimiento">
+                                    Día de vencimiento
+                                    <button type="button" class="kai-help-btn" data-help-target="ayuda_dia_vencimiento" aria-label="Qué es el día de vencimiento">?</button>
+                                </label>
                                 <input type="number" min="1" max="31" class="form-control" id="cuentaDiaVencimiento">
+                                <div class="kai-help-popover" id="ayuda_dia_vencimiento">
+                                    El día en que hay que pagarle a la tarjeta el resumen ya cerrado — si es
+                                    menor al día de cierre, cae en el mes siguiente (ej: cierra el 20, vence
+                                    el 5 del mes que viene). Se carga una sola vez acá, no mes a mes: el
+                                    sistema calcula solo la fecha de cada resumen a partir de estos dos días.
+                                </div>
                             </div>
                         </div>
                         <div id="cuentaMsg" class="config-empresa-msg" style="padding:0;"></div>

@@ -54,6 +54,28 @@ def resumen_compras(desde, hasta):
     }
 
 
+def monto_comprado_a_credito(desde, hasta):
+    """
+    Porción de `resumen_compras()['total_comprado']` que quedó financiada
+    (tarjeta de crédito propia, cheque a plazo, o cuenta corriente con el
+    proveedor) en vez de salir de caja en el momento — ver
+    compras.models._crear_deudas_de_pagos, que para esos 3 medios crea
+    una Deuda con `pago_compra` seteado y `monto_original` = el monto
+    financiado (sin interés, misma base que `subtotal_calc`). Esa plata
+    sale de verdad recién cuando se van pagando esas cuotas (ver
+    services_estadisticas.caja.deudas_y_tarjetas_pagadas_blend).
+    """
+    from caja.models import Deuda
+    total = (
+        Deuda.objects
+        .filter(pago_compra__compra__estado=EstadoCompra.CONFIRMADA,
+                pago_compra__compra__fecha__range=(desde, hasta))
+        .exclude(pago_compra__compra__es_carga_inicial=True)
+        .aggregate(total=Sum('monto_original'))['total']
+    )
+    return total or Decimal('0')
+
+
 def comparacion_periodo(desde, hasta):
     """Compara el total comprado del período contra el inmediatamente
     anterior (misma duración), igual que ventas.comparacion_periodo."""

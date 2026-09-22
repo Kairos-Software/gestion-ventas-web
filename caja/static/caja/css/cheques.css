@@ -444,6 +444,34 @@
     margin-top: 1.5rem;
 }
 
+.chq-nota-cuota-deuda {
+    margin: 0 0 1.1rem;
+    padding: 0.6rem 0.8rem;
+    border-radius: var(--radius-sm);
+    background: rgba(245, 158, 11, 0.09);
+    color: var(--warning, #9a6700);
+    font-size: 0.82rem;
+    line-height: 1.45;
+}
+
+.chq-btn-danger {
+    color: var(--danger);
+    border-color: rgba(239,68,68,0.35);
+    margin-right: auto;
+}
+
+.chq-btn-danger:hover:not(:disabled) {
+    background: rgba(239,68,68,0.06);
+}
+
+.chq-nota-cuota-deuda a {
+    color: inherit;
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    white-space: nowrap;
+}
+
 /* ── Responsive ──────────────────────────────────────────────── */
 @media (max-width: 640px) {
     .chq-header {
@@ -456,3 +484,426 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   EXPERIENCIA UNIFICADA — DEUDAS / CHEQUES
+   El cheque es la continuación operativa de un pago de deuda. Esta
+   capa lo alinea visualmente con Créditos y préstamos sin cambiar la
+   lógica histórica de la pantalla.
+   ══════════════════════════════════════════════════════════════════ */
+
+.chq-container {
+    max-width: 1440px;
+    margin: 0 auto;
+}
+
+.chq-header {
+    align-items: center;
+    margin-bottom: 1.4rem;
+}
+
+.chq-header-copy {
+    min-width: 0;
+}
+
+.chq-eyebrow,
+.chq-section-kicker,
+.chq-modal-kicker {
+    display: block;
+    color: var(--accent-primary);
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .12em;
+    line-height: 1.2;
+    text-transform: uppercase;
+}
+
+.chq-eyebrow {
+    margin-bottom: .35rem;
+}
+
+.chq-title {
+    font-size: clamp(1.65rem, 2.4vw, 2.15rem);
+    letter-spacing: -.035em;
+    line-height: 1.1;
+}
+
+.chq-subtitle {
+    max-width: 680px;
+    margin-top: .45rem;
+    line-height: 1.55;
+}
+
+.chq-panel {
+    overflow: hidden;
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: 18px;
+    box-shadow: 0 12px 34px rgba(28, 53, 72, .055);
+}
+
+.chq-panel--filters {
+    padding: 1.15rem 1.25rem;
+    margin-bottom: 1rem;
+}
+
+.chq-panel--table {
+    margin-bottom: 1.5rem;
+}
+
+.chq-panel--table .chq-tabla-wrap {
+    border: 0;
+    border-radius: 0;
+}
+
+.chq-section-title {
+    margin: .25rem 0 0;
+    font-size: 1.08rem;
+}
+
+.chq-section-meta {
+    max-width: 720px;
+    margin: .35rem 0 0;
+    color: var(--text-secondary);
+    font-size: .8rem;
+    line-height: 1.45;
+}
+
+.chq-filtros-header {
+    align-items: flex-start;
+    margin: 0;
+    gap: 1rem;
+}
+
+.chq-filtros {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: color-mix(in srgb, var(--bg-secondary) 72%, transparent);
+    border-radius: 12px;
+}
+
+.chq-tabla thead th {
+    padding: .85rem 1rem;
+    background: color-mix(in srgb, var(--bg-secondary) 68%, var(--bg-white));
+}
+
+.chq-tabla tbody td {
+    padding: .85rem 1rem;
+}
+
+.chq-tabla tbody tr {
+    transition: background-color .15s ease;
+}
+
+.modal-backdrop {
+    background: rgba(14, 28, 40, .64);
+    backdrop-filter: blur(4px);
+}
+
+.chq-modal {
+    width: min(94vw, 680px);
+    max-width: 680px;
+    max-height: min(92vh, 860px);
+    border: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
+    border-radius: 20px;
+    box-shadow: 0 28px 80px rgba(12, 31, 45, .28);
+}
+
+.chq-modal--compact {
+    width: min(92vw, 500px);
+    max-width: 500px;
+}
+
+.chq-modal .modal-header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    align-items: flex-start;
+    padding: 1.15rem 1.35rem;
+    background: color-mix(in srgb, var(--bg-white) 94%, transparent);
+    backdrop-filter: blur(10px);
+}
+
+.chq-modal-heading {
+    display: flex;
+    align-items: center;
+    gap: .85rem;
+    min-width: 0;
+}
+
+.chq-modal-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    border: 1px solid rgba(245, 158, 11, .24);
+    border-radius: 13px;
+    background: rgba(245, 158, 11, .1);
+    color: #a16207;
+    font-size: .78rem;
+    font-weight: 850;
+}
+
+.chq-modal-icon--success {
+    border-color: rgba(16, 185, 129, .24);
+    background: rgba(16, 185, 129, .1);
+    color: #047857;
+}
+
+.chq-modal .modal-title {
+    margin-top: .16rem;
+    font-size: 1.22rem;
+    line-height: 1.15;
+}
+
+.chq-modal-subtitle {
+    margin: .28rem 0 0;
+    color: var(--text-secondary);
+    font-size: .78rem;
+    line-height: 1.4;
+}
+
+.chq-modal .modal-body {
+    padding: 1.3rem 1.35rem 1.4rem;
+}
+
+.chq-modal .form-campo label {
+    font-size: .75rem;
+    font-weight: 750;
+}
+
+.chq-modal .form-campo input,
+.chq-modal .form-campo select {
+    min-height: 42px;
+    padding: .65rem .75rem;
+    border-radius: 10px;
+}
+
+.chq-modal .form-campo input:disabled,
+.chq-modal .form-campo select:disabled,
+.chq-modal .chq-tipo-btn:disabled {
+    opacity: 1;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    cursor: not-allowed;
+}
+
+.chq-tipo-toggle {
+    gap: .65rem;
+}
+
+.chq-tipo-btn {
+    min-height: 48px;
+    padding: .65rem .8rem;
+    border-radius: 11px;
+}
+
+.chq-nota-cuota-deuda {
+    display: flex;
+    align-items: flex-start;
+    gap: .75rem;
+    margin-bottom: 1.25rem;
+    padding: .85rem .95rem;
+    border: 1px solid rgba(245, 158, 11, .26);
+    border-radius: 12px;
+    background: rgba(245, 158, 11, .075);
+    color: var(--text-primary);
+}
+
+.chq-nota-cuota-deuda-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
+    border-radius: 8px;
+    background: rgba(245, 158, 11, .16);
+    color: #a16207;
+    font-weight: 800;
+}
+
+.chq-nota-cuota-deuda > div {
+    display: grid;
+    gap: .22rem;
+    min-width: 0;
+}
+
+.chq-nota-cuota-deuda strong {
+    font-size: .79rem;
+}
+
+.chq-nota-cuota-deuda #chqNotaCuotaDeudaTexto {
+    color: var(--text-secondary);
+    font-size: .78rem;
+    line-height: 1.48;
+}
+
+.chq-nota-cuota-deuda a {
+    width: fit-content;
+    color: var(--accent-primary);
+    font-size: .78rem;
+    text-decoration: none;
+}
+
+.chq-nota-cuota-deuda a:hover {
+    text-decoration: underline;
+}
+
+.chq-modal .modal-footer {
+    position: sticky;
+    bottom: -1.4rem;
+    z-index: 2;
+    margin: 1.35rem -1.35rem -1.4rem;
+    padding: 1rem 1.35rem;
+    background: color-mix(in srgb, var(--bg-white) 96%, transparent);
+    border-top: 1px solid var(--border-color);
+    backdrop-filter: blur(10px);
+}
+
+.chq-btn-danger {
+    margin-right: auto;
+}
+
+@media (max-width: 760px) {
+    .chq-panel--table {
+        overflow: visible;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .chq-tabla,
+    .chq-tabla tbody,
+    .chq-tabla tr,
+    .chq-tabla td {
+        display: block;
+        width: 100%;
+    }
+
+    .chq-tabla thead {
+        display: none;
+    }
+
+    .chq-tabla tbody {
+        display: grid;
+        gap: .8rem;
+    }
+
+    .chq-tabla tbody tr {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: .7rem 1rem;
+        padding: 1rem;
+        background: var(--bg-white);
+        border: 1px solid var(--border-color);
+        border-radius: 15px;
+        box-shadow: 0 8px 24px rgba(28, 53, 72, .05);
+    }
+
+    .chq-tabla tbody td {
+        display: grid;
+        gap: .22rem;
+        padding: 0;
+        border: 0;
+        text-align: left;
+    }
+
+    .chq-tabla tbody td::before {
+        content: attr(data-label);
+        color: var(--text-muted);
+        font-size: .65rem;
+        font-weight: 800;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+    }
+
+    .chq-tabla tbody td:nth-child(3),
+    .chq-tabla tbody td:last-child,
+    .chq-tabla tbody .chq-tabla-loading {
+        grid-column: 1 / -1;
+    }
+
+    .chq-tabla tbody .chq-tabla-loading::before {
+        content: none;
+    }
+
+    .chq-tabla-acciones {
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 640px) {
+    .chq-header {
+        align-items: stretch;
+    }
+
+    .chq-header .btn {
+        justify-content: center;
+    }
+
+    .chq-panel--filters {
+        padding: 1rem;
+        border-radius: 15px;
+    }
+
+    .chq-filtros-header {
+        flex-direction: column;
+    }
+
+    .chq-filtros-header .btn-filtros-toggle {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .chq-modal {
+        width: 100%;
+        max-width: none;
+        max-height: 96vh;
+        margin-top: auto;
+        border-radius: 20px 20px 0 0;
+    }
+
+    .modal {
+        align-items: flex-end;
+    }
+
+    .chq-modal .modal-header,
+    .chq-modal .modal-body {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    .chq-modal .modal-footer {
+        margin-left: -1rem;
+        margin-right: -1rem;
+        padding: .9rem 1rem max(.9rem, env(safe-area-inset-bottom));
+        flex-wrap: wrap;
+    }
+
+    .chq-modal .modal-footer .btn {
+        flex: 1 1 auto;
+    }
+
+    .chq-btn-danger {
+        flex-basis: 100% !important;
+        margin-right: 0;
+    }
+}
+
+/* Suaviza los controles de cheques sin cambiar sus colores de estado. */
+.chq-container :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea),
+.chq-modal :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea) {
+    border-color: #e3e9ef;
+}
+.chq-container :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea):focus,
+.chq-modal :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea):focus {
+    border-color: #d3a98e;
+    box-shadow: 0 0 0 2px rgba(201, 80, 12, 0.09);
+}
+.chq-modal .chq-tipo-btn:not(.chq-tipo-btn--active) { border-color: #e3e9ef; }
+.chq-container [hidden],
+.modal[hidden],
+.modal [hidden] { display: none !important; }

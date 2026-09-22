@@ -1,0 +1,163 @@
+{% extends "core/base.html" %}
+{% load static kai_formato %}
+
+{% block title %}Estadísticas — Predicciones{% endblock %}
+{% block breadcrumb %}<strong>Estadísticas</strong> · Predicciones{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/estadisticas.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas_resumen.css' %}?v=20260921c">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas_ventas.css' %}?v=20260921a">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas_predicciones.css' %}?v=20260922a">
+{% endblock %}
+
+{% block content %}
+{% if sin_permiso %}
+<div class="est-sin-permiso"><p>No tenés permiso para ver predicciones.</p></div>
+{% else %}
+{% with urgente=prediccion_reposicion.buckets.0 ultimo=prediccion_reposicion.buckets|last %}
+<div class="est-summary-page est-pred-page">
+    <header class="est-summary-heading">
+        <div>
+            <h1>Predicciones de stock</h1>
+            <p>Reposiciones estimadas al ritmo de venta actual · {{ prediccion_reposicion.hoy|date:'d/m/Y' }}</p>
+        </div>
+        {% if prediccion_reposicion.productos %}<a href="#estPredDetalle" class="est-summary-heading-link">Ver todos los productos <span aria-hidden="true">↓</span></a>{% endif %}
+    </header>
+
+    <section class="est-summary-overview" aria-label="Prioridades de reposición">
+        <div class="est-pred-section-heading"><div><h2>Lo primero que necesitás saber</h2><p>Es una estimación para planificar compras, no un pedido confirmado.</p></div></div>
+        <div class="est-summary-highlights">
+            <article class="est-summary-highlight est-pred-highlight--urgent {% if urgente.cantidad_productos %}is-negative{% endif %}">
+                <div class="est-summary-label-row"><span class="est-summary-highlight-label">Para reponer en 7 días</span><button type="button" class="kai-help-btn" data-help-target="ayuda_pred_urgente" aria-label="Qué significa para reponer en 7 días" aria-controls="ayuda_pred_urgente">?</button></div>
+                <div class="kai-help-popover" id="ayuda_pred_urgente">Costo estimado para reponer productos que podrían agotarse en los próximos 7 días.</div>
+                <strong class="est-summary-highlight-value">{% if urgente.sin_costo and urgente.sin_costo == urgente.cantidad_productos %}Sin costo disponible{% else %}${{ urgente.total_estimado|pesos }}{% endif %}</strong>
+                <p>{{ urgente.cantidad_productos }} producto{{ urgente.cantidad_productos|pluralize }} previsto{{ urgente.cantidad_productos|pluralize }} para reponer</p>
+                <a href="#estPredUrgente">Ver prioridad <span aria-hidden="true">→</span></a>
+            </article>
+            <article class="est-summary-highlight est-pred-highlight--next">
+                <div class="est-summary-label-row"><span class="est-summary-highlight-label">Próximo agotamiento</span><button type="button" class="kai-help-btn" data-help-target="ayuda_pred_fecha" aria-label="Qué significa próximo agotamiento" aria-controls="ayuda_pred_fecha">?</button></div>
+                <div class="kai-help-popover" id="ayuda_pred_fecha">Es cuándo se agotaría el primer producto si se sigue vendiendo al ritmo reciente.</div>
+                {% with primero=prediccion_reposicion.productos.0 %}
+                <strong class="est-summary-highlight-value">{% if primero %}{% if primero.dias_hasta_agotamiento == 0 %}Ya agotado{% else %}{{ primero.fecha_estimada|date:'d/m/Y' }}{% endif %}{% else %}Sin previsión{% endif %}</strong>
+                <p>{% if primero %}{{ primero.nombre }}{% else %}No hay productos próximos a agotarse{% endif %}</p>
+                {% endwith %}
+            </article>
+            <article class="est-summary-highlight est-pred-highlight--total">
+                <div class="est-summary-label-row"><span class="est-summary-highlight-label">Compras previstas hasta {{ ultimo.hasta|date:'m/Y' }}</span><button type="button" class="kai-help-btn" data-help-target="ayuda_pred_total" aria-label="Qué significa compras previstas" aria-controls="ayuda_pred_total">?</button></div>
+                <div class="kai-help-popover" id="ayuda_pred_total">Suma estimada para una reposición de cada producto antes de que se agote, hasta {{ ultimo.hasta|date:'d/m/Y' }}.</div>
+                <strong class="est-summary-highlight-value">{% if prediccion_reposicion.sin_costo and prediccion_reposicion.sin_costo == prediccion_reposicion.cantidad_productos %}Sin costo disponible{% else %}${{ prediccion_reposicion.total_estimado|pesos }}{% endif %}</strong>
+                <p>{{ prediccion_reposicion.cantidad_productos }} producto{{ prediccion_reposicion.cantidad_productos|pluralize }} en la proyección</p>
+            </article>
+        </div>
+        {% if prediccion_reposicion.sin_costo %}
+        <p class="est-pred-warning">{{ prediccion_reposicion.sin_costo }} producto{{ prediccion_reposicion.sin_costo|pluralize }} sin costo cargado: los importes mostrados no incluyen su reposición.</p>
+        {% endif %}
+    </section>
+
+    {% if prediccion_reposicion.productos %}
+    <section class="est-pred-section" aria-labelledby="estPredAccionTitulo">
+        <div class="est-pred-section-heading"><div><h2 id="estPredAccionTitulo">Qué comprar y cuándo</h2><p>Primero los que pueden agotarse esta semana; después, el resto del calendario.</p></div></div>
+        <div class="est-pred-main-grid">
+            <article class="est-sales-panel" id="estPredUrgente">
+                <div class="est-sales-panel-heading"><h3>Dentro de 7 días</h3><span>{{ urgente.cantidad_productos }} producto{{ urgente.cantidad_productos|pluralize }}</span></div>
+                {% if urgente.productos %}
+                <ol class="est-pred-product-list">
+                    {% for p in urgente.productos|slice:':3' %}
+                    <li>
+                        <div class="est-pred-product-main"><strong>{{ p.nombre }}</strong><small>{% if p.dias_hasta_agotamiento == 0 %}Ya agotado{% else %}Se agotaría {{ p.fecha_estimada|date:'d/m' }}{% endif %} · stock {{ p.stock_actual|cantidad }}{% if p.poco_confiable %} · <em>pocos datos</em>{% endif %}</small></div>
+                        <div class="est-pred-product-action"><strong>{{ p.recomendado_unidades|cantidad }} {{ p.unidad_medida }}</strong><small>{% if p.costo_estimado is None %}Sin costo cargado{% else %}${{ p.costo_estimado|pesos }} al costo{% endif %}</small></div>
+                    </li>
+                    {% endfor %}
+                </ol>
+                {% if urgente.productos|length > 3 %}
+                <details class="est-sales-expand"><summary>Ver {{ urgente.productos|length|add:'-3' }} producto{{ urgente.productos|length|add:'-3'|pluralize }} más</summary>
+                    <ol class="est-pred-product-list">{% for p in urgente.productos|slice:'3:' %}
+                    <li><div class="est-pred-product-main"><strong>{{ p.nombre }}</strong><small>{% if p.dias_hasta_agotamiento == 0 %}Ya agotado{% else %}Se agotaría {{ p.fecha_estimada|date:'d/m' }}{% endif %} · stock {{ p.stock_actual|cantidad }}{% if p.poco_confiable %} · <em>pocos datos</em>{% endif %}</small></div><div class="est-pred-product-action"><strong>{{ p.recomendado_unidades|cantidad }} {{ p.unidad_medida }}</strong><small>{% if p.costo_estimado is None %}Sin costo cargado{% else %}${{ p.costo_estimado|pesos }} al costo{% endif %}</small></div></li>
+                    {% endfor %}</ol>
+                </details>
+                {% endif %}
+                {% else %}<p class="est-sales-empty">Ningún producto se agotaría en los próximos 7 días.</p>{% endif %}
+            </article>
+
+            <article class="est-sales-panel">
+                <div class="est-sales-panel-heading"><div><h3>Después de esta semana</h3><p>Una reposición prevista por producto, según su fecha de agotamiento</p></div></div>
+                <div class="est-pred-timeline">
+                    {% for b in prediccion_futuros %}
+                    <div class="est-pred-timeline-row">
+                        <div class="est-pred-timeline-label"><strong>{{ b.etiqueta }}</strong><small>{{ b.cantidad_productos }} producto{{ b.cantidad_productos|pluralize }}</small></div>
+                        <div class="est-pred-timeline-value"><strong>{% if b.sin_costo == b.cantidad_productos %}Sin costo{% else %}${{ b.total_estimado|pesos }}{% endif %}</strong>{% if b.sin_costo and b.sin_costo != b.cantidad_productos %}<small>parcial</small>{% endif %}</div>
+                        <div class="est-pred-timeline-track"><span style="width:{{ b.porcentaje_visual }}%"></span></div>
+                    </div>
+                    {% empty %}
+                    <p class="est-sales-empty">Todavía no hay reposiciones previstas para más adelante.</p>
+                    {% endfor %}
+                </div>
+            </article>
+        </div>
+    </section>
+
+    <section class="est-pred-section" aria-labelledby="estPredMasTitulo">
+        <div class="est-pred-section-heading"><div><h2 id="estPredMasTitulo">Para revisar si necesitás más detalle</h2></div></div>
+        <div class="est-pred-detail-grid">
+            <details class="est-sales-detail" id="estPredDetalle">
+                <summary><span><strong>Todos los productos</strong><small>{{ prediccion_reposicion.cantidad_productos }} reposiciones previstas, ordenadas por urgencia</small></span></summary>
+                <div class="est-sales-detail-body">
+                    <label class="est-pred-search-label" for="filtroDetalleProducto">Buscar producto o código</label>
+                    <input type="search" id="filtroDetalleProducto" class="est-filtro-input" placeholder="Escribí un nombre o código…">
+                    <div class="est-pred-table-wrap">
+                        <table class="table est-pred-table" id="tablaDetalleProducto">
+                            <thead><tr><th data-sort-key>Producto</th><th data-sort-key>Stock</th><th>Ritmo semanal</th><th data-sort-key>Se agotaría</th><th>Comprar</th><th data-sort-key>Costo estimado</th></tr></thead>
+                            <tbody>{% for p in prediccion_reposicion.productos %}
+                                <tr>
+                                    <td data-label="Producto"><strong>{{ p.nombre }}</strong><small>{{ p.codigo }}{% if p.proveedor %} · {{ p.proveedor }}{% endif %}{% if p.poco_confiable %} · <em>Pocos datos</em>{% endif %}</small></td>
+                                    <td data-label="Stock" data-sort="{{ p.stock_actual }}">{{ p.stock_actual|cantidad }}</td>
+                                    <td data-label="Ritmo semanal">{{ p.velocidad_semanal|cantidad }} {{ p.unidad_medida }}{% if p.tendencia == 'acelerando' %}<small class="est-tendencia acelerando">↑ Más rápido</small>{% elif p.tendencia == 'frenando' %}<small class="est-tendencia frenando">↓ Más lento</small>{% endif %}</td>
+                                    <td data-label="Se agotaría" data-sort="{{ p.dias_hasta_agotamiento }}">{% if p.dias_hasta_agotamiento == 0 %}Ya agotado{% else %}{{ p.fecha_estimada|date:'d/m/Y' }}<small>en {{ p.dias_hasta_agotamiento }} día{{ p.dias_hasta_agotamiento|pluralize }}</small>{% endif %}</td>
+                                    <td data-label="Comprar">{{ p.recomendado_unidades|cantidad }} {{ p.unidad_medida }}</td>
+                                    <td data-label="Costo estimado" data-sort="{{ p.costo_estimado|default_if_none:'' }}">{% if p.costo_estimado is None %}Sin costo cargado{% else %}${{ p.costo_estimado|pesos }}{% endif %}</td>
+                                </tr>
+                            {% endfor %}</tbody>
+                        </table>
+                        <p class="est-filtro-sin-resultados" hidden>Ningún producto coincide con esa búsqueda.</p>
+                    </div>
+                </div>
+            </details>
+            <details class="est-sales-detail">
+                <summary><span><strong>Importes por proveedor</strong><small>Costos estimados de todas las reposiciones previstas</small></span></summary>
+                <div class="est-sales-detail-body">{% for g in prediccion_reposicion.por_proveedor %}
+                    <div class="est-pred-supplier-row"><div><strong>{{ g.proveedor }}</strong><small>{{ g.cantidad_productos }} producto{{ g.cantidad_productos|pluralize }}</small></div><b>${{ g.total_estimado|pesos }}</b></div>
+                {% empty %}<p class="est-sales-empty">No hay proveedores en esta proyección.</p>{% endfor %}
+                {% if prediccion_reposicion.sin_costo %}<p class="est-sales-note">Los importes no incluyen productos sin costo cargado.</p>{% endif %}
+                </div>
+            </details>
+        </div>
+    </section>
+    {% else %}
+    <div class="est-sales-empty-panel"><h2>Sin reposiciones previstas</h2><p>No hay productos que se agotarían dentro del horizonte mostrado con las ventas registradas.</p></div>
+    {% endif %}
+
+    <p class="est-pred-method"><button type="button" class="kai-help-btn" data-help-target="ayuda_pred_metodo" aria-label="Cómo se calculan las predicciones" aria-controls="ayuda_pred_metodo">?</button> Cómo se calcula esta estimación</p>
+    <div class="kai-help-popover" id="ayuda_pred_metodo">Usa las ventas confirmadas de los últimos 90 días para estimar cuándo se agotará cada producto. Sugiere hasta 60 días de mercadería, sin superar el stock máximo configurado. No contempla cambios de demanda ni demoras del proveedor.</div>
+</div>
+{% endwith %}
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if not sin_permiso %}
+<script src="{% static 'core/js/estadisticas.js' %}?v=20260921"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        initFiltroTabla('filtroDetalleProducto', 'tablaDetalleProducto');
+        initTablaOrdenable('tablaDetalleProducto');
+        document.querySelectorAll('.est-pred-page a[href^="#"]').forEach(function (link) {
+            link.addEventListener('click', function () {
+                const target = document.getElementById(link.getAttribute('href').slice(1));
+                if (target && target.tagName === 'DETAILS') target.open = true;
+            });
+        });
+    });
+</script>
+{% endif %}
+{% endblock %}

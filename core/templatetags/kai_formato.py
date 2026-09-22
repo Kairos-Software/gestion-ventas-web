@@ -20,8 +20,12 @@ register = template.Library()
 
 
 @register.filter(is_safe=True)
-def pesos(value):
-    """1234567.5 -> '1.234.567,50'. Cadena vacía si el valor no es numérico."""
+def pesos(value, decimales=2):
+    """1234567.5 -> '1.234.567,50'. Cadena vacía si el valor no es numérico.
+
+    `decimales` (arg del filtro, ej. `|pesos:4`) es para costo/precio UNITARIO,
+    que ahora se guarda con 4 decimales — los totales/pagos siguen llamando
+    `|pesos` sin argumento y quedan en 2, como corresponde a plata real."""
     if value is None or value == '':
         return ''
     try:
@@ -30,7 +34,7 @@ def pesos(value):
         return value
 
     negativo = monto < 0
-    entero, _, decimales = f'{abs(monto):.2f}'.partition('.')
+    entero, _, decimales = f'{abs(monto):.{int(decimales)}f}'.partition('.')
 
     grupos = []
     while len(entero) > 3:

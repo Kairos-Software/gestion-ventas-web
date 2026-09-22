@@ -185,12 +185,15 @@ def _serializar_deuda(d, con_cuotas=False):
         'porcentaje_interes': str(d.porcentaje_interes),
         'interes_implicito': str(d.interes_implicito) if d.interes_implicito is not None else None,
         'plan_completo': d.plan_completo,
-        'monto_total': str(d.monto_total),
+        'monto_total': str(d.monto_total) if d.monto_total is not None else '',
         'moneda': d.moneda,
         'cantidad_cuotas': d.cantidad_cuotas,
         'cuotas_pagadas': d.cuotas_pagadas,
         'cuotas_cargadas': d.cuotas.exclude(estado=EstadoCuota.ANULADA).count(),
-        'saldo_pendiente': str(d.saldo_pendiente),
+        'saldo_pendiente': str(d.saldo_pendiente) if d.saldo_pendiente is not None else '',
+        'monto_desconocido': d.monto_desconocido,
+        'monto_abonado_libre': str(d.monto_abonado_libre) if d.modo_cuotas == ModoCuotas.LIBRE else '',
+        'monto_en_tramite_libre': str(d.monto_en_tramite_libre) if d.modo_cuotas == ModoCuotas.LIBRE else '',
         'fecha_inicio': d.fecha_inicio.isoformat(),
         'estado': d.estado,
         'estado_display': d.get_estado_display(),
@@ -249,6 +252,7 @@ class DeudasView(LoginRequiredMixin, TemplateView):
         ctx['url_registrar_abono'] = reverse('caja:registrar_abono_deuda', args=[0])
         ctx['url_editar_cuotas'] = reverse('caja:editar_cuotas_deuda', args=[0])
         ctx['url_convertir_variable'] = reverse('caja:convertir_deuda_variable', args=[0])
+        ctx['url_cerrar_monto_desconocido'] = reverse('caja:cerrar_monto_desconocido_deuda', args=[0])
         ctx['url_editar_cuota'] = reverse('caja:editar_cuota_deuda', args=[0])
         ctx['url_eliminar_cuota'] = reverse('caja:eliminar_cuota_deuda', args=[0])
         ctx['url_marcar_cuota_pagada'] = reverse('caja:marcar_cuota_pagada', args=[0])
@@ -256,6 +260,10 @@ class DeudasView(LoginRequiredMixin, TemplateView):
         ctx['url_previsualizar_cuotas'] = reverse('caja:previsualizar_cuotas_deuda')
         ctx['url_documento_subir'] = reverse('caja:deuda_documento_subir')
         ctx['url_documento_eliminar'] = reverse('caja:deuda_documento_eliminar')
+
+        ctx['url_listar_resumenes_tarjeta'] = reverse('caja:listar_resumenes_tarjeta')
+        ctx['url_resumenes_tarjeta'] = reverse('caja:resumenes_tarjeta')
+        ctx['url_cheques'] = reverse('caja:cheques')
 
         return ctx
 
@@ -321,6 +329,11 @@ class ListarDeudasAjax(LoginRequiredMixin, View):
 
         deudas_libres = Deuda.objects.filter(estado=EstadoDeuda.ACTIVA, modo_cuotas=ModoCuotas.LIBRE)
         for deuda_libre in deudas_libres:
+            # monto_desconocido: no hay saldo que sumar (no se sabe el
+            # total) — mostrarlo acá inventaría un número. Queda afuera de
+            # este total hasta que se cierre (ver Deuda.cerrar_monto_desconocido).
+            if deuda_libre.monto_desconocido:
+                continue
             saldo = deuda_libre.saldo_pendiente
             if saldo:
                 totales_pendientes[deuda_libre.moneda] = totales_pendientes.get(deuda_libre.moneda, Decimal('0')) + saldo
@@ -376,6 +389,7 @@ class CrearDeudaAjax(LoginRequiredMixin, View):
                 return JsonResponse({'error': 'Modo de cuotas inválido.'}, status=400)
             es_libre = modo_cuotas == ModoCuotas.LIBRE
             es_variable = modo_cuotas == ModoCuotas.VARIABLE
+            monto_desconocido = es_libre and bool(data.get('monto_desconocido'))
 
             # Capital: obligatorio salvo en cuotas variables, donde puede
             # no conocerse todavía (o ser una deuda vieja).
@@ -392,8 +406,10 @@ class CrearDeudaAjax(LoginRequiredMixin, View):
 
             # En cuotas variables el interés se calcula solo (ver
             # Deuda.interes_implicito) — se ignora lo que mande el front.
+            # Con monto_desconocido tampoco hay tasa que tipear: se calcula
+            # recién al cerrar la deuda (ver Deuda.cerrar_monto_desconocido).
             interes_pct = Decimal('0')
-            if not es_variable:
+            if not es_variable and not monto_desconocido:
                 try:
                     interes_pct = Decimal(str(data.get('porcentaje_interes', 0) or 0))
                     if interes_pct < 0:
@@ -503,6 +519,7 @@ class CrearDeudaAjax(LoginRequiredMixin, View):
                 creado_por=request.user, modo_cuotas=modo_cuotas,
                 es_carga_inicial=es_carga_inicial, cuotas_historicas=cuotas_historicas,
                 abonos_historicos=abonos_historicos, cuotas_variables=cuotas_variables,
+                monto_desconocido=monto_desconocido,
             )
 
             from asistencia.services.eventos import notificar_cuotas_deuda_si_proximas, enviar_en_background
@@ -790,6 +807,29 @@ class ConvertirDeudaVariableAjax(LoginRequiredMixin, View):
         deuda = get_object_or_404(Deuda, pk=pk)
         try:
             deuda.convertir_a_variable(request.user)
+            return JsonResponse({'success': True, 'deuda': _serializar_deuda(deuda, con_cuotas=True)})
+        except ValueError as e:
+            return JsonResponse({'error': str(e)}, status=400)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+
+
+# ══════════════════════════════════════════════════════════════════
+#  AJAX — Cerrar una deuda libre de monto_desconocido (define el total)
+# ══════════════════════════════════════════════════════════════════
+
+class CerrarMontoDesconocidoAjax(LoginRequiredMixin, View):
+    """POST → Deuda.cerrar_monto_desconocido(): fija el total real de una
+    deuda libre "de monto desconocido" = lo ya abonado, y calcula desde
+    ahí la tasa de interés implícita."""
+
+    def post(self, request, pk):
+        if not chequear_permiso(request.user, PERMISO_EDITAR):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        deuda = get_object_or_404(Deuda, pk=pk)
+        try:
+            deuda.cerrar_monto_desconocido(request.user)
             return JsonResponse({'success': True, 'deuda': _serializar_deuda(deuda, con_cuotas=True)})
         except ValueError as e:
             return JsonResponse({'error': str(e)}, status=400)

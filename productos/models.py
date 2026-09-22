@@ -635,7 +635,7 @@ class Producto(models.Model):
     #     al momento de la venta.
     # Pendiente: precios por segmento (mayorista/minorista) y packs/combos
     # (ver análisis de "ofertas" — packs se resolvió aparte, no acá).
-    precio_venta = models.DecimalField('Precio de venta', max_digits=12, decimal_places=2,
+    precio_venta = models.DecimalField('Precio de venta', max_digits=14, decimal_places=4,
                        null=True, blank=True,
                        help_text='Precio final de venta al público (siempre con IVA ya sumado, '
                                   'ver precio_incluye_iva para cómo se llega a este número).')
@@ -650,12 +650,12 @@ class Producto(models.Model):
     porcentaje_ganancia = models.DecimalField('% de ganancia', max_digits=6, decimal_places=2,
                        null=True, blank=True,
                        help_text='Solo si modo_precio=automático. Ej: 35 → precio = costo × 1.35.')
-    costo_actual = models.DecimalField('Costo actual', max_digits=12, decimal_places=2,
+    costo_actual = models.DecimalField('Costo actual', max_digits=14, decimal_places=4,
                        null=True, blank=True, editable=False,
                        help_text='Costo real del último lote de una Compra, o -si el producto '
                                   'todavía no tiene ninguna- el costo de referencia cargado a '
                                   'mano (ver "costo"). Nunca se edita a mano directamente.')
-    costo = models.DecimalField('Costo de referencia', max_digits=12, decimal_places=2,
+    costo = models.DecimalField('Costo de referencia', max_digits=14, decimal_places=4,
                        null=True, blank=True,
                        help_text='Costo cargado a mano. Sirve para productos migrados cuyo stock '
                                   'ya se pagó antes de usar este sistema (no hay Compra real que '
@@ -831,7 +831,7 @@ class Producto(models.Model):
         if self.precio_incluye_iva:
             return base
         alicuota = Decimal(self.alicuota_iva)
-        return (base * (Decimal('1') + alicuota / Decimal('100'))).quantize(Decimal('0.01'))
+        return (base * (Decimal('1') + alicuota / Decimal('100'))).quantize(Decimal('0.0001'))
 
     def _ultimo_lote_real(self):
         from compras.models import LoteCompra  # import diferido, evita circularidad
@@ -874,7 +874,7 @@ class Producto(models.Model):
 
         if self.modo_precio == ModoPrecio.AUTOMATICO and self.costo_actual is not None:
             margen = self.porcentaje_ganancia or Decimal('0')
-            precio_base = (self.costo_actual * (Decimal('1') + margen / Decimal('100'))).quantize(Decimal('0.01'))
+            precio_base = (self.costo_actual * (Decimal('1') + margen / Decimal('100'))).quantize(Decimal('0.0001'))
             nuevo_precio = self.calcular_precio_final(precio_base)
             if nuevo_precio != self.precio_venta:
                 self.precio_venta = nuevo_precio
@@ -920,7 +920,7 @@ class Producto(models.Model):
                 return None, f'"{comp.producto.nombre}" todavía no tiene precio de venta cargado.'
             total += precio_comp * comp.cantidad
         descuento = self.descuento_paquete or Decimal('0')
-        precio = (total * (Decimal('1') - descuento / Decimal('100'))).quantize(Decimal('0.01'))
+        precio = (total * (Decimal('1') - descuento / Decimal('100'))).quantize(Decimal('0.0001'))
         return precio, None
 
     def actualizar_precio_paquete(self):

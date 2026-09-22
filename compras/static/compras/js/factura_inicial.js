@@ -57,9 +57,10 @@ function _esc(s) {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
         .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
-function _fmt(v) {
+function _fmt(v, decimales) {
+    const d = decimales == null ? 2 : decimales;
     return '$ ' + (parseFloat(v) || 0).toLocaleString('es-AR', {
-        minimumFractionDigits: 2, maximumFractionDigits: 2,
+        minimumFractionDigits: d, maximumFractionDigits: d,
     });
 }
 function _num(v) { return parseFloat(v) || 0; }
@@ -128,7 +129,7 @@ async function _buscar(q, { forzar = false } = {}) {
                     <div class="vta-dropdown-item-meta">
                         <span>Stock: <strong>${_num(r.stock_actual).toLocaleString('es-AR')}</strong></span>
                         ${r.variante_desc ? `<span>· ${_esc(r.variante_desc)}</span>` : ''}
-                        ${r.costo_actual ? `<span>· Últ. costo: <strong>${_fmt(r.costo_actual)}</strong></span>` : ''}
+                        ${r.costo_actual ? `<span>· Últ. costo: <strong>${_fmt(r.costo_actual, 4)}</strong></span>` : ''}
                     </div>
                 </div>`).join('');
             searchDropdown.querySelectorAll('.vta-dropdown-item[data-idx]').forEach(el => {
@@ -313,7 +314,7 @@ function _render() {
                 </div>
             </div>
             <div class="fi-row-sub">
-                <span>${_esc(String(item.cantidad))} × ${_fmt(item.costo)}</span>
+                <span>${_esc(String(item.cantidad))} × ${_fmt(item.costo, 4)}</span>
                 <strong id="fiSub_${item.id}">${conDesc ? `<s>${_fmt(base)}</s>` : ''}${_fmt(sub)}</strong>
             </div>
         </div>`;

@@ -107,7 +107,7 @@
         cantidadInput.disabled = false;
         cantidadInput.value = '';
         cantidadInput.focus();
-        cantidadHint.textContent = `Se mide en ${ds.unidad}. Precio actual: ${KaiFormat.moneda(productoElegido.precio)} por ${ds.unidad}.`;
+        cantidadHint.textContent = `Se mide en ${ds.unidad}. Precio actual: ${KaiFormat.moneda(productoElegido.precio, 4)} por ${ds.unidad}.`;
         btnGenerar.disabled = true;
         preview.style.display = 'none';
     }
@@ -123,7 +123,7 @@
             const total = cantidad * productoElegido.precio;
             preview.style.display = 'block';
             preview.innerHTML = `Total a cobrar: ${KaiFormat.moneda(total)}
-                <small>${KaiFormat.cantidad(cantidad)} ${productoElegido.unidad} × ${KaiFormat.moneda(productoElegido.precio)}</small>`;
+                <small>${KaiFormat.cantidad(cantidad)} ${productoElegido.unidad} × ${KaiFormat.moneda(productoElegido.precio, 4)}</small>`;
             btnGenerar.disabled = false;
         });
     }
@@ -172,7 +172,7 @@
         etiquetaActual = etiqueta;
         document.getElementById('balResProducto').textContent = etiqueta.producto_nombre;
         document.getElementById('balResCantidad').textContent =
-            `${KaiFormat.cantidad(etiqueta.cantidad)} ${etiqueta.unidad_medida} × ${KaiFormat.moneda(etiqueta.precio_unitario)}`;
+            `${KaiFormat.cantidad(etiqueta.cantidad)} ${etiqueta.unidad_medida} × ${KaiFormat.moneda(etiqueta.precio_unitario, 4)}`;
         document.getElementById('balResPrecio').textContent = `${KaiFormat.moneda(etiqueta.precio_total)}`;
         JsBarcode('#balBarcodeSvg', etiqueta.codigo, {
             format: 'CODE128', width: 2, height: 55, fontSize: 13, margin: 4,

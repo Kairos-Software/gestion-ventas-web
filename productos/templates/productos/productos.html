@@ -281,7 +281,7 @@
                     </td>
                     <td>
                         {% if p.precio_venta %}
-                            <span class="prd-precio">${{ p.precio_venta|floatformat:2 }}</span>
+                            <span class="prd-precio">${{ p.precio_venta|floatformat:4 }}</span>
                         {% else %}<span class="prd-muted">—</span>{% endif %}
                     </td>
                     <td>
@@ -621,7 +621,7 @@
                         <div class="prd-costo-activar-row">
                             <div class="prd-input-prefix-wrap">
                                 <span class="prd-input-prefix">$</span>
-                                <input type="number" id="f_costo" class="prd-input prd-input--prefixed" placeholder="0.00" step="0.01" min="0">
+                                <input type="number" id="f_costo" class="prd-input prd-input--prefixed" placeholder="0.0000" step="0.0001" min="0">
                             </div>
                             <button type="button" class="prd-btn prd-btn-ghost prd-btn--sm" id="btnActivarCosto" hidden>Activar</button>
                         </div>
@@ -646,7 +646,7 @@
                         <label>Precio de venta <span class="prd-hint" id="prd-hint-precio-iva">(IVA 21% incluido)</span></label>
                         <div class="prd-input-prefix-wrap">
                             <span class="prd-input-prefix">$</span>
-                            <input type="number" id="f_precio_venta" class="prd-input prd-input--prefixed" placeholder="0.00" step="0.01" min="0">
+                            <input type="number" id="f_precio_venta" class="prd-input prd-input--prefixed" placeholder="0.0000" step="0.0001" min="0">
                         </div>
                     </div>
                     <div class="prd-field">

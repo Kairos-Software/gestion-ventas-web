@@ -1331,7 +1331,7 @@ class ItemVenta(models.Model):
 
     # — Cantidades y precios —
     cantidad        = models.DecimalField(max_digits=12, decimal_places=3)
-    precio_unitario = models.DecimalField('Precio unitario', max_digits=12, decimal_places=2)
+    precio_unitario = models.DecimalField('Precio unitario', max_digits=14, decimal_places=4)
     moneda          = models.CharField(max_length=5, choices=Moneda.choices, default=Moneda.ARS)
 
     # — Descuento opcional —
@@ -1454,7 +1454,7 @@ class ConsumoLoteVenta(models.Model):
     cantidad   = models.DecimalField(max_digits=12, decimal_places=3)
 
     lote_codigo_snapshot    = models.CharField(max_length=20, blank=True)
-    costo_unitario_snapshot = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    costo_unitario_snapshot = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True)
 
     fecha_alta = models.DateTimeField(auto_now_add=True)
 
@@ -1893,7 +1893,7 @@ class EtiquetaBalanza(models.Model):
     # nunca se recalculan después, ni siquiera si cambia el precio del
     # producto: lo que dice la etiqueta impresa es lo que se cobra.
     cantidad        = models.DecimalField(max_digits=12, decimal_places=3)
-    precio_unitario = models.DecimalField(max_digits=12, decimal_places=2)
+    precio_unitario = models.DecimalField(max_digits=14, decimal_places=4)
     precio_total    = models.DecimalField(max_digits=12, decimal_places=2)
 
     estado = models.CharField(max_length=12, choices=EstadoEtiquetaBalanza.choices,

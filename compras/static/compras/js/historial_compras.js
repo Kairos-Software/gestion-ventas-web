@@ -162,7 +162,7 @@ function buildItemsHTML(items) {
             <td>${proveedorCell}</td>
             <td style="text-align:right;">${parseFloat(item.cantidad).toLocaleString('es-AR')}</td>
             <td style="text-align:right;">
-                ${formatMoney(item.costo_unitario)}
+                ${formatMoney(item.costo_unitario, 4)}
                 <span class="moneda-badge">${_esc(item.moneda)}</span>
                 ${descuento}
             </td>

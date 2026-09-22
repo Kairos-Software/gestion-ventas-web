@@ -6,10 +6,11 @@ movimiento ("stock muerto"), stock bajo/crítico, rendimiento de
 paquetes, y pérdidas por vencimiento/merma.
 """
 
-from datetime import timedelta
-from decimal import Decimal
+import calendar
+from datetime import date, timedelta
+from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR
 
-from django.db.models import F, Avg, Count, ExpressionWrapper, Sum
+from django.db.models import F, Avg, Count, ExpressionWrapper, Min, Sum
 from django.utils import timezone
 
 from compras.models import LoteCompra
@@ -46,6 +47,7 @@ def perdidas_vencimiento(dias_alerta=30):
             F('cantidad_actual') * F('costo_unitario'), output_field=MONEY))
         .order_by('fecha_vencimiento')
     )
+    cantidad_lotes_vencidos = lotes_vencidos.count()
     total_vencido = sum((l.valor_perdido for l in lotes_vencidos), Decimal('0'))
 
     lotes_por_vencer = (
@@ -57,6 +59,7 @@ def perdidas_vencimiento(dias_alerta=30):
             F('cantidad_actual') * F('costo_unitario'), output_field=MONEY))
         .order_by('fecha_vencimiento')
     )
+    cantidad_lotes_por_vencer = lotes_por_vencer.count()
     total_en_riesgo = sum((l.valor_en_riesgo for l in lotes_por_vencer), Decimal('0'))
 
     # — Mermas históricas (cualquier pérdida de stock, no solo vencimiento) —
@@ -86,8 +89,10 @@ def perdidas_vencimiento(dias_alerta=30):
 
     return {
         'lotes_vencidos': list(lotes_vencidos[:15]),
+        'cantidad_lotes_vencidos': cantidad_lotes_vencidos,
         'total_vencido': round(total_vencido, 2),
         'lotes_por_vencer': list(lotes_por_vencer[:15]),
+        'cantidad_lotes_por_vencer': cantidad_lotes_por_vencer,
         'total_en_riesgo': round(total_en_riesgo, 2),
         'mermas': mermas[:15],
         'total_mermas': round(total_mermas, 2),
@@ -111,7 +116,9 @@ def perdidas_del_periodo(desde, hasta):
     """
     lotes_vencidos_periodo = (
         LoteCompra.objects
-        .filter(cantidad_actual__gt=0, fecha_vencimiento__range=(desde, hasta))
+        .filter(activo=True, cantidad_actual__gt=0,
+                fecha_vencimiento__range=(desde, hasta),
+                fecha_vencimiento__lt=timezone.localtime().date())
         .select_related('producto')
         .annotate(valor_perdido=ExpressionWrapper(
             F('cantidad_actual') * F('costo_unitario'), output_field=MONEY))
@@ -176,16 +183,23 @@ def valorizacion_stock():
 
 # ══════════════════════════════════════════════════════════════════
 #  STOCK BAJO / CRÍTICO
-#  Misma definición que la alerta del Dashboard (core/views.py:
-#  gestiona_stock=True, con stock pero por debajo del mínimo cargado).
+#  Incluye agotados: un producto con stock cero es más urgente que uno
+#  con pocas unidades. Solo se alerta si tiene un mínimo configurado.
 # ══════════════════════════════════════════════════════════════════
 
-def stock_bajo(top=30):
-    productos = (
-        Producto.objects
-        .filter(gestiona_stock=True, stock_actual__gt=0, stock_actual__lte=F('stock_minimo'))
-        .order_by('stock_actual')[:top]
+def _stock_bajo_queryset():
+    return Producto.objects.filter(
+        gestiona_stock=True, stock_minimo__gt=0,
+        stock_actual__lte=F('stock_minimo'),
     )
+
+
+def contar_stock_bajo():
+    return _stock_bajo_queryset().count()
+
+
+def stock_bajo(top=30):
+    productos = _stock_bajo_queryset().order_by('stock_actual')[:top]
     return [
         {
             'id': p.id, 'nombre': p.nombre, 'codigo': p.codigo,
@@ -278,3 +292,237 @@ def rendimiento_paquetes(desde, hasta, top=10):
 
     ranking.sort(key=lambda r: r['ganancia'], reverse=True)
     return ranking[:top]
+
+
+# ══════════════════════════════════════════════════════════════════
+#  PREDICCIÓN DE REPOSICIÓN DE STOCK
+#  Cuándo se agotaría cada producto si sigue vendiéndose al ritmo de
+#  los últimos días, y cuánta plata conviene tener lista (y en qué
+#  momento) para reponerlo. Es una AYUDA para decidir, no una
+#  certeza — se proyecta el promedio reciente hacia adelante, sin
+#  contemplar estacionalidad, promociones ni demoras del proveedor.
+# ══════════════════════════════════════════════════════════════════
+
+DIAS_HISTORIAL_VELOCIDAD = 90
+VENTAS_MINIMAS_CONFIABLE = 3
+DIAS_MINIMOS_CONFIABLE = 14
+DIAS_URGENTE = 7
+DIAS_COBERTURA_RECOMENDADA = 60
+MESES_ADELANTE = 6
+DIAS_TENDENCIA_RECIENTE = 30
+UMBRAL_TENDENCIA = Decimal('0.15')  # ±15% entre el ritmo reciente y el de 90 días para no marcar ruido como tendencia
+
+_NOMBRES_MES = [
+    'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
+    'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+]
+
+
+def _nombre_mes(d, hoy):
+    nombre = _NOMBRES_MES[d.month - 1].capitalize()
+    return nombre if d.year == hoy.year else f'{nombre} {d.year}'
+
+
+def _fin_de_mes(d):
+    return d.replace(day=calendar.monthrange(d.year, d.month)[1])
+
+
+def _primer_dia_mes_siguiente(d):
+    if d.month == 12:
+        return date(d.year + 1, 1, 1)
+    return date(d.year, d.month + 1, 1)
+
+
+def _rangos_por_cuando(hoy):
+    """
+    [(desde, hasta, etiqueta), ...] automático, sin que el usuario elija
+    nada: primero una ventana "urgente" de `DIAS_URGENTE` días, después
+    lo que queda del mes en curso (si sobra algo después de esa ventana),
+    y después un mes calendario completo a la vez hasta `MESES_ADELANTE`.
+    """
+    rangos = []
+    limite_urgente = hoy + timedelta(days=DIAS_URGENTE)
+    rangos.append((hoy, limite_urgente, 'Necesitás comprar ya'))
+
+    fin_mes_actual = _fin_de_mes(hoy)
+    if limite_urgente < fin_mes_actual:
+        rangos.append((limite_urgente + timedelta(days=1), fin_mes_actual, 'Resto de este mes'))
+
+    cursor = _primer_dia_mes_siguiente(fin_mes_actual)
+    for _ in range(MESES_ADELANTE):
+        fin = _fin_de_mes(cursor)
+        inicio = max(cursor, limite_urgente + timedelta(days=1))
+        if inicio <= fin:
+            rangos.append((inicio, fin, _nombre_mes(cursor, hoy)))
+        cursor = _primer_dia_mes_siguiente(fin)
+    return rangos
+
+
+def prediccion_reposicion():
+    """
+    Para cada producto con stock gestionado y ventas en los últimos
+    `DIAS_HISTORIAL_VELOCIDAD` días:
+    - velocidad: unidades/día vendidas en ese período (o desde su
+      primera venta, si el producto es más nuevo que ese período —
+      si no, un producto recién agregado parecería vender mucho más
+      lento de lo real, por dividir sobre días en que ni existía).
+    - dias_hasta_agotamiento / fecha_estimada: cuándo llegaría a 0 si
+      se sigue vendiendo al mismo ritmo.
+    - recomendado_unidades / costo_estimado: una reposición que cubra
+      `DIAS_COBERTURA_RECOMENDADA` días desde el agotamiento estimado,
+      sin superar `stock_maximo` si fue configurado. El monto es una
+      estimación al costo actual; si falta ese costo se informa aparte.
+    Todo esto se agrupa automáticamente por "cuándo" (`_rangos_por_cuando`)
+    para poder ver cuánta plata hace falta reservar cada mes, sin que el
+    usuario tenga que elegir ninguna ventana — solo se proyecta hasta
+    `MESES_ADELANTE` meses, más allá de eso no tiene sentido mostrarlo.
+    """
+    hoy = timezone.localtime().date()
+    desde_historial = hoy - timedelta(days=DIAS_HISTORIAL_VELOCIDAD)
+    desde_reciente = hoy - timedelta(days=DIAS_TENDENCIA_RECIENTE)
+
+    ventas_por_producto = (
+        ItemVenta.objects
+        .filter(venta__estado=EstadoVenta.CONFIRMADA,
+                venta__fecha__range=(desde_historial, hoy),
+                producto__isnull=False)
+        .values('producto_id')
+        .annotate(unidades=Sum('cantidad'), primera_venta=Min('venta__fecha'),
+                  cant_ventas=Count('venta', distinct=True))
+    )
+    datos_venta = {f['producto_id']: f for f in ventas_por_producto}
+
+    # Ventana corta (aparte de la de 90 días) solo para detectar si el
+    # producto viene acelerando o frenando — no cambia ningún cálculo de
+    # cantidad/costo, es puramente informativo (badge de tendencia).
+    unidades_recientes = {
+        f['producto_id']: f['unidades'] or Decimal('0')
+        for f in (
+            ItemVenta.objects
+            .filter(venta__estado=EstadoVenta.CONFIRMADA,
+                    venta__fecha__range=(desde_reciente, hoy),
+                    producto__isnull=False)
+            .values('producto_id')
+            .annotate(unidades=Sum('cantidad'))
+        )
+    }
+
+    rangos = _rangos_por_cuando(hoy)
+    limite_horizonte = rangos[-1][1]
+
+    filas = []
+    productos = (
+        Producto.objects
+        .filter(gestiona_stock=True, id__in=datos_venta.keys())
+        .select_related('proveedor')
+    )
+    for p in productos:
+        datos = datos_venta[p.id]
+        unidades = datos['unidades'] or Decimal('0')
+        if unidades <= 0:
+            continue
+
+        dias_con_datos = max((hoy - max(datos['primera_venta'], desde_historial)).days, 1)
+        velocidad_diaria = unidades / Decimal(dias_con_datos)
+        if velocidad_diaria <= 0:
+            continue
+        if p.stock_actual > velocidad_diaria * Decimal((limite_horizonte - hoy).days):
+            continue  # ni siquiera se agotaría dentro del horizonte mostrado
+
+        dias_hasta_agotamiento = (
+            0 if p.stock_actual <= 0 else
+            int((p.stock_actual / velocidad_diaria).to_integral_value(rounding=ROUND_CEILING))
+        )
+        fecha_estimada = hoy + timedelta(days=dias_hasta_agotamiento)
+        if fecha_estimada > limite_horizonte:
+            continue  # se agotaría más allá de lo que tiene sentido proyectar
+
+        # La reposición se proyecta para cuando se agote, no para hoy:
+        # restar el stock actual ocultaba compras necesarias en meses futuros.
+        # Si ya hay stock negativo, también hay que cubrir ese faltante.
+        faltante_actual = max(-p.stock_actual, Decimal('0'))
+        recomendado = velocidad_diaria * Decimal(DIAS_COBERTURA_RECOMENDADA) + faltante_actual
+        if p.stock_maximo is not None:
+            recomendado = min(recomendado, p.stock_maximo + faltante_actual)
+        recomendado = max(recomendado, Decimal('0'))
+        if p.permite_fraccion:
+            recomendado = recomendado.quantize(Decimal('0.001'), rounding=ROUND_CEILING)
+        else:
+            recomendado = recomendado.to_integral_value(rounding=ROUND_CEILING)
+            if p.stock_maximo is not None:
+                recomendado = min(
+                    recomendado,
+                    (p.stock_maximo + faltante_actual).to_integral_value(rounding=ROUND_FLOOR),
+                )
+        if recomendado <= 0:
+            continue  # el stock máximo configurado no permite reponer
+
+        costo_estimado = round(recomendado * p.costo_actual, 2) if p.costo_actual is not None else None
+
+        tendencia = None
+        if dias_con_datos >= DIAS_TENDENCIA_RECIENTE:
+            dias_reciente_efectivo = min(DIAS_TENDENCIA_RECIENTE, dias_con_datos)
+            velocidad_reciente = unidades_recientes.get(p.id, Decimal('0')) / Decimal(dias_reciente_efectivo)
+            if velocidad_reciente > velocidad_diaria * (1 + UMBRAL_TENDENCIA):
+                tendencia = 'acelerando'
+            elif velocidad_reciente < velocidad_diaria * (1 - UMBRAL_TENDENCIA):
+                tendencia = 'frenando'
+            else:
+                tendencia = 'estable'
+
+        filas.append({
+            'id': p.id,
+            'nombre': p.nombre,
+            'codigo': p.codigo,
+            'unidad_medida': p.get_unidad_medida_display(),
+            'proveedor': p.proveedor.nombre if p.proveedor_id else None,
+            'stock_actual': p.stock_actual,
+            'velocidad_semanal': round(velocidad_diaria * 7, 2),
+            'dias_hasta_agotamiento': dias_hasta_agotamiento,
+            'fecha_estimada': fecha_estimada,
+            'recomendado_unidades': recomendado,
+            'costo_estimado': costo_estimado,
+            'tendencia': tendencia,
+            'poco_confiable': (datos['cant_ventas'] or 0) < VENTAS_MINIMAS_CONFIABLE
+                              or dias_con_datos < DIAS_MINIMOS_CONFIABLE,
+        })
+
+    filas.sort(key=lambda f: f['dias_hasta_agotamiento'])
+
+    buckets = []
+    for desde, hasta, etiqueta in rangos:
+        del_bucket = sorted(
+            (f for f in filas if desde <= f['fecha_estimada'] <= hasta),
+            key=lambda f: f['dias_hasta_agotamiento'],
+        )
+        buckets.append({
+            'etiqueta': etiqueta,
+            'desde': desde,
+            'hasta': hasta,
+            'productos': del_bucket,
+            'cantidad_productos': len(del_bucket),
+            'total_estimado': round(sum((f['costo_estimado'] or Decimal('0') for f in del_bucket), Decimal('0')), 2),
+            'sin_costo': sum(f['costo_estimado'] is None for f in del_bucket),
+        })
+
+    por_proveedor = {}
+    for f in filas:
+        clave = f['proveedor'] or 'Sin proveedor asignado'
+        if clave not in por_proveedor:
+            por_proveedor[clave] = {'proveedor': clave, 'cantidad_productos': 0, 'total_estimado': Decimal('0')}
+        por_proveedor[clave]['cantidad_productos'] += 1
+        por_proveedor[clave]['total_estimado'] += f['costo_estimado'] or Decimal('0')
+    por_proveedor = sorted(por_proveedor.values(), key=lambda g: g['total_estimado'], reverse=True)
+    for g in por_proveedor:
+        g['total_estimado'] = round(g['total_estimado'], 2)
+
+    return {
+        'hoy': hoy,
+        'buckets': buckets,
+        'productos': filas,
+        'por_proveedor': por_proveedor,
+        'total_estimado': round(sum((f['costo_estimado'] or Decimal('0') for f in filas), Decimal('0')), 2),
+        'sin_costo': sum(f['costo_estimado'] is None for f in filas),
+        'cantidad_productos': len(filas),
+        'ventas_analizadas': sum((d['cant_ventas'] or 0) for d in datos_venta.values()),
+    }

@@ -262,7 +262,7 @@ function buildItemsHTML(items) {
             <td>${varianteCell}</td>
             <td>${clienteCell}</td>
             <td style="text-align:right;">${parseFloat(item.cantidad).toLocaleString('es-AR')}</td>
-            <td style="text-align:right;">${formatMoney(item.precio_unitario)}<span class="moneda-badge">${_esc(item.moneda)}</span>${descuento}</td>
+            <td style="text-align:right;">${formatMoney(item.precio_unitario, 4)}<span class="moneda-badge">${_esc(item.moneda)}</span>${descuento}</td>
             <td style="text-align:right;font-weight:600;">${formatMoney(item.subtotal)}</td>
             <td style="color:var(--text-muted);">${_esc(item.condicion_pago)}</td>
             <td style="color:var(--text-muted);font-size:0.8rem;">${_esc(item.referencia) || '—'}</td>

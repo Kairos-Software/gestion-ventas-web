@@ -914,6 +914,8 @@
 .doc-desc-input { flex: 1; min-width: 120px; }
 .doc-desc-input::placeholder { color: var(--text-muted); }
 .doc-upload-status { font-size: 0.78rem; color: var(--text-muted); font-style: italic; }
+.doc-file-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+.doc-subir-label--busy { pointer-events: none; opacity: .65; cursor: wait; }
 
 /* ── Cuotas libres (modo_cuotas) ─────────────────────────────── */
 
@@ -1371,6 +1373,16 @@
 .deudas-cuota-pago {
     color: var(--text-secondary);
     white-space: nowrap;
+}
+/* "Cheque #123" dentro de una nota/pago de cuota — link a la pantalla de
+   Cheques (ver linkCheque() en deudas.js) para poder corregirlo sin tener
+   que ir a buscarlo a mano. */
+.deudas-cuota-nota a,
+.deudas-cuota-pago a {
+    color: var(--accent-primary);
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
 }
 .deudas-cuota-iconos { display: inline-flex; flex-wrap: wrap; gap: 0.3rem; }
 .deudas-cuota-icono {
@@ -1840,7 +1852,11 @@
     font-weight: 700;
 }
 
-#modalDeuda .deudas-money-input input {
+/* Genérico — .deudas-money-input se reutiliza fuera de #modalDeuda
+   (ej. "Cargo propio" en el modal de Resumen de tarjeta). Sin esto, el
+   input se queda con su ancho/borde nativo DENTRO del wrapper, que
+   también tiene borde propio — parecen dos campos superpuestos. */
+.deudas-money-input input {
     width: 100%;
     min-width: 0;
     border: 0;
@@ -2125,6 +2141,14 @@
 }
 
 .deudas-detail-metric--pending strong { color: var(--danger, #dc2626); }
+
+.deudas-detail-metrics--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+.deudas-detail-metric--tramite {
+    background: rgba(245, 158, 11, 0.07);
+}
+
+.deudas-detail-metric--tramite strong { color: var(--warning, #b45309); }
 
 .deudas-detail-progress {
     padding: 0.75rem 1rem 0.9rem;
@@ -2572,3 +2596,1235 @@
     #modalDetalle .deudas-editar-cuotas .deudas-cv-quitar,
     #modalDeuda .deudas-editar-cuotas .deudas-cv-quitar { grid-area: quitar; }
 }
+
+/* ── Resúmenes de tarjeta (agrupan cuotas de compra_credito) ────── */
+.deudas-badge-estado--parcial {
+    background: rgba(59,130,246,0.1);
+    color: #2563eb;
+    border: 1px solid rgba(59,130,246,0.25);
+}
+
+.deudas-badge-estado--pagado {
+    background: rgba(16,185,129,0.1);
+    color: var(--success);
+    border: 1px solid rgba(16,185,129,0.25);
+}
+
+.deudas-resumenes-wrap {
+    min-height: 2rem;
+}
+
+.deudas-resumenes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.85rem;
+}
+
+.deudas-resumen-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 0.9rem 1rem;
+    cursor: pointer;
+    transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.deudas-resumen-card:hover {
+    border-color: var(--accent-primary);
+    transform: translateY(-1px);
+}
+
+.deudas-resumen-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.deudas-resumen-card-tarjeta {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.deudas-resumen-card-periodo {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.deudas-resumen-card-monto {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 1.3rem;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.deudas-resumen-card-meta {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
+/* Pantalla dedicada "Resúmenes de tarjeta": lista en tabla (igual que
+   Deudas), separada en dos secciones para orden visual — ver
+   resumenes_tarjeta.js. La grilla de cards de más arriba la sigue
+   usando el widget compacto de la pantalla de Deudas. */
+.deudas-resumenes-seccion {
+    margin-bottom: 1.6rem;
+}
+
+.deudas-resumenes-seccion:last-child {
+    margin-bottom: 0;
+}
+
+/* ==================================================================
+   EXPERIENCIA UNIFICADA DE DEUDAS
+   Esta capa consolida la pantalla, el alta, el detalle y los modales
+   operativos bajo el mismo lenguaje visual.
+   ================================================================== */
+
+.deudas-container {
+    --debt-ink: #132033;
+    --debt-muted: #617085;
+    --debt-line: #dde4ec;
+    --debt-soft: #f5f7fa;
+    --debt-accent: var(--brand-orange, #c9500c);
+    --debt-accent-soft: var(--brand-orange-light, #fff0e6);
+    max-width: 1480px;
+    margin: 0 auto;
+}
+
+.deudas-header {
+    align-items: center;
+    margin-bottom: 1.35rem;
+    padding: 0.3rem 0 0.2rem;
+}
+
+.deudas-header-copy { max-width: 760px; }
+
+.deudas-eyebrow,
+.deudas-section-kicker,
+.deudas-dialog-kicker,
+.deudas-dialog-label {
+    display: block;
+    margin-bottom: 0.22rem;
+    color: var(--debt-accent, var(--accent-primary));
+    font-family: var(--font-heading);
+    font-size: 0.67rem;
+    font-weight: 800;
+    letter-spacing: 0.095em;
+    line-height: 1.2;
+    text-transform: uppercase;
+}
+
+.deudas-title {
+    color: var(--debt-ink);
+    font-size: clamp(1.55rem, 2.4vw, 2.15rem);
+    font-weight: 800;
+    letter-spacing: -0.035em;
+    line-height: 1.15;
+}
+
+.deudas-subtitle {
+    max-width: 700px;
+    color: var(--debt-muted);
+    font-size: 0.91rem;
+    line-height: 1.55;
+}
+
+.deudas-header #btnNuevaDeuda {
+    min-height: 44px;
+    padding-inline: 1.05rem;
+    border-radius: 10px;
+    box-shadow: 0 7px 18px rgba(201, 80, 12, 0.17);
+}
+
+.deudas-overview,
+.deudas-panel {
+    border: 1px solid var(--debt-line);
+    border-radius: 16px;
+    background: var(--bg-white);
+    box-shadow: 0 2px 10px rgba(13, 27, 42, 0.035);
+}
+
+.deudas-overview {
+    margin-bottom: 1rem;
+    padding: 1rem 1.1rem;
+    background:
+        radial-gradient(circle at 92% 0%, rgba(201, 80, 12, 0.09), transparent 30%),
+        var(--bg-white);
+}
+
+.deudas-overview-heading,
+.deudas-filtros-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.deudas-overview .deudas-section-title,
+.deudas-panel .deudas-section-title {
+    margin: 0;
+    color: var(--debt-ink);
+    font-size: 1rem;
+    font-weight: 750;
+}
+
+.deudas-overview-note {
+    color: var(--debt-muted);
+    font-size: 0.72rem;
+}
+
+.deudas-totales {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 0.7rem;
+    margin-top: 0.85rem;
+}
+
+.deudas-total-card {
+    position: relative;
+    display: flex;
+    min-height: 82px;
+    padding: 0.8rem 0.95rem 0.8rem 1.05rem;
+    border: 1px solid rgba(220, 38, 38, 0.14);
+    border-radius: 12px;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.2rem;
+    overflow: hidden;
+    background: linear-gradient(135deg, rgba(220, 38, 38, 0.055), rgba(255, 255, 255, 0.9));
+}
+
+.deudas-total-card::before {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 4px;
+    background: var(--danger);
+    content: '';
+}
+
+.deudas-total-label {
+    color: var(--debt-muted);
+    font-size: 0.69rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.deudas-total-monto {
+    color: var(--debt-ink);
+    font-size: 1.28rem;
+    letter-spacing: -0.025em;
+}
+
+.deudas-total-empty {
+    display: flex;
+    grid-column: 1 / -1;
+    min-height: 70px;
+    align-items: center;
+    gap: 0.7rem;
+    color: #366858;
+}
+
+.deudas-total-empty > span {
+    display: grid;
+    flex: 0 0 34px;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    border-radius: 50%;
+    color: var(--success);
+    background: rgba(4, 120, 87, 0.1);
+    font-weight: 800;
+}
+
+.deudas-total-empty > div { display: flex; flex-direction: column; }
+.deudas-total-empty strong { color: var(--debt-ink); font-size: 0.84rem; }
+.deudas-total-empty small { color: var(--debt-muted); font-size: 0.72rem; }
+
+.deudas-panel {
+    margin-bottom: 1rem;
+    padding: 1rem 1.1rem;
+}
+
+.deudas-panel .deudas-filtros-header { margin-bottom: 0.9rem; }
+
+.deudas-panel .deudas-section-meta {
+    max-width: 920px;
+    margin-top: 0.25rem;
+    color: var(--debt-muted);
+    font-size: 0.76rem;
+    line-height: 1.45;
+}
+
+.deudas-resumenes-page .deudas-filtros-header > .deudas-cuotas-headrow-actions {
+    align-items: flex-end;
+    gap: 0.8rem;
+}
+
+.deudas-resumenes-page .deudas-modo-seg {
+    padding: 3px;
+    border: 1px solid var(--debt-line);
+    background: var(--debt-soft);
+}
+
+.deudas-resumenes-page .deudas-modo-seg-btn {
+    min-height: 32px;
+    padding-inline: 0.8rem;
+    border-radius: 7px;
+}
+
+.deudas-resumenes-page .deudas-modo-seg-btn--active {
+    color: var(--debt-ink);
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(13, 27, 42, 0.09);
+}
+
+.deudas-resumenes-page .deudas-filtros {
+    grid-template-columns: minmax(220px, 1fr) minmax(180px, 0.65fr) auto;
+    margin-bottom: 0.9rem;
+}
+
+.deudas-resumenes-page > .deudas-resumenes-wrap > .deudas-tabla-wrap {
+    border: 1px solid var(--debt-line);
+    border-radius: 12px;
+}
+
+.deudas-resumenes-grid {
+    grid-template-columns: repeat(auto-fill, minmax(245px, 1fr));
+    gap: 0.7rem;
+}
+
+.deudas-resumen-card {
+    min-height: 128px;
+    gap: 0.42rem;
+    padding: 0.85rem 0.95rem;
+    border-color: var(--debt-line);
+    border-radius: 12px;
+    background: var(--debt-soft);
+    box-shadow: none;
+}
+
+.deudas-resumen-card:hover {
+    border-color: rgba(201, 80, 12, 0.42);
+    background: var(--bg-white);
+    box-shadow: 0 8px 22px rgba(13, 27, 42, 0.07);
+    transform: translateY(-2px);
+}
+
+.deudas-resumen-card-monto {
+    color: var(--debt-ink);
+    font-size: 1.35rem;
+    letter-spacing: -0.025em;
+}
+
+.btn-filtros-toggle {
+    min-height: 38px;
+    border-radius: 9px;
+    background: var(--bg-white);
+}
+
+.btn-filtros-toggle[aria-expanded="true"] {
+    border-color: rgba(201, 80, 12, 0.38);
+    color: var(--debt-accent);
+    background: var(--debt-accent-soft);
+}
+
+.deudas-filtros {
+    grid-template-columns: 0.8fr 0.8fr 0.8fr minmax(220px, 1.55fr) auto;
+    align-items: end;
+    padding: 0.9rem;
+    border-color: var(--debt-line);
+    border-radius: 12px;
+    background: var(--debt-soft);
+}
+
+.filtro-campo--ancho { grid-column: auto; }
+
+.filtro-campo label,
+.form-campo label {
+    color: #445267;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.filtro-campo input,
+.filtro-campo select,
+.form-campo input,
+.form-campo select {
+    min-height: 42px;
+    border-color: var(--debt-line);
+    border-radius: 9px;
+}
+
+.deudas-panel--table { padding: 0; overflow: hidden; }
+
+.deudas-tabla-wrap {
+    border: 0;
+    border-radius: 0;
+    overflow-x: auto;
+}
+
+.deudas-tabla thead { background: #f7f9fb; }
+
+.deudas-tabla thead th {
+    padding: 0.72rem 0.9rem;
+    color: #687589;
+    font-size: 0.66rem;
+    letter-spacing: 0.065em;
+}
+
+.deudas-tabla tbody td {
+    padding: 0.82rem 0.9rem;
+    border-color: #e8edf2;
+    color: #263549;
+}
+
+.deudas-tabla tbody tr { transition: background-color 0.15s ease; }
+.deudas-tabla tbody tr:hover { background: #fbfcfd; }
+
+.deudas-tabla tbody td:nth-child(2) {
+    min-width: 190px;
+    color: var(--debt-ink);
+    font-weight: 650;
+}
+
+.deudas-badge-tipo,
+.deudas-badge-estado,
+.deudas-badge-carga-inicial {
+    padding: 0.23rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.62rem;
+    letter-spacing: 0.045em;
+}
+
+.deudas-tabla-acciones { gap: 0.25rem; }
+
+.deudas-tabla-acciones .btn {
+    min-height: 34px;
+    border-color: transparent;
+    border-radius: 8px;
+    color: #536176;
+}
+
+.deudas-tabla-acciones .btn:first-child {
+    border-color: var(--debt-line);
+    color: var(--debt-ink);
+    background: var(--bg-white);
+}
+
+.deudas-tabla-acciones .btn:hover {
+    border-color: rgba(201, 80, 12, 0.2);
+    color: var(--debt-accent);
+    background: var(--debt-accent-soft);
+}
+
+.deudas-paginacion { padding: 0 1rem 1rem; }
+
+/* Modal base */
+.modal {
+    padding: 1rem;
+    overscroll-behavior: contain;
+}
+
+.modal-backdrop {
+    background: rgba(7, 16, 29, 0.64);
+    backdrop-filter: blur(3px);
+}
+
+.modal-content {
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    border-radius: 16px;
+    box-shadow: 0 24px 70px rgba(7, 16, 29, 0.28), 0 8px 24px rgba(7, 16, 29, 0.13);
+}
+
+.modal-header {
+    min-height: 70px;
+    padding: 0.95rem 1.15rem;
+    background: var(--bg-white);
+}
+
+.modal-title {
+    color: var(--debt-ink, var(--text-primary));
+    font-size: 1.05rem;
+    letter-spacing: -0.018em;
+}
+
+.modal-close {
+    width: 38px;
+    height: 38px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+}
+
+.modal-close:hover {
+    border-color: var(--debt-line, var(--border-color));
+    background: var(--debt-soft, var(--bg-secondary));
+}
+
+.modal-close:focus-visible,
+.deudas-tipo-btn:focus-visible,
+.deudas-modo-seg-btn:focus-visible,
+.deudas-interes-seg-btn:focus-visible,
+.deudas-cuota-icono:focus-visible {
+    outline: 3px solid rgba(201, 80, 12, 0.24);
+    outline-offset: 2px;
+}
+
+.modal-body { padding: 1.15rem; }
+
+.modal-footer {
+    min-height: 64px;
+    margin: 1.1rem -1.15rem -1.15rem;
+    padding: 0.75rem 1.15rem;
+    border-top: 1px solid var(--debt-line, var(--border-color));
+    background: #fbfcfd;
+}
+
+/* Alta y edición */
+#modalDeuda .deudas-alta-modal,
+#modalDetalle .deudas-detalle-modal {
+    width: min(1120px, calc(100% - 1rem));
+    border-radius: 18px;
+}
+
+#modalDeuda .deudas-alta-modal { background: #f2f5f8; }
+
+#modalDeuda .modal-header,
+#modalDetalle .modal-header {
+    min-height: 76px;
+    padding-inline: 1.35rem;
+}
+
+.deudas-modal-icon {
+    flex-basis: 40px;
+    width: 40px;
+    height: 40px;
+    border-radius: 11px;
+}
+
+#modalDeuda .deudas-form { padding: 0.9rem 1rem 1rem; }
+#modalDeuda .deudas-form-main { gap: 0.7rem; }
+
+#modalDeuda .deudas-fs {
+    padding: 0.95rem;
+    border-color: #dfe6ed;
+    border-radius: 13px;
+    box-shadow: 0 2px 7px rgba(13, 27, 42, 0.035);
+}
+
+.deudas-step-number {
+    flex-basis: 30px;
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    background: var(--debt-ink, #132033);
+    box-shadow: none;
+}
+
+#modalDeuda .deudas-tipo-btn,
+#modalDeuda .deudas-modo-seg-btn {
+    transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.15s ease;
+}
+
+#modalDeuda .deudas-tipo-btn:hover,
+#modalDeuda .deudas-modo-seg-btn:hover { transform: translateY(-1px); }
+
+#modalDeuda .deudas-tipo-btn--active,
+#modalDeuda .deudas-tipo-btn--credito.deudas-tipo-btn--active,
+#modalDeuda .deudas-tipo-btn--prestamo.deudas-tipo-btn--active,
+#modalDeuda .deudas-tipo-btn--cheque.deudas-tipo-btn--active,
+#modalDeuda .deudas-tipo-btn--otro.deudas-tipo-btn--active,
+#modalDeuda .deudas-modo-seg-btn--active {
+    border-color: rgba(201, 80, 12, 0.52);
+    background: #fff8f3;
+    box-shadow: 0 0 0 1px rgba(201, 80, 12, 0.15);
+}
+
+.deudas-choice-check { color: var(--debt-accent, var(--accent-primary)); }
+
+#modalDeuda .deudas-interest-card {
+    border: 1px solid #e1e7ee;
+    background: #f7f9fb;
+}
+
+#modalDeuda .deudas-interes-seg {
+    gap: 3px;
+    padding: 3px;
+    border: 1px solid #e1e7ee;
+    background: #edf1f5;
+}
+
+#modalDeuda .deudas-interes-seg-btn { border-radius: 7px; }
+
+#modalDeuda .deudas-interes-seg-btn--active {
+    color: var(--debt-ink);
+    box-shadow: 0 1px 4px rgba(13, 27, 42, 0.1);
+}
+
+.deudas-money-input { border-color: var(--debt-line); }
+.deudas-money-input > span { color: #758397; }
+
+#modalDeuda .modal-footer {
+    margin: 0.9rem -1rem -1rem;
+    padding: 0.75rem 1rem;
+}
+
+#modalDeuda .deudas-submit-btn { min-height: 42px; border-radius: 9px; }
+
+/* Detalle */
+#modalDetalle .deudas-detalle-modal { background: #f2f5f8; }
+#modalDetalle .deudas-detalle-body { padding: 0.9rem 1rem 1rem; }
+
+.deudas-detail-overview,
+.deudas-detail-data,
+.deudas-detail-section,
+#modalDetalle .deudas-detalle-notas {
+    border-color: #dfe6ed;
+    border-radius: 13px;
+    box-shadow: 0 2px 7px rgba(13, 27, 42, 0.03);
+}
+
+.deudas-detail-metric { min-height: 86px; justify-content: center; }
+
+.deudas-detail-metric strong {
+    font-size: clamp(1rem, 1.7vw, 1.25rem);
+    letter-spacing: -0.025em;
+}
+
+.deudas-detail-metric--pending { background: #fff7f7; }
+.deudas-detail-metric--paid { background: #f5fbf8; }
+
+#modalDetalle .deudas-resumen-item {
+    background: #f5f7fa;
+    border: 1px solid #edf0f4;
+}
+
+#modalDetalle .deudas-cuotas-tabla--detalle thead,
+#modalDeuda .deudas-cuotas-tabla--detalle thead { background: #f3f6f8; }
+
+.deudas-cuota-icono {
+    min-height: 32px;
+    border-radius: 7px;
+    background: #fff;
+}
+
+#modalDetalle .deudas-registrar-abono {
+    border-radius: 10px;
+    background: #f0faf5;
+}
+
+#modalDetalle .modal-footer { min-height: 64px; }
+
+/* Resumen mensual de tarjeta */
+.deudas-resumen-modal {
+    display: flex;
+    width: min(1060px, calc(100% - 1rem));
+    max-width: 1060px;
+    max-height: min(94dvh, 920px);
+    border-radius: 18px;
+    flex-direction: column;
+    overflow: hidden;
+    background: #f2f5f8;
+}
+
+#modalResumenTarjeta .modal-header {
+    flex: 0 0 auto;
+    padding-inline: 1.25rem;
+}
+
+#modalResumenTarjeta .deudas-detalle-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 0.9rem 1rem 1rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+#modalResumenTarjeta .deudas-detalle-resumen {
+    margin: 0 0 0.7rem;
+    padding: 0.85rem;
+    border-color: #dfe6ed;
+    border-radius: 13px;
+    background: #fff;
+    box-shadow: 0 2px 7px rgba(13, 27, 42, 0.03);
+}
+
+#modalResumenTarjeta .deudas-resumen-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.6rem;
+}
+
+#modalResumenTarjeta .deudas-resumen-item {
+    min-height: 57px;
+    padding: 0.55rem 0.65rem;
+    border: 1px solid #edf0f4;
+    border-radius: 8px;
+    justify-content: center;
+    background: #f5f7fa;
+}
+
+#modalResumenTarjeta .deudas-resumen-item--highlight {
+    border-color: rgba(220, 38, 38, 0.16);
+    background: #fff7f7;
+}
+
+.deudas-resumen-fechas-help {
+    margin: 0 0 0.7rem;
+    color: var(--debt-muted, var(--text-secondary));
+    font-size: 0.73rem;
+}
+
+#modalResumenTarjeta .deudas-detail-section {
+    margin-bottom: 0.7rem;
+    border-color: #dfe6ed;
+    border-radius: 13px;
+    box-shadow: 0 2px 7px rgba(13, 27, 42, 0.03);
+}
+
+#modalResumenTarjeta .deudas-detail-section:last-child { margin-bottom: 0; }
+
+#modalResumenTarjeta .deudas-cuotas-wrap { margin: 0; border-radius: 10px; }
+#modalResumenTarjeta .deudas-cuotas-tabla--detalle { min-width: 760px; }
+#modalResumenTarjeta .deudas-cuotas-tabla--detalle thead { background: #f3f6f8; }
+
+#modalResumenTarjeta .deudas-registrar-abono {
+    display: flex;
+    margin: 0 0 0.8rem;
+    align-items: center;
+    justify-content: space-between;
+    border-color: rgba(4, 120, 87, 0.2);
+    border-radius: 10px;
+    background: rgba(4, 120, 87, 0.07);
+}
+
+#modalResumenTarjeta .deudas-registrar-abono > div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.12rem;
+}
+
+#modalResumenTarjeta .deudas-registrar-abono span {
+    color: var(--debt-muted);
+    font-size: 0.68rem;
+}
+
+#modalResumenTarjeta .deudas-registrar-abono strong {
+    color: var(--debt-ink);
+    font-family: var(--font-heading);
+    font-size: 1.1rem;
+}
+
+.deudas-actions-start { justify-content: flex-start; }
+
+#rtBloquePago {
+    position: static;
+}
+
+/* Modales operativos: pago, cheque y edición de cuota */
+.deudas-dialog {
+    width: min(560px, calc(100% - 1rem));
+    max-width: 560px;
+    overflow: hidden;
+}
+
+.deudas-dialog--payment { max-width: 620px; }
+.deudas-dialog--compact { max-width: 460px; }
+.deudas-dialog--cheque { max-width: 700px; }
+
+.deudas-dialog .modal-body {
+    max-height: calc(92dvh - 72px);
+    overflow-y: auto;
+}
+
+.deudas-dialog-heading {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: 0.7rem;
+}
+
+.deudas-dialog-icon {
+    display: grid;
+    flex: 0 0 38px;
+    width: 38px;
+    height: 38px;
+    place-items: center;
+    border-radius: 10px;
+    color: var(--debt-accent, var(--accent-primary));
+    background: var(--debt-accent-soft, var(--accent-light));
+    font-family: var(--font-heading);
+    font-size: 0.8rem;
+    font-weight: 800;
+}
+
+.deudas-dialog-icon--success {
+    color: var(--success);
+    background: rgba(4, 120, 87, 0.1);
+}
+
+.deudas-dialog-icon--cheque {
+    color: #2563eb;
+    background: rgba(37, 99, 235, 0.1);
+}
+
+.deudas-dialog-kicker { margin-bottom: 0.08rem; font-size: 0.58rem; }
+
+.deudas-dialog-intro {
+    margin: 0 0 0.9rem;
+    color: var(--debt-muted, var(--text-secondary));
+    font-size: 0.8rem;
+    line-height: 1.5;
+}
+
+.deudas-dialog-intro--highlight {
+    padding: 0.7rem 0.8rem;
+    border: 1px solid rgba(37, 99, 235, 0.16);
+    border-radius: 10px;
+    color: #40516a;
+    background: rgba(37, 99, 235, 0.055);
+}
+
+.deudas-dialog-section {
+    padding: 0.75rem;
+    border: 1px solid var(--debt-line, var(--border-color));
+    border-radius: 11px;
+    background: #f8fafb;
+}
+
+.deudas-dialog-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.deudas-dialog-section-head h3 {
+    color: var(--debt-ink, var(--text-primary));
+    font-family: var(--font-heading);
+    font-size: 0.84rem;
+}
+
+.deudas-dialog-label { margin-bottom: 0.06rem; font-size: 0.57rem; }
+
+.deudas-pago-objetivo {
+    min-height: 76px;
+    padding: 0.8rem 0.95rem;
+    border: 1px solid rgba(4, 120, 87, 0.18);
+    border-radius: 11px;
+    background: linear-gradient(135deg, rgba(4, 120, 87, 0.08), rgba(255, 255, 255, 0.82));
+}
+
+.deudas-pago-objetivo strong {
+    color: #065f46;
+    font-family: var(--font-heading);
+    font-size: 1.45rem;
+    letter-spacing: -0.03em;
+}
+
+.deudas-pago-linea {
+    padding: 0.45rem;
+    border: 1px solid #e3e9ef;
+    border-radius: 9px;
+    background: #fff;
+}
+
+.deudas-pago-linea .dpl-cuenta,
+.deudas-pago-linea .dpl-monto {
+    min-height: 40px;
+    border-color: #dce3ea;
+    border-radius: 8px;
+}
+
+.deudas-add-row { width: 100%; border-style: dashed; }
+
+.deudas-pago-resumen {
+    min-height: 38px;
+    margin: 0.7rem 0 0;
+    padding: 0.55rem 0.7rem;
+    border-radius: 8px;
+    background: #f3f5f8;
+}
+
+.deudas-pago-resumen--ok { background: rgba(4, 120, 87, 0.08); }
+
+.deudas-dialog-alert {
+    display: flex;
+    margin-bottom: 0.9rem;
+    padding: 0.75rem 0.8rem;
+    border-radius: 10px;
+    flex-direction: column;
+    gap: 0.15rem;
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+
+.deudas-dialog-alert--info {
+    border: 1px solid rgba(37, 99, 235, 0.17);
+    color: #334c70;
+    background: rgba(37, 99, 235, 0.06);
+}
+
+.deudas-cheque-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 0.75rem;
+}
+
+.deudas-cheque-grid .form-campo { min-width: 0; }
+
+.deudas-inline-msg:not(:empty) {
+    min-height: 0;
+    margin: 0.55rem 0 0;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid rgba(220, 38, 38, 0.18);
+    border-radius: 8px;
+    background: rgba(220, 38, 38, 0.055);
+}
+
+.deudas-dialog .modal-footer .btn { min-height: 40px; }
+
+/* Filas variables e históricas */
+.deudas-cv-fila,
+.deudas-abono-historico-fila {
+    padding: 0.55rem;
+    border: 1px solid #e2e8ef;
+    border-radius: 9px;
+    background: #fff;
+}
+
+.deudas-cv-quitar,
+.deudas-abono-historico-quitar {
+    display: grid;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    place-items: center;
+    border: 1px solid transparent;
+    border-radius: 7px;
+}
+
+.deudas-cv-quitar:hover,
+.deudas-abono-historico-quitar:hover {
+    border-color: rgba(220, 38, 38, 0.18);
+    background: rgba(220, 38, 38, 0.06);
+}
+
+@media (max-width: 1100px) {
+    .deudas-filtros { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .filtro-campo--ancho { grid-column: span 2; }
+}
+
+@media (max-width: 780px) {
+    .deudas-overview-heading,
+    .deudas-panel .deudas-filtros-header { align-items: flex-start; }
+    .deudas-filtros { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .filtro-campo--ancho { grid-column: span 2; }
+    .filtro-acciones { grid-column: span 2; }
+    .deudas-cheque-grid { grid-template-columns: 1fr; }
+    .deudas-resumenes-page .deudas-filtros { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .deudas-resumenes-page .filtro-acciones { grid-column: 1 / -1; }
+    #modalResumenTarjeta .deudas-resumen-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+    .deudas-container { padding-bottom: 1rem; }
+    .deudas-header { align-items: stretch; gap: 0.9rem; }
+    .deudas-header #btnNuevaDeuda { width: 100%; justify-content: center; }
+    .deudas-overview,
+    .deudas-panel { padding: 0.85rem; border-radius: 13px; }
+    .deudas-overview-note { display: none; }
+    .deudas-panel .deudas-filtros-header { gap: 0.7rem; }
+    .deudas-panel .deudas-filtros-header > .btn,
+    .deudas-panel .deudas-filtros-header > a { flex: 0 0 auto; }
+    .deudas-filtros { grid-template-columns: 1fr; padding: 0.75rem; }
+    .filtro-campo--ancho,
+    .filtro-acciones { grid-column: auto; }
+    .filtro-acciones .btn { flex: 1; }
+    .deudas-panel--table { padding: 0; overflow: visible; border: 0; background: transparent; box-shadow: none; }
+    .deudas-tabla-wrap { overflow: visible; background: transparent; }
+    .deudas-tabla { display: block; }
+    .deudas-tabla thead { display: none; }
+    .deudas-tabla tbody { display: grid; gap: 0.65rem; }
+    .deudas-tabla tbody tr {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.65rem 0.8rem;
+        padding: 0.8rem;
+        border: 1px solid var(--debt-line);
+        border-radius: 12px;
+        background: var(--bg-white);
+        box-shadow: 0 2px 8px rgba(13, 27, 42, 0.035);
+    }
+    .deudas-tabla tbody td {
+        display: flex;
+        min-width: 0;
+        padding: 0;
+        border: 0;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.2rem;
+    }
+    .deudas-tabla tbody td::before {
+        color: #778499;
+        content: attr(data-label);
+        font-size: 0.58rem;
+        font-weight: 800;
+        letter-spacing: 0.055em;
+        text-transform: uppercase;
+    }
+    .deudas-tabla tbody td:nth-child(2),
+    .deudas-tabla tbody td:last-child { grid-column: 1 / -1; }
+    .deudas-tabla tbody td:nth-child(4) { align-items: flex-start; text-align: left; }
+    .deudas-tabla-acciones { width: 100%; }
+    .deudas-tabla-acciones .btn:first-child { flex: 1; }
+    .deudas-tabla-loading { display: block !important; grid-column: 1 / -1; }
+    .deudas-paginacion { padding-inline: 0; }
+    .modal { align-items: flex-end; padding: 0; }
+    .deudas-dialog {
+        width: 100%;
+        max-width: none;
+        max-height: 96dvh;
+        border-radius: 16px 16px 0 0;
+    }
+    .deudas-dialog .modal-body { max-height: calc(96dvh - 70px); }
+    .deudas-dialog .modal-footer {
+        position: sticky;
+        bottom: -1.15rem;
+        z-index: 3;
+        box-shadow: 0 -7px 18px rgba(13, 27, 42, 0.06);
+    }
+    .deudas-dialog .modal-footer .btn { flex: 1; }
+    .deudas-dialog--payment .modal-footer { flex-wrap: wrap; }
+    .deudas-dialog--payment #btnCancelarPagoCuota { flex: 0 0 auto; }
+    .deudas-dialog--payment #btnPagarConCheque,
+    .deudas-dialog--payment #btnConfirmarPagoCuota { flex: 1 1 42%; }
+    .deudas-pago-objetivo strong { font-size: 1.2rem; }
+    .deudas-pago-linea { flex-wrap: wrap; }
+    .deudas-pago-linea .dpl-monto { flex: 1 1 calc(100% - 40px); }
+    .deudas-resumenes-page .deudas-filtros { grid-template-columns: 1fr; }
+    .deudas-resumenes-page .filtro-acciones { grid-column: auto; }
+    .deudas-resumenes-page .deudas-filtros-header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+    .deudas-resumenes-page .deudas-filtros-header > .deudas-cuotas-headrow-actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+    .deudas-resumenes-page .deudas-modo-seg { width: 100%; }
+    .deudas-resumenes-page .deudas-modo-seg-btn { flex: 1; }
+    #modalResumenTarjeta { align-items: flex-end; }
+    .deudas-resumen-modal {
+        width: 100%;
+        max-height: 100dvh;
+        border-radius: 16px 16px 0 0;
+    }
+    #modalResumenTarjeta .modal-header { padding-inline: 0.9rem; }
+    #modalResumenTarjeta .deudas-detalle-body { padding: 0.8rem; }
+    #modalResumenTarjeta .deudas-resumen-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    #modalResumenTarjeta .deudas-cuotas-wrap { border: 0; overflow: visible; }
+    #modalResumenTarjeta .deudas-cuotas-tabla--detalle { display: block; min-width: 0; }
+    #modalResumenTarjeta .deudas-cuotas-tabla--detalle thead { display: none; }
+    #modalResumenTarjeta .deudas-cuotas-tabla--detalle tbody { display: grid; gap: 0.55rem; }
+    #modalResumenTarjeta .deudas-cuotas-tabla--detalle .deudas-cuota-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.55rem 0.7rem;
+        padding: 0.7rem;
+        border: 1px solid var(--debt-line);
+        border-radius: 10px;
+        background: #fff;
+    }
+    #modalResumenTarjeta .deudas-cuotas-tabla--detalle td {
+        display: flex;
+        min-width: 0;
+        padding: 0;
+        border: 0;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.15rem;
+        white-space: normal;
+    }
+    #modalResumenTarjeta .deudas-cuotas-tabla--detalle td::before {
+        color: #778499;
+        content: attr(data-label);
+        font-size: 0.56rem;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+    }
+    #modalResumenTarjeta .deudas-cuotas-tabla--detalle td:first-child,
+    #modalResumenTarjeta .deudas-cuotas-tabla--detalle td:last-child { grid-column: 1 / -1; }
+    #modalResumenTarjeta .deudas-cuotas-tabla--detalle .deudas-monto { text-align: left; }
+}
+
+@media (max-width: 420px) {
+    .deudas-overview-heading { align-items: flex-start; }
+    .deudas-totales { grid-template-columns: 1fr; }
+    .deudas-resumenes-grid { grid-template-columns: 1fr; }
+    .deudas-dialog-icon { display: grid; }
+    .deudas-dialog .modal-header { padding-inline: 0.85rem; }
+    .deudas-dialog .modal-body { padding: 0.85rem; }
+    .deudas-dialog .modal-footer { margin-inline: -0.85rem; padding-inline: 0.85rem; }
+}
+
+/* Ajuste de densidad: los indicadores acompanan a la lista, no la desplazan. */
+.deudas-container {
+    --debt-ink: #314358;
+    --debt-line: #e5ebf1;
+    --debt-soft: #f8fafc;
+}
+
+.deudas-dashboard-grid {
+    display: grid;
+    grid-template-columns: minmax(260px, 0.9fr) minmax(0, 1.7fr);
+    align-items: stretch;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.deudas-dashboard-grid .deudas-overview,
+.deudas-dashboard-grid .deudas-panel {
+    min-width: 0;
+    margin: 0;
+    padding: 0.85rem 1rem;
+    background: var(--bg-white);
+}
+
+.deudas-dashboard-grid .deudas-overview-note,
+.deudas-panel--summaries .deudas-section-meta { display: none; }
+
+.deudas-dashboard-grid .deudas-totales { margin-top: 0.55rem; }
+.deudas-dashboard-grid .deudas-total-card {
+    min-height: 65px;
+    padding-block: 0.55rem;
+    background: #fffafa;
+}
+.deudas-dashboard-grid .deudas-total-monto { font-size: 1.15rem; }
+.deudas-panel--summaries .deudas-filtros-header { margin-bottom: 0.55rem; }
+.deudas-panel--summaries .deudas-resumenes-wrap { min-height: 0; }
+.deudas-panel--summaries .deudas-resumenes-grid {
+    display: flex;
+    gap: 0.55rem;
+    overflow-x: auto;
+    padding-bottom: 2px;
+}
+.deudas-panel--summaries .deudas-resumen-card {
+    flex: 1 0 205px;
+    min-height: 80px;
+    gap: 0.18rem;
+    padding: 0.55rem 0.7rem;
+    background: var(--bg-secondary);
+}
+.deudas-panel--summaries .deudas-resumen-card-monto { font-size: 1.08rem; }
+.deudas-panel--summaries .deudas-resumen-card-meta { line-height: 1.2; }
+.deudas-panel--summaries .deudas-resumen-card:only-child {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    column-gap: 0.7rem;
+}
+.deudas-panel--summaries .deudas-resumen-card:only-child .deudas-resumen-card-monto { text-align: right; }
+.deudas-panel--summaries .deudas-resumen-card:only-child .deudas-resumen-card-meta { text-align: right; }
+
+.deudas-panel--filters {
+    margin-bottom: 0;
+    padding-block: 0.75rem;
+    border-radius: 14px 14px 0 0;
+}
+.deudas-panel--filters .deudas-filtros-header { margin-bottom: 0; }
+.deudas-panel--filters .deudas-filtros:not([hidden]) { margin-top: 0.7rem; }
+.deudas-panel--table {
+    border-top: 0;
+    border-radius: 0 0 14px 14px;
+}
+
+/* Superficies claras y controles menos delineados en todos los flujos. */
+.modal-backdrop { background: rgba(13, 27, 42, 0.46); }
+#modalDeuda .deudas-alta-modal,
+#modalDetalle .deudas-detalle-modal,
+.deudas-resumen-modal { background: #f7f9fb; }
+.deudas-step-number {
+    color: var(--debt-accent);
+    background: var(--debt-accent-soft);
+}
+.deudas-step-number--optional {
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
+}
+#modalDeuda .deudas-fs,
+.deudas-detail-overview,
+.deudas-detail-data,
+.deudas-detail-section,
+.deudas-dialog-section { border-color: #e9eef3; }
+#modalDeuda .deudas-tipo-btn--active,
+#modalDeuda .deudas-tipo-btn--credito.deudas-tipo-btn--active,
+#modalDeuda .deudas-tipo-btn--prestamo.deudas-tipo-btn--active,
+#modalDeuda .deudas-tipo-btn--cheque.deudas-tipo-btn--active,
+#modalDeuda .deudas-tipo-btn--otro.deudas-tipo-btn--active,
+#modalDeuda .deudas-modo-seg-btn--active {
+    border-color: rgba(201, 80, 12, 0.27);
+    box-shadow: none;
+}
+#modalDeuda .deudas-tipo-btn--credito.deudas-tipo-btn--active {
+    color: #4f46e5;
+    border-color: rgba(99, 102, 241, 0.28);
+    background: #f7f7ff;
+}
+#modalDeuda .deudas-tipo-btn--prestamo.deudas-tipo-btn--active {
+    color: var(--warning);
+    border-color: rgba(168, 75, 8, 0.26);
+    background: #fffaf4;
+}
+#modalDeuda .deudas-tipo-btn--cheque.deudas-tipo-btn--active {
+    color: var(--success);
+    border-color: rgba(4, 120, 87, 0.25);
+    background: #f5fbf8;
+}
+#modalDeuda .deudas-tipo-btn--otro.deudas-tipo-btn--active {
+    color: var(--text-secondary);
+    border-color: #dce4ec;
+    background: var(--bg-secondary);
+}
+.deudas-container :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea),
+.modal :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea) {
+    border-color: #e3e9ef;
+}
+.deudas-container :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea):focus,
+.modal :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea):focus {
+    border-color: #d3a98e;
+    box-shadow: 0 0 0 2px rgba(201, 80, 12, 0.09);
+}
+.modal :is(.deudas-money-input, .deudas-pago-linea, .deudas-cv-fila, .deudas-abono-historico-fila) {
+    border-color: #e8edf2;
+}
+.modal .deudas-money-input:focus-within {
+    border-color: #d3a98e;
+    box-shadow: 0 0 0 2px rgba(201, 80, 12, 0.09);
+}
+
+@media (max-width: 820px) {
+    .deudas-dashboard-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+    .deudas-dashboard-grid { gap: 0.55rem; }
+    .deudas-dashboard-grid .deudas-overview,
+    .deudas-dashboard-grid .deudas-panel { padding: 0.75rem; }
+    .deudas-panel--summaries .deudas-resumen-card:only-child { display: flex; }
+    .deudas-panel--summaries .deudas-resumen-card:only-child .deudas-resumen-card-monto,
+    .deudas-panel--summaries .deudas-resumen-card:only-child .deudas-resumen-card-meta { text-align: left; }
+    .deudas-panel--filters { border-radius: 12px; margin-bottom: 0.55rem; }
+    .deudas-panel--table { border: 0; border-radius: 0; }
+}
+
+.deudas-container [hidden],
+.modal[hidden],
+.modal [hidden] { display: none !important; }

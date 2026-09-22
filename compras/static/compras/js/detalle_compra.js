@@ -181,11 +181,9 @@ function _cdtLineaEsCheque(l) {
     return _cdtCuentaEsBanco(l.cuenta) && !!l.esCheque;
 }
 
-/** Tarjeta (crédito), cheque y cuenta corriente con el proveedor
- *  comparten el mismo plan de pago: cuotas fijas o libres + interés
- *  opcional. El cheque real de cada cuota se carga después, desde el
- *  detalle de la Deuda en Créditos y préstamos — acá solo se define
- *  el plan. */
+/** Tarjeta, cheque y cuenta corriente generan una deuda. Tarjeta y
+ *  cuenta corriente pueden tener plan fijo o libre; cheque siempre es
+ *  libre porque se cubre con los cheques que se emitan después. */
 function _cdtLineaUsaPlanCuotas(l) {
     return _cdtEsTarjeta(l.cuenta) || _cdtLineaEsCheque(l) || _cdtEsCuentaCorriente(l.cuenta);
 }
@@ -299,15 +297,14 @@ function _cdtPagoRenderLineas() {
             ${_cdtEquivalenteArsHTML(l)}
         </div>` : ''}
         ${usaPlanCuotas ? `
-        <label class="vdt-credito-modo-row">
+        ${!esCheque ? `<label class="vdt-credito-modo-row">
             <span class="vdt-pago-credito-label">Cuotas libres</span>
             <span class="toggle-switch">
                 <input type="checkbox" data-campo="modoCuotas" data-id="${l.id}" ${l.modoCuotas === 'libre' ? 'checked' : ''}>
                 <span class="toggle-track"></span>
             </span>
-        </label>
-        ${esCheque ? `<p class="vdt-cheque-plan-nota">Acá se define el plan de cuotas. Los cheques reales de cada
-            cuota se cargan después, desde el detalle de esta deuda en Créditos y préstamos.</p>` : ''}
+        </label>` : ''}
+        ${esCheque ? `<p class="vdt-cheque-plan-nota">Esta deuda no tiene un cronograma fijo: se cubre con los cheques que hagan falta, del monto que sea. Los cargás uno por uno después, desde Créditos y préstamos.</p>` : ''}
         <div class="vdt-pago-credito-extra">
             ${l.modoCuotas === 'libre' ? '' : `
             <div>
@@ -350,6 +347,11 @@ function _cdtPagoRenderLineas() {
                 linea.cotizacion = parseFloat(el.value) || 0;
             } else if (campo === 'esCheque') {
                 linea.esCheque = el.checked;
+                if (linea.esCheque) {
+                    linea.modoCuotas = 'libre';
+                    linea.cuotas = null;
+                    linea.fechaInicioDebito = '';
+                }
             } else if (campo === 'modoCuotas') {
                 linea.modoCuotas = el.checked ? 'libre' : 'fijas';
             } else {
@@ -514,9 +516,9 @@ function _cdtPagoFaltanCuentas() {
     });
 }
 
-/** Tarjeta y cheque comparten el mismo plan de cuotas — ver
- *  _cdtLineaUsaPlanCuotas. En modo libre no hace falta cuotas ni fecha
- *  de inicio (ver _cdtLineaUsaPlanCuotas / render de la línea). */
+/** En modo libre no hacen falta cantidad de cuotas ni fecha de inicio.
+ *  Los cheques siempre entran por este modo; tarjeta y cuenta corriente
+ *  pueden alternar entre plan fijo y libre. */
 function _cdtPagoFaltanDatosCredito() {
     return cdtPagoState.lineas.some(l => {
         if (!_cdtLineaUsaPlanCuotas(l)) return false;
@@ -540,18 +542,17 @@ function _cdtGetPagoPayload() {
             };
         }
         if (_cdtLineaEsCheque(l)) {
-            // Acá solo se define el plan de cuotas (igual que crédito) —
-            // los cheques reales de cada cuota se cargan después, desde
-            // el detalle de la Deuda en Créditos y préstamos.
+            // Los cheques reales se cargan después desde la deuda. El
+            // backend exige modo libre para este tipo, sin cronograma.
             return {
                 medio: 'cheque',
                 monto: l.monto,
                 cuenta_pk: l.cuenta || null,
                 cotizacion: l.cotizacion || null,
-                modo_cuotas: l.modoCuotas === 'libre' ? 'libre' : 'fijas',
-                cuotas: l.modoCuotas === 'libre' ? null : l.cuotas,
+                modo_cuotas: 'libre',
+                cuotas: null,
                 interes_pct: l.interesPct != null ? l.interesPct : 0,
-                fecha_inicio_debito: l.modoCuotas === 'libre' ? null : (l.fechaInicioDebito || null),
+                fecha_inicio_debito: null,
             };
         }
         if (_cdtEsCuentaCorriente(l.cuenta)) {

@@ -5,7 +5,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'ventas/css/ventas.css' %}?v=20260916">
-<link rel="stylesheet" href="{% static 'compras/css/compras.css' %}?v=20260919">
+<link rel="stylesheet" href="{% static 'compras/css/compras.css' %}?v=20260921a">
 {% endblock %}
 
 {% block content %}
@@ -272,5 +272,5 @@ window.CMP_CONFIG = {
     editPrefill:           {% if edit_prefill %}JSON.parse(document.getElementById('cmpEditPrefill').textContent){% else %}null{% endif %},
 };
 </script>
-<script src="{% static 'compras/js/nueva_compra.js' %}?v=20260919b"></script>
+<script src="{% static 'compras/js/nueva_compra.js' %}?v=20260921a"></script>
 {% endblock %}

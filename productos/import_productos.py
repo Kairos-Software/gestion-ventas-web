@@ -225,9 +225,9 @@ CAMPOS = {
     'estado':              _p_choice(EstadoProducto),
 
     # — Números (max_digits, decimal_places del modelo) —
-    'precio_venta':        _p_decimal(12, 2),
+    'precio_venta':        _p_decimal(14, 4),
     'porcentaje_ganancia': _p_decimal(6, 2),
-    'costo':               _p_decimal(12, 2),
+    'costo':               _p_decimal(14, 4),
     'contenido_neto':      _p_decimal(10, 3),
     'peso_kg':             _p_decimal(8, 3),
     'alto_cm':             _p_decimal(7, 2),

@@ -1,356 +1,253 @@
 {% extends "core/base.html" %}
-{% load static humanize kai_formato %}
+{% load static kai_formato %}
 
 {% block title %}Estadísticas — Ventas{% endblock %}
 {% block breadcrumb %}<strong>Estadísticas</strong> · Ventas{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'core/css/estadisticas.css' %}?v=20260903">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas_resumen.css' %}?v=20260921c">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas_ventas.css' %}?v=20260921a">
 {% endblock %}
 
 {% block content %}
-
 {% if sin_permiso %}
-<div class="est-sin-permiso">
-    <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
-        <path d="M12 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-        <circle cx="12" cy="16.2" r="0.9" fill="currentColor"/>
-    </svg>
-    <p>No tenés permiso para ver estadísticas de ventas.</p>
-</div>
+<div class="est-sin-permiso"><p>No tenés permiso para ver estadísticas de ventas.</p></div>
 {% else %}
-
-{% include "core/estadisticas/_filtros.html" %}
-
-<!-- ══════════ FACTURACIÓN ELECTRÓNICA (ARCA) ══════════ -->
-<div class="card mb-4">
-    <div class="card-header">
+<div class="est-summary-page est-sales-page">
+    <header class="est-summary-heading">
         <div>
-            <p class="card-title">¿Cuánto facturaste con ARCA?</p>
-            <p class="text-muted" style="font-size:.8125rem;">Comprobantes con CAE real vs. ventas sin facturar electrónicamente en este período</p>
+            <h1>Ventas</h1>
+            <p>Del {{ desde|date:'d/m/Y' }} al {{ hasta|date:'d/m/Y' }}</p>
         </div>
-    </div>
-    <div class="card-body">
-        {% if facturacion_arca.cantidad_ventas %}
-            <div class="est-mini-stat-grid mb-3">
-                <div class="est-mini-stat">
-                    <div class="est-mini-stat-valor">${{ facturacion_arca.total_ventas|floatformat:0|intcomma }}</div>
-                    <div class="est-mini-stat-label">Total vendido en el período</div>
-                </div>
-                <div class="est-mini-stat">
-                    <div class="est-mini-stat-valor">${{ facturacion_arca.total_facturado|floatformat:0|intcomma }}</div>
-                    <div class="est-mini-stat-label">Facturado con ARCA ({{ facturacion_arca.pct_facturado }}%)</div>
-                </div>
-                <div class="est-mini-stat">
-                    <div class="est-mini-stat-valor">${{ facturacion_arca.total_sin_facturar|floatformat:0|intcomma }}</div>
-                    <div class="est-mini-stat-label">Sin facturar ({{ facturacion_arca.cantidad_sin_facturar }} venta{{ facturacion_arca.cantidad_sin_facturar|pluralize }})</div>
-                </div>
-                <div class="est-mini-stat">
-                    <div class="est-mini-stat-valor">${{ facturacion_arca.iva_total|floatformat:0|intcomma }}</div>
-                    <div class="est-mini-stat-label">IVA declarado</div>
-                </div>
-                <div class="est-mini-stat">
-                    <div class="est-mini-stat-valor">{{ facturacion_arca.cantidad_facturada }}</div>
-                    <div class="est-mini-stat-label">Comprobantes emitidos</div>
-                </div>
-            </div>
+    </header>
 
-            {% if facturacion_arca.por_tipo %}
-            <div class="est-row-2" style="align-items:center;">
-                <div>
-                    {% for f in facturacion_arca.por_tipo %}
-                    <div class="est-ranking-row" data-valor="{{ f.total|floatformat:0 }}">
-                        <span class="est-ranking-bar"></span>
-                        <div class="est-ranking-left">
-                            <div>
-                                <div class="est-ranking-nombre">{{ f.label }}</div>
-                                <div class="est-ranking-detalle">{{ f.cantidad }} comprobante{{ f.cantidad|pluralize }}</div>
-                            </div>
-                        </div>
-                        <div class="est-ranking-right">
-                            <div class="est-ranking-monto">${{ f.total|floatformat:0|intcomma }}</div>
-                        </div>
-                    </div>
+    <form id="estVentasPresetForm" method="get"></form>
+    <div class="est-summary-filters" role="group" aria-label="Período de ventas">
+        <button form="estVentasPresetForm" type="submit" name="preset" value="hoy" class="btn btn-sm {% if preset == 'hoy' %}btn-primary{% else %}btn-secondary{% endif %}">Hoy</button>
+        <button form="estVentasPresetForm" type="submit" name="preset" value="semana" class="btn btn-sm {% if preset == 'semana' %}btn-primary{% else %}btn-secondary{% endif %}">7 días</button>
+        <button form="estVentasPresetForm" type="submit" name="preset" value="mes_actual" class="btn btn-sm {% if preset == 'mes_actual' %}btn-primary{% else %}btn-secondary{% endif %}">Este mes</button>
+        <button form="estVentasPresetForm" type="submit" name="preset" value="mes_anterior" class="btn btn-sm {% if preset == 'mes_anterior' %}btn-primary{% else %}btn-secondary{% endif %}">Mes anterior</button>
+        <button form="estVentasPresetForm" type="submit" name="preset" value="anio" class="btn btn-sm {% if preset == 'anio' %}btn-primary{% else %}btn-secondary{% endif %}">Este año</button>
+        <details class="est-summary-custom-range" {% if preset == 'personalizado' %}open{% endif %}>
+            <summary>Elegir fechas</summary>
+            <form method="get">
+                <input type="hidden" name="preset" value="personalizado">
+                <label>Desde <input type="date" name="desde" value="{{ desde|date:'Y-m-d' }}" required></label>
+                <label>Hasta <input type="date" name="hasta" value="{{ hasta|date:'Y-m-d' }}" required></label>
+                <button type="submit" class="btn btn-sm btn-primary">Aplicar</button>
+            </form>
+        </details>
+    </div>
+
+    {% if resumen_ventas.cantidad_ventas %}
+    <section class="est-summary-overview" aria-label="Indicadores principales de ventas">
+        <div class="est-summary-highlights">
+            <article class="est-summary-highlight est-summary-highlight--sales">
+                <div class="est-summary-label-row">
+                    <span class="est-summary-highlight-label">Total vendido</span>
+                    <button type="button" class="kai-help-btn" data-help-target="ayuda_ventas_total" aria-label="Qué significa total vendido" aria-controls="ayuda_ventas_total">?</button>
+                </div>
+                <div class="kai-help-popover" id="ayuda_ventas_total">Es el valor de los productos vendidos en las fechas elegidas, aunque todavía no los hayas cobrado.</div>
+                <strong class="est-summary-highlight-value">${{ resumen_ventas.ingresos|pesos }}</strong>
+                <p>Ventas confirmadas en este período</p>
+                {% if comparacion.variacion_ingresos is not None %}
+                <span class="est-summary-change {% if comparacion.variacion_ingresos > 0 %}is-up{% elif comparacion.variacion_ingresos < 0 %}is-down{% endif %}">{% if comparacion.variacion_ingresos > 0 %}+{% endif %}{{ comparacion.variacion_ingresos|floatformat:0 }}% vs. {{ comparacion.anterior_desde|date:'d/m' }}–{{ comparacion.anterior_hasta|date:'d/m' }}</span>
+                {% else %}<span class="est-summary-change">Sin período anterior comparable</span>{% endif %}
+            </article>
+            <article class="est-summary-highlight est-summary-highlight--result {% if resumen_ventas.ganancia_bruta < 0 %}is-negative{% endif %}">
+                <div class="est-summary-label-row">
+                    <span class="est-summary-highlight-label">{% if resumen_ventas.ganancia_bruta < 0 %}Pérdida en ventas{% else %}Ganancia de ventas{% endif %}</span>
+                    <button type="button" class="kai-help-btn" data-help-target="ayuda_ventas_ganancia" aria-label="Qué significa la ganancia de ventas" aria-controls="ayuda_ventas_ganancia">?</button>
+                </div>
+                <div class="kai-help-popover" id="ayuda_ventas_ganancia">Es lo que dejaron las ventas después del costo de los productos, pero antes de gastos y productos perdidos.</div>
+                <strong class="est-summary-highlight-value">${{ resumen_ventas.ganancia_bruta|pesos }}</strong>
+                <p>Antes de gastos y productos perdidos</p>
+            </article>
+            <article class="est-summary-highlight est-summary-highlight--position">
+                <div class="est-summary-label-row">
+                    <span class="est-summary-highlight-label">Ventas realizadas</span>
+                    <button type="button" class="kai-help-btn" data-help-target="ayuda_ventas_cantidad" aria-label="Qué cuenta como venta realizada" aria-controls="ayuda_ventas_cantidad">?</button>
+                </div>
+                <div class="kai-help-popover" id="ayuda_ventas_cantidad">Cuenta las ventas confirmadas en las fechas elegidas, aunque tengan varios productos.</div>
+                <strong class="est-summary-highlight-value">{{ resumen_ventas.cantidad_ventas }}</strong>
+                <p>Promedio por venta: ${{ ticket_promedio|pesos }}</p>
+            </article>
+            <article class="est-summary-highlight est-summary-highlight--cash">
+                <div class="est-summary-label-row">
+                    <span class="est-summary-highlight-label">Facturado con ARCA</span>
+                    <button type="button" class="kai-help-btn" data-help-target="ayuda_ventas_arca" aria-label="Qué significa facturado con ARCA" aria-controls="ayuda_ventas_arca">?</button>
+                </div>
+                <div class="kai-help-popover" id="ayuda_ventas_arca">Es el valor de los comprobantes fiscales emitidos con ARCA para estas ventas.</div>
+                <strong class="est-summary-highlight-value">${{ facturacion_arca.total_facturado|pesos }}</strong>
+                <p>{{ facturacion_arca.pct_facturado }}% del total final de ventas · <a href="#estVentasArca">Ver detalle</a></p>
+            </article>
+        </div>
+    </section>
+
+    <section class="est-sales-section" aria-labelledby="estVentasDestacados">
+        <div class="est-sales-section-heading">
+            <div><h2 id="estVentasDestacados">Lo que más ganancia dejó</h2><p>Venta menos costo de productos; sin gastos ni recargos.</p></div>
+        </div>
+        <div class="est-sales-primary-grid">
+            <article class="est-sales-panel">
+                <div class="est-sales-panel-heading"><h3>Productos<button type="button" class="kai-help-btn" data-help-target="ayuda_ranking_productos" aria-label="Cómo se calcula la ganancia de cada producto" aria-controls="ayuda_ranking_productos">?</button></h3><span>{{ ranking_productos|length }} destacados</span></div>
+                <div class="kai-help-popover" id="ayuda_ranking_productos">Ganancia = vendido − costo. Vendido: la suma de todas las ventas del producto en el período, con descuentos ya aplicados. Costo: lo que realmente pagaste al comprar esas unidades — si salieron de compras a distinto precio, se suma el costo real de cada lote (ej.: 771 u a $110 + 79 u a $124 = $94.606), no el precio de lista ni el último costo. El precio y el costo promedio son esos totales divididos por las unidades vendidas.</div>
+                {% if ranking_productos %}
+                <ol class="est-sales-rank-list">
+                    {% for p in ranking_productos|slice:':3' %}
+                    <li class="est-sales-rank-item">
+                        <span class="est-sales-rank-number">{{ forloop.counter }}</span>
+                        <div class="est-sales-rank-info"><strong>{{ p.nombre }}</strong><small>Cód. {{ p.codigo }} · {{ p.unidades|cantidad }} unidades a ${{ p.precio_prom|pesos }} c/u prom.{% if p.margen_sobre_costo is not None %} · margen {{ p.margen_sobre_costo|floatformat:0 }}% s/costo{% endif %}</small></div>
+                        <div class="est-sales-rank-value {% if p.ganancia < 0 %}is-negative{% endif %}"><strong>${{ p.ganancia|pesos }}</strong><small>ganancia</small><small>${{ p.ingresos|pesos }} vendido · ${{ p.costo|pesos }} costo</small></div>
+                    </li>
                     {% endfor %}
-                    {% if facturacion_arca.total_sin_facturar %}
-                    <div class="est-ranking-row" data-valor="{{ facturacion_arca.total_sin_facturar|floatformat:0 }}">
-                        <span class="est-ranking-bar"></span>
-                        <div class="est-ranking-left">
-                            <div>
-                                <div class="est-ranking-nombre">Sin facturar</div>
-                                <div class="est-ranking-detalle">{{ facturacion_arca.cantidad_sin_facturar }} venta{{ facturacion_arca.cantidad_sin_facturar|pluralize }}</div>
-                            </div>
-                        </div>
-                        <div class="est-ranking-right">
-                            <div class="est-ranking-monto">${{ facturacion_arca.total_sin_facturar|floatformat:0|intcomma }}</div>
-                        </div>
+                </ol>
+                {% if ranking_productos|length > 3 %}
+                <details class="est-sales-expand"><summary>Ver más productos</summary><ol class="est-sales-rank-list" start="4">
+                    {% for p in ranking_productos|slice:'3:' %}
+                    <li class="est-sales-rank-item"><span class="est-sales-rank-number">{{ forloop.counter|add:3 }}</span><div class="est-sales-rank-info"><strong>{{ p.nombre }}</strong><small>Cód. {{ p.codigo }} · {{ p.unidades|cantidad }} unidades a ${{ p.precio_prom|pesos }} c/u prom.{% if p.margen_sobre_costo is not None %} · margen {{ p.margen_sobre_costo|floatformat:0 }}% s/costo{% endif %}</small></div><div class="est-sales-rank-value {% if p.ganancia < 0 %}is-negative{% endif %}"><strong>${{ p.ganancia|pesos }}</strong><small>ganancia</small><small>${{ p.ingresos|pesos }} vendido · ${{ p.costo|pesos }} costo</small></div></li>
+                    {% endfor %}
+                </ol></details>
+                {% endif %}
+                {% else %}<p class="est-sales-empty">Todavía no hay productos vendidos en este período.</p>{% endif %}
+            </article>
+
+            <article class="est-sales-panel">
+                <div class="est-sales-panel-heading"><h3>Personal que confirmó ventas<button type="button" class="kai-help-btn" data-help-target="ayuda_ranking_empleados" aria-label="Cómo se calcula la ganancia de cada persona" aria-controls="ayuda_ranking_empleados">?</button></h3><span>{{ ranking_empleados|length }} personas</span></div>
+                <div class="kai-help-popover" id="ayuda_ranking_empleados">Ganancia = lo que cobró en sus ventas − lo que costó comprar esa mercadería. Se ordena por ahí y no por el monto vendido: alguien puede vender mucho con poco margen.</div>
+                {% if ranking_empleados %}
+                <ol class="est-sales-rank-list">
+                    {% for e in ranking_empleados|slice:':3' %}
+                    <li class="est-sales-rank-item"><span class="est-sales-rank-number">{{ forloop.counter }}</span><div class="est-sales-rank-info"><strong>{{ e.nombre }}</strong><small>{{ e.cant_ventas }} venta{{ e.cant_ventas|pluralize }} · promedio ${{ e.ticket_promedio|pesos }} c/u</small></div><div class="est-sales-rank-value {% if e.ganancia < 0 %}is-negative{% endif %}"><strong>${{ e.ganancia|pesos }}</strong><small>ganancia</small><small>${{ e.ingresos|pesos }} vendido · ${{ e.costo|pesos }} costo</small></div></li>
+                    {% endfor %}
+                </ol>
+                {% if ranking_empleados|length > 3 %}
+                <details class="est-sales-expand"><summary>Ver más personas</summary><ol class="est-sales-rank-list" start="4">
+                    {% for e in ranking_empleados|slice:'3:' %}
+                    <li class="est-sales-rank-item"><span class="est-sales-rank-number">{{ forloop.counter|add:3 }}</span><div class="est-sales-rank-info"><strong>{{ e.nombre }}</strong><small>{{ e.cant_ventas }} venta{{ e.cant_ventas|pluralize }} · promedio ${{ e.ticket_promedio|pesos }} c/u</small></div><div class="est-sales-rank-value {% if e.ganancia < 0 %}is-negative{% endif %}"><strong>${{ e.ganancia|pesos }}</strong><small>ganancia</small><small>${{ e.ingresos|pesos }} vendido · ${{ e.costo|pesos }} costo</small></div></li>
+                    {% endfor %}
+                </ol></details>
+                {% endif %}
+                {% else %}<p class="est-sales-empty">No hay ventas asignadas a una persona en este período.</p>{% endif %}
+            </article>
+        </div>
+    </section>
+
+    <section class="est-sales-section" aria-labelledby="estVentasMasDatos">
+        <div class="est-sales-section-heading"><div><h2 id="estVentasMasDatos">Más datos de tus ventas</h2><p>Abrí solo el análisis que necesites consultar.</p></div></div>
+        <div class="est-sales-detail-grid">
+            <details class="est-sales-detail" id="estVentasArca">
+                <summary><span><strong>Facturación con ARCA</strong><small>Comprobantes emitidos y ventas sin facturar</small></span></summary>
+                <div class="est-sales-detail-body">
+                    {% if facturacion_arca.cantidad_ventas %}
+                    <div class="est-sales-fact-grid">
+                        <div><span>Total final de ventas</span><strong>${{ facturacion_arca.total_ventas|pesos }}</strong></div>
+                        <div><span>Con comprobante</span><strong>${{ facturacion_arca.total_facturado|pesos }}</strong></div>
+                        <div><span>Sin comprobante</span><strong>${{ facturacion_arca.total_sin_facturar|pesos }}</strong><small>{{ facturacion_arca.cantidad_sin_facturar }} venta{{ facturacion_arca.cantidad_sin_facturar|pluralize }}</small></div>
+                        <div><span>IVA declarado</span><strong>${{ facturacion_arca.iva_total|pesos }}</strong></div>
+                        <div><span>Comprobantes emitidos</span><strong>{{ facturacion_arca.cantidad_facturada }}</strong></div>
                     </div>
-                    {% endif %}
+                    <p class="est-sales-note">Acá se usa el total final de cada venta; puede diferir del valor de productos mostrado arriba.</p>
+                    {% if facturacion_arca.por_tipo %}
+                    <div class="est-sales-fact-row-grid">
+                        <div>
+                            {% for f in facturacion_arca.por_tipo %}<div class="est-sales-simple-row"><span>{{ f.label }} <small>· {{ f.cantidad }} comprobante{{ f.cantidad|pluralize }}</small></span><strong>${{ f.total|pesos }}</strong></div>{% endfor %}
+                            {% if facturacion_arca.total_sin_facturar %}<div class="est-sales-simple-row"><span>Sin facturar <small>· {{ facturacion_arca.cantidad_sin_facturar }} venta{{ facturacion_arca.cantidad_sin_facturar|pluralize }}</small></span><strong>${{ facturacion_arca.total_sin_facturar|pesos }}</strong></div>{% endif %}
+                        </div>
+                        {% if facturacion_arca_json != '[]' %}<div class="est-chart-wrap est-sales-fact-chart"><canvas id="chartFacturacionArca" aria-label="Comprobantes ARCA por tipo" role="img"></canvas></div>{% endif %}
+                    </div>
+                    {% else %}<p class="est-sales-empty">Todavía no emitiste ningún comprobante con ARCA en este período — revisá Configuración → Facturación Electrónica si esperabas ver datos acá.</p>{% endif %}
+                    {% else %}<p class="est-sales-empty">No hay ventas confirmadas en este período.</p>{% endif %}
                 </div>
-                <div class="est-chart-wrap chico">
-                    <canvas id="chartFacturacionArca"></canvas>
+            </details>
+
+            <details class="est-sales-detail">
+                <summary><span><strong>Medios de pago</strong><small>Cuánto se registró en cada medio y moneda</small></span></summary>
+                <div class="est-sales-detail-body">
+                    <div class="est-sales-fact-row-grid">
+                        <div>
+                            {% for m in por_medio_pago %}<div class="est-sales-simple-row"><span>{{ m.medio_label }} <small>· {{ m.moneda }}</small></span><strong>${{ m.total|pesos }}</strong></div>
+                            {% empty %}<p class="est-sales-empty">No hay pagos registrados en este período.</p>{% endfor %}
+                        </div>
+                        {% if por_medio_pago_ars_json != '[]' %}<div class="est-chart-wrap est-sales-fact-chart"><canvas id="chartMedioPago" aria-label="Medios de pago en pesos" role="img"></canvas></div>{% endif %}
+                    </div>
+                    <p class="est-sales-note">Los importes en distintas monedas se muestran por separado. El gráfico solo muestra los pagos en pesos.</p>
                 </div>
-            </div>
-            {% else %}
-                <div class="empty-state">
-                    <p>Todavía no emitiste ningún comprobante con ARCA en este período — revisá Configuración → Facturación Electrónica si esperabas ver datos acá.</p>
+            </details>
+
+            <details class="est-sales-detail">
+                <summary><span><strong>Categorías que más ganancia dejaron</strong><small>Ventas menos costo de productos por categoría</small></span></summary>
+                <div class="est-sales-detail-body">
+                    <p class="est-sales-note">Ganancia = vendido − costo real de la mercadería de esa categoría en el período.</p>
+                    {% for cat in ranking_categorias %}<div class="est-sales-simple-row"><span>{{ cat.nombre }} <small>· {{ cat.unidades|cantidad }} unidades · ${{ cat.ingresos|pesos }} vendido · ${{ cat.costo|pesos }} costo</small></span><strong class="{% if cat.ganancia < 0 %}is-negative{% endif %}">${{ cat.ganancia|pesos }}</strong></div>
+                    {% empty %}<p class="est-sales-empty">No hay productos con categoría vendidos en este período.</p>{% endfor %}
                 </div>
-            {% endif %}
-        {% else %}
-            <div class="empty-state">
-                <p>Todavía no hay ventas confirmadas en este período.</p>
-            </div>
-        {% endif %}
+            </details>
+
+            <details class="est-sales-detail">
+                <summary><span><strong>Días de mayor venta</strong><small>Total vendido por día de la semana</small></span></summary>
+                <div class="est-sales-detail-body">
+                    {% for d in por_dia_semana %}<div class="est-sales-day"><div><span>{{ d.dia }} <small>· {{ d.cant_ventas }} venta{{ d.cant_ventas|pluralize }}</small></span><strong>${{ d.ingresos|pesos }}</strong></div><div class="est-sales-day-track"><span style="width:{{ d.porcentaje_visual }}%"></span></div></div>{% endfor %}
+                    <p class="est-sales-note">Cada día reúne todas las ventas de ese día de la semana dentro del período elegido.</p>
+                </div>
+            </details>
+
+            <details class="est-sales-detail est-sales-detail--wide">
+                <summary><span><strong>Descuentos aplicados</strong><small>Lo que se descontó en ofertas y listas de precios</small></span></summary>
+                <div class="est-sales-detail-body">
+                    {% if impacto_descuentos.ofertas or impacto_descuentos.listas_descuento %}
+                    <div class="est-sales-discounts">
+                        <div><h3>Ofertas</h3>{% for o in impacto_descuentos.ofertas %}<div class="est-sales-simple-row"><span>{{ o.nombre }} <small>· {{ o.unidades|cantidad }} unidades · {{ o.cant_items }} línea{{ o.cant_items|pluralize }}</small></span><strong class="is-negative">−${{ o.descuento_total|pesos }}</strong></div>{% empty %}<p class="est-sales-empty">Sin ofertas aplicadas.</p>{% endfor %}</div>
+                        <div><h3>Listas de descuento</h3>{% for l in impacto_descuentos.listas_descuento %}<div class="est-sales-simple-row"><span>{{ l.nombre }} <small>· {{ l.unidades|cantidad }} unidades · {{ l.cant_items }} línea{{ l.cant_items|pluralize }}</small></span><strong class="is-negative">−${{ l.descuento_total|pesos }}</strong></div>{% empty %}<p class="est-sales-empty">Sin listas aplicadas.</p>{% endfor %}</div>
+                    </div>
+                    {% else %}<p class="est-sales-empty">No hubo ofertas ni listas de descuento aplicadas en este período.</p>{% endif %}
+                </div>
+            </details>
+        </div>
+    </section>
+    {% else %}
+    <div class="est-sales-empty-panel">
+        <h2>Sin ventas en este período</h2>
+        <p>Probá otro rango de fechas para ver el análisis de ventas.</p>
     </div>
+    {% endif %}
 </div>
-
-<!-- ══════════ EMPLEADOS + PRODUCTOS ══════════ -->
-<div class="est-row-2">
-    <div class="card">
-        <div class="card-header">
-            <div>
-                <p class="card-title">¿Quién vende mejor?
-                    <button type="button" class="kai-help-btn" data-help-target="ayuda_ranking_empleados" aria-label="Cómo se calcula">?</button>
-                </p>
-                <p class="text-muted" style="font-size:.8125rem;">Ordenado por la ganancia real que generó cada uno, no solo por cuánto vendió</p>
-                <div class="kai-help-popover" id="ayuda_ranking_empleados">
-                    <strong>Ganancia</strong> = lo que cobró en sus ventas − lo que costó comprar esa mercadería.
-                    Se ordena por ahí y no por el monto vendido: alguien puede vender mucho con poco margen.
-                </div>
-            </div>
-        </div>
-        <div class="card-body">
-            {% if ranking_empleados %}
-                {% for e in ranking_empleados %}
-                <div class="est-ranking-row" data-valor="{{ e.ganancia|floatformat:0 }}">
-                    <span class="est-ranking-bar"></span>
-                    <div class="est-ranking-left">
-                        <span class="est-ranking-pos">{{ forloop.counter }}</span>
-                        <div>
-                            <div class="est-ranking-nombre">{{ e.nombre }}</div>
-                            <div class="est-ranking-detalle">{{ e.cant_ventas }} venta{{ e.cant_ventas|pluralize }} · promedio ${{ e.ticket_promedio|floatformat:0|intcomma }} c/u</div>
-                        </div>
-                    </div>
-                    <div class="est-ranking-right">
-                        <div class="est-ranking-ganancia"><span class="est-ranking-etiqueta">ganancia</span>${{ e.ganancia|floatformat:0|intcomma }}</div>
-                        <div class="est-ranking-vendido">${{ e.ingresos|floatformat:0|intcomma }} vendido · ${{ e.costo|floatformat:0|intcomma }} de costo</div>
-                    </div>
-                </div>
-                {% endfor %}
-            {% else %}
-                <div class="empty-state">
-                    <p>Todavía no hay ventas confirmadas con un vendedor asignado en este período.</p>
-                </div>
-            {% endif %}
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="card-header">
-            <div>
-                <p class="card-title">Tus productos estrella
-                    <button type="button" class="kai-help-btn" data-help-target="ayuda_ranking_productos" aria-label="Cómo se calcula">?</button>
-                </p>
-                <p class="text-muted" style="font-size:.8125rem;">Los que te generaron más ganancia en este período</p>
-                <div class="kai-help-popover" id="ayuda_ranking_productos">
-                    <strong>Ganancia = vendido − costo.</strong><br>
-                    <strong>Vendido</strong>: la suma de todas las ventas del producto en el período (con descuentos ya aplicados), no un precio fijo.<br>
-                    <strong>Costo</strong>: lo que realmente pagaste al comprar esas unidades. Si salieron de compras a distinto precio, se suma el costo real de cada lote (ej.: 771 u a $110 + 79 u a $124 = $94.606), no el precio de lista ni el último costo.<br>
-                    El <strong>precio y el costo promedio</strong> son esos totales divididos por las unidades vendidas.
-                </div>
-            </div>
-        </div>
-        <div class="card-body">
-            {% if ranking_productos %}
-                {% for p in ranking_productos %}
-                <div class="est-ranking-row" data-valor="{{ p.ganancia|floatformat:0 }}">
-                    <span class="est-ranking-bar"></span>
-                    <div class="est-ranking-left">
-                        <span class="est-ranking-pos">{{ forloop.counter }}</span>
-                        <div>
-                            <div class="est-ranking-nombre">{{ p.nombre }}</div>
-                            <div class="est-ranking-detalle">
-                                Cód. {{ p.codigo }} · {{ p.unidades|cantidad }} u vendidas a ${{ p.precio_prom|floatformat:0|intcomma }} c/u promedio{% if p.margen_sobre_costo is not None %} · margen {{ p.margen_sobre_costo|floatformat:0 }}% sobre el costo{% endif %}
-                            </div>
-                        </div>
-                    </div>
-                    <div class="est-ranking-right">
-                        <div class="est-ranking-ganancia"><span class="est-ranking-etiqueta">ganancia</span>${{ p.ganancia|floatformat:0|intcomma }}</div>
-                        <div class="est-ranking-vendido">${{ p.ingresos|floatformat:0|intcomma }} vendido · ${{ p.costo|floatformat:0|intcomma }} de costo</div>
-                    </div>
-                </div>
-                {% endfor %}
-            {% else %}
-                <div class="empty-state">
-                    <p>Todavía no hay ventas confirmadas en este período.</p>
-                </div>
-            {% endif %}
-        </div>
-    </div>
-</div>
-
-<!-- ══════════ CATEGORÍAS + DÍA DE LA SEMANA ══════════ -->
-<div class="est-row mt-4">
-    <div class="card">
-        <div class="card-header">
-            <div>
-                <p class="card-title">¿Qué categoría rinde más?
-                    <button type="button" class="kai-help-btn" data-help-target="ayuda_ranking_categorias" aria-label="Cómo se calcula">?</button>
-                </p>
-                <p class="text-muted" style="font-size:.8125rem;">Por ganancia real generada en este período</p>
-                <div class="kai-help-popover" id="ayuda_ranking_categorias">
-                    <strong>Ganancia = vendido − costo real</strong> de la mercadería de esa categoría en el período.
-                </div>
-            </div>
-        </div>
-        <div class="card-body">
-            {% if ranking_categorias %}
-                {% for cat in ranking_categorias %}
-                <div class="est-ranking-row" data-valor="{{ cat.ganancia|floatformat:0 }}">
-                    <span class="est-ranking-bar"></span>
-                    <div class="est-ranking-left">
-                        <span class="est-ranking-pos">{{ forloop.counter }}</span>
-                        <div>
-                            <div class="est-ranking-nombre">{{ cat.nombre }}</div>
-                            <div class="est-ranking-detalle">{{ cat.unidades|cantidad }} u vendidas</div>
-                        </div>
-                    </div>
-                    <div class="est-ranking-right">
-                        <div class="est-ranking-ganancia"><span class="est-ranking-etiqueta">ganancia</span>${{ cat.ganancia|floatformat:0|intcomma }}</div>
-                        <div class="est-ranking-vendido">${{ cat.ingresos|floatformat:0|intcomma }} vendido · ${{ cat.costo|floatformat:0|intcomma }} de costo</div>
-                    </div>
-                </div>
-                {% endfor %}
-            {% else %}
-                <div class="empty-state">
-                    <p>Todavía no hay ventas confirmadas con productos categorizados en este período.</p>
-                </div>
-            {% endif %}
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="card-header">
-            <div>
-                <p class="card-title">¿Qué días vendés más?</p>
-                <p class="text-muted" style="font-size:.8125rem;">Para saber qué días conviene reforzar personal</p>
-            </div>
-        </div>
-        <div class="card-body">
-            <div class="est-chart-wrap chico">
-                <canvas id="chartDiaSemana"></canvas>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- ══════════ MEDIOS DE PAGO + IMPACTO DE DESCUENTOS ══════════ -->
-<div class="est-row mt-4">
-    <div class="card">
-        <div class="card-header">
-            <div>
-                <p class="card-title">¿Cómo te pagan?</p>
-                <p class="text-muted" style="font-size:.8125rem;">Agrupado también por moneda — no se mezclan pesos con dólares</p>
-            </div>
-        </div>
-        <div class="card-body">
-            {% if por_medio_pago %}
-                <div class="est-row-2" style="align-items:center;">
-                    <div>
-                        {% for m in por_medio_pago %}
-                        <div class="est-ranking-row" data-valor="{{ m.total|floatformat:0 }}">
-                            <span class="est-ranking-bar"></span>
-                            <div class="est-ranking-left">
-                                <div>
-                                    <div class="est-ranking-nombre">{{ m.medio_label }}</div>
-                                    <div class="est-ranking-detalle">{{ m.moneda }}</div>
-                                </div>
-                            </div>
-                            <div class="est-ranking-right">
-                                <div class="est-ranking-monto">${{ m.total|floatformat:0|intcomma }}</div>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                    {% if por_medio_pago_ars_json != '[]' %}
-                    <div class="est-chart-wrap chico">
-                        <canvas id="chartMedioPago"></canvas>
-                    </div>
-                    {% endif %}
-                </div>
-            {% else %}
-                <div class="empty-state">
-                    <p>Todavía no hay pagos registrados en este período.</p>
-                </div>
-            {% endif %}
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="card-header">
-            <div>
-                <p class="card-title">Lo que descontaste en ofertas y promociones</p>
-                <p class="text-muted" style="font-size:.8125rem;">Cuánto dejaste de cobrar por cada oferta/lista aplicada</p>
-            </div>
-        </div>
-        <div class="card-body">
-            {% if impacto_descuentos.ofertas or impacto_descuentos.listas_descuento %}
-                {% for o in impacto_descuentos.ofertas %}
-                <div class="est-ranking-row" data-valor="{{ o.descuento_total|floatformat:0 }}" data-tipo="negativo">
-                    <span class="est-ranking-bar"></span>
-                    <div class="est-ranking-left">
-                        <div>
-                            <div class="est-ranking-nombre">{{ o.nombre }}</div>
-                            <div class="est-ranking-detalle">{{ o.unidades|cantidad }} u · {{ o.cant_items }} línea{{ o.cant_items|pluralize }}</div>
-                        </div>
-                    </div>
-                    <div class="est-ranking-right">
-                        <div class="est-ranking-ganancia" style="color:var(--danger);">−${{ o.descuento_total|floatformat:0|intcomma }}</div>
-                    </div>
-                </div>
-                {% endfor %}
-                {% for l in impacto_descuentos.listas_descuento %}
-                <div class="est-ranking-row" data-valor="{{ l.descuento_total|floatformat:0 }}" data-tipo="negativo">
-                    <span class="est-ranking-bar"></span>
-                    <div class="est-ranking-left">
-                        <div>
-                            <div class="est-ranking-nombre">{{ l.nombre }}</div>
-                            <div class="est-ranking-detalle">{{ l.unidades|cantidad }} u · {{ l.cant_items }} línea{{ l.cant_items|pluralize }}</div>
-                        </div>
-                    </div>
-                    <div class="est-ranking-right">
-                        <div class="est-ranking-ganancia" style="color:var(--danger);">−${{ l.descuento_total|floatformat:0|intcomma }}</div>
-                    </div>
-                </div>
-                {% endfor %}
-            {% else %}
-                <div class="empty-state">
-                    <p>No se aplicaron ofertas ni listas de descuento en este período.</p>
-                </div>
-            {% endif %}
-        </div>
-    </div>
-</div>
-
 {% endif %}
 {% endblock %}
 
 {% block extra_js %}
+{% if not sin_permiso and resumen_ventas.cantidad_ventas and ventas_tiene_graficos %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-<script src="{% static 'core/js/estadisticas.js' %}"></script>
+<script src="{% static 'core/js/estadisticas.js' %}?v=20260922a"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        initChartDiaSemana({{ por_dia_semana_json|safe }});
-        initChartDonut('chartMedioPago', {{ por_medio_pago_ars_json|safe }}, {
-            'Efectivo': '#10B981', 'Transferencia': '#1E6FA8',
-            'Débito': '#F26A1B', 'Crédito': '#8B5CF6', 'QR': '#F59E0B',
-        }, { valueKey: 'total', formatValue: (v) => '$' + v.toLocaleString('es-AR') });
-        initChartDonut('chartFacturacionArca', {{ facturacion_arca_json|safe }}, {
-            'Factura A': '#1E6FA8', 'Factura B': '#10B981',
-            'Factura C': '#F59E0B', 'Sin facturar': '#8A9BB0',
-        }, { valueKey: 'total', formatValue: (v) => '$' + v.toLocaleString('es-AR') });
-        initRankingBars();
+        if (!window.Chart) return;
+        // Los gráficos viven dentro de <details> colapsados: se inicializan
+        // recién al abrirse, porque Chart.js mide un lienzo oculto como 0x0.
+        {% if por_medio_pago_ars_json != '[]' %}
+        const detMedioPago = document.getElementById('chartMedioPago').closest('details');
+        detMedioPago.addEventListener('toggle', function () {
+            if (!detMedioPago.open || detMedioPago.dataset.loaded) return;
+            detMedioPago.dataset.loaded = 'true';
+            initChartDonut('chartMedioPago', {{ por_medio_pago_ars_json|safe }}, {
+                'Efectivo': '#10B981', 'Transferencia': '#1E6FA8',
+                'Débito': '#F26A1B', 'Crédito': '#8B5CF6', 'QR': '#F59E0B',
+            }, { valueKey: 'total', formatValue: (v) => '$' + v.toLocaleString('es-AR') });
+        });
+        {% endif %}
+        {% if facturacion_arca_json != '[]' %}
+        const detArca = document.getElementById('estVentasArca');
+        detArca.addEventListener('toggle', function () {
+            if (!detArca.open || detArca.dataset.loaded) return;
+            detArca.dataset.loaded = 'true';
+            initChartDonut('chartFacturacionArca', {{ facturacion_arca_json|safe }}, {
+                'Factura A': '#1E6FA8', 'Factura B': '#10B981',
+                'Factura C': '#F59E0B', 'Sin facturar': '#8A9BB0',
+            }, { valueKey: 'total', formatValue: (v) => '$' + v.toLocaleString('es-AR') });
+        });
+        {% endif %}
     });
 </script>
+{% endif %}
 {% endblock %}

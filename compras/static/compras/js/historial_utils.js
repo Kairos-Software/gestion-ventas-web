@@ -15,10 +15,11 @@ function _esc(str) {
         .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function formatMoney(val) {
+function formatMoney(val, decimales) {
     const n = parseFloat(val);
     if (isNaN(n)) return val;
-    return '$ ' + n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const d = decimales == null ? 2 : decimales;
+    return '$ ' + n.toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 
 function fmtPeso(v) {

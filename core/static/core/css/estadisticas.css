@@ -506,6 +506,81 @@
 }
 
 /* ═══════════════════════════════════════════
+   PREDICCIONES
+   ═══════════════════════════════════════════ */
+.est-tendencia {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    margin-left: 0.35rem;
+}
+
+.est-tendencia.acelerando { color: var(--danger, #DC2626); }
+.est-tendencia.frenando { color: var(--text-muted); }
+.est-tendencia.estable { color: var(--text-secondary); }
+
+.est-filtro-input {
+    width: 100%;
+    max-width: 320px;
+    padding: 0.4rem 0.7rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md, 8px);
+    font-size: 0.8125rem;
+    margin-bottom: 0.75rem;
+}
+
+.est-filtro-sin-resultados {
+    padding: 1rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.8125rem;
+}
+
+table th[data-sort-key] {
+    user-select: none;
+    position: relative;
+    padding-right: 1.1rem !important;
+}
+
+table th[data-sort-key]::after {
+    content: '↕';
+    position: absolute;
+    right: 0.3rem;
+    opacity: 0.35;
+    font-size: 0.7rem;
+}
+
+table th.est-th-asc::after { content: '↑'; opacity: 1; }
+table th.est-th-desc::after { content: '↓'; opacity: 1; }
+
+.est-proveedor-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.875rem;
+}
+
+.est-proveedor-row:last-child { border-bottom: none; }
+
+.est-proveedor-nombre { font-weight: 600; }
+
+.est-proveedor-cantidad {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    white-space: nowrap;
+}
+
+.est-proveedor-total {
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+/* ═══════════════════════════════════════════
    RESPONSIVE
    ═══════════════════════════════════════════ */
 @media (max-width: 1023px) {

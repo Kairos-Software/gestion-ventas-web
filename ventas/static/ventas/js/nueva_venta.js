@@ -135,9 +135,10 @@ function _esc(str) {
         .replace(/&/g, '&amp;').replace(/</g, '&lt;')
         .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
-function _fmt(v, moneda) {
+function _fmt(v, moneda, decimales) {
     const sym = { USD: 'U$S ', EUR: '€ ', ARS: '$ ' }[moneda] || '$ ';
-    return sym + parseFloat(v || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const d = decimales == null ? 2 : decimales;
+    return sym + parseFloat(v || 0).toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 function _fmtPeso(v) {
     return '$ ' + parseFloat(v || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -260,7 +261,7 @@ function _renderOpciones(filas, { vacioTexto = 'Sin resultados' } = {}) {
                     Stock <strong>${parseFloat(r.stock_actual || 0).toLocaleString('es-AR')}</strong>
                 </span>
                 ${r.precio_venta != null
-                    ? `<span class="vta-meta-chip vta-meta-chip--precio">Precio <strong>${_fmt(r.precio_venta, r.moneda)}</strong></span>`
+                    ? `<span class="vta-meta-chip vta-meta-chip--precio">Precio <strong>${_fmt(r.precio_venta, r.moneda, 4)}</strong></span>`
                     : `<span class="vta-meta-chip--sin-precio">Sin precio cargado</span>`}
                 ${r.variante_desc ? `<span class="vta-meta-chip vta-meta-chip--colores"><strong>${_esc(r.variante_desc)}</strong></span>` : ''}
             </div>
@@ -1013,7 +1014,7 @@ function _renderCarrito() {
                 </div>
                 <div class="vta-cart-row-price">
                     <span>×</span>
-                    <input type="number" min="0" step="0.01" data-campo="precio" value="${item.precio}" ${ro}>
+                    <input type="number" min="0" step="any" data-campo="precio" value="${item.precio}" ${ro}>
                 </div>
                 ${bloqueado ? '' : `<button type="button" class="vta-cart-row-edit" data-act="adv">${item.advOpen ? 'Ocultar' : 'Desc / oferta'}</button>`}
                 <div class="vta-cart-row-sub">${_tieneDesc(item) ? `<s>${_fmt(base, item.moneda)}</s>` : ''}${_fmt(sub, item.moneda)}</div>

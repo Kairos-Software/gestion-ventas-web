@@ -1,0 +1,86 @@
+/* Ventas: misma base visual compacta que Resumen, con análisis a demanda. */
+.est-sales-page .est-summary-highlight--position { border-left-color: var(--brand-blue); }
+.est-sales-page .est-summary-highlight--cash { border-left-color: var(--brand-orange); }
+.est-sales-page .est-summary-highlight--cash .est-summary-highlight-value { color: var(--text-primary); }
+.est-sales-page .est-summary-highlight--cash p a { color: var(--brand-blue); font-size: inherit; }
+
+.est-sales-section { margin: 0 0 0.75rem; }
+.est-sales-empty-panel { padding: 1.5rem; border: 1px solid var(--border-color); border-radius: var(--radius-lg); background: var(--bg-white); box-shadow: var(--shadow-sm); }
+.est-sales-empty-panel h2 { margin: 0; font-size: 0.95rem; }
+.est-sales-empty-panel p { margin: 0.3rem 0 0; color: var(--text-muted); font-size: 0.76rem; }
+.est-sales-section-heading { margin: 0 0 0.55rem; }
+.est-sales-section-heading h2 { margin: 0; font-family: var(--font-heading); font-size: 0.98rem; font-weight: 750; }
+.est-sales-section-heading p { margin: 0.15rem 0 0; color: var(--text-muted); font-size: 0.73rem; }
+.est-sales-primary-grid,
+.est-sales-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.7rem; }
+.est-sales-panel,
+.est-sales-detail { min-width: 0; border: 1px solid var(--border-color); border-radius: var(--radius-lg); background: var(--bg-white); box-shadow: var(--shadow-sm); }
+.est-sales-panel { padding: 0.65rem 0.8rem 0.5rem; }
+.est-sales-panel-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; padding: 0.1rem 0 0.4rem; }
+.est-sales-panel-heading h3 { margin: 0; font-size: 0.84rem; font-weight: 750; }
+.est-sales-panel-heading span { color: var(--text-muted); font-size: 0.68rem; }
+.est-sales-rank-list { margin: 0; padding: 0; list-style: none; }
+.est-sales-rank-item { display: grid; min-width: 0; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 0.55rem; padding: 0.58rem 0; border-top: 1px solid var(--border-color); }
+.est-sales-rank-number { display: grid; width: 22px; height: 22px; place-items: center; border-radius: 50%; color: var(--brand-orange-dark); background: var(--brand-orange-light); font-size: 0.68rem; font-weight: 800; }
+.est-sales-rank-info { min-width: 0; }
+.est-sales-rank-info strong { display: block; color: var(--text-primary); font-size: 0.75rem; font-weight: 700; overflow-wrap: anywhere; }
+.est-sales-rank-info small { display: block; margin-top: 0.1rem; color: var(--text-muted); font-size: 0.65rem; line-height: 1.3; }
+.est-sales-rank-value { min-width: 0; color: var(--success); text-align: right; }
+.est-sales-rank-value.is-negative,
+.est-sales-simple-row .is-negative { color: var(--danger); }
+.est-sales-rank-value strong { display: block; font-family: var(--font-heading); font-size: 0.8rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.est-sales-rank-value small { display: block; color: var(--text-muted); font-size: 0.62rem; }
+.est-sales-expand { border-top: 1px solid var(--border-color); }
+.est-sales-expand > summary { width: fit-content; padding: 0.5rem 0; color: var(--brand-blue); cursor: pointer; font-size: 0.7rem; font-weight: 700; list-style: none; }
+.est-sales-expand > summary::-webkit-details-marker { display: none; }
+.est-sales-expand > summary::after { content: ' ↓'; }
+.est-sales-expand[open] > summary::after { content: ' ↑'; }
+.est-sales-expand .est-sales-rank-item:first-child { border-top: 0; }
+
+.est-sales-detail { align-self: start; }
+.est-sales-detail--wide { grid-column: 1 / -1; }
+.est-sales-detail > summary { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; min-height: 61px; padding: 0.65rem 0.8rem; cursor: pointer; list-style: none; }
+.est-sales-detail > summary::-webkit-details-marker { display: none; }
+.est-sales-detail > summary::after { content: '⌄'; color: var(--brand-orange); font-size: 1rem; }
+.est-sales-detail[open] > summary::after { transform: rotate(180deg); }
+.est-sales-detail > summary span { display: flex; min-width: 0; flex-direction: column; gap: 0.12rem; }
+.est-sales-detail > summary strong { font-size: 0.77rem; font-weight: 750; }
+.est-sales-detail > summary small { color: var(--text-muted); font-size: 0.67rem; }
+.est-sales-detail-body { padding: 0.15rem 0.8rem 0.75rem; border-top: 1px solid var(--border-color); }
+.est-sales-fact-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; margin-top: 0.55rem; }
+.est-sales-fact-grid > div { display: flex; min-width: 0; padding: 0.45rem 0.5rem; border: 1px solid var(--border-color); border-radius: var(--radius-sm); flex-direction: column; gap: 0.15rem; }
+.est-sales-fact-grid span { color: var(--text-muted); font-size: 0.65rem; }
+.est-sales-fact-grid strong { font-size: 0.78rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.est-sales-fact-grid small { color: var(--text-muted); font-size: 0.62rem; }
+.est-sales-fact-row-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 200px); align-items: center; gap: 0.6rem; margin-top: 0.5rem; }
+.est-sales-fact-chart { height: 190px; }
+.est-sales-fact-chart canvas { display: block; max-width: 100%; }
+@media (max-width: 720px) {
+    .est-sales-fact-row-grid { grid-template-columns: 1fr; }
+}
+.est-sales-simple-row { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; padding: 0.48rem 0; border-bottom: 1px solid var(--border-color); font-size: 0.72rem; }
+.est-sales-simple-row:last-child { border-bottom: 0; }
+.est-sales-simple-row > span { min-width: 0; overflow-wrap: anywhere; }
+.est-sales-simple-row small { color: var(--text-muted); font-size: 0.66rem; }
+.est-sales-simple-row strong { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.est-sales-note { margin: 0.5rem 0 0.2rem; color: var(--text-muted); font-size: 0.67rem; line-height: 1.4; }
+.est-sales-empty { margin: 0.55rem 0; color: var(--text-muted); font-size: 0.72rem; }
+.est-sales-day { padding: 0.42rem 0; }
+.est-sales-day > div:first-child { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 0.72rem; }
+.est-sales-day small { color: var(--text-muted); font-size: 0.65rem; }
+.est-sales-day strong { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.est-sales-day-track { height: 4px; margin-top: 0.35rem; border-radius: 3px; background: var(--bg-secondary); overflow: hidden; }
+.est-sales-day-track span { display: block; height: 100%; border-radius: inherit; background: var(--brand-orange); }
+.est-sales-discounts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; }
+.est-sales-discounts h3 { margin: 0.5rem 0 0.2rem; font-size: 0.74rem; }
+
+@media (max-width: 900px) {
+    .est-sales-primary-grid,
+    .est-sales-detail-grid { grid-template-columns: 1fr; }
+    .est-sales-detail--wide { grid-column: auto; }
+}
+@media (max-width: 620px) {
+    .est-sales-panel { padding-inline: 0.65rem; }
+    .est-sales-rank-item { gap: 0.4rem; }
+    .est-sales-discounts { grid-template-columns: 1fr; gap: 0.4rem; }
+}

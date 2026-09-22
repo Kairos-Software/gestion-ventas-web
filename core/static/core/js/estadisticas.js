@@ -49,7 +49,7 @@ function initChartTendencia(serieMensual) {
                     fill: true,
                 },
                 {
-                    label: 'Ganaste',
+                    label: 'Ganancia antes de gastos',
                     data: serieMensual.map(f => f.ganancia),
                     borderColor: '#10B981',
                     backgroundColor: 'rgba(12,148,100,.10)',
@@ -382,8 +382,8 @@ const EST_CONCEPTO_COLORS = [
     '#F26A1B', '#1E6FA8', '#16a34a', '#b45309', '#7c3aed', '#0891b2', '#94a3b8',
 ];
 
-function initChartConceptosMensual(data) {
-    const el = document.getElementById('chartConceptosMensual');
+function initChartConceptosMensual(data, elId) {
+    const el = document.getElementById(elId || 'chartConceptosMensual');
     if (!el || !data.series || !data.series.length) return;
 
     new Chart(el, {
@@ -424,5 +424,113 @@ function initChartConceptosMensual(data) {
                 },
             },
         },
+    });
+}
+
+// ── Predicciones: gasto estimado en mercadería por "cuándo" (ya, resto
+//    de este mes, y un mes calendario a la vez) — la barra "ya" se
+//    destaca en rojo para que salte a la vista aparte del resto. ──
+function initChartPrediccionMeses(buckets) {
+    const el = document.getElementById('chartPrediccionMeses');
+    if (!el) return;
+
+    new Chart(el, {
+        type: 'bar',
+        data: {
+            labels: buckets.map(b => b.etiqueta),
+            datasets: [{
+                data: buckets.map(b => b.total_estimado),
+                backgroundColor: buckets.map(b => b.urgente ? '#DC2626' : '#1E6FA8'),
+                borderRadius: 4,
+                maxBarThickness: 46,
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { callback: (v) => '$' + v.toLocaleString('es-AR') },
+                    grid: { color: EST_GRID_COLOR },
+                    border: { display: false },
+                },
+                x: { grid: { display: false }, border: { color: '#c3c2b7' } },
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    ...EST_TOOLTIP_BASE,
+                    callbacks: {
+                        label: (ctx) => `$${ctx.parsed.y.toLocaleString('es-AR')}`,
+                    },
+                },
+            },
+        },
+    });
+}
+
+// ── Filtro de texto genérico sobre una tabla: escribís en el input y
+//    oculta las filas del <tbody> cuyo texto no matchea. Usado en
+//    tablas largas (ej. Predicciones → detalle por producto) donde
+//    scrollear buscando un producto puntual es incómodo. ──
+function initFiltroTabla(inputId, tableId) {
+    const input = document.getElementById(inputId);
+    const tabla = document.getElementById(tableId);
+    if (!input || !tabla) return;
+    const filas = Array.from(tabla.querySelectorAll('tbody tr'));
+
+    input.addEventListener('input', () => {
+        const q = input.value.trim().toLowerCase();
+        let visibles = 0;
+        filas.forEach(f => {
+            const coincide = !q || f.textContent.toLowerCase().includes(q);
+            f.style.display = coincide ? '' : 'none';
+            if (coincide) visibles++;
+        });
+        const vacio = tabla.parentElement.querySelector('.est-filtro-sin-resultados');
+        if (vacio) vacio.hidden = visibles > 0;
+    });
+}
+
+// ── Tabla ordenable por columna: click en un <th data-sort-key> ordena
+//    el <tbody> por el data-sort de esa celda (o su texto si no tiene),
+//    alternando ascendente/descendente. Usado junto con el filtro de
+//    texto de arriba en tablas largas de Predicciones. ──
+function initTablaOrdenable(tableId) {
+    const tabla = document.getElementById(tableId);
+    if (!tabla) return;
+    const tbody = tabla.querySelector('tbody');
+    const headers = Array.from(tabla.querySelectorAll('th[data-sort-key]'));
+    if (!tbody || !headers.length) return;
+
+    let colActual = null;
+    let ascendente = true;
+
+    const valorDe = (fila, indice) => {
+        const celda = fila.children[indice];
+        if (!celda) return '';
+        return celda.dataset.sort !== undefined ? parseFloat(celda.dataset.sort) : celda.textContent.trim().toLowerCase();
+    };
+
+    headers.forEach(th => {
+        const indice = Array.from(th.parentElement.children).indexOf(th);
+        th.style.cursor = 'pointer';
+        th.addEventListener('click', () => {
+            ascendente = colActual === indice ? !ascendente : true;
+            colActual = indice;
+            headers.forEach(h => h.classList.remove('est-th-asc', 'est-th-desc'));
+            th.classList.add(ascendente ? 'est-th-asc' : 'est-th-desc');
+
+            const filas = Array.from(tbody.querySelectorAll('tr'));
+            filas.sort((a, b) => {
+                const va = valorDe(a, indice);
+                const vb = valorDe(b, indice);
+                if (va < vb) return ascendente ? -1 : 1;
+                if (va > vb) return ascendente ? 1 : -1;
+                return 0;
+            });
+            filas.forEach(f => tbody.appendChild(f));
+        });
     });
 }

@@ -15,6 +15,7 @@ from core.permisos import chequear_permiso
 
 from .models import (
     Cheque, CuentaCaja, TipoCaja, TipoCuenta, TipoCheque, EstadoCheque,
+    EstadoDeuda,
     cuenta_chequera_valida as _cuenta_chequera_valida,
     cuenta_caja_valida as _cuenta_valida,
     validar_cuenta_financiadora as _validar_financiadora,
@@ -60,6 +61,23 @@ def _serializar_cheque(c):
         'tiene_origen_real': bool(
             c.pago_venta_id or c.pago_compra_id or c.cuota_deuda_id or c.cuota_cobro_id
         ),
+        # Caso especial dentro de "origen real": un cheque que paga UNA
+        # cuota puntual de una Deuda (no una venta/compra completa) puede
+        # corregirse — monto incluido — aunque ya esté confirmado, porque
+        # el monto de esa cuota se corrige junto con él (ver
+        # EditarChequeAjax). No aplica si además nació de una venta/compra
+        # (pago_venta/pago_compra siempre pisa a cuota_deuda en ese caso),
+        # ni si esa cuota es de una Deuda que a su vez espeja una Compra
+        # real (`pago_compra_id` en la DEUDA, no en el cheque) — esas se
+        # editan solo desde el historial de Compras (ver Deuda.editar y
+        # CuotaDeuda.editar).
+        'origen_cuota_deuda': bool(
+            c.cuota_deuda_id and not (c.pago_venta_id or c.pago_compra_id)
+            and not c.cuota_deuda.deuda.pago_compra_id
+        ),
+        # Para el link de vuelta "Ir a la deuda" cuando el frontend bloquea
+        # la edición directa de un cheque de cuota_deuda (ver cheques.js).
+        'deuda_pk': c.cuota_deuda.deuda_id if c.cuota_deuda_id else None,
     }
 
 
@@ -104,6 +122,7 @@ class ChequesView(LoginRequiredMixin, TemplateView):
         ctx['url_eliminar'] = reverse('caja:eliminar_cheque', args=[0])
         ctx['url_confirmar'] = reverse('caja:confirmar_cheque', args=[0])
         ctx['url_rechazar'] = reverse('caja:rechazar_cheque', args=[0])
+        ctx['url_deudas'] = reverse('caja:deudas')
 
         return ctx
 
@@ -117,7 +136,15 @@ class ListarChequesAjax(LoginRequiredMixin, View):
         if not chequear_permiso(request.user, PERMISO_VER):
             return JsonResponse({'error': 'Sin permiso.'}, status=403)
 
-        qs = Cheque.objects.all().select_related('cuenta_origen', 'cuenta_destino', 'creado_por')
+        qs = Cheque.objects.all().select_related(
+            'cuenta_origen', 'cuenta_destino', 'creado_por', 'cuota_deuda__deuda',
+        )
+
+        # Deep-link puntual (ej. desde Deudas → "Cheque #123") — bypassa el
+        # resto de los filtros/paginación, solo trae ese registro.
+        pk = request.GET.get('pk', '').strip()
+        if pk:
+            qs = qs.filter(pk=pk)
 
         tipo = request.GET.get('tipo', '').strip()
         estado = request.GET.get('estado', '').strip()
@@ -252,16 +279,41 @@ class EditarChequeAjax(LoginRequiredMixin, View):
         try:
             data = json.loads(request.body)
 
+            # Un cheque que paga UNA cuota puntual de una Deuda (no una
+            # venta/compra completa) es un caso especial dentro de "origen
+            # real": mientras está PENDIENTE (todavía no se cobró/pagó de
+            # verdad), su monto se puede corregir libremente — se corrige
+            # junto con el de la cuota (ver CuotaDeuda.confirmar_con_cheque
+            # — "el cheque tiene que ser por el monto exacto de la cuota").
+            # Una vez CONFIRMADO, el movimiento de caja ya es real — igual
+            # que un cheque de venta/compra/CxC, no se puede editar más:
+            # si el monto estaba mal, hay que rechazarlo (revierte ese
+            # movimiento) y registrar el pago correcto aparte, no reescribir
+            # en silencio una plata que ya se movió de verdad (ver también
+            # CuotaDeuda.editar(), que exige lo mismo — borrar y recargar —
+            # para una cuota CONFIRMADA pagada con cheque).
+            # Excepción: si esa cuota es de una Deuda que a su vez espeja
+            # una Compra real (`pago_compra_id` en la DEUDA, no en el
+            # cheque), sigue bloqueado siempre — se edita solo desde Compras.
+            es_cuota_deuda = (
+                bool(cheque.cuota_deuda_id) and not (cheque.pago_venta_id or cheque.pago_compra_id)
+                and not cheque.cuota_deuda.deuda.pago_compra_id
+            )
+
             if cheque.estado != EstadoCheque.PENDIENTE:
-                # Ya confirmado/rechazado/anulado: solo notas.
+                # Confirmado, rechazado o anulado: solo notas.
                 if 'notas' in data:
                     cheque.notas = data.get('notas', '').strip()
                 cheque.save(update_fields=['notas'])
                 return JsonResponse({'success': True, 'cheque': _serializar_cheque(cheque)})
 
-            # Un cheque que nació solo de una venta/compra/cuota (no cargado
-            # a mano) no puede tener su monto real alterado — desincroniza
-            # lo que esa operación registró de verdad. Los datos puramente
+            if es_cuota_deuda and cheque.cuota_deuda.deuda.estado != EstadoDeuda.ACTIVA:
+                return JsonResponse({'error': 'La deuda de este cheque no está activa.'}, status=400)
+
+            # Un cheque que nació solo de una venta/compra/cuota de CxC (no
+            # cargado a mano, y no es el caso especial de arriba) no puede
+            # tener su monto real alterado — desincroniza lo que esa
+            # operación registró de verdad. Los datos puramente
             # descriptivos (número, banco, emisor/receptor, notas) siguen
             # editables igual.
             campos_plan = {'monto', 'moneda', 'fecha_emision', 'fecha_cobro', 'cuenta_origen_pk'}
@@ -269,10 +321,18 @@ class EditarChequeAjax(LoginRequiredMixin, View):
                 cheque.pago_venta_id or cheque.pago_compra_id
                 or cheque.cuota_deuda_id or cheque.cuota_cobro_id
             )
-            if tiene_origen_real and campos_plan & data.keys():
+            if tiene_origen_real and not es_cuota_deuda and campos_plan & data.keys():
                 return JsonResponse({
                     'error': 'Este cheque nació de una venta/compra/cuota — no se puede editar '
                              'su monto, moneda, fechas ni cuenta.',
+                }, status=400)
+
+            # Para un cheque de cuota_deuda la moneda la define la deuda
+            # (ver CuotaDeuda.confirmar_con_cheque) — no tiene sentido
+            # editarla acá sola, quedaría desalineada de la deuda.
+            if es_cuota_deuda and 'moneda' in data:
+                return JsonResponse({
+                    'error': 'La moneda de este cheque la define la deuda — no se puede editar acá.',
                 }, status=400)
 
             # numero_factura: en un cheque A_PAGAR es la factura real del
@@ -287,45 +347,53 @@ class EditarChequeAjax(LoginRequiredMixin, View):
                              'el sistema y no se puede editar.',
                 }, status=400)
 
-            if 'numero_cheque' in data:
-                cheque.numero_cheque = data.get('numero_cheque', '').strip()
-            if 'numero_factura' in data:
-                cheque.numero_factura = data.get('numero_factura', '').strip()
-            if 'monto' in data:
-                try:
-                    monto = Decimal(str(data.get('monto')))
-                    if monto <= 0:
-                        return JsonResponse({'error': 'El monto debe ser mayor a 0.'}, status=400)
-                    cheque.monto = monto
-                except (InvalidOperation, ValueError, TypeError):
-                    return JsonResponse({'error': 'Monto inválido.'}, status=400)
-            if 'moneda' in data:
-                cheque.moneda = data.get('moneda')
-            if 'fecha_emision' in data:
-                try:
-                    cheque.fecha_emision = date.fromisoformat(str(data.get('fecha_emision')))
-                except ValueError:
-                    return JsonResponse({'error': 'Fecha de emisión inválida.'}, status=400)
-            if 'fecha_cobro' in data:
-                try:
-                    cheque.fecha_cobro = date.fromisoformat(str(data.get('fecha_cobro')))
-                except ValueError:
-                    return JsonResponse({'error': 'Fecha de cobro inválida.'}, status=400)
-            if cheque.tipo == TipoCheque.A_PAGAR and 'cuenta_origen_pk' in data:
-                cuenta_origen = _cuenta_chequera_valida(data.get('cuenta_origen_pk'), cheque.moneda)
-                if not cuenta_origen:
-                    return JsonResponse({'error': 'Elegí una cuenta bancaria válida.'}, status=400)
-                cheque.cuenta_origen = cuenta_origen
-            if 'banco' in data:
-                cheque.banco = data.get('banco', '').strip()
-            if 'emisor' in data:
-                cheque.emisor = data.get('emisor', '').strip()
-            if 'receptor' in data:
-                cheque.receptor = data.get('receptor', '').strip()
-            if 'notas' in data:
-                cheque.notas = data.get('notas', '').strip()
+            with transaction.atomic():
+                if 'numero_cheque' in data:
+                    cheque.numero_cheque = data.get('numero_cheque', '').strip()
+                if 'numero_factura' in data:
+                    cheque.numero_factura = data.get('numero_factura', '').strip()
+                monto_nuevo = None
+                if 'monto' in data:
+                    try:
+                        monto_nuevo = Decimal(str(data.get('monto')))
+                        if monto_nuevo <= 0:
+                            return JsonResponse({'error': 'El monto debe ser mayor a 0.'}, status=400)
+                        cheque.monto = monto_nuevo
+                    except (InvalidOperation, ValueError, TypeError):
+                        return JsonResponse({'error': 'Monto inválido.'}, status=400)
+                if 'moneda' in data:
+                    cheque.moneda = data.get('moneda')
+                if 'fecha_emision' in data:
+                    try:
+                        cheque.fecha_emision = date.fromisoformat(str(data.get('fecha_emision')))
+                    except ValueError:
+                        return JsonResponse({'error': 'Fecha de emisión inválida.'}, status=400)
+                if 'fecha_cobro' in data:
+                    try:
+                        cheque.fecha_cobro = date.fromisoformat(str(data.get('fecha_cobro')))
+                    except ValueError:
+                        return JsonResponse({'error': 'Fecha de cobro inválida.'}, status=400)
+                if cheque.tipo == TipoCheque.A_PAGAR and 'cuenta_origen_pk' in data:
+                    cuenta_origen = _cuenta_chequera_valida(data.get('cuenta_origen_pk'), cheque.moneda)
+                    if not cuenta_origen:
+                        return JsonResponse({'error': 'Elegí una cuenta bancaria válida.'}, status=400)
+                    cheque.cuenta_origen = cuenta_origen
+                if 'banco' in data:
+                    cheque.banco = data.get('banco', '').strip()
+                if 'emisor' in data:
+                    cheque.emisor = data.get('emisor', '').strip()
+                if 'receptor' in data:
+                    cheque.receptor = data.get('receptor', '').strip()
+                if 'notas' in data:
+                    cheque.notas = data.get('notas', '').strip()
 
-            cheque.save()
+                cheque.save()
+
+                # Acá `cheque.estado` es siempre PENDIENTE (ver el corte más
+                # arriba) — todavía no hay ningún MovimientoCaja real que
+                # resincronizar, esa parte pasa recién al confirmar.
+                if monto_nuevo is not None and es_cuota_deuda:
+                    cheque.cuota_deuda.corregir_monto_desde_cheque(monto_nuevo)
 
             return JsonResponse({'success': True, 'cheque': _serializar_cheque(cheque)})
 

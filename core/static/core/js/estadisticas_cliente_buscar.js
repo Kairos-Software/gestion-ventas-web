@@ -23,6 +23,7 @@ function initBuscadorClienteEstadisticas(inputEl, resultadosEl, urlBuscar, urlPe
     if (!inputEl || !resultadosEl) return;
 
     let timeout = null;
+    let busquedaActual = 0;
 
     function ocultar() {
         resultadosEl.hidden = true;
@@ -31,6 +32,7 @@ function initBuscadorClienteEstadisticas(inputEl, resultadosEl, urlBuscar, urlPe
 
     inputEl.addEventListener('input', () => {
         clearTimeout(timeout);
+        const numeroBusqueda = ++busquedaActual;
         const q = inputEl.value.trim();
         if (q.length < 2) {
             ocultar();
@@ -40,6 +42,7 @@ function initBuscadorClienteEstadisticas(inputEl, resultadosEl, urlBuscar, urlPe
             try {
                 const resp = await fetch(`${urlBuscar}?q=${encodeURIComponent(q)}`);
                 const data = await resp.json();
+                if (numeroBusqueda !== busquedaActual) return;
                 const clientes = data.clientes || [];
                 if (!clientes.length) {
                     resultadosEl.innerHTML = '<div class="cp-buscador-item-vacio">Sin resultados</div>';
@@ -47,9 +50,9 @@ function initBuscadorClienteEstadisticas(inputEl, resultadosEl, urlBuscar, urlPe
                     return;
                 }
                 resultadosEl.innerHTML = clientes.map(c => `
-                    <div class="cp-buscador-item" data-id="${c.id}">
+                    <a class="cp-buscador-item" href="${urlPerfilBase}${encodeURIComponent(c.id)}/">
                         <span>${_ecEsc(c.label)}</span>
-                    </div>`).join('');
+                    </a>`).join('');
                 resultadosEl.hidden = false;
             } catch (err) {
                 console.error('Error buscando cliente:', err);
@@ -57,10 +60,27 @@ function initBuscadorClienteEstadisticas(inputEl, resultadosEl, urlBuscar, urlPe
         }, 300);
     });
 
-    resultadosEl.addEventListener('click', (ev) => {
-        const item = ev.target.closest('.cp-buscador-item[data-id]');
-        if (!item) return;
-        window.location.href = urlPerfilBase + item.dataset.id + '/';
+    inputEl.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Escape') ocultar();
+        if (ev.key === 'Enter' && !resultadosEl.hidden) {
+            const primero = resultadosEl.querySelector('a.cp-buscador-item');
+            if (primero) { ev.preventDefault(); primero.click(); }
+        }
+        if (ev.key === 'ArrowDown' && !resultadosEl.hidden) {
+            const primero = resultadosEl.querySelector('a.cp-buscador-item');
+            if (primero) { ev.preventDefault(); primero.focus(); }
+        }
+    });
+
+    resultadosEl.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Escape') { ocultar(); inputEl.focus(); return; }
+        if (ev.key !== 'ArrowDown' && ev.key !== 'ArrowUp') return;
+        const enlaces = Array.from(resultadosEl.querySelectorAll('a.cp-buscador-item'));
+        const actual = enlaces.indexOf(document.activeElement);
+        const siguiente = ev.key === 'ArrowDown' ? actual + 1 : actual - 1;
+        ev.preventDefault();
+        if (siguiente < 0) inputEl.focus();
+        else enlaces[Math.min(siguiente, enlaces.length - 1)]?.focus();
     });
 
     document.addEventListener('click', (ev) => {

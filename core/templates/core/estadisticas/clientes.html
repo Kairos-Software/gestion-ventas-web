@@ -1,280 +1,219 @@
 {% extends "core/base.html" %}
-{% load static humanize %}
+{% load static kai_formato %}
 
 {% block title %}Estadísticas — Clientes{% endblock %}
 {% block breadcrumb %}<strong>Estadísticas</strong> · Clientes{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'core/css/estadisticas.css' %}?v=20260903">
-<link rel="stylesheet" href="{% static 'core/css/estadisticas_cliente_perfil.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas_resumen.css' %}?v=20260921c">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas_ventas.css' %}?v=20260921a">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas_cliente_perfil.css' %}?v=20260917">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas_clientes.css' %}?v=20260922a">
 {% endblock %}
 
 {% block content %}
-
 {% if sin_permiso %}
-<div class="est-sin-permiso">
-    <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
-        <path d="M12 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-        <circle cx="12" cy="16.2" r="0.9" fill="currentColor"/>
-    </svg>
-    <p>No tenés permiso para ver estadísticas de clientes.</p>
-</div>
+<div class="est-sin-permiso"><p>No tenés permiso para ver estadísticas de clientes.</p></div>
 {% else %}
-<div class="cp-page">
-
-{% include "core/estadisticas/_filtros.html" %}
-
-<!-- ══════════ BUSCADOR DE CLIENTE ══════════ -->
-<div class="card mb-4 cp-buscador-card">
-    <div class="card-body">
-        <div class="cp-buscador-wrap">
-            <input type="text" id="ecBuscador" placeholder="Buscar cliente por nombre, DNI, CUIT... para ver su ficha individual" autocomplete="off">
+<div class="est-summary-page est-clients-page">
+    <header class="est-summary-heading est-clients-heading">
+        <div><h1>Clientes</h1><p>Compras, saldos por cobrar y actividad de tu cartera</p></div>
+        <div class="cp-buscador-wrap est-clients-search">
+            <label for="ecBuscador">Ir al perfil de un cliente</label>
+            <input type="search" id="ecBuscador" placeholder="Buscar por nombre, DNI o CUIT…" autocomplete="off">
             <div id="ecResultados" class="cp-buscador-resultados" hidden></div>
         </div>
-    </div>
-</div>
+    </header>
 
-<!-- ══════════ NUEVOS VS. RECURRENTES ══════════ -->
-<div class="card mb-4">
-    <div class="card-header">
-        <div>
-            <p class="card-title">¿Quiénes te compraron en este período?</p>
-            <p class="text-muted" style="font-size:.8125rem;">Nuevos: dados de alta en este período. Recurrentes: volvieron a comprar más de una vez.</p>
+    {% if cuentas_por_cobrar %}
+    <section class="est-clients-section" aria-labelledby="estClientesHoy">
+        <div class="est-clients-section-heading"><div><h2 id="estClientesHoy">Lo que te deben hoy</h2><p>Estos saldos son actuales; no cambian con las fechas de abajo.</p></div></div>
+        <div class="est-summary-highlights est-clients-current-highlights">
+            <article class="est-summary-highlight est-clients-highlight--pending">
+                <div class="est-summary-label-row"><span class="est-summary-highlight-label">Pendiente de cobro · ARS</span><button type="button" class="kai-help-btn" data-help-target="ayuda_cli_pendiente" aria-label="Qué significa pendiente de cobro" aria-controls="ayuda_cli_pendiente">?</button></div>
+                <div class="kai-help-popover" id="ayuda_cli_pendiente">Es lo que todavía deben tus clientes en cuentas por cobrar activas en pesos.</div>
+                <strong class="est-summary-highlight-value">${{ cuentas_por_cobrar.total_pendiente|pesos }}</strong>
+                <p>{{ cuentas_por_cobrar.cantidad_pendiente }} cuota{{ cuentas_por_cobrar.cantidad_pendiente|pluralize }} o saldo{{ cuentas_por_cobrar.cantidad_pendiente|pluralize }} abierto{{ cuentas_por_cobrar.cantidad_pendiente|pluralize }}</p>
+                <a href="#estClientesDeudores">Ver deudores <span aria-hidden="true">→</span></a>
+            </article>
+            <article class="est-summary-highlight est-clients-highlight--overdue {% if cuentas_por_cobrar.total_vencido %}is-negative{% endif %}">
+                <div class="est-summary-label-row"><span class="est-summary-highlight-label">Cuotas vencidas · ARS</span><button type="button" class="kai-help-btn" data-help-target="ayuda_cli_vencidas" aria-label="Qué significa cuotas vencidas" aria-controls="ayuda_cli_vencidas">?</button></div>
+                <div class="kai-help-popover" id="ayuda_cli_vencidas">Son cuotas en pesos que ya vencieron y siguen sin cobrarse. No incluye saldos sin vencimiento.</div>
+                <strong class="est-summary-highlight-value">${{ cuentas_por_cobrar.total_vencido|pesos }}</strong>
+                <p>{{ cuentas_por_cobrar.cantidad_vencidas }} cuota{{ cuentas_por_cobrar.cantidad_vencidas|pluralize }} vencida{{ cuentas_por_cobrar.cantidad_vencidas|pluralize }}</p>
+            </article>
+            <article class="est-summary-highlight est-clients-highlight--soon">
+                <div class="est-summary-label-row"><span class="est-summary-highlight-label">Vencen en 15 días · ARS</span><button type="button" class="kai-help-btn" data-help-target="ayuda_cli_proximas" aria-label="Qué significa vencen en 15 días" aria-controls="ayuda_cli_proximas">?</button></div>
+                <div class="kai-help-popover" id="ayuda_cli_proximas">Son cuotas en pesos cuyo vencimiento llega dentro de los próximos 15 días.</div>
+                <strong class="est-summary-highlight-value">${{ cuentas_por_cobrar.total_proximo|pesos }}</strong>
+                <p>{{ cuentas_por_cobrar.cantidad_proximas }} cuota{{ cuentas_por_cobrar.cantidad_proximas|pluralize }} próxima{{ cuentas_por_cobrar.cantidad_proximas|pluralize }}</p>
+            </article>
         </div>
-    </div>
-    <div class="card-body">
-        <div class="est-mini-stat-grid">
-            <div class="est-mini-stat">
-                <div class="est-mini-stat-valor">{{ nuevos_vs_recurrentes.nuevos }}</div>
-                <div class="est-mini-stat-label">Clientes nuevos</div>
-            </div>
-            <div class="est-mini-stat">
-                <div class="est-mini-stat-valor">{{ nuevos_vs_recurrentes.compradores }}</div>
-                <div class="est-mini-stat-label">Te compraron</div>
-            </div>
-            <div class="est-mini-stat est-mini-stat--success">
-                <div class="est-mini-stat-valor">{{ nuevos_vs_recurrentes.recurrentes }}</div>
-                <div class="est-mini-stat-label">Recurrentes</div>
-            </div>
-            <div class="est-mini-stat">
-                <div class="est-mini-stat-valor">{{ nuevos_vs_recurrentes.de_una_sola_vez }}</div>
-                <div class="est-mini-stat-label">Compraron 1 sola vez</div>
-            </div>
-        </div>
-    </div>
-</div>
+        {% for divisa in cuentas_por_cobrar.otras_monedas %}{% if divisa.total_pendiente or divisa.total_vencido or divisa.total_proximo %}
+        <article class="est-sales-panel est-clients-currency-panel">
+            <div class="est-sales-panel-heading"><h3>Saldos en {{ divisa.moneda }}</h3><span>Sin convertir a pesos</span></div>
+            <div class="est-clients-currency-values"><div><span>Pendiente</span><strong>${{ divisa.total_pendiente|pesos }} {{ divisa.moneda }}</strong></div><div><span>Vencido</span><strong>${{ divisa.total_vencido|pesos }} {{ divisa.moneda }}</strong></div><div><span>Vence en 15 días</span><strong>${{ divisa.total_proximo|pesos }} {{ divisa.moneda }}</strong></div></div>
+            {% if divisa.ranking_deudores %}<details class="est-sales-expand"><summary>Ver deudores en {{ divisa.moneda }}</summary>{% for d in divisa.ranking_deudores %}<div class="est-sales-simple-row"><span><a href="{% url 'core:estadisticas_cliente_perfil' d.id %}">{{ d.nombre }}</a></span><strong>${{ d.total|pesos }} {{ divisa.moneda }}</strong></div>{% endfor %}</details>{% endif %}
+        </article>
+        {% endif %}{% endfor %}
+        <article class="est-sales-panel est-clients-rank-panel" id="estClientesDeudores">
+            <div class="est-sales-panel-heading"><h3>Clientes con más saldo en ARS</h3><span>Saldo actual, no del período</span></div>
+            {% if cuentas_por_cobrar.ranking_deudores %}
+            <ol class="est-sales-rank-list">{% for d in cuentas_por_cobrar.ranking_deudores|slice:':3' %}
+                <li class="est-sales-rank-item"><span class="est-sales-rank-number">{{ forloop.counter }}</span><div class="est-sales-rank-info"><strong><a href="{% url 'core:estadisticas_cliente_perfil' d.id %}">{{ d.nombre }}</a></strong><small>{{ d.cantidad_cuotas }} cuota{{ d.cantidad_cuotas|pluralize }} o saldo{{ d.cantidad_cuotas|pluralize }} pendiente{{ d.cantidad_cuotas|pluralize }}</small></div><div class="est-sales-rank-value"><strong>${{ d.total|pesos }}</strong><small>por cobrar</small></div></li>
+            {% endfor %}</ol>
+            {% if cuentas_por_cobrar.ranking_deudores|length > 3 %}<details class="est-sales-expand"><summary>Ver más deudores</summary><ol class="est-sales-rank-list">{% for d in cuentas_por_cobrar.ranking_deudores|slice:'3:' %}
+                <li class="est-sales-rank-item"><span class="est-sales-rank-number">{{ forloop.counter|add:3 }}</span><div class="est-sales-rank-info"><strong><a href="{% url 'core:estadisticas_cliente_perfil' d.id %}">{{ d.nombre }}</a></strong><small>{{ d.cantidad_cuotas }} cuota{{ d.cantidad_cuotas|pluralize }} o saldo{{ d.cantidad_cuotas|pluralize }} pendiente{{ d.cantidad_cuotas|pluralize }}</small></div><div class="est-sales-rank-value"><strong>${{ d.total|pesos }}</strong><small>por cobrar</small></div></li>
+            {% endfor %}</ol></details>{% endif %}
+            {% else %}<p class="est-sales-empty">No hay saldos pendientes en ARS.</p>{% endif %}
+        </article>
+    </section>
+    {% endif %}
 
-<!-- ══════════ MEJORES CLIENTES ══════════ -->
-<div class="card mb-4">
-    <div class="card-header">
-        <div>
-            <p class="card-title">Tus mejores clientes</p>
-            <p class="text-muted" style="font-size:.8125rem;">Por monto comprado en este período</p>
+    <section class="est-clients-section" aria-labelledby="estClientesPeriodo">
+        <div class="est-clients-section-heading"><div><h2 id="estClientesPeriodo">En el período elegido</h2><p>Del {{ desde|date:'d/m/Y' }} al {{ hasta|date:'d/m/Y' }} · estos datos sí cambian al filtrar.</p></div></div>
+        <form id="estClientesPresetForm" method="get"></form>
+        <div class="est-summary-filters" role="group" aria-label="Período de actividad de clientes">
+            <button form="estClientesPresetForm" type="submit" name="preset" value="hoy" class="btn btn-sm {% if preset == 'hoy' %}btn-primary{% else %}btn-secondary{% endif %}">Hoy</button>
+            <button form="estClientesPresetForm" type="submit" name="preset" value="semana" class="btn btn-sm {% if preset == 'semana' %}btn-primary{% else %}btn-secondary{% endif %}">7 días</button>
+            <button form="estClientesPresetForm" type="submit" name="preset" value="mes_actual" class="btn btn-sm {% if preset == 'mes_actual' %}btn-primary{% else %}btn-secondary{% endif %}">Este mes</button>
+            <button form="estClientesPresetForm" type="submit" name="preset" value="mes_anterior" class="btn btn-sm {% if preset == 'mes_anterior' %}btn-primary{% else %}btn-secondary{% endif %}">Mes anterior</button>
+            <button form="estClientesPresetForm" type="submit" name="preset" value="anio" class="btn btn-sm {% if preset == 'anio' %}btn-primary{% else %}btn-secondary{% endif %}">Este año</button>
+            <details class="est-summary-custom-range" {% if preset == 'personalizado' %}open{% endif %}><summary>Elegir fechas</summary><form method="get"><input type="hidden" name="preset" value="personalizado"><label>Desde <input type="date" name="desde" value="{{ desde|date:'Y-m-d' }}" required></label><label>Hasta <input type="date" name="hasta" value="{{ hasta|date:'Y-m-d' }}" required></label><button type="submit" class="btn btn-sm btn-primary">Aplicar</button></form></details>
         </div>
-    </div>
-    <div class="card-body">
-        {% if mejores_clientes %}
-            {% for cl in mejores_clientes %}
-            <div class="est-ranking-row" data-valor="{{ cl.total_comprado|floatformat:0 }}">
-                <span class="est-ranking-bar"></span>
-                <div class="est-ranking-left">
-                    <span class="est-ranking-pos">{{ forloop.counter }}</span>
-                    <div>
-                        <div class="est-ranking-nombre"><a href="{% url 'core:estadisticas_cliente_perfil' cl.id %}" class="cp-ranking-link">{{ cl.nombre }}</a></div>
-                        <div class="est-ranking-detalle">{{ cl.cant_ventas }} venta{{ cl.cant_ventas|pluralize }}</div>
-                    </div>
-                </div>
-                <div class="est-ranking-right">
-                    <div class="est-ranking-monto"><span class="est-ranking-etiqueta">te compró</span>${{ cl.total_comprado|floatformat:0|intcomma }}</div>
-                </div>
-            </div>
-            {% endfor %}
-        {% else %}
-            <div class="empty-state">
-                <p>Todavía no hay ventas confirmadas con un cliente asignado en este período.</p>
-            </div>
-        {% endif %}
-    </div>
-</div>
-
-<!-- ══════════ DISTRIBUCIÓN POR RIESGO Y ESTADO (tiempo real) ══════════ -->
-<div class="est-row-2">
-    <div class="card">
-        <div class="card-header">
-            <div>
-                <p class="card-title">Tipo de cliente en la cartera</p>
-                <p class="text-muted" style="font-size:.8125rem;">Personas físicas vs. empresas — todos los clientes cargados</p>
-            </div>
-            <span class="cp-pill">Tiempo real</span>
-        </div>
-        <div class="card-body">
-            {% if distribucion_tipo %}
-            <div class="cp-donut-row">
-                <div class="cp-donut-visual">
-                    <canvas id="chartTipo"></canvas>
-                </div>
-                <div class="cp-donut-leyenda cp-donut-leyenda--col">
-                    {% for f in distribucion_tipo %}
-                    <span class="cp-leyenda-item"><i class="cp-dot cp-dot-{{ f.tipo }}"></i>{{ f.label }}: <strong>{{ f.cantidad }}</strong></span>
-                    {% endfor %}
-                </div>
-            </div>
-            {% else %}
-                <div class="empty-state">
-                    <p>Todavía no hay clientes cargados.</p>
-                </div>
+        <div class="est-summary-highlights est-clients-period-highlights">
+            <article class="est-summary-highlight">
+                <div class="est-summary-label-row"><span class="est-summary-highlight-label">Clientes que compraron</span><button type="button" class="kai-help-btn" data-help-target="ayuda_cli_compraron" aria-label="Qué significa clientes que compraron" aria-controls="ayuda_cli_compraron">?</button></div>
+                <div class="kai-help-popover" id="ayuda_cli_compraron">Personas o empresas con al menos una venta confirmada en estas fechas.</div>
+                <strong class="est-summary-highlight-value">{{ nuevos_vs_recurrentes.compradores }}</strong>
+                <p>Clientes distintos, no cantidad de ventas</p>
+            </article>
+            <article class="est-summary-highlight">
+                <div class="est-summary-label-row"><span class="est-summary-highlight-label">Compraron más de una vez</span><button type="button" class="kai-help-btn" data-help-target="ayuda_cli_recurrentes" aria-label="Qué significa compraron más de una vez" aria-controls="ayuda_cli_recurrentes">?</button></div>
+                <div class="kai-help-popover" id="ayuda_cli_recurrentes">De quienes compraron en estas fechas, son los que hicieron al menos dos ventas.</div>
+                <strong class="est-summary-highlight-value">{{ nuevos_vs_recurrentes.recurrentes }}</strong>
+                <p>{{ nuevos_vs_recurrentes.de_una_sola_vez }} compraron una sola vez</p>
+            </article>
+            <article class="est-summary-highlight">
+                <div class="est-summary-label-row"><span class="est-summary-highlight-label">Clientes dados de alta</span><button type="button" class="kai-help-btn" data-help-target="ayuda_cli_nuevos" aria-label="Qué significa clientes dados de alta" aria-controls="ayuda_cli_nuevos">?</button></div>
+                <div class="kai-help-popover" id="ayuda_cli_nuevos">Son fichas de clientes creadas en estas fechas; no necesariamente hicieron una compra.</div>
+                <strong class="est-summary-highlight-value">{{ nuevos_vs_recurrentes.nuevos }}</strong>
+                <p>Altas en la cartera</p>
+            </article>
+            {% if cuentas_por_cobrar %}
+            <article class="est-summary-highlight est-clients-highlight--collected">
+                <div class="est-summary-label-row"><span class="est-summary-highlight-label">Cobrado de cuentas · ARS</span><button type="button" class="kai-help-btn" data-help-target="ayuda_cli_cobrado" aria-label="Qué significa cobrado de cuentas" aria-controls="ayuda_cli_cobrado">?</button></div>
+                <div class="kai-help-popover" id="ayuda_cli_cobrado">Es lo cobrado en pesos de cuotas y cuentas corrientes en el período elegido.</div>
+                <strong class="est-summary-highlight-value">${{ cuentas_por_cobrar.cobrado_periodo|pesos }}</strong>
+                <p>Pagos confirmados en estas fechas</p>
+            </article>
             {% endif %}
         </div>
-    </div>
+        {% for divisa in cuentas_por_cobrar.otras_monedas %}{% if divisa.cobrado_periodo %}
+        <p class="est-clients-foreign-collected">También se cobraron ${{ divisa.cobrado_periodo|pesos }} {{ divisa.moneda }} de cuentas por cobrar en este período.</p>
+        {% endif %}{% endfor %}
+        <article class="est-sales-panel est-clients-rank-panel">
+            <div class="est-sales-panel-heading"><h3>Quienes más compraron en ARS</h3><span>Por monto vendido en pesos en el período</span></div>
+            {% if mejores_clientes %}
+            <ol class="est-sales-rank-list">{% for cl in mejores_clientes|slice:':3' %}
+                <li class="est-sales-rank-item"><span class="est-sales-rank-number">{{ forloop.counter }}</span><div class="est-sales-rank-info"><strong><a href="{% url 'core:estadisticas_cliente_perfil' cl.id %}">{{ cl.nombre }}</a></strong><small>{{ cl.cant_ventas }} venta{{ cl.cant_ventas|pluralize }} confirmada{{ cl.cant_ventas|pluralize }}</small></div><div class="est-sales-rank-value"><strong>${{ cl.total_comprado|pesos }}</strong><small>vendido</small></div></li>
+            {% endfor %}</ol>
+            {% if mejores_clientes|length > 3 %}<details class="est-sales-expand"><summary>Ver más clientes</summary><ol class="est-sales-rank-list">{% for cl in mejores_clientes|slice:'3:' %}
+                <li class="est-sales-rank-item"><span class="est-sales-rank-number">{{ forloop.counter|add:3 }}</span><div class="est-sales-rank-info"><strong><a href="{% url 'core:estadisticas_cliente_perfil' cl.id %}">{{ cl.nombre }}</a></strong><small>{{ cl.cant_ventas }} venta{{ cl.cant_ventas|pluralize }} confirmada{{ cl.cant_ventas|pluralize }}</small></div><div class="est-sales-rank-value"><strong>${{ cl.total_comprado|pesos }}</strong><small>vendido</small></div></li>
+            {% endfor %}</ol></details>{% endif %}
+            {% else %}<p class="est-sales-empty">No hubo ventas en ARS con cliente asignado en este período.</p>{% endif %}
+        </article>
+        {% for divisa in mejores_clientes_divisas %}
+        <details class="est-sales-detail est-clients-foreign-ranking"><summary><span><strong>Quienes más compraron en {{ divisa.moneda }}</strong><small>Montos separados, sin convertir a pesos</small></span></summary>
+            <div class="est-sales-detail-body">{% for cl in divisa.clientes %}
+                <div class="est-sales-simple-row"><span><a href="{% url 'core:estadisticas_cliente_perfil' cl.id %}">{{ cl.nombre }}</a> <small>· {{ cl.cant_ventas }} venta{{ cl.cant_ventas|pluralize }}</small></span><strong>${{ cl.total_comprado|pesos }} {{ divisa.moneda }}</strong></div>
+            {% endfor %}</div>
+        </details>
+        {% endfor %}
+    </section>
 
-    <div class="card">
-        <div class="card-header">
-            <div>
-                <p class="card-title">Estado de la cartera</p>
-                <p class="text-muted" style="font-size:.8125rem;">Distribución según actividad</p>
-            </div>
-            <span class="cp-pill">Tiempo real</span>
-        </div>
-        <div class="card-body">
-            {% if distribucion_estado %}
-            <div class="cp-donut-row">
-                <div class="cp-donut-visual">
-                    <canvas id="chartEstadoCartera"></canvas>
-                </div>
-                <div class="cp-donut-leyenda cp-donut-leyenda--col">
-                    {% for f in distribucion_estado %}
-                    <span class="cp-leyenda-item"><i class="cp-dot cp-dot-{{ f.estado }}"></i>{{ f.label }}: <strong>{{ f.cantidad }}</strong></span>
-                    {% endfor %}
-                </div>
-            </div>
-            {% else %}
-                <div class="empty-state">
-                    <p>Todavía no hay clientes cargados.</p>
-                </div>
-            {% endif %}
-        </div>
-    </div>
-</div>
-
-{% if cuentas_por_cobrar %}
-<!-- ══════════ CUENTAS POR COBRAR (ventas en cuotas) ══════════ -->
-<div class="card mb-4">
-    <div class="card-header">
-        <div>
-            <p class="card-title">¿Quién te debe plata?</p>
-            <p class="text-muted" style="font-size:.8125rem;">Ventas financiadas en cuotas propias — salvo "cobrado" que respeta el filtro de arriba</p>
-        </div>
-        <span class="cp-pill cp-pill--warning">Cuentas corrientes</span>
-    </div>
-    <div class="card-body">
-        <div class="est-mini-stat-grid mb-3">
-            <div class="est-mini-stat">
-                <div class="est-mini-stat-valor">${{ cuentas_por_cobrar.total_pendiente|floatformat:0|intcomma }}</div>
-                <div class="est-mini-stat-label">Pendiente de cobro ({{ cuentas_por_cobrar.cantidad_pendiente }} cuota{{ cuentas_por_cobrar.cantidad_pendiente|pluralize }})</div>
-            </div>
-            <div class="est-mini-stat est-mini-stat--danger">
-                <div class="est-mini-stat-valor">${{ cuentas_por_cobrar.total_vencido|floatformat:0|intcomma }}</div>
-                <div class="est-mini-stat-label">Vencido sin cobrar ({{ cuentas_por_cobrar.cantidad_vencidas }} cuota{{ cuentas_por_cobrar.cantidad_vencidas|pluralize }})</div>
-            </div>
-            <div class="est-mini-stat est-mini-stat--warning">
-                <div class="est-mini-stat-valor">${{ cuentas_por_cobrar.total_proximo|floatformat:0|intcomma }}</div>
-                <div class="est-mini-stat-label">Vence en 15 días ({{ cuentas_por_cobrar.cantidad_proximas }} cuota{{ cuentas_por_cobrar.cantidad_proximas|pluralize }})</div>
-            </div>
-            <div class="est-mini-stat est-mini-stat--success">
-                <div class="est-mini-stat-valor">${{ cuentas_por_cobrar.cobrado_periodo|floatformat:0|intcomma }}</div>
-                <div class="est-mini-stat-label">Cobrado en el período</div>
-            </div>
-        </div>
-
-        {% if cuentas_por_cobrar.ranking_deudores %}
-            <p class="text-muted" style="font-size:.8125rem;margin-bottom:.5rem;">Clientes con más deuda pendiente</p>
-            {% for d in cuentas_por_cobrar.ranking_deudores %}
-            <div class="est-ranking-row" data-valor="{{ d.total|floatformat:0 }}">
-                <span class="est-ranking-bar"></span>
-                <div class="est-ranking-left">
-                    <span class="est-ranking-pos">{{ forloop.counter }}</span>
-                    <div>
-                        <div class="est-ranking-nombre"><a href="{% url 'core:estadisticas_cliente_perfil' d.id %}" class="cp-ranking-link">{{ d.nombre }}</a></div>
-                        <div class="est-ranking-detalle">{{ d.cantidad_cuotas }} cuota{{ d.cantidad_cuotas|pluralize }} pendiente{{ d.cantidad_cuotas|pluralize }}</div>
+    <section class="est-clients-section" aria-labelledby="estClientesMas">
+        <div class="est-clients-section-heading"><div><h2 id="estClientesMas">Más sobre la cartera actual</h2><p>Estos datos muestran cómo está registrada tu cartera hoy.</p></div></div>
+        <div class="est-clients-detail-grid">
+            <details class="est-sales-detail">
+                <summary><span><strong>Sin compras en 60 días</strong><small>Clientes activos que no compraron recientemente</small></span></summary>
+                <div class="est-sales-detail-body">{% for cl in clientes_inactivos %}
+                    <div class="est-clients-simple-row"><a href="{% url 'core:estadisticas_cliente_perfil' cl.id %}">{{ cl.nombre }}</a><small>Cód. {{ cl.codigo }} · {% if cl.ultima_compra %}Última compra {{ cl.ultima_compra|date:'d/m/Y' }}{% else %}Nunca compró{% endif %}</small></div>
+                {% empty %}<p class="est-sales-empty">Todos los clientes activos compraron en los últimos 60 días.</p>{% endfor %}
+                {% if clientes_inactivos|length == 20 %}<p class="est-sales-note">Se muestran hasta 20 clientes, empezando por los que llevan más tiempo sin comprar.</p>{% endif %}</div>
+            </details>
+            <details class="est-sales-detail" id="estClientesEstado">
+                <summary><span><strong>Estado de los clientes</strong><small>Según el estado cargado en cada ficha</small></span></summary>
+                <div class="est-sales-detail-body">
+                    {% if distribucion_estado %}
+                    <div class="cp-donut-row">
+                        <div class="cp-donut-visual"><canvas id="chartEstadoCartera"></canvas></div>
+                        <div class="cp-donut-leyenda cp-donut-leyenda--col">{% for f in distribucion_estado %}<span class="cp-leyenda-item"><i class="cp-dot cp-dot-{{ f.estado }}"></i>{{ f.label }}: <strong>{{ f.cantidad }}</strong></span>{% endfor %}</div>
                     </div>
+                    {% else %}<p class="est-sales-empty">No hay clientes cargados.</p>{% endif %}
                 </div>
-                <div class="est-ranking-right">
-                    <div class="est-ranking-monto es-deuda"><span class="est-ranking-etiqueta">te debe</span>${{ d.total|floatformat:0|intcomma }}</div>
+            </details>
+            <details class="est-sales-detail" id="estClientesTipo">
+                <summary><span><strong>Personas y empresas</strong><small>Según el tipo de cliente cargado</small></span></summary>
+                <div class="est-sales-detail-body">
+                    {% if distribucion_tipo %}
+                    <div class="cp-donut-row">
+                        <div class="cp-donut-visual"><canvas id="chartTipo"></canvas></div>
+                        <div class="cp-donut-leyenda cp-donut-leyenda--col">{% for f in distribucion_tipo %}<span class="cp-leyenda-item"><i class="cp-dot cp-dot-{{ f.tipo }}"></i>{{ f.label }}: <strong>{{ f.cantidad }}</strong></span>{% endfor %}</div>
+                    </div>
+                    {% else %}<p class="est-sales-empty">No hay clientes cargados.</p>{% endif %}
                 </div>
-            </div>
-            {% endfor %}
-        {% else %}
-            <div class="empty-state">
-                <p>No hay ninguna cuenta por cobrar activa por el momento.</p>
-            </div>
-        {% endif %}
-    </div>
-</div>
-{% endif %}
-
-<!-- ══════════ CLIENTES INACTIVOS ══════════ -->
-<div class="card">
-    <div class="card-header">
-        <div>
-            <p class="card-title">Clientes activos que dejaron de comprar</p>
-            <p class="text-muted" style="font-size:.8125rem;">Sin ninguna compra en los últimos 60 días</p>
+            </details>
         </div>
-        <span class="cp-pill">Tiempo real</span>
-    </div>
-    <div class="card-body">
-        {% if clientes_inactivos %}
-        <div class="table-responsive">
-            <table class="table">
-                <thead>
-                    <tr><th>Cliente</th><th>Código</th><th>Última compra</th></tr>
-                </thead>
-                <tbody>
-                    {% for cl in clientes_inactivos %}
-                    <tr>
-                        <td>{{ cl.nombre }}</td>
-                        <td><span class="badge badge-secondary">{{ cl.codigo }}</span></td>
-                        <td>{% if cl.ultima_compra %}{{ cl.ultima_compra|date:'d/m/Y' }}{% else %}Nunca compró{% endif %}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% else %}
-            <div class="empty-state">
-                <p>Todos tus clientes activos compraron en los últimos 60 días.</p>
-            </div>
-        {% endif %}
-    </div>
-</div>
-
+    </section>
 </div>
 {% endif %}
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-<script src="{% static 'core/js/estadisticas.js' %}"></script>
-<script src="{% static 'core/js/estadisticas_cliente_buscar.js' %}"></script>
-<script src="{% static 'core/js/estadisticas_clientes_donut.js' %}"></script>
+{% if not sin_permiso %}
+<script src="{% static 'core/js/estadisticas_cliente_buscar.js' %}?v=20260922a"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        initDonutClientesCartera('chartTipo', {{ distribucion_tipo_json|safe }}, {
-            'Persona física': '#F26A1B', 'Empresa / Persona jurídica': '#10B981',
-        });
-        initDonutClientesCartera('chartEstadoCartera', {{ distribucion_estado_json|safe }}, {
-            'Activo': '#10B981', 'Potencial': '#F59E0B',
-            'Inactivo': '#8A9BB0', 'Suspendido': '#EF4444',
-        });
-
         initBuscadorClienteEstadisticas(
             document.getElementById('ecBuscador'),
             document.getElementById('ecResultados'),
             '{% url "core:cliente_buscar" %}',
             '{% url "core:estadisticas_cliente_perfil" 0 %}'.slice(0, -2)
         );
-
-        initRankingBars();
     });
 </script>
+{% if distribucion_estado or distribucion_tipo %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="{% static 'core/js/estadisticas_clientes_donut.js' %}?v=20260922a"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        if (!window.Chart) return;
+        // Viven dentro de <details> colapsados: se inicializan al abrirse,
+        // porque Chart.js mide un lienzo oculto como 0x0.
+        {% if distribucion_estado %}
+        const detEstado = document.getElementById('estClientesEstado');
+        detEstado.addEventListener('toggle', function () {
+            if (!detEstado.open || detEstado.dataset.loaded) return;
+            detEstado.dataset.loaded = 'true';
+            initDonutClientesCartera('chartEstadoCartera', {{ distribucion_estado_json|safe }}, {
+                'Activo': '#10B981', 'Potencial': '#F59E0B', 'Suspendido': '#EF4444', 'Inactivo': '#8A9BB0',
+            });
+        });
+        {% endif %}
+        {% if distribucion_tipo %}
+        const detTipo = document.getElementById('estClientesTipo');
+        detTipo.addEventListener('toggle', function () {
+            if (!detTipo.open || detTipo.dataset.loaded) return;
+            detTipo.dataset.loaded = 'true';
+            initDonutClientesCartera('chartTipo', {{ distribucion_tipo_json|safe }}, {
+                'Empresa / Persona jurídica': '#10B981', 'Persona física': '#F26A1B',
+            });
+        });
+        {% endif %}
+    });
+</script>
+{% endif %}
+{% endif %}
 {% endblock %}

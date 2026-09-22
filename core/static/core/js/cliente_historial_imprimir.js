@@ -19,8 +19,9 @@ function _chiEsc(str) {
     return div.innerHTML;
 }
 
-function _chiFmtMoneda(v) {
-    return `$ ${parseFloat(v || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function _chiFmtMoneda(v, moneda) {
+    const codigo = ['ARS', 'USD', 'EUR'].includes(moneda) ? moneda : 'ARS';
+    return `$ ${parseFloat(v || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${codigo}`;
 }
 
 function _chiFecha(iso) {
@@ -89,8 +90,8 @@ function clienteHistorialImprimir(cliente, historial, ventanaPrevia) {
             <td>${_chiFecha(f.fecha)}</td>
             <td>${_chiEsc(f.descripcion)}</td>
             <td>${_chiEsc(f.medio_pago || '-')}</td>
-            <td class="chi-monto">${_chiFmtMoneda(f.monto)}</td>
-            <td class="chi-monto">${f.saldo != null ? _chiFmtMoneda(f.saldo) : '—'}</td>
+            <td class="chi-monto">${_chiFmtMoneda(f.monto, f.moneda)}</td>
+            <td class="chi-monto">${f.saldo != null ? _chiFmtMoneda(f.saldo, f.moneda) : '—'}</td>
         </tr>`).join('');
 
     const html = `<!doctype html>

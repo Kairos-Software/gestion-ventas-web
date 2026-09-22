@@ -132,6 +132,16 @@
                             <span>Productos y Stock</span>
                         </a>
                         {% endif %}
+                        {% if perms_kai.ver_productos %}
+                        <a href="{% url 'core:estadisticas_predicciones' %}"
+                        class="nav-subitem {% if en_url == 'estadisticas_predicciones' %}active{% endif %}">
+                            <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                                <path d="M2 13.5L5.5 9L8.5 11L14 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M10.5 4H14V7.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span>Predicciones</span>
+                        </a>
+                        {% endif %}
                         {% if perms_kai.ver_clientes %}
                         <a href="{% url 'core:estadisticas_clientes' %}"
                         class="nav-subitem {% if en_url == 'estadisticas_clientes' %}active{% endif %}">
@@ -497,6 +507,15 @@
                                 <path d="M4 9.5H7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
                             </svg>
                             <span>Créditos y préstamos</span>
+                        </a>
+                        <a href="{% url 'caja:resumenes_tarjeta' %}"
+                           class="nav-subitem {% if request.resolver_match.url_name == 'resumenes_tarjeta' %}active{% endif %}">
+                            <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                                <rect x="1.5" y="3.5" width="13" height="9" rx="1.2" stroke="currentColor" stroke-width="1.3"/>
+                                <path d="M1.5 6.5H14.5" stroke="currentColor" stroke-width="1.3"/>
+                                <path d="M4 10H7M9 10H12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                            </svg>
+                            <span>Resúmenes de tarjeta</span>
                         </a>
                         {% endif %}
                         {% if perms_kai.ver_cuentas_cobrar %}

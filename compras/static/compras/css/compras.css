@@ -1447,3 +1447,15 @@ a.cmp-doc-item-nombre:hover { color: var(--brand-orange); text-decoration: under
     background: rgba(239, 68, 68, .18);
     border-color: rgba(239, 68, 68, .4);
 }
+
+.vdt-cheque-plan-nota {
+    margin: .65rem 0 .2rem;
+    padding: .72rem .8rem;
+    border: 1px solid rgba(245, 158, 11, .3);
+    border-radius: 10px;
+    background: rgba(245, 158, 11, .08);
+    color: var(--text-secondary);
+    font-size: .76rem;
+    font-style: normal;
+    line-height: 1.5;
+}
