@@ -30,9 +30,11 @@ const pagInfo        = document.getElementById('pagInfo');
 const resumenBar     = document.getElementById('resumenBar');
 const resumenTotal   = document.getElementById('resumenTotal');
 const resumenPag     = document.getElementById('resumenPag');
+const resumenMonto   = document.getElementById('resumenMonto');
 
 const filtroQ        = document.getElementById('filtroQ');
 const filtroEstado   = document.getElementById('filtroEstado');
+const filtroMedioPago= document.getElementById('filtroMedioPago');
 const filtroDesde    = document.getElementById('filtroDesde');
 const filtroHasta    = document.getElementById('filtroHasta');
 const btnFiltrar     = document.getElementById('btnFiltrar');
@@ -350,6 +352,7 @@ function renderLista(data) {
     // Resumen
     resumenTotal.textContent     = data.total;
     resumenPag.textContent       = `${data.page} / ${totalPages}`;
+    resumenMonto.textContent     = formatMoney(data.suma_total);
     resumenBar.style.display     = 'flex';
 }
 
@@ -370,6 +373,7 @@ function fetchCompras(page) {
     const params = new URLSearchParams({ page: currentPage });
     if (currentFilters.q)           params.set('q',           currentFilters.q);
     if (currentFilters.estado)      params.set('estado',      currentFilters.estado);
+    if (currentFilters.medio_pago)  params.set('medio_pago',  currentFilters.medio_pago);
     if (currentFilters.fecha_desde) params.set('fecha_desde', currentFilters.fecha_desde);
     if (currentFilters.fecha_hasta) params.set('fecha_hasta', currentFilters.fecha_hasta);
 
@@ -389,6 +393,7 @@ function aplicarFiltros() {
     currentFilters = {
         q:           filtroQ.value.trim(),
         estado:      filtroEstado.value,
+        medio_pago:  filtroMedioPago ? filtroMedioPago.value : '',
         fecha_desde: filtroDesde.value,
         fecha_hasta: filtroHasta.value,
     };
@@ -399,6 +404,7 @@ btnFiltrar.addEventListener('click', aplicarFiltros);
 filtroQ.addEventListener('keydown', e => { if (e.key === 'Enter') aplicarFiltros(); });
 btnLimpiar.addEventListener('click', () => {
     filtroQ.value = filtroEstado.value = filtroDesde.value = filtroHasta.value = '';
+    if (filtroMedioPago) filtroMedioPago.value = '';
     currentFilters = {};
     fetchCompras(1);
 });

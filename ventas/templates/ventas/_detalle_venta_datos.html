@@ -35,6 +35,7 @@
         urlFacturar: "{{ url_facturar }}",
         urlBuscarCliente: "{{ url_buscar_cliente }}",
         urlRegistrarDevolucion: "{{ url_registrar_devolucion }}",
+        urlEmitirNotaCredito: "{{ url_emitir_nc_devolucion }}",
         puedeRegistrarDevoluciones: {{ puede_registrar_devoluciones|yesno:"true,false" }},
         csrfToken: "{{ csrf_token }}",
         clienteUnicoPk: {{ cliente_unico_venta.pk|default:"null" }},

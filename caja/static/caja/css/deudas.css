@@ -1374,6 +1374,11 @@
     color: var(--text-secondary);
     white-space: nowrap;
 }
+.deudas-cuota-extra {
+    color: var(--warning, #a15c00);
+    white-space: nowrap;
+    font-size: 0.72rem;
+}
 /* "Cheque #123" dentro de una nota/pago de cuota — link a la pantalla de
    Cheques (ver linkCheque() en deudas.js) para poder corregirlo sin tener
    que ir a buscarlo a mano. */

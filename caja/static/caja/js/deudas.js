@@ -1638,6 +1638,10 @@ document.addEventListener('DOMContentLoaded', function () {
             } else if (c.estado === 'confirmada') {
                 accion = `<span class="deudas-cuota-pago">${_deudaEscInput(c.cuenta_pago_nombre || 'pagada')}</span>`;
             }
+            if (c.estado === 'confirmada' && !c.es_historica && parseFloat(c.monto_extra) > 0) {
+                accion += `<span class="deudas-cuota-extra">+ ${fmtMoneda(c.monto_extra, d.moneda)} extra`
+                    + (c.descripcion_extra ? ` · ${_deudaEscInput(c.descripcion_extra)}` : '') + `</span>`;
+            }
 
             const estadoLabel = c.estado === 'confirmada' ? 'Pagada' : (c.estado === 'anulada' ? 'Anulada' : 'Pendiente');
             return `
@@ -1751,9 +1755,30 @@ document.addEventListener('DOMContentLoaded', function () {
     const pagoCuotaMsg = document.getElementById('pagoCuotaMsg');
     const btnConfirmarPagoCuota = document.getElementById('btnConfirmarPagoCuota');
     const btnPagarConCheque = document.getElementById('btnPagarConCheque');
+    const pagoExtraMonto = document.getElementById('pagoExtraMonto');
+    const pagoExtraDescripcion = document.getElementById('pagoExtraDescripcion');
+    const pagoExtraCampoCuenta = document.getElementById('pagoExtraCampoCuenta');
+    const pagoExtraCuenta = document.getElementById('pagoExtraCuenta');
 
     // ctx: { modo: 'cuota'|'abono', cuotaPk?, adelantar?, deudaPk, moneda, objetivo, pedirFecha }
     let pagoCtx = null;
+
+    function _actualizarCampoExtraCuenta(monto, campoWrap, selectEl, moneda) {
+        const tieneMonto = parseFloat(monto) > 0;
+        campoWrap.hidden = !tieneMonto;
+        if (tieneMonto && !selectEl.options.length) {
+            poblarSelect(selectEl, cuentasPorMoneda(moneda, false), cuentaPrincipalEn(cuentasPorMoneda(moneda, false)));
+        }
+    }
+    pagoExtraMonto.addEventListener('input', () => {
+        _actualizarCampoExtraCuenta(pagoExtraMonto.value, pagoExtraCampoCuenta, pagoExtraCuenta, pagoCtx ? pagoCtx.moneda : 'ARS');
+    });
+
+    function _leerExtraForm(montoEl, descEl, cuentaEl) {
+        const monto = parseFloat(montoEl.value) || 0;
+        if (monto <= 0) return null;
+        return { monto, descripcion: descEl.value.trim(), cuenta_pk: cuentaEl.value || null };
+    }
 
     function cerrarModalPagoCuota() {
         ocultarModalDeudas(modalPagoCuota);
@@ -1855,6 +1880,10 @@ document.addEventListener('DOMContentLoaded', function () {
         pagoCuotaLineas.innerHTML = '';
         agregarLineaPago({ monto: ctx.objetivo });
         actualizarResumenPago();
+        pagoExtraMonto.value = '';
+        pagoExtraDescripcion.value = '';
+        pagoExtraCuenta.innerHTML = '';
+        pagoExtraCampoCuenta.hidden = true;
         mostrarModalDeudas(modalPagoCuota, esAbono ? pagoCuotaMonto : modalPagoCuota);
     }
 
@@ -1916,11 +1945,18 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
         if (pagoCtx.modo === 'abono' && !pagoCuotaFecha.value) { pagoCuotaMsg.textContent = 'Indicá la fecha del pago.'; return; }
+        const montoExtra = parseFloat(pagoExtraMonto.value) || 0;
+        if (montoExtra > 0 && !pagoExtraCuenta.value) {
+            pagoCuotaMsg.textContent = 'Elegí la cuenta del cargo extra.';
+            return;
+        }
         if (!await KaiConfirm('¿Registrar este pago? Va a impactar la caja.')) return;
 
         const body = { pagos: lineas };
         if (pagoCtx.modo === 'cuota') { body.adelantar = pagoCtx.adelantar; }
         if (pagoCtx.modo === 'abono') { body.monto = objetivo; body.fecha = pagoCuotaFecha.value; }
+        const extra = _leerExtraForm(pagoExtraMonto, pagoExtraDescripcion, pagoExtraCuenta);
+        if (extra) body.extra = extra;
         _enviarPago(body);
     });
 
@@ -1931,6 +1967,10 @@ document.addEventListener('DOMContentLoaded', function () {
         chequeCuotaActual = pagoCtx.modo === 'abono'
             ? { modoAbono: true, deudaPk: pagoCtx.deudaPk, monto: objetivo, fecha: pagoCuotaFecha.value || today }
             : { modoAbono: false, cuotaPk: pagoCtx.cuotaPk, adelantar: pagoCtx.adelantar, monto: objetivo };
+        // Si ya había cargado un cargo extra en el modal de pago en
+        // efectivo, se lo lleva puesto al pasar a "Pagar con cheque" —
+        // no hace falta tipearlo de nuevo.
+        chequeCuotaActual.extra = _leerExtraForm(pagoExtraMonto, pagoExtraDescripcion, pagoExtraCuenta);
         cerrarModalPagoCuota();
         _prepararModalChequeComun(chequeCuotaActual.monto, deudaDetalleActual.moneda);
     });
@@ -1971,6 +2011,17 @@ document.addEventListener('DOMContentLoaded', function () {
         financiadoraSelect.innerHTML = '<option value="">— No hace falta, ya tiene fondos —</option>' +
             financiadoras.map(c => `<option value="${c.pk}">${c.nombre}${c.titular ? ' · ' + c.titular : ''}</option>`).join('');
 
+        // Cargo extra (opcional): se lleva puesto lo que ya se había
+        // cargado en el modal de pago en efectivo (ver btnPagarConCheque),
+        // si venía de ahí. Su cuenta es cualquier cuenta real, no
+        // necesariamente bancaria — a diferencia de la chequera.
+        const extraPrevio = chequeCuotaActual && chequeCuotaActual.extra;
+        document.getElementById('cchcExtraMonto').value = extraPrevio ? extraPrevio.monto : '';
+        document.getElementById('cchcExtraDescripcion').value = extraPrevio ? extraPrevio.descripcion : '';
+        const cchcExtraCuenta = document.getElementById('cchcExtraCuenta');
+        poblarSelect(cchcExtraCuenta, cuentasPorMoneda(moneda, false), extraPrevio ? extraPrevio.cuenta_pk : null);
+        document.getElementById('cchcExtraCampoCuenta').hidden = !extraPrevio;
+
         mostrarModalDeudas(modalChequeCuota, document.getElementById(montoEditable ? 'cchcMonto' : 'cchc_numero_cheque'));
     }
 
@@ -1980,6 +2031,13 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     btnCerrarChequeCuota.addEventListener('click', cerrarModalChequeCuota);
     btnCancelarChequeCuota.addEventListener('click', cerrarModalChequeCuota);
+
+    document.getElementById('cchcExtraMonto').addEventListener('input', function () {
+        _actualizarCampoExtraCuenta(
+            this.value, document.getElementById('cchcExtraCampoCuenta'),
+            document.getElementById('cchcExtraCuenta'), deudaDetalleActual.moneda,
+        );
+    });
 
     btnGuardarChequeCuota.addEventListener('click', async () => {
         if (!chequeCuotaActual) return;
@@ -2010,6 +2068,12 @@ document.addEventListener('DOMContentLoaded', function () {
             chequeCuotaActual.fecha = fechaEmision;
         }
 
+        const extra = _leerExtraForm(
+            document.getElementById('cchcExtraMonto'), document.getElementById('cchcExtraDescripcion'),
+            document.getElementById('cchcExtraCuenta'),
+        );
+        if (extra && !extra.cuenta_pk) { msg.textContent = 'Elegí la cuenta del cargo extra.'; return; }
+
         const mensajeConfirmacion = chequeCuotaActual.modoAbono
             ? '¿Emitir este cheque para el abono? El pago quedará en trámite y recién se confirmará cuando marques el cheque como pagado desde la pantalla de Cheques.'
             : '¿Emitir este cheque para pagar la cuota? La cuota quedará en trámite y recién se confirmará cuando marques el cheque como pagado desde la pantalla de Cheques.';
@@ -2036,12 +2100,13 @@ document.addEventListener('DOMContentLoaded', function () {
                         monto: chequeCuotaActual.monto,
                         fecha: chequeCuotaActual.fecha,
                         cheque: chequeData,
+                        extra,
                     }),
                 })
                 : await fetch(urlConfirmarCuota(chequeCuotaActual.cuotaPk), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
-                    body: JSON.stringify({ adelantar: chequeCuotaActual.adelantar, cheque: chequeData }),
+                    body: JSON.stringify({ adelantar: chequeCuotaActual.adelantar, cheque: chequeData, extra }),
                 });
             const result = await response.json();
             if (result.success) {
@@ -2403,7 +2468,16 @@ document.addEventListener('DOMContentLoaded', function () {
     const ecCampoNota = document.getElementById('ecCampoNota');
     const ecNota = document.getElementById('ecNota');
     const ecNotaBloqueoPago = document.getElementById('ecNotaBloqueoPago');
+    const ecBloqueExtra = document.getElementById('ecBloqueExtra');
+    const ecExtraMonto = document.getElementById('ecExtraMonto');
+    const ecExtraDescripcion = document.getElementById('ecExtraDescripcion');
+    const ecExtraCampoCuenta = document.getElementById('ecExtraCampoCuenta');
+    const ecExtraCuenta = document.getElementById('ecExtraCuenta');
     const ecmMsg = document.getElementById('ecmMsg');
+
+    ecExtraMonto.addEventListener('input', () => {
+        _actualizarCampoExtraCuenta(ecExtraMonto.value, ecExtraCampoCuenta, ecExtraCuenta, deudaDetalleActual.moneda);
+    });
 
     let cuotaEditandoActual = null;
 
@@ -2456,6 +2530,20 @@ document.addEventListener('DOMContentLoaded', function () {
                     : 'Esta cuota se pagó repartida en varias cuentas — no se puede reasignar la cuenta acá. '
                       + 'Borrá la cuota y volvé a cargarla si hace falta corregirla.';
             }
+
+            // El cargo extra es independiente de cómo se pagó la cuota
+            // principal (una cuenta, repartida o cheque) — se puede
+            // agregar/editar/quitar en cualquier cuota real ya pagada.
+            ecBloqueExtra.hidden = c.es_historica;
+            if (!c.es_historica) {
+                const tieneExtra = parseFloat(c.monto_extra) > 0;
+                ecExtraMonto.value = tieneExtra ? c.monto_extra : '';
+                ecExtraDescripcion.value = c.descripcion_extra || '';
+                poblarSelect(ecExtraCuenta, cuentasPorMoneda(deudaDetalleActual.moneda, false), c.cuenta_pago_extra_pk);
+                ecExtraCampoCuenta.hidden = !tieneExtra;
+            }
+        } else {
+            ecBloqueExtra.hidden = true;
         }
 
         mostrarModalDeudas(modalEditarCuota, ecVencimiento);
@@ -2473,7 +2561,8 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         const pagada = c.estado === 'confirmada';
-        if (pagada && Number(ecMonto.value) !== Number(c.monto)) {
+        const montoCambio = Number(ecMonto.value) !== Number(c.monto);
+        if (pagada && montoCambio) {
             const msg = c.es_historica
                 ? 'Esta cuota está marcada como pagada de antes de cargar el sistema (carga inicial) — '
                   + 'no tiene un movimiento de caja real detrás, así que corregir el monto NO afecta tu '
@@ -2483,7 +2572,14 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!await KaiConfirm(msg, { danger: !c.es_historica })) return;
         }
 
-        const body = { fecha_vencimiento: ecVencimiento.value, monto: ecMonto.value };
+        const body = { fecha_vencimiento: ecVencimiento.value };
+        // El monto solo se manda si realmente cambió — el backend bloquea
+        // cualquier intento de tocar el monto de una cuota pagada repartida
+        // en varias cuentas (no sabe rescalar cuál línea ajustar), aunque el
+        // valor mandado sea idéntico al que ya tenía. Mandarlo siempre
+        // rompía guardar cualquier otra cosa (fecha, cargo extra) en esas
+        // cuotas.
+        if (!pagada || montoCambio) body.monto = ecMonto.value;
 
         if (pagada && c.es_historica) {
             body.fecha_pago = ecFechaPago.value || null;
@@ -2502,6 +2598,17 @@ document.addEventListener('DOMContentLoaded', function () {
                 )) return;
                 body.cuenta_pago_pk = ecCuenta.value;
             }
+        }
+
+        if (pagada && !ecBloqueExtra.hidden) {
+            const montoExtra = parseFloat(ecExtraMonto.value) || 0;
+            if (montoExtra > 0 && !ecExtraCuenta.value) {
+                ecmMsg.textContent = 'Elegí la cuenta del cargo extra.';
+                return;
+            }
+            body.extra = montoExtra > 0
+                ? { monto: montoExtra, descripcion: ecExtraDescripcion.value.trim(), cuenta_pk: ecExtraCuenta.value }
+                : { monto: 0 };
         }
 
         btnGuardarEditarCuota.disabled = true;

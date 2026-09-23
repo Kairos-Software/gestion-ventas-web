@@ -1,11 +1,20 @@
 """
-python manage.py emitir_nc_devolucion <devolucion_pk>
+python manage.py emitir_nc_devolucion <devolucion_numero>
 
 Reintenta emitir la Nota de Crédito ARCA de una devolución puntual —
 red de seguridad manual para cuando RegistrarDevolucionAjax ya registró
 la devolución (stock repuesto, caja conciliada) pero el pedido de CAE a
-ARCA falló (rechazo, corte de red, timeout, etc.), y el usuario quiere
-reintentarlo sin tener que rehacer la venta ni la devolución.
+ARCA falló (rechazo, corte de red, timeout, etc.), o directamente nunca
+se intentó (devoluciones registradas ANTES de que existiera este
+mecanismo), y el usuario quiere emitirla sin tener que rehacer la venta
+ni la devolución.
+
+`devolucion_numero` es el número que se ve en pantalla (ej: "DEV-00001",
+en el detalle de la venta) — a propósito NO es el pk interno de la fila:
+numero es único y es exactamente lo que el usuario tiene copiado de la
+pantalla, así no hay forma de teclear un pk equivocado a mano y terminar
+pidiéndole a ARCA una Nota de Crédito para la devolución de otra venta.
+También acepta el número pelado (ej: "1" o "00001").
 
 Es seguro reintentar las veces que haga falta: emitir_nota_credito()
 devuelve la NotaCreditoArca existente sin pedir un CAE nuevo si la
@@ -23,15 +32,27 @@ class Command(BaseCommand):
     help = 'Reintenta emitir la Nota de Crédito ARCA de una devolución puntual.'
 
     def add_arguments(self, parser):
-        parser.add_argument('devolucion_pk', type=int)
+        parser.add_argument('devolucion_numero', type=str)
 
     def handle(self, *args, **options):
+        crudo = options['devolucion_numero'].strip().upper()
+        if crudo.startswith('DEV-'):
+            numero = crudo
+        else:
+            try:
+                numero = f'DEV-{int(crudo):05d}'
+            except ValueError:
+                raise CommandError(
+                    f'"{options["devolucion_numero"]}" no es un número de devolución válido '
+                    f'(ej: DEV-00001, tal como aparece en el detalle de la venta).'
+                )
+
         try:
             devolucion = DevolucionVenta.objects.select_related('venta__comprobante_arca').get(
-                pk=options['devolucion_pk'],
+                numero=numero,
             )
         except DevolucionVenta.DoesNotExist:
-            raise CommandError(f'No existe ninguna DevolucionVenta con pk={options["devolucion_pk"]}.')
+            raise CommandError(f'No existe ninguna devolución "{numero}".')
 
         existente = getattr(devolucion, 'nota_credito_arca', None)
         if existente is not None:
@@ -49,7 +70,10 @@ class Command(BaseCommand):
             ))
             return
 
-        self.stdout.write(f'Pidiendo CAE para la devolución {devolucion.numero}...')
+        self.stdout.write(
+            f'Pidiendo CAE para la devolución {devolucion.numero} '
+            f'(venta {devolucion.venta.numero})...'
+        )
         try:
             nc = facturacion.emitir_nota_credito(devolucion)
         except ArcaError as exc:

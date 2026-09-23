@@ -43,6 +43,7 @@ const pagInfo        = document.getElementById('pagInfo');
 const resumenBar     = document.getElementById('resumenBar');
 const resumenTotal   = document.getElementById('resumenTotal');
 const resumenPag     = document.getElementById('resumenPag');
+const resumenMonto   = document.getElementById('resumenMonto');
 const filtroQ        = document.getElementById('filtroQ');
 const filtroEstado   = document.getElementById('filtroEstado');
 const filtroMedioPago= document.getElementById('filtroMedioPago');
@@ -92,11 +93,37 @@ function buildPagoExtraHTML(p) {
     return partes.length ? ` <span class="mp-badge-extra">— ${partes.join(' · ')}</span>` : '';
 }
 
-/** Si la venta tiene pagos divididos (c.pagos), muestra un badge por
- *  cada uno con su monto. Si no, cae al badge único de siempre. */
+/** Junta las líneas de PagoVenta que son la misma forma de pago real
+ *  (mismo medio + cuenta + tarjeta). El redondeo a favor genera su propia
+ *  línea con monto base 0 (ver Venta.confirmar) — sin esto, una venta
+ *  pagada 100% en efectivo con $2 de redondeo aparecía como "dividida"
+ *  entre "Efectivo: $148" y "Efectivo: $2". */
+function agruparLineasPago(pagos) {
+    const grupos = [];
+    const porClave = new Map();
+    pagos.forEach(p => {
+        const clave = [p.medio, p.cuenta || '', p.tarjeta || ''].join('|');
+        let g = porClave.get(clave);
+        if (!g) {
+            g = Object.assign({}, p, { monto: 0, recargo_monto: 0, redondeo_monto: 0 });
+            porClave.set(clave, g);
+            grupos.push(g);
+        }
+        g.monto          = (parseFloat(g.monto)          + parseFloat(p.monto          || 0)).toFixed(2);
+        g.recargo_monto  = (parseFloat(g.recargo_monto)  + parseFloat(p.recargo_monto  || 0)).toFixed(2);
+        g.redondeo_monto = (parseFloat(g.redondeo_monto) + parseFloat(p.redondeo_monto || 0)).toFixed(2);
+        if (p.cheques && p.cheques.length && !g.cheques) g.cheques = p.cheques;
+        if (p.cuenta_por_cobrar && !g.cuenta_por_cobrar) g.cuenta_por_cobrar = p.cuenta_por_cobrar;
+    });
+    return grupos;
+}
+
+/** Si la venta tiene pagos divididos entre formas de pago distintas
+ *  (c.pagos, ya agrupadas), muestra un badge por cada una con su monto.
+ *  Si no, cae al badge único de siempre. */
 function buildMediosPagoHTML(c) {
     if (c.pagos && c.pagos.length) {
-        return c.pagos.map(p => {
+        return agruparLineasPago(c.pagos).map(p => {
             const cls = MEDIO_PAGO_CLASES[p.medio] || '';
             const cuentaTxt = p.cuenta ? ` · ${_esc(p.cuenta)}` : '';
             return `<span class="mp-badge ${cls}">${_esc(p.medio_label)}: ${formatMoney(p.monto)}${cuentaTxt}</span>${buildPagoExtraHTML(p)}`;
@@ -413,9 +440,10 @@ function buildAccionesHTML(c) {
    BUILD HTML — fila de venta completa
 ════════════════════════════════════════════════════════════════ */
 function buildVentaHTML(c) {
-    const esPagoDividido = c.pagos && c.pagos.length > 1;
+    const lineasPago = c.pagos && c.pagos.length ? agruparLineasPago(c.pagos) : [];
+    const esPagoDividido = lineasPago.length > 1;
     const medioBadgeCabecera = esPagoDividido
-        ? `<span class="mp-badge mp--dividido">Pago dividido (${c.pagos.length})</span>`
+        ? `<span class="mp-badge mp--dividido">Pago dividido (${lineasPago.length})</span>`
         : buildMedioPagoBadge(c.medio_pago, c.medio_pago_label);
     const mediosBadgeDetalle = buildMediosPagoHTML(c);
 
@@ -549,6 +577,7 @@ function renderLista(data) {
 
     resumenTotal.textContent = data.total;
     resumenPag.textContent   = `${data.page} / ${totalPages}`;
+    resumenMonto.textContent = formatMoney(data.suma_total_cobrado);
     resumenBar.style.display = 'flex';
 }
 

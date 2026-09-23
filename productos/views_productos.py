@@ -558,12 +558,21 @@ class ProductoEliminarAjax(LoginRequiredMixin, View):
 
         producto = get_object_or_404(Producto, pk=pk)
 
-        for img in producto.imagenes.all():
-            if img.imagen and os.path.isfile(img.imagen.path):
-                os.remove(img.imagen.path)
+        # Las rutas se capturan ANTES de borrar (no se tocan todavía): si
+        # Producto.delete() rechaza el borrado (ej: todavía tiene stock),
+        # las imágenes tienen que seguir intactas en disco.
+        rutas_imagenes = [img.imagen.path for img in producto.imagenes.all() if img.imagen]
 
         nombre = str(producto)
-        producto.delete()
+        try:
+            producto.delete()
+        except ValueError as e:
+            return JsonResponse({'error': str(e)}, status=400)
+
+        for ruta in rutas_imagenes:
+            if os.path.isfile(ruta):
+                os.remove(ruta)
+
         return JsonResponse({'ok': True, 'nombre': nombre})
 
 
@@ -593,14 +602,26 @@ class ProductoAccionesMasivasAjax(LoginRequiredMixin, View):
                 return JsonResponse({'error': 'Sin permiso.'}, status=403)
 
             productos = Producto.objects.filter(pk__in=pks)
-            afectados = 0
+            afectados  = 0
+            eliminados = []
+            bloqueados = []
             for producto in productos:
-                for img in producto.imagenes.all():
-                    if img.imagen and os.path.isfile(img.imagen.path):
-                        os.remove(img.imagen.path)
-                producto.delete()
+                rutas_imagenes = [img.imagen.path for img in producto.imagenes.all() if img.imagen]
+                nombre = str(producto)
+                try:
+                    producto.delete()
+                except ValueError as e:
+                    bloqueados.append({'pk': producto.pk, 'nombre': nombre, 'motivo': str(e)})
+                    continue
+                for ruta in rutas_imagenes:
+                    if os.path.isfile(ruta):
+                        os.remove(ruta)
+                eliminados.append(producto.pk)
                 afectados += 1
-            return JsonResponse({'ok': True, 'afectados': afectados})
+            return JsonResponse({
+                'ok': True, 'afectados': afectados,
+                'eliminados': eliminados, 'bloqueados': bloqueados,
+            })
 
         if not chequear_permiso(request.user, 'editar_productos'):
             return JsonResponse({'error': 'Sin permiso.'}, status=403)

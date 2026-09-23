@@ -1619,6 +1619,35 @@ function vdtToast(titulo, cuerpo, duracionMs) {
 })();
 
 /**
+ * Botón "Emitir nota" — para una devolución que quedó sin su Nota de
+ * Crédito (la emisión automática falló en su momento, o la devolución
+ * es de antes de que existiera ese paso). No toca stock ni caja, solo
+ * le pide el CAE a ARCA con los datos que la devolución ya tiene
+ * guardados — mismo mecanismo que dispara solo RegistrarDevolucionAjax.
+ * @param {number} devolucionPk
+ * @param {HTMLButtonElement} btn
+ */
+async function vdtEmitirNotaCredito(devolucionPk, btn) {
+    if (btn) { btn.disabled = true; btn.textContent = 'Emitiendo…'; }
+    try {
+        const res = await fetch(VDT.urlEmitirNotaCredito, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': VDT.csrfToken },
+            body: JSON.stringify({ devolucion_pk: devolucionPk }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+            window.location.reload();
+            return;
+        }
+        vdtToast('No se pudo emitir la Nota de Crédito', data.error || 'Error desconocido.', 15000);
+    } catch {
+        vdtToast('Error de conexión', 'Intentá de nuevo.');
+    }
+    if (btn) { btn.disabled = false; btn.textContent = 'Emitir nota'; }
+}
+
+/**
  * Abre el selector de formato para imprimir la Nota de Crédito de una
  * devolución puntual — busca la entrada correspondiente en window.NC_DATA
  * (armado en _detalle_venta_datos.html) y se la pasa a ticketAbrirSelector,
@@ -1863,6 +1892,7 @@ function vdtRecalcularMontoDevolucion() {
 // ── Hooks para el panel flotante de cobro (panel_cobro.js) ──
 window.vdtImprimirTicket = vdtImprimirTicket;
 window.vdtAbrirModalDevolucion = vdtAbrirModalDevolucion;
+window.vdtEmitirNotaCredito = vdtEmitirNotaCredito;
 window.ncImprimirDevolucion = ncImprimirDevolucion;
 window.ncGuardarPdfDevolucion = ncGuardarPdfDevolucion;
 window.detalleVentaSetTotal = function (nuevoTotal) {

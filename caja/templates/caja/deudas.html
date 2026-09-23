@@ -5,7 +5,7 @@
 {% block title %}Créditos y préstamos{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'caja/css/deudas.css' %}?v=20260921e">
+<link rel="stylesheet" href="{% static 'caja/css/deudas.css' %}?v=20260922a">
 {% endblock %}
 
 {% block content %}
@@ -682,6 +682,36 @@
                 transferencia. Cada línea que agregues resta del total; cuando sumen exacto, se habilita
                 confirmar.
             </div>
+
+            <section class="deudas-dialog-section" aria-labelledby="pagoExtraTitle">
+                <div class="deudas-dialog-section-head">
+                    <div>
+                        <span class="deudas-dialog-label">Opcional</span>
+                        <h3 id="pagoExtraTitle">Cargo extra</h3>
+                    </div>
+                    <button type="button" class="kai-help-btn" data-help-target="ayuda_pago_cargo_extra" aria-label="¿Qué es esto?">?</button>
+                </div>
+                <div class="deudas-form-grid">
+                    <div class="form-campo">
+                        <label for="pagoExtraMonto">Monto del cargo</label>
+                        <input type="number" id="pagoExtraMonto" step="0.01" min="0" placeholder="0,00">
+                    </div>
+                    <div class="form-campo">
+                        <label for="pagoExtraDescripcion">Descripción</label>
+                        <input type="text" id="pagoExtraDescripcion" maxlength="200" placeholder="Ej: interés por atraso">
+                    </div>
+                </div>
+                <div class="form-campo" id="pagoExtraCampoCuenta" hidden>
+                    <label for="pagoExtraCuenta">Cuenta del cargo extra *</label>
+                    <select id="pagoExtraCuenta"></select>
+                </div>
+            </section>
+            <div class="kai-help-popover" id="ayuda_pago_cargo_extra">
+                Si además de la cuota te cobraron algo extra (ej: un interés por pagar tarde), cargalo acá —
+                queda registrado como un movimiento de caja aparte, con su propia cuenta y descripción. Se
+                puede editar o quitar después desde "Editar cuota".
+            </div>
+
             <p class="deudas-pago-resumen" id="pagoCuotaResumen"></p>
             <div id="pagoCuotaMsg" class="deudas-inline-msg"></div>
 
@@ -743,6 +773,34 @@
                     <input type="text" id="ecNota" maxlength="100" placeholder="Ej: transferencia, permuta (opcional)">
                 </div>
                 <p class="deudas-edicion-nota" id="ecNotaBloqueoPago" hidden></p>
+
+                <section class="deudas-dialog-section" id="ecBloqueExtra" hidden>
+                    <div class="deudas-dialog-section-head">
+                        <div>
+                            <span class="deudas-dialog-label">Opcional</span>
+                            <h3>Cargo extra</h3>
+                        </div>
+                        <button type="button" class="kai-help-btn" data-help-target="ayuda_editar_cargo_extra" aria-label="¿Qué es esto?">?</button>
+                    </div>
+                    <div class="deudas-form-grid">
+                        <div class="form-campo">
+                            <label for="ecExtraMonto">Monto del cargo</label>
+                            <input type="number" id="ecExtraMonto" step="0.01" min="0" placeholder="0,00">
+                        </div>
+                        <div class="form-campo">
+                            <label for="ecExtraDescripcion">Descripción</label>
+                            <input type="text" id="ecExtraDescripcion" maxlength="200" placeholder="Ej: interés por atraso">
+                        </div>
+                    </div>
+                    <div class="form-campo" id="ecExtraCampoCuenta" hidden>
+                        <label for="ecExtraCuenta">Cuenta del cargo extra *</label>
+                        <select id="ecExtraCuenta"></select>
+                    </div>
+                </section>
+                <div class="kai-help-popover" id="ayuda_editar_cargo_extra">
+                    Si además de esta cuota se cobró algo extra (ej: un interés por pagar tarde), cargalo
+                    acá. Dejá el monto en 0 para quitarlo.
+                </div>
             </div>
 
             <div id="ecmMsg" class="deudas-inline-msg"></div>
@@ -855,6 +913,36 @@
                 <input type="text" id="cchc_emisor" placeholder="Opcional">
             </div>
             </div>
+
+            <section class="deudas-dialog-section" aria-labelledby="cchcExtraTitle">
+                <div class="deudas-dialog-section-head">
+                    <div>
+                        <span class="deudas-dialog-label">Opcional</span>
+                        <h3 id="cchcExtraTitle">Cargo extra</h3>
+                    </div>
+                    <button type="button" class="kai-help-btn" data-help-target="ayuda_cheque_cargo_extra" aria-label="¿Qué es esto?">?</button>
+                </div>
+                <div class="deudas-form-grid">
+                    <div class="form-campo">
+                        <label for="cchcExtraMonto">Monto del cargo</label>
+                        <input type="number" id="cchcExtraMonto" step="0.01" min="0" placeholder="0,00">
+                    </div>
+                    <div class="form-campo">
+                        <label for="cchcExtraDescripcion">Descripción</label>
+                        <input type="text" id="cchcExtraDescripcion" maxlength="200" placeholder="Ej: interés por atraso">
+                    </div>
+                </div>
+                <div class="form-campo" id="cchcExtraCampoCuenta" hidden>
+                    <label for="cchcExtraCuenta">Cuenta del cargo extra *</label>
+                    <select id="cchcExtraCuenta"></select>
+                </div>
+            </section>
+            <div class="kai-help-popover" id="ayuda_cheque_cargo_extra">
+                Si además del cheque pagaste algo extra en el momento (ej: un interés por atraso), cargalo
+                acá — se registra como un movimiento de caja aparte en efectivo/banco, no en el cheque. Se
+                hace real recién cuando el cheque se cobre de verdad.
+            </div>
+
             <div id="cchcMsg" class="deudas-inline-msg"></div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-ghost" id="btnCancelarChequeCuota">Cancelar</button>
@@ -901,7 +989,7 @@
         pagina: '{{ url_resumenes_tarjeta }}',
     };
 </script>
-<script src="{% static 'caja/js/deudas.js' %}?v=20260921g"></script>
+<script src="{% static 'caja/js/deudas.js' %}?v=20260922a"></script>
 <script src="{% static 'caja/js/deudas_documentos.js' %}?v=20260921a"></script>
 <script src="{% static 'caja/js/deudas_imprimir.js' %}?v=20260921a"></script>
 <script src="{% static 'caja/js/resumenes_tarjeta_widget.js' %}?v=20260921b"></script>

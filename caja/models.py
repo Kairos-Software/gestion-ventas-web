@@ -113,6 +113,7 @@ class OrigenMovimiento(models.TextChoices):
     TRANSACCION = 'transaccion', 'Transacción interna'
     DEUDA       = 'deuda',       'Deuda (acreditación de préstamo)'
     CUOTA_DEUDA = 'cuota_deuda', 'Cuota de deuda'
+    CUOTA_DEUDA_EXTRA = 'cuota_deuda_extra', 'Cargo extra de cuota de deuda'
     CHEQUE      = 'cheque',      'Cheque'
     DEUDA_TARJETA       = 'deuda_tarjeta',       'Compra con tarjeta (débito en tarjeta)'
     CUOTA_DEUDA_TARJETA = 'cuota_deuda_tarjeta', 'Pago de cuota (capital acreditado a tarjeta)'
@@ -1324,8 +1325,19 @@ class TurnoCaja(models.Model):
     def calcular_efectivo_cuotas_pagadas_en_turno(self):
         """Total pagado en efectivo durante este turno por cuotas VIEJAS
         de Deuda — mismo criterio que calcular_efectivo_cuotas_cobradas_en_turno,
-        pero resta en vez de sumar (sale plata del cajón, no entra)."""
-        return self._cuotas_pagadas_en_turno().aggregate(total=Sum('monto'))['total'] or Decimal('0')
+        pero resta en vez de sumar (sale plata del cajón, no entra). Incluye
+        el monto de la cuota en sí (PagoCuotaDeuda) MÁS cualquier cargo
+        extra que se le haya cobrado en efectivo (CuotaDeuda.monto_extra,
+        que no es una fila de PagoCuotaDeuda — es un campo aparte de la
+        cuota, ver sincronizar_movimiento_cuota_extra)."""
+        principal = self._cuotas_pagadas_en_turno().aggregate(total=Sum('monto'))['total'] or Decimal('0')
+        extra = CuotaDeuda.objects.filter(
+            cuenta_pago_extra__tipo=TipoCuenta.EFECTIVO,
+            estado=EstadoCuota.CONFIRMADA,
+            fecha_confirmacion__gte=self.fecha_apertura,
+            fecha_confirmacion__lte=self.fecha_cierre if self.fecha_cierre else timezone.now(),
+        ).aggregate(total=Sum('monto_extra'))['total'] or Decimal('0')
+        return principal + extra
 
     def calcular_ingresos_manuales_en_turno(self):
         """Ingresos manuales cargados en la pantalla de Caja Diaria para
@@ -1661,6 +1673,18 @@ class TurnoCaja(models.Model):
                 pagos__cuenta__tipo=TipoCuenta.EFECTIVO,
             ).distinct():
                 sincronizar_movimiento_cuota(cuota_deuda)
+
+            # Mismo diferimiento, pero para el cargo extra opcional de una
+            # cuota (no es una fila de PagoCuotaDeuda — ver monto_extra) —
+            # necesita su propia consulta porque su cuenta es independiente
+            # de con qué cuenta(s) se pagó la cuota en sí.
+            for cuota_extra in CuotaDeuda.objects.filter(
+                estado=EstadoCuota.CONFIRMADA,
+                fecha_confirmacion__gte=self.fecha_apertura,
+                fecha_confirmacion__lte=self.fecha_cierre,
+                cuenta_pago_extra__tipo=TipoCuenta.EFECTIVO,
+            ).distinct():
+                sincronizar_movimiento_cuota_extra(cuota_extra)
 
             for cuota_cobro in CuotaCobro.objects.filter(
                 estado=EstadoCuota.CONFIRMADA,
@@ -2966,7 +2990,7 @@ class Deuda(models.Model):
     @transaction.atomic
     def registrar_abono(self, *, monto, usuario, cuenta_pk=None, pagos=None, cheque_data=None,
                          fecha=None, es_historica=False, cuenta_pago_historica=None,
-                         medio_pago_historico='', cheque_historico=None):
+                         medio_pago_historico='', cheque_historico=None, extra=None):
         """
         Solo para modo_cuotas=LIBRE: registra un pago de monto libre.
         `pagos` (lista `[{cuenta_pk, monto}]`) permite repartir el abono
@@ -2981,7 +3005,9 @@ class Deuda(models.Model):
         `es_historica=True` (solo desde crear_con_cuotas, carga inicial):
         el abono queda CONFIRMADA/es_historica=True con cuenta_pago=None
         — ver `_aplicar_pago_historico` para `cuenta_pago_historica`/
-        `medio_pago_historico`/`cheque_historico`.
+        `medio_pago_historico`/`cheque_historico`. `extra` (opcional, no
+        aplica junto con es_historica): cargo extra cobrado junto con
+        este abono, ver CuotaDeuda._aplicar_extra.
         """
         if self.modo_cuotas != ModoCuotas.LIBRE:
             raise ValueError('Esta deuda no es de cuotas libres.')
@@ -3017,9 +3043,9 @@ class Deuda(models.Model):
                 cheque_historico=cheque_historico,
             )
         elif cheque_data:
-            cuota.confirmar_con_cheque(cheque_data, usuario, adelantar=True)
+            cuota.confirmar_con_cheque(cheque_data, usuario, adelantar=True, extra=extra)
         else:
-            cuota.confirmar(pagos or cuenta_pk, usuario, adelantar=True)
+            cuota.confirmar(pagos or cuenta_pk, usuario, adelantar=True, extra=extra)
 
         return cuota
 
@@ -3051,20 +3077,47 @@ class Deuda(models.Model):
         self.porcentaje_interes = porcentaje
         self.save(update_fields=['monto_desconocido', 'porcentaje_interes'])
 
-    def _reprorratear_capital(self):
+    def _reprorratear_capital(self, *, cuota_incluida=None):
         """
         Solo modo_cuotas=variable. Reparte monto_original (capital) entre
-        TODAS las cuotas no anuladas en proporción a su monto y actualiza
-        su `monto_capital`, para que `Σ monto_capital == monto_original`
-        aunque el cronograma o el capital hayan cambiado. Para
-        compra_credito, re-sincroniza el crédito a la tarjeta de las
-        cuotas ya confirmadas (su capital pudo moverse) y el débito de
-        cabecera. Para préstamo el `monto_capital` es solo informativo.
+        las cuotas PENDIENTES en proporción a su monto, dejando
+        `Σ monto_capital(pendientes) == monto_original − Σ monto_capital
+        (confirmadas)`. Las cuotas CONFIRMADA (reales o históricas) NO se
+        tocan: su capital quedó fijado para siempre en el momento en que
+        se pagaron — retocarlo después reescribiría en silencio un pago
+        ya cerrado y, para compra_credito, el movimiento real que ya
+        quedó asentado en la tarjeta por ese pago (bug real detectado en
+        QA: antes esta función recalculaba TODAS las cuotas no anuladas,
+        incluidas las ya confirmadas). Para compra_credito, re-sincroniza
+        el débito de cabecera (ese sí depende solo de `monto_original`,
+        no del prorrateo). Para préstamo el `monto_capital` es solo
+        informativo.
+
+        `cuota_incluida`: excepción puntual — si SE ACABA de corregir el
+        propio `monto` de esa cuota aunque ya esté CONFIRMADA (ver
+        CuotaDeuda.editar/corregir_monto_desde_cheque), su capital SÍ
+        tiene que seguir a su nuevo monto. El resto de las confirmadas
+        sigue sin tocarse.
         """
-        cuotas = list(self.cuotas.exclude(estado=EstadoCuota.ANULADA).order_by('numero'))
+        cuotas = list(self.cuotas.filter(estado=EstadoCuota.PENDIENTE).order_by('numero'))
+        ids_incluidos = {c.pk for c in cuotas}
+        if (cuota_incluida is not None and cuota_incluida.estado == EstadoCuota.CONFIRMADA
+                and cuota_incluida.pk not in ids_incluidos):
+            cuotas.append(cuota_incluida)
+            cuotas.sort(key=lambda c: c.numero)
+            ids_incluidos.add(cuota_incluida.pk)
         if not cuotas:
             return
-        capitales = _prorratear_capital([c.monto for c in cuotas], self.monto_original)
+        capital_confirmado = self.cuotas.filter(estado=EstadoCuota.CONFIRMADA).exclude(
+            pk__in=ids_incluidos).aggregate(s=models.Sum('monto_capital'))['s'] or Decimal('0')
+        capital_restante = (self.monto_original or Decimal('0')) - capital_confirmado
+        if capital_restante < 0:
+            raise ValueError(
+                f'El capital no puede quedar por debajo de {capital_confirmado} — ya hay '
+                f'cuotas confirmadas que sumaron ese capital, y no se puede "deshacer" '
+                f'en silencio un pago ya registrado.'
+            )
+        capitales = _prorratear_capital([c.monto for c in cuotas], capital_restante)
         for cuota, cap in zip(cuotas, capitales):
             if cuota.monto_capital != cap:
                 cuota.monto_capital = cap
@@ -3608,6 +3661,23 @@ class CuotaDeuda(models.Model):
                    '"compensación con otra deuda") — nota libre de registro.',
     )
 
+    monto_extra = models.DecimalField(
+        max_digits=14, decimal_places=2, default=Decimal('0'), blank=True,
+        help_text='Cargo extra cobrado al pagar esta cuota, aparte de su monto (ej: '
+                   'interés por mora, recargo del banco por pagar tarde). NO es parte '
+                   'de la deuda ni de su saldo/plan — es un movimiento de caja propio, '
+                   'igual que ResumenTarjeta.monto_ajuste. No aplica a cuotas '
+                   'es_historica (no generan movimiento real de ningún tipo).',
+    )
+    descripcion_extra = models.CharField(max_length=200, blank=True)
+    cuenta_pago_extra = models.ForeignKey(
+        CuentaCaja, on_delete=models.PROTECT, null=True, blank=True, related_name='+',
+        help_text='De dónde sale monto_extra. Se materializa recién cuando la cuota '
+                   'queda CONFIRMADA de verdad — si se pagó con cheque, eso pasa cuando '
+                   'el cheque se cobra (ver sincronizar_movimiento_cuota_extra), no '
+                   'cuando se emitió.',
+    )
+
     class Meta:
         verbose_name        = 'Cuota de deuda'
         verbose_name_plural = 'Cuotas de deuda'
@@ -3627,8 +3697,40 @@ class CuotaDeuda(models.Model):
         """True desde DIAS_HABILITACION_CUOTA días antes del vencimiento en adelante."""
         return timezone.localtime().date() >= self.fecha_vencimiento - timedelta(days=DIAS_HABILITACION_CUOTA)
 
+    def _aplicar_extra(self, extra):
+        """
+        Valida y guarda el cargo extra opcional de esta cuota
+        (monto_extra/descripcion_extra/cuenta_pago_extra) — `extra =
+        {'monto': Decimal, 'descripcion': str, 'cuenta_pk': int}`.
+        `monto` en 0 (o `extra` vacío/None) lo quita. NO crea/borra el
+        MovimientoCaja acá — eso lo hace sincronizar_movimiento_cuota_extra,
+        llamado después según corresponda (confirmar/editar de inmediato;
+        confirmar_con_cheque recién cuando el cheque se cobra de verdad).
+        """
+        extra = extra or {}
+        try:
+            monto_extra = Decimal(str(extra.get('monto') or '0'))
+        except (InvalidOperation, TypeError):
+            raise ValueError('Monto del cargo extra inválido.')
+        if monto_extra < 0:
+            raise ValueError('El cargo extra no puede ser negativo.')
+
+        cuenta_extra = None
+        if monto_extra > 0:
+            cuenta_extra = CuentaCaja.objects.filter(
+                pk=extra.get('cuenta_pk'), caja=TipoCaja.GRANDE, activa=True,
+                es_credito=False, moneda=self.deuda.moneda,
+            ).first()
+            if not cuenta_extra:
+                raise ValueError('Elegí una cuenta válida para el cargo extra.')
+
+        self.monto_extra = monto_extra
+        self.descripcion_extra = str(extra.get('descripcion', '') or '').strip()[:200]
+        self.cuenta_pago_extra = cuenta_extra
+        self.save(update_fields=['monto_extra', 'descripcion_extra', 'cuenta_pago_extra'])
+
     @transaction.atomic
-    def confirmar(self, pagos, usuario, adelantar=False):
+    def confirmar(self, pagos, usuario, adelantar=False, extra=None):
         """
         Confirma el pago de la cuota repartido en una o varias cuentas
         reales: `pagos = [{'cuenta_pk': int, 'monto': Decimal}, ...]`,
@@ -3638,6 +3740,11 @@ class CuotaDeuda(models.Model):
         una venta. Para pagar con cheque, usar `confirmar_con_cheque`.
         Acepta también un `cuenta_pk` simple (retrocompatibilidad): se
         toma como una única línea por el monto total.
+
+        `extra` (opcional): cargo extra cobrado junto con este pago (ver
+        _aplicar_extra) — ej. un interés por mora que el banco cobró
+        aparte al pagar tarde. Independiente de `pagos`: tiene su propia
+        cuenta y su propio MovimientoCaja.
         """
         # Una deuda tipo Cheque se paga SOLO con cheque.
         if self.deuda.tipo == TipoDeuda.CHEQUE:
@@ -3669,11 +3776,15 @@ class CuotaDeuda(models.Model):
         for ln in lineas:
             PagoCuotaDeuda.objects.create(cuota=self, cuenta=ln['cuenta'], monto=ln['monto'])
 
+        if extra:
+            self._aplicar_extra(extra)
+
         sincronizar_movimiento_cuota(self)
         sincronizar_movimiento_cuota_tarjeta(self)
+        sincronizar_movimiento_cuota_extra(self)
 
     @transaction.atomic
-    def confirmar_con_cheque(self, cheque_data, usuario, adelantar=False):
+    def confirmar_con_cheque(self, cheque_data, usuario, adelantar=False, extra=None):
         """
         Alternativa a confirmar(): en vez de descontar de una cuenta al
         toque, esta cuota se paga con un cheque propio (A_PAGAR) por su
@@ -3684,6 +3795,12 @@ class CuotaDeuda(models.Model):
         recién ahí la pasa a CONFIRMADA). Si el cheque rebota, la cuota
         nunca llegó a confirmarse — nada que revertir. `cuenta_pago`
         queda vacío a propósito, igual que antes.
+
+        `extra` (opcional): cargo extra a cobrar (ver _aplicar_extra) —
+        se guarda ya mismo, pero su MovimientoCaja recién se crea cuando
+        ESTE cheque se cobre de verdad (mismo criterio que el capital de
+        compra_credito, que tampoco se acredita hasta que el cheque
+        clarea).
         """
         if CuotaDeuda.objects.select_for_update().get(pk=self.pk).estado != EstadoCuota.PENDIENTE:
             raise ValueError('Solo se pueden confirmar cuotas pendientes.')
@@ -3760,10 +3877,18 @@ class CuotaDeuda(models.Model):
         if financiadora:
             fondear_chequera(financiadora, cuenta_origen, monto_cheque, timezone.localtime().date(), cheque, usuario)
 
+        if extra:
+            # Solo se guarda acá — la cuota sigue PENDIENTE hasta que ESTE
+            # cheque se cobre de verdad, así que el MovimientoCaja del
+            # cargo extra recién se crea ahí (ver
+            # _sincronizar_cuota_desde_cheque -> sincronizar_movimiento_cuota_extra),
+            # no ahora que el cheque recién se emite.
+            self._aplicar_extra(extra)
+
     @transaction.atomic
     def editar(self, *, monto=None, fecha_vencimiento=None, fecha_pago=None,
                medio_pago_historico=None, cuenta_pago_historica=_SIN_CAMBIO,
-               cuenta_pago=None, usuario=None):
+               cuenta_pago=None, extra=_SIN_CAMBIO, usuario=None):
         """
         Corrige una cuota puntual, para arreglar un error de carga:
           - PENDIENTE: cambia monto y/o fecha de vencimiento libremente.
@@ -3796,6 +3921,15 @@ class CuotaDeuda(models.Model):
             materializado, y cambiarla podría desincronizar un cierre ya
             congelado. Para corregirla, revertí la cuota a pendiente
             (bloqueado si su turno ya cerró) y confirmala de nuevo.
+
+          `extra` (opcional, ver _aplicar_extra): agrega/corrige/quita
+          (con monto 0) el cargo extra de esta cuota. Independiente de
+          cuántas líneas tenga el pago principal — es su propio campo,
+          su propia cuenta. Solo en una cuota no histórica que ya tiene
+          algún pago real en curso (CONFIRMADA, o PENDIENTE con un
+          cheque en trámite todavía sin cobrar). Bloqueado por turno
+          cerrado igual que cuenta_pago, tanto para la cuenta actual del
+          cargo (si ya estaba materializado) como para la nueva.
         Bloqueada si la deuda nació de una compra real (`pago_compra`) —
         esas cuotas espejan la compra y se editan desde Compras.
         """
@@ -3824,6 +3958,27 @@ class CuotaDeuda(models.Model):
                 'La cuenta de pago solo se puede reasignar en una cuota con un único pago real '
                 '(sin cheque, sin repartir en varias cuentas).'
             )
+
+        cheque_en_tramite = self.cheques.filter(
+            estado__in=(EstadoCheque.PENDIENTE, EstadoCheque.CONFIRMADO),
+        ).exists()
+        if extra is not _SIN_CAMBIO:
+            if self.es_historica:
+                raise ValueError(
+                    'Esta cuota es histórica (carga inicial) — no generó ningún movimiento '
+                    'real, así que no se le puede cargar un cargo extra.'
+                )
+            if self.estado == EstadoCuota.PENDIENTE and not cheque_en_tramite:
+                raise ValueError(
+                    'Todavía no hay ningún pago real de esta cuota al cual sumarle un cargo extra.'
+                )
+            # Si ya había un cargo materializado (cuota CONFIRMADA) en
+            # efectivo dentro de un turno ya cerrado, tocarlo desincronizaría
+            # ese cierre — mismo criterio que cuenta_pago.
+            if self.estado == EstadoCuota.CONFIRMADA:
+                turno_bloqueante = _turno_cerrado_de_cuota_extra_efectivo(self)
+                if turno_bloqueante:
+                    raise ValueError(_mensaje_turno_cerrado_cuota(turno_bloqueante, 'modificar su cargo extra'))
 
         if fecha_vencimiento is not None and not isinstance(fecha_vencimiento, date):
             fecha_vencimiento = date.fromisoformat(str(fecha_vencimiento))
@@ -3890,13 +4045,46 @@ class CuotaDeuda(models.Model):
             self.cuenta_pago = cuenta_pago
             campos.append('cuenta_pago')
 
+        if extra is not _SIN_CAMBIO and extra:
+            # Cuenta NUEVA hipotética por turno cerrado — mismo criterio
+            # que cuenta_pago más arriba, pero para el cargo extra (que
+            # es independiente de con qué cuenta se pagó la cuota).
+            try:
+                monto_extra_nuevo = Decimal(str(extra.get('monto') or '0'))
+            except (InvalidOperation, TypeError):
+                monto_extra_nuevo = None
+            if monto_extra_nuevo and monto_extra_nuevo > 0:
+                cuenta_extra_nueva = CuentaCaja.objects.filter(
+                    pk=extra.get('cuenta_pk'), caja=TipoCaja.GRANDE, activa=True,
+                    es_credito=False, moneda=deuda.moneda,
+                ).first()
+                if cuenta_extra_nueva:
+                    turno_bloqueante_nuevo = _bloqueo_turno_por_cuenta(self, cuenta_extra_nueva)
+                    if turno_bloqueante_nuevo:
+                        raise ValueError(
+                            f'No se puede pagar el cargo extra con "{cuenta_extra_nueva.nombre}": el turno '
+                            f'#{turno_bloqueante_nuevo.numero} de esa fecha ya está '
+                            f'{turno_bloqueante_nuevo.get_estado_display().lower()} y no lo contempló — '
+                            f'reabrilo desde Caja Diaria primero.'
+                        )
+
         self.save(update_fields=campos)
+
+        if extra is not _SIN_CAMBIO:
+            self._aplicar_extra(extra)
 
         if self.estado == EstadoCuota.CONFIRMADA:
             sincronizar_movimiento_cuota(self)
             sincronizar_movimiento_cuota_tarjeta(self)
+            sincronizar_movimiento_cuota_extra(self)
         if deuda.modo_cuotas == ModoCuotas.VARIABLE:
-            deuda._reprorratear_capital()
+            # Si lo que se corrigió fue el propio monto de ESTA cuota
+            # (aunque ya esté confirmada), su capital tiene que seguirlo
+            # — el resto de las confirmadas no se toca (ver
+            # _reprorratear_capital).
+            deuda._reprorratear_capital(
+                cuota_incluida=self if monto is not None else None
+            )
             deuda.porcentaje_interes = deuda.interes_implicito or Decimal('0')
             deuda.save(update_fields=['porcentaje_interes'])
 
@@ -3916,7 +4104,10 @@ class CuotaDeuda(models.Model):
         self.save(update_fields=['monto'])
         deuda = self.deuda
         if deuda.modo_cuotas == ModoCuotas.VARIABLE:
-            deuda._reprorratear_capital()
+            # Este método siempre corrige el propio monto de `self` — su
+            # capital tiene que seguirlo aunque ya esté confirmada (ver
+            # _reprorratear_capital).
+            deuda._reprorratear_capital(cuota_incluida=self)
             deuda.porcentaje_interes = deuda.interes_implicito or Decimal('0')
             deuda.save(update_fields=['porcentaje_interes'])
 
@@ -3978,6 +4169,9 @@ class CuotaDeuda(models.Model):
         turno_bloqueante = _turno_cerrado_de_cuota_efectivo(self)
         if turno_bloqueante:
             raise ValueError(_mensaje_turno_cerrado_cuota(turno_bloqueante, 'revertirla'))
+        turno_bloqueante_extra = _turno_cerrado_de_cuota_extra_efectivo(self)
+        if turno_bloqueante_extra:
+            raise ValueError(_mensaje_turno_cerrado_cuota(turno_bloqueante_extra, 'revertirla'))
 
         for cheque in Cheque.objects.filter(cuota_deuda=self):
             if cheque.estado == EstadoCheque.CONFIRMADO and not cheque.es_historico:
@@ -3993,9 +4187,13 @@ class CuotaDeuda(models.Model):
         self.es_historica = False
         self.cuenta_pago_historica = None
         self.medio_pago_historico = ''
+        self.monto_extra = Decimal('0')
+        self.descripcion_extra = ''
+        self.cuenta_pago_extra = None
         self.save(update_fields=[
             'estado', 'fecha_confirmacion', 'confirmado_por', 'cuenta_pago',
             'es_historica', 'cuenta_pago_historica', 'medio_pago_historico',
+            'monto_extra', 'descripcion_extra', 'cuenta_pago_extra',
         ])
 
         if deuda.modo_cuotas == ModoCuotas.VARIABLE:
@@ -4019,6 +4217,9 @@ class CuotaDeuda(models.Model):
         turno_bloqueante = _turno_cerrado_de_cuota_efectivo(self)
         if turno_bloqueante:
             raise ValueError(_mensaje_turno_cerrado_cuota(turno_bloqueante, 'borrarla'))
+        turno_bloqueante_extra = _turno_cerrado_de_cuota_extra_efectivo(self)
+        if turno_bloqueante_extra:
+            raise ValueError(_mensaje_turno_cerrado_cuota(turno_bloqueante_extra, 'borrarla'))
 
         for cheque in Cheque.objects.filter(cuota_deuda=self):
             if cheque.estado == EstadoCheque.CONFIRMADO and not cheque.es_historico:
@@ -4111,15 +4312,17 @@ def _resolver_pagos_cuenta(pagos, moneda, objetivo):
 def _limpiar_movimientos_cuota(cuota):
     """
     Borra los MovimientoCaja de una cuota: el/los egresos de nivel pago
-    (origen=CUOTA_DEUDA, uno por PagoCuotaDeuda) y el crédito de tarjeta
-    (origen=CUOTA_DEUDA_TARJETA, uno por cuota). Se itera instancia por
-    instancia a propósito (ver feedback: nada de QuerySet.delete() masivo
-    sobre MovimientoCaja).
+    (origen=CUOTA_DEUDA, uno por PagoCuotaDeuda), el crédito de tarjeta
+    (origen=CUOTA_DEUDA_TARJETA, uno por cuota) y su cargo extra si lo
+    tenía (origen=CUOTA_DEUDA_EXTRA, uno por cuota — ver monto_extra).
+    Se itera instancia por instancia a propósito (ver feedback: nada de
+    QuerySet.delete() masivo sobre MovimientoCaja).
     """
     pago_pks = list(cuota.pagos.values_list('pk', flat=True))
     movimientos = MovimientoCaja.objects.filter(origen_app='caja').filter(
         models.Q(origen=OrigenMovimiento.CUOTA_DEUDA, origen_id__in=pago_pks or [0])
         | models.Q(origen=OrigenMovimiento.CUOTA_DEUDA_TARJETA, origen_id=cuota.pk)
+        | models.Q(origen=OrigenMovimiento.CUOTA_DEUDA_EXTRA, origen_id=cuota.pk)
     )
     for movimiento in movimientos:
         movimiento.delete()
@@ -4166,6 +4369,22 @@ def _bloqueo_turno_por_cuenta(cuota, cuenta):
     if cuenta is None or cuenta.tipo != TipoCuenta.EFECTIVO:
         return None
     if not cuota.fecha_confirmacion:
+        return None
+    turno = TurnoCaja.turno_que_contiene(cuota.fecha_confirmacion)
+    if turno is not None and turno.estado != EstadoTurno.ABIERTO:
+        return turno
+    return None
+
+
+def _turno_cerrado_de_cuota_extra_efectivo(cuota):
+    """
+    Igual que _turno_cerrado_de_cuota_efectivo, pero para el cargo extra
+    de la cuota (cuenta_pago_extra) — independiente de con qué cuenta se
+    pagó la cuota en sí, así que necesita su propio chequeo.
+    """
+    if not cuota.fecha_confirmacion or not cuota.cuenta_pago_extra_id:
+        return None
+    if cuota.cuenta_pago_extra.tipo != TipoCuenta.EFECTIVO:
         return None
     turno = TurnoCaja.turno_que_contiene(cuota.fecha_confirmacion)
     if turno is not None and turno.estado != EstadoTurno.ABIERTO:
@@ -4507,6 +4726,68 @@ def sincronizar_movimiento_cuota_tarjeta(cuota):
             tipo=TipoMovimientoCaja.INGRESO, monto=cuota.monto_capital, moneda=deuda.moneda,
             fecha=timezone.localtime(cuota.fecha_confirmacion).date(), descripcion=descripcion,
             referencia=f'Deuda #{deuda.pk}', origen=OrigenMovimiento.CUOTA_DEUDA_TARJETA,
+            origen_app='caja', origen_id=cuota.pk, creado_por=cuota.confirmado_por,
+        )
+
+
+def sincronizar_movimiento_cuota_extra(cuota):
+    """
+    Sincroniza el MovimientoCaja del cargo extra opcional de una cuota
+    (monto_extra/descripcion_extra/cuenta_pago_extra) — un egreso propio,
+    aparte del de la cuota (ver sincronizar_movimiento_cuota). Se
+    materializa recién cuando la cuota queda CONFIRMADA de verdad: si se
+    pagó con cheque, eso pasa cuando el cheque se cobra (ver
+    _sincronizar_cuota_desde_cheque), no cuando se emitió — mismo
+    criterio que sincronizar_movimiento_cuota_tarjeta. Mismo diferimiento
+    por turno abierto que sincronizar_movimiento_cuota si la cuenta del
+    cargo es efectivo (ver TurnoCaja.cerrar(), que la vuelve a llamar al
+    cerrar para materializar lo diferido).
+    """
+    movimiento = MovimientoCaja.objects.filter(
+        origen=OrigenMovimiento.CUOTA_DEUDA_EXTRA, origen_app='caja', origen_id=cuota.pk,
+    ).first()
+
+    tiene_extra = (
+        cuota.estado == EstadoCuota.CONFIRMADA
+        and cuota.monto_extra and cuota.cuenta_pago_extra_id
+    )
+    if not tiene_extra:
+        if movimiento:
+            movimiento.delete()
+        return
+
+    turno_abierto = None
+    if cuota.fecha_confirmacion:
+        t = TurnoCaja.turno_que_contiene(cuota.fecha_confirmacion)
+        if t is not None and t.estado == EstadoTurno.ABIERTO:
+            turno_abierto = t
+    if cuota.cuenta_pago_extra.tipo == TipoCuenta.EFECTIVO and turno_abierto is not None:
+        if movimiento:
+            movimiento.delete()
+        return
+
+    deuda = cuota.deuda
+    concepto = _concepto_default('Cargo extra de deuda', TipoMovimientoCaja.EGRESO)
+    entidad = deuda.descripcion or (deuda.cuenta_tarjeta.nombre if deuda.cuenta_tarjeta else '')
+    descripcion = f'Cargo extra cuota {cuota.numero} — {entidad}'.strip(' —')
+    if cuota.descripcion_extra:
+        descripcion += f' ({cuota.descripcion_extra})'
+
+    if movimiento:
+        movimiento.cuenta = cuota.cuenta_pago_extra
+        movimiento.concepto = concepto
+        movimiento.tipo = TipoMovimientoCaja.EGRESO
+        movimiento.monto = cuota.monto_extra
+        movimiento.moneda = deuda.moneda
+        movimiento.fecha = timezone.localtime(cuota.fecha_confirmacion).date()
+        movimiento.descripcion = descripcion
+        movimiento.save()
+    else:
+        MovimientoCaja.objects.create(
+            caja=TipoCaja.GRANDE, cuenta=cuota.cuenta_pago_extra, concepto=concepto,
+            tipo=TipoMovimientoCaja.EGRESO, monto=cuota.monto_extra, moneda=deuda.moneda,
+            fecha=timezone.localtime(cuota.fecha_confirmacion).date(), descripcion=descripcion,
+            referencia=f'Deuda #{deuda.pk}', origen=OrigenMovimiento.CUOTA_DEUDA_EXTRA,
             origen_app='caja', origen_id=cuota.pk, creado_por=cuota.confirmado_por,
         )
 
@@ -6184,6 +6465,10 @@ def _sincronizar_cuota_desde_cheque(cheque):
             # Compra a crédito: el capital recién se acredita a la tarjeta
             # cuando el cheque se cobra de verdad, no cuando se emitió.
             sincronizar_movimiento_cuota_tarjeta(cuota)
+            # Cargo extra opcional: mismo criterio — recién se materializa
+            # (o se limpia, si el cheque rebotó) cuando el cheque se cobra
+            # de verdad, no cuando se emitió (ver monto_extra).
+            sincronizar_movimiento_cuota_extra(cuota)
 
     if cheque.cuota_cobro_id:
         cuota = cheque.cuota_cobro

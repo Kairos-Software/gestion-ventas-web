@@ -470,6 +470,13 @@
                                 </button>
                             </div>
                         </div>
+                        {% elif comprobante_arca and puede_registrar_devoluciones %}
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-top:.35rem;padding-left:.5rem">
+                            <span style="color:var(--warning);font-size:.72rem">Sin Nota de Crédito</span>
+                            <button type="button" class="cdt-ticket-btn" style="font-size:.7rem;padding:.25rem .5rem" onclick="vdtEmitirNotaCredito({{ dev.pk }}, this)">
+                                Emitir nota
+                            </button>
+                        </div>
                         {% endif %}
                     </div>
                     {% endfor %}

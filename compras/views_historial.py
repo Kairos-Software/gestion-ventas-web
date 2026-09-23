@@ -1,8 +1,10 @@
+from decimal import Decimal
+
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import TemplateView
 from django.views import View
 from django.http import JsonResponse
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.utils import timezone
 
 from .models import Compra, EstadoCompra, MedioPagoCompra
@@ -48,13 +50,32 @@ class ListarComprasAjax(LoginRequiredMixin, View):
             'pagos__cheques',
         ).order_by('-fecha', '-fecha_alta')
 
+        # "q" busca también dentro de las líneas de la compra: alcanza con
+        # que el producto o el proveedor aparezca en CUALQUIER ítem, no
+        # hace falta que sea el único — de ahí el .distinct() (join a
+        # items puede repetir la misma compra una vez por cada línea que
+        # matchee).
         q = request.GET.get('q', '').strip()
         if q:
-            qs = qs.filter(Q(numero__icontains=q) | Q(notas__icontains=q))
+            qs = qs.filter(
+                Q(numero__icontains=q) | Q(notas__icontains=q)
+                | Q(items__producto_nombre__icontains=q)
+                | Q(items__producto_codigo__icontains=q)
+                | Q(items__proveedor_nombre__icontains=q)
+            ).distinct()
 
         estado = request.GET.get('estado', '').strip()
         if estado:
             qs = qs.filter(estado=estado)
+
+        # medio_pago: Compra.medio_pago guarda solo el medio "principal" (el
+        # primero de "pagos", ver views.py#ConfirmarCompra) — en un pago
+        # dividido (ej: mitad efectivo, mitad transferencia) filtrar solo por
+        # ese campo dejaría afuera la compra al buscar el medio secundario.
+        # También matchea si CUALQUIER línea de PagoCompra usó ese medio.
+        medio_pago = request.GET.get('medio_pago', '').strip()
+        if medio_pago:
+            qs = qs.filter(Q(medio_pago=medio_pago) | Q(pagos__medio=medio_pago)).distinct()
 
         fecha_desde = request.GET.get('fecha_desde', '').strip()
         if fecha_desde:
@@ -72,6 +93,11 @@ class ListarComprasAjax(LoginRequiredMixin, View):
         total   = qs.count()
         offset  = (page - 1) * self.PAGE_SIZE
         compras = qs[offset: offset + self.PAGE_SIZE]
+
+        # Total $ de TODO lo filtrado (no solo la página actual). Sum('total')
+        # sobre `qs` es seguro incluso con el JOIN a `pagos` + .distinct() del
+        # filtro de medio_pago — Django arma el SUM sobre la versión distinct.
+        suma_total = qs.aggregate(s=Sum('total'))['s'] or Decimal('0')
 
         puede_editar   = chequear_permiso(request.user, 'editar_compras')
         puede_eliminar = chequear_permiso(request.user, 'eliminar_compras')
@@ -182,10 +208,11 @@ class ListarComprasAjax(LoginRequiredMixin, View):
             })
 
         return JsonResponse({
-            'results':   data,
-            'total':     total,
-            'page':      page,
-            'page_size': self.PAGE_SIZE,
-            'has_next':  (offset + self.PAGE_SIZE) < total,
-            'has_prev':  page > 1,
+            'results':    data,
+            'total':      total,
+            'page':       page,
+            'page_size':  self.PAGE_SIZE,
+            'has_next':   (offset + self.PAGE_SIZE) < total,
+            'has_prev':   page > 1,
+            'suma_total': str(suma_total),
         })

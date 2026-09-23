@@ -983,7 +983,22 @@ class Producto(models.Model):
         "(producto eliminado)" para siempre en Inventario, en los avisos de
         vencimiento y en el dashboard (todos filtran activo=True). Mismo
         criterio que al anular una Compra (ver Compra.anular()).
+
+        Bloqueado si todavía tiene stock (positivo o negativo): borrar acá
+        no solo tira la fila del producto, también borra en bloque su
+        MovimientoStock SIN dejar ningún snapshot (a diferencia de
+        LoteCompra/ItemVenta/ItemCompra, que sí preservan nombre/código) —
+        esa plata en stock queda huérfana, sin ningún rastro de qué pasó
+        con ella. Hay que llevarlo a 0 (ajuste manual, venta, devolución al
+        proveedor) antes de poder eliminarlo.
         """
+        if self.stock_actual != 0:
+            raise ValueError(
+                f'No se puede eliminar "{self}": todavía tiene stock '
+                f'({self.stock_actual} {self.get_unidad_medida_display()}). '
+                f'Ajustá el stock a 0 (ajuste manual, venta, devolución al proveedor, etc.) '
+                f'antes de eliminarlo.'
+            )
         from django.db import transaction
         with transaction.atomic():
             self.movimientos_stock.all().delete()

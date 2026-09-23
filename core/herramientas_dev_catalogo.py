@@ -172,6 +172,34 @@ HERRAMIENTAS = {
         "params_fijos": {},
     },
 
+    "reconstruir_producto_eliminado": {
+        "command": "reconstruir_producto_eliminado",
+        "label": "¿Qué tenía un producto que ya borraron?",
+        "categoria": "diagnostico",
+        "riesgo": "lectura",
+        "descripcion": (
+            "Si alguien borró un producto que todavía tenía stock, esto "
+            "busca lo que quedó de rastro: de qué compra o factura inicial "
+            "salió, cuánto stock exacto le quedaba justo al momento de "
+            "borrarse, y cuánto valía. No revive el producto ni carga "
+            "nada — solo te muestra los datos para que decidas si lo "
+            "volvés a dar de alta a mano."
+        ),
+        "interpretacion": (
+            "Buscá por el código o nombre que recuerdes (dejalo vacío para "
+            "ver TODOS los productos eliminados con rastro detectable). El "
+            "\"stock al momento de eliminarse\" es exacto, no una "
+            "aproximación — lo único que no se puede reconstruir es el "
+            "detalle de ajustes manuales de stock hechos antes de "
+            "borrarlo, eso sí se pierde sin dejar rastro."
+        ),
+        "params": [
+            {"nombre": "busqueda", "posicional": True, "tipo": "str", "requerido": False,
+             "max_length": 150, "label": "Código o nombre del producto (dejalo vacío para ver todos)"},
+        ],
+        "params_fijos": {},
+    },
+
     "arca_probar": {
         "command": "arca_probar",
         "label": "Revisar la conexión con ARCA",
@@ -464,11 +492,37 @@ HERRAMIENTAS = {
             "— podés corregir lo que haga falta y reintentar."
         ),
         "params": [
-            {"nombre": "devolucion_pk", "posicional": True, "tipo": "int", "requerido": True,
-             "min": 1, "label": "Número de la devolución (el DEV-XXXXX del detalle de la venta)"},
+            {"nombre": "devolucion_numero", "posicional": True, "tipo": "str", "requerido": True,
+             "max_length": 20,
+             "label": "Número de la devolución, tal cual aparece en el detalle de la venta (ej: DEV-00001)"},
         ],
         "params_fijos": {},
         "mostrar_ambiente_arca": True,
+    },
+
+    "auditar_nc_faltantes": {
+        "command": "auditar_nc_faltantes",
+        "label": "¿Falta alguna Nota de Crédito?",
+        "categoria": "fiscal",
+        "riesgo": "lectura",
+        "descripcion": (
+            "Revisa todas las ventas facturadas ante ARCA y busca huecos: "
+            "devoluciones que nunca llegaron a tener su Nota de Crédito, o "
+            "ventas anuladas (con una versión vieja del sistema, antes de "
+            "que existiera este control) que dejaron la factura vigente "
+            "sin ninguna Nota de Crédito ni devolución registrada. No "
+            "cambia nada, solo informa."
+        ),
+        "interpretacion": (
+            "Si dice que no hay ningún hueco, no hace falta hacer nada. Si "
+            "aparece una devolución sin Nota de Crédito, se resuelve con "
+            "\"Reintentar el envío de una Nota de Crédito\" usando el "
+            "número que te muestra ahí mismo. Si aparece una venta anulada "
+            "sin devolución registrada, el sistema hoy no tiene forma "
+            "automática de resolverlo — hay que revisarla a mano."
+        ),
+        "params": [],
+        "params_fijos": {},
     },
 }
 

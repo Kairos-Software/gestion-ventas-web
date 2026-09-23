@@ -4,10 +4,10 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import TemplateView
 from django.views import View
 from django.http import JsonResponse
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.utils import timezone
 
-from .models import Venta, EstadoVenta, DevolucionVenta, medios_pago_choices
+from .models import Venta, EstadoVenta, DevolucionVenta, PagoVenta, medios_pago_choices
 from core.permisos import chequear_permiso
 
 
@@ -83,17 +83,32 @@ class ListarVentasAjax(LoginRequiredMixin, View):
         ).order_by('-fecha', '-fecha_alta')
 
         # — Filtros —
+        # "q" busca también dentro de las líneas de la venta: alcanza con
+        # que el producto o el cliente aparezca en CUALQUIER ítem, no hace
+        # falta que sea el único — de ahí el .distinct() (join a items
+        # puede repetir la misma venta una vez por cada línea que matchee).
         q = request.GET.get('q', '').strip()
         if q:
-            qs = qs.filter(Q(numero__icontains=q) | Q(notas__icontains=q))
+            qs = qs.filter(
+                Q(numero__icontains=q) | Q(notas__icontains=q)
+                | Q(items__producto_nombre__icontains=q)
+                | Q(items__producto_codigo__icontains=q)
+                | Q(items__cliente_nombre__icontains=q)
+            ).distinct()
 
         estado = request.GET.get('estado', '').strip()
         if estado:
             qs = qs.filter(estado=estado)
 
+        # medio_pago: Venta.medio_pago guarda solo el medio "principal" (el
+        # primero que cubre el total, ver detalle_venta.js#construirPagos) —
+        # en un pago dividido (ej: mitad efectivo, mitad transferencia) filtrar
+        # solo por ese campo dejaba afuera la venta al buscar el medio
+        # secundario. Ahora también matchea si CUALQUIER línea de PagoVenta
+        # usó ese medio, sin importar si fue la principal.
         medio_pago = request.GET.get('medio_pago', '').strip()
         if medio_pago:
-            qs = qs.filter(medio_pago=medio_pago)
+            qs = qs.filter(Q(medio_pago=medio_pago) | Q(pagos__medio=medio_pago)).distinct()
 
         fecha_desde = request.GET.get('fecha_desde', '').strip()
         if fecha_desde:
@@ -131,6 +146,20 @@ class ListarVentasAjax(LoginRequiredMixin, View):
         total  = qs.count()
         offset = (page - 1) * self.PAGE_SIZE
         ventas = qs[offset: offset + self.PAGE_SIZE]
+
+        # — Total $ de TODO lo filtrado (no solo la página actual) —
+        # v.total (con .aggregate() sobre `qs`) es seguro incluso cuando el
+        # filtro de medio_pago ya hizo JOIN a `pagos` + .distinct(): Django
+        # arma el SUM sobre la versión distinct, sin duplicar filas. Lo que
+        # NO es seguro es sumar recargo_monto/redondeo_monto en ese MISMO
+        # aggregate() (otro JOIN a `pagos` en la misma query multiplicaría
+        # también el total) — por eso van en una query aparte, sobre los pks
+        # ya filtrados.
+        suma_ventas = qs.aggregate(s=Sum('total'))['s'] or Decimal('0')
+        suma_pagos = PagoVenta.objects.filter(venta__pk__in=qs.values('pk')).aggregate(
+            r=Sum('recargo_monto'), d=Sum('redondeo_monto'),
+        )
+        suma_total_cobrado = suma_ventas + (suma_pagos['r'] or Decimal('0')) + (suma_pagos['d'] or Decimal('0'))
 
         puede_editar   = chequear_permiso(request.user, 'editar_ventas')
         puede_eliminar = chequear_permiso(request.user, 'eliminar_ventas')
@@ -325,12 +354,13 @@ class ListarVentasAjax(LoginRequiredMixin, View):
             })
 
         return JsonResponse({
-            'results':   data,
-            'total':     total,
-            'page':      page,
-            'page_size': self.PAGE_SIZE,
-            'has_next':  (offset + self.PAGE_SIZE) < total,
-            'has_prev':  page > 1,
+            'results':            data,
+            'total':              total,
+            'page':               page,
+            'page_size':          self.PAGE_SIZE,
+            'has_next':           (offset + self.PAGE_SIZE) < total,
+            'has_prev':           page > 1,
+            'suma_total_cobrado': str(suma_total_cobrado),
         })
 
 

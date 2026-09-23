@@ -2109,14 +2109,24 @@ async function prdAplicarAccionMasiva(accion) {
         }
 
         if (accion === 'eliminar') {
-            pks.forEach(pk => document.querySelector(`tr[data-pk="${pk}"]`)?.remove());
+            (data.eliminados || []).forEach(pk => document.querySelector(`tr[data-pk="${pk}"]`)?.remove());
             actualizarContadoresStats(-data.afectados, 0, 0);
             const countEl = document.querySelector('.prd-table-count');
             if (countEl) {
                 const actual = Math.max(0, (parseInt(countEl.textContent) || 0) - data.afectados);
                 countEl.textContent = `${actual} resultado${actual !== 1 ? 's' : ''}`;
             }
-            showToast(`${data.afectados} producto(s) eliminado(s).`, 'ok');
+            const bloqueados = data.bloqueados || [];
+            if (bloqueados.length) {
+                const detalle = bloqueados.map(b => `"${b.nombre}" (todavía tiene stock)`).join(', ');
+                showToast(
+                    `${data.afectados} producto(s) eliminado(s). ${bloqueados.length} no se pudo(eron) `
+                    + `eliminar porque todavía tienen stock: ${detalle}.`,
+                    bloqueados.length && !data.afectados ? 'error' : 'ok'
+                );
+            } else {
+                showToast(`${data.afectados} producto(s) eliminado(s).`, 'ok');
+            }
         } else {
             const publicar = accion === 'publicar';
             let delta = 0;

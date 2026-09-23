@@ -10,7 +10,7 @@ from productos.models import cantidad_valida_para_unidad
 from core.permisos import chequear_permiso
 from core.services_arca import facturacion
 from core.services_arca.wsaa import ArcaError
-from .models import Venta, ItemVenta, registrar_devolucion
+from .models import DevolucionVenta, ItemVenta, Venta, registrar_devolucion
 
 
 PERMISO_DEVOLUCIONES = 'registrar_devoluciones'
@@ -132,3 +132,64 @@ class RegistrarDevolucionAjax(LoginRequiredMixin, View):
         if nota_credito_error:
             respuesta['nota_credito_error'] = nota_credito_error
         return JsonResponse(respuesta)
+
+
+class EmitirNotaCreditoDevolucionAjax(LoginRequiredMixin, View):
+    """
+    POST JSON: { "devolucion_pk": 41 }
+
+    Emite la Nota de Crédito ARCA de una devolución ya registrada, sin
+    tocar stock ni caja de nuevo — mismo paso que RegistrarDevolucionAjax
+    ya dispara solo al registrar la devolución. Este endpoint es para
+    cuando esa vez falló (ARCA la rechazó, caída de red) o la devolución
+    es de antes de que existiera ese paso automático: deja reintentarlo
+    desde la propia venta, sin depender de la consola. Mismo mecanismo
+    que el management command emitir_nc_devolucion (ver
+    core/management/commands/), pero recibe el pk directo del botón de
+    esta pantalla — no hay tipeo a mano de por medio, así que no hace
+    falta la resolución por número que sí necesita la consola.
+    """
+
+    def post(self, request):
+        if not chequear_permiso(request.user, PERMISO_DEVOLUCIONES):
+            return JsonResponse({'error': 'Sin permiso.'}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+        devolucion_pk = body.get('devolucion_pk')
+        if not devolucion_pk:
+            return JsonResponse({'error': 'devolucion_pk requerido.'}, status=400)
+
+        devolucion = get_object_or_404(
+            DevolucionVenta.objects.select_related('venta__comprobante_arca'), pk=devolucion_pk,
+        )
+
+        existente = getattr(devolucion, 'nota_credito_arca', None)
+        if existente is not None:
+            return JsonResponse({
+                'ok': True,
+                'nota_credito_tipo_display': existente.get_tipo_comprobante_display(),
+                'nota_credito_numero_display': existente.numero_display,
+                'nota_credito_cae': existente.cae,
+            })
+
+        if not hasattr(devolucion.venta, 'comprobante_arca'):
+            return JsonResponse({
+                'error': 'Esta venta no tiene comprobante ARCA (no fue facturada electrónicamente) '
+                         '— no corresponde emitir Nota de Crédito.',
+            }, status=400)
+
+        try:
+            nota_credito = facturacion.emitir_nota_credito(devolucion)
+        except ArcaError as exc:
+            return JsonResponse({'error': f'ARCA rechazó la Nota de Crédito: {exc}'}, status=400)
+
+        return JsonResponse({
+            'ok': True,
+            'nota_credito_tipo_display': nota_credito.get_tipo_comprobante_display(),
+            'nota_credito_numero_display': nota_credito.numero_display,
+            'nota_credito_cae': nota_credito.cae,
+        })

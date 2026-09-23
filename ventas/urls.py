@@ -44,6 +44,7 @@ urlpatterns = [
     path('eliminar/',   views_acciones.EliminarVentaAjax.as_view(),  name='eliminar_venta'),
     path('editar/',     views_acciones.EditarVentaAjax.as_view(),    name='editar_venta'),
     path('devoluciones/registrar/', views_devoluciones.RegistrarDevolucionAjax.as_view(), name='registrar_devolucion'),
+    path('devoluciones/emitir-nc/', views_devoluciones.EmitirNotaCreditoDevolucionAjax.as_view(), name='emitir_nc_devolucion'),
 
     # ══════════════════════════════════════════════════════════════════
     #  AJAX — Documentos adjuntos

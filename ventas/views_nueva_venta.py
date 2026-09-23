@@ -1406,6 +1406,7 @@ def construir_contexto_detalle(request, venta):
         'url_facturar':          reverse('ventas:venta_facturar', args=[venta.pk]),
         'url_buscar_cliente':    reverse('ventas:buscar_cliente'),
         'url_registrar_devolucion': reverse('ventas:registrar_devolucion'),
+        'url_emitir_nc_devolucion': reverse('ventas:emitir_nc_devolucion'),
         'url_cobro_fragmento': reverse('ventas:cobro_fragmento', args=[0]).replace('/0/', '/'),
     }
 

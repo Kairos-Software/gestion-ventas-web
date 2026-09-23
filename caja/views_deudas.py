@@ -113,6 +113,22 @@ def _parsear_pagos(data):
     return data.get('cuenta_pk')
 
 
+def _parsear_extra(data):
+    """
+    Extrae el cargo extra opcional de un body: `extra: {monto,
+    descripcion, cuenta_pk}`. Devuelve None si no vino o vino vacío —
+    la validación real (monto/cuenta) la hace CuotaDeuda._aplicar_extra.
+    """
+    extra = data.get('extra')
+    if not isinstance(extra, dict) or not extra:
+        return None
+    return {
+        'monto': extra.get('monto'),
+        'descripcion': extra.get('descripcion', ''),
+        'cuenta_pk': extra.get('cuenta_pk'),
+    }
+
+
 def _serializar_cuota(c):
     cheque = c.cheques.exclude(estado='anulado').order_by('-fecha_alta').first()
     # "Editable" para el panel de cuotas variables: pendiente y sin un
@@ -141,6 +157,10 @@ def _serializar_cuota(c):
         'cuenta_pago_historica_nombre': c.cuenta_pago_historica.nombre if c.cuenta_pago_historica_id else '',
         'cuenta_pago_pk': c.cuenta_pago_id,
         'cuenta_pago_nombre': c.cuenta_pago.nombre if c.cuenta_pago_id else '',
+        'monto_extra': str(c.monto_extra or '0'),
+        'descripcion_extra': c.descripcion_extra,
+        'cuenta_pago_extra_pk': c.cuenta_pago_extra_id,
+        'cuenta_pago_extra_nombre': c.cuenta_pago_extra.nombre if c.cuenta_pago_extra_id else '',
         'cheque_pk': cheque.pk if cheque else None,
         'cheque_numero': (cheque.numero_cheque or 's/n') if cheque else '',
         'cheque_estado': cheque.estado if cheque else '',
@@ -656,14 +676,15 @@ class ConfirmarCuotaAjax(LoginRequiredMixin, View):
             data = json.loads(request.body)
             adelantar = bool(data.get('adelantar', False))
 
+            extra = _parsear_extra(data)
             if data.get('cheque'):
                 # Pagada con cheque: todavía no es un pago real (ver
                 # CuotaDeuda.confirmar_con_cheque) — el mail de "deuda
                 # pagada" se manda recién cuando ESE cheque se cobra de
                 # verdad (ver ConfirmarChequeAjax en views_cheques.py).
-                cuota.confirmar_con_cheque(data.get('cheque'), request.user, adelantar=adelantar)
+                cuota.confirmar_con_cheque(data.get('cheque'), request.user, adelantar=adelantar, extra=extra)
             else:
-                cuota.confirmar(_parsear_pagos(data), request.user, adelantar=adelantar)
+                cuota.confirmar(_parsear_pagos(data), request.user, adelantar=adelantar, extra=extra)
 
                 # En segundo plano: si esperáramos a que el mail salga acá,
                 # el pedido HTTP se queda 1-2s colgado por el ida y vuelta
@@ -713,12 +734,14 @@ class RegistrarAbonoAjax(LoginRequiredMixin, View):
                 except ValueError:
                     return JsonResponse({'error': 'Fecha inválida.'}, status=400)
 
+            extra = _parsear_extra(data)
             if data.get('cheque'):
                 # Pagado con cheque: el mail de "deuda pagada" se manda
                 # recién cuando ESE cheque se cobra de verdad (ver
                 # ConfirmarChequeAjax en views_cheques.py).
                 cuota = deuda.registrar_abono(
                     monto=monto, usuario=request.user, cheque_data=data.get('cheque'), fecha=fecha,
+                    extra=extra,
                 )
             else:
                 pagos = _parsear_pagos(data)
@@ -726,7 +749,7 @@ class RegistrarAbonoAjax(LoginRequiredMixin, View):
                     monto=monto, usuario=request.user,
                     pagos=pagos if isinstance(pagos, list) else None,
                     cuenta_pk=pagos if not isinstance(pagos, list) else None,
-                    fecha=fecha,
+                    fecha=fecha, extra=extra,
                 )
                 from asistencia.services.eventos import notificar_deuda_pagada, enviar_en_background
                 enviar_en_background(notificar_deuda_pagada, cuota)
@@ -844,10 +867,12 @@ class CerrarMontoDesconocidoAjax(LoginRequiredMixin, View):
 class EditarCuotaDeudaAjax(LoginRequiredMixin, View):
     """
     POST { monto?, fecha_vencimiento?, fecha_pago?, medio_pago_historico?,
-    cuenta_pago_historica_pk?, cuenta_pago_pk? } → CuotaDeuda.editar().
+    cuenta_pago_historica_pk?, cuenta_pago_pk?, extra? } → CuotaDeuda.editar().
     Los del medio solo aplican a una cuota pagada históricamente (carga
-    inicial); `cuenta_pago_pk` solo a una con un pago real — ver
-    CuotaDeuda.editar() para los detalles y bloqueos de cada uno.
+    inicial); `cuenta_pago_pk` solo a una con un pago real; `extra`
+    ({monto, descripcion, cuenta_pk}, con monto 0 para quitarlo) a una
+    cuota con algún pago real en curso — ver CuotaDeuda.editar() para
+    los detalles y bloqueos de cada uno.
     """
 
     def post(self, request, pk):
@@ -889,6 +914,8 @@ class EditarCuotaDeudaAjax(LoginRequiredMixin, View):
                 if not cuenta:
                     return JsonResponse({'error': 'Elegí una cuenta válida.'}, status=400)
                 kwargs['cuenta_pago'] = cuenta
+            if 'extra' in data:
+                kwargs['extra'] = _parsear_extra(data) or {'monto': 0}
 
             cuota.editar(**kwargs)
             return JsonResponse({
