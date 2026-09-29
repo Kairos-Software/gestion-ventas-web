@@ -224,7 +224,7 @@ function ncHtmlA4(data, opts) {
             <div class="nc-original-label">${esDuplicado ? 'Duplicado' : 'Original'}</div>
             <div class="nc-titulo">${nc ? _esc(nc.tipo_display) : 'Nota de Crédito'}</div>
             <div class="nc-numero-grande">${nc ? _esc(nc.numero_display) : ''}</div>
-            <div class="nc-meta">Fecha: ${_esc(_ncFechaHoy())}</div>
+            <div class="nc-meta">Fecha: ${_esc(_ncFechaDocumento(data))}</div>
         </div>
     </div>
 
@@ -290,85 +290,143 @@ ${sinAutoImpresion ? '' : `
  * 58mm) — mismo criterio visual que ticket_termica_80.js/58.js: fuente
  * monoespaciada, sin colores, texto grande para el total.
  * @param {object} data  Una entrada de window.NC_DATA.
- * @param {number} anchoMm  72 (rollo 80mm) o 48 (rollo 58mm).
+ * @param {number} papelMm  Ancho nominal del rollo: 80 o 58 mm.
+ * @param {number} contenidoMm  Ancho imprimible real: 72 o 48 mm.
+ * @param {string} formato  Sufijo CSS del formato: "80" o "58".
  * @param {object} [opts]
  * @param {boolean} [opts.sinAutoImpresion]  Ver ncHtmlA4.
  */
-function _ncHtmlTermica(data, anchoMm, opts) {
+function _ncHtmlTermica(data, papelMm, contenidoMm, formato, opts) {
     const esDuplicado = !!(opts && opts.duplicado);
     const sinAutoImpresion = !!(opts && opts.sinAutoImpresion);
-    const { emp } = _ncEmpresaYCliente();
+    const { emp, cliente } = _ncEmpresaYCliente();
     const items = data.items || [];
     const nc = data.nc || null;
+    const letra = nc ? String(nc.tipo_display || '').trim().slice(-1) : '';
+    const cod = nc ? String(nc.tipo_comprobante).padStart(3, '0') : '';
+    const es58 = formato === '58';
+    const prefijo = `nct${formato}`;
 
     return `<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Nota de Crédito — ${nc ? _esc(nc.numero_display) : ''}</title>
+    <title>Nota de Crédito ${papelMm}mm — ${nc ? _esc(nc.numero_display) : ''}</title>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         html, body {
-            width: ${anchoMm}mm;
+            width: ${contenidoMm}mm;
             font-family: 'Courier New', Courier, monospace;
-            font-size: 9pt;
+            font-size: ${es58 ? '7.5pt' : '9pt'};
             color: #000;
             background: #fff;
         }
-        body { padding: 3mm 2mm 8mm 2mm; }
-        .nct-center { text-align: center; }
-        .nct-bold   { font-weight: bold; }
-        .nct-grande { font-size: 13pt; font-weight: bold; }
-        .nct-peq    { font-size: 8pt; font-weight: 600; }
-        .nct-sep-doble  { border: none; border-top: 2px solid #000; margin: 4pt 0; }
-        .nct-sep-simple { border: none; border-top: 1px dashed #000; margin: 3pt 0; }
-        .nct-row { display: flex; justify-content: space-between; gap: 4pt; }
+        body { padding: ${es58 ? '2mm 1.5mm 8mm' : '3mm 2mm 8mm'}; }
+        .${prefijo}-center { text-align: center; }
+        .${prefijo}-bold { font-weight: bold; }
+        .${prefijo}-peq { font-size: ${es58 ? '6.5pt' : '8pt'}; font-weight: 600; line-height: 1.45; }
+        .${prefijo}-logo {
+            display: block;
+            max-width: ${es58 ? '150px' : '260px'};
+            max-height: ${es58 ? '58px' : '90px'};
+            margin: 0 auto 3pt;
+            filter: grayscale(1) contrast(1.6) brightness(1.05);
+        }
+        .${prefijo}-empresa { font-size: ${es58 ? '8.5pt' : '11pt'}; font-weight: bold; text-align: center; margin-bottom: 2pt; }
+        .${prefijo}-empresa-dato { font-size: ${es58 ? '6.3pt' : '8pt'}; font-weight: 600; text-align: center; line-height: 1.45; overflow-wrap: anywhere; }
+        .${prefijo}-sep-doble { border: 0; border-top: 2px solid #000; margin: 4pt 0; }
+        .${prefijo}-sep-simple { border: 0; border-top: 1px dashed #000; margin: 3pt 0; }
+        .${prefijo}-doc-head { display: flex; align-items: center; justify-content: center; gap: ${es58 ? '5pt' : '8pt'}; padding: 3pt 0; }
+        .${prefijo}-doc-letter { min-width: ${es58 ? '21pt' : '25pt'}; padding: 2pt; border: 1.5px solid #000; font-size: ${es58 ? '13pt' : '15pt'}; font-weight: bold; line-height: 1; text-align: center; }
+        .${prefijo}-doc-letter small { display: block; margin-top: 2pt; font-size: ${es58 ? '5pt' : '5.8pt'}; line-height: 1.1; }
+        .${prefijo}-original { font-size: ${es58 ? '5.8pt' : '6.5pt'}; font-weight: bold; letter-spacing: .08em; text-align: center; text-transform: uppercase; }
+        .${prefijo}-titulo { font-size: ${es58 ? '8pt' : '9.5pt'}; font-weight: bold; text-align: center; margin-top: 2pt; }
+        .${prefijo}-meta { font-size: ${es58 ? '6.5pt' : '8pt'}; font-weight: 600; text-align: center; line-height: 1.45; }
+        .${prefijo}-seccion { font-size: ${es58 ? '6.3pt' : '7.5pt'}; font-weight: bold; letter-spacing: .05em; text-transform: uppercase; margin: 3pt 0 2pt; }
+        .${prefijo}-cliente { text-align: center; margin: 2pt 0; overflow-wrap: anywhere; }
+        .${prefijo}-cliente-nombre { font-size: ${es58 ? '7pt' : '8.5pt'}; font-weight: bold; }
+        .${prefijo}-corrige { border: 1px solid #000; padding: 3pt; margin: 3pt 0; font-size: ${es58 ? '6.3pt' : '8pt'}; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+        .${prefijo}-items-head { display: flex; justify-content: space-between; border-bottom: 1px solid #000; padding-bottom: 2pt; margin-bottom: 4pt; font-size: ${es58 ? '6pt' : '7pt'}; font-weight: bold; text-transform: uppercase; }
+        .${prefijo}-item { margin-bottom: ${es58 ? '3pt' : '4pt'}; page-break-inside: avoid; }
+        .${prefijo}-item-nombre { font-size: ${es58 ? '7pt' : '8.5pt'}; font-weight: bold; overflow-wrap: anywhere; }
+        .${prefijo}-row { display: flex; justify-content: space-between; align-items: baseline; gap: 3pt; }
+        .${prefijo}-item-detalle { font-size: ${es58 ? '6.3pt' : '8pt'}; font-weight: 600; margin-top: 1pt; }
+        .${prefijo}-total-row { display: flex; justify-content: space-between; gap: 3pt; font-size: ${es58 ? '6.6pt' : '8.5pt'}; font-weight: 600; line-height: 1.65; }
+        .${prefijo}-total { display: flex; justify-content: space-between; gap: 3pt; margin-top: 2pt; font-size: ${es58 ? '11.5pt' : '14pt'}; font-weight: bold; }
+        .${prefijo}-fiscal { border: 1.5px solid #000; padding: ${es58 ? '4pt 3pt' : '5pt 4pt'}; margin: 4pt 0; text-align: ${es58 ? 'center' : 'left'}; page-break-inside: avoid; }
+        .${prefijo}-fiscal-label { font-size: ${es58 ? '6.2pt' : '8pt'}; font-weight: bold; letter-spacing: .04em; text-transform: uppercase; text-align: center; margin-bottom: 3pt; }
+        .${prefijo}-fiscal-contenido { display: ${es58 ? 'block' : 'flex'}; align-items: center; gap: 6pt; }
+        .${prefijo}-qr { display: block; width: ${es58 ? '24mm' : '25mm'}; height: ${es58 ? '24mm' : '25mm'}; margin: ${es58 ? '2pt auto' : '0'}; flex: 0 0 auto; image-rendering: crisp-edges; }
+        .${prefijo}-fiscal-datos { flex: 1 1 0; overflow-wrap: anywhere; }
+        .${prefijo}-arca { text-align: center; font-size: ${es58 ? '6pt' : '7.2pt'}; font-weight: 600; line-height: 1.35; margin-top: 4pt; }
+        .${prefijo}-arca strong { display: block; font-size: ${es58 ? '9pt' : '11pt'}; letter-spacing: .04em; }
         @media print {
             html, body { width: auto; }
-            body { padding: 0; }
-            @page { size: ${anchoMm}mm auto; margin: 0; }
+            body { padding: 0 ${es58 ? '1.5mm' : '2mm'} 8mm; }
+            @page { size: ${papelMm}mm auto; margin: ${es58 ? '1mm 1mm 0' : '2mm 1mm 0'}; }
         }
     </style>
 </head>
 <body>
-    <div class="nct-center nct-bold">${_esc(emp.nombre)}</div>
-    ${emp.cuit ? `<div class="nct-center nct-peq">CUIT: ${_esc(emp.cuit)}</div>` : ''}
-    <hr class="nct-sep-doble">
-    <div class="nct-center nct-bold">${nc ? _esc(nc.tipo_display).toUpperCase() : 'NOTA DE CRÉDITO'}</div>
-    <div class="nct-center">${nc ? _esc(nc.numero_display) : ''}</div>
-    <div class="nct-center nct-peq">${esDuplicado ? 'DUPLICADO' : 'ORIGINAL'}</div>
-    <hr class="nct-sep-simple">
-    <div class="nct-peq">Corrige: ${_esc(data.comprobante_original_display)}</div>
-    <hr class="nct-sep-simple">
-    ${items.map(it => `
-    <div>${_esc(it.nombre)}</div>
-    <div class="nct-row nct-peq"><span>${_esc(it.cantidad)} x $${_fmtNum(it.precio_unitario)}</span><span>$${_fmtNum(it.subtotal)}</span></div>
-    `).join('')}
-    <hr class="nct-sep-simple">
-    ${_ncTotalesFilasTexto(nc)}
-    <div class="nct-row nct-grande"><span>TOTAL</span><span>$${_fmtNum(nc ? nc.importe_total : 0)}</span></div>
-    <hr class="nct-sep-doble">
-    ${nc ? `
-    <div class="nct-center nct-peq">CAE: ${_esc(nc.cae)}</div>
-    <div class="nct-center nct-peq">Vto. CAE: ${_esc(nc.cae_vencimiento)}</div>
-    ` : ''}
+    ${emp.logo_url ? `<img class="${prefijo}-logo" src="${_esc(emp.logo_url)}" alt="Logo">` : ''}
+    <div class="${prefijo}-empresa">${_esc(emp.nombre)}</div>
+    ${emp.razon_social ? `<div class="${prefijo}-empresa-dato">${_esc(emp.razon_social)}</div>` : ''}
+    ${emp.domicilio ? `<div class="${prefijo}-empresa-dato">Dom: ${_esc(emp.domicilio)}</div>` : ''}
+    ${emp.cuit ? `<div class="${prefijo}-empresa-dato">CUIT: ${_esc(emp.cuit)}</div>` : ''}
+    ${emp.condicion_iva ? `<div class="${prefijo}-empresa-dato">IVA: ${_esc(emp.condicion_iva)}</div>` : ''}
+    ${(nc || emp.ingresos_brutos) ? `<div class="${prefijo}-empresa-dato">IIBB: ${_esc(emp.ingresos_brutos || '—')}</div>` : ''}
+    ${(nc || emp.fecha_inicio_actividades) ? `<div class="${prefijo}-empresa-dato">Inicio act.: ${_esc(emp.fecha_inicio_actividades || '—')}</div>` : ''}
+
+    <hr class="${prefijo}-sep-doble">
+    <div class="${prefijo}-doc-head">
+        ${nc ? `<div class="${prefijo}-doc-letter">${_esc(letra)}<small>COD. ${_esc(cod)}</small></div>` : ''}
+        <div>
+            <div class="${prefijo}-original">${esDuplicado ? 'Duplicado' : 'Original'}</div>
+            <div class="${prefijo}-titulo">${nc ? _esc(nc.tipo_display).toUpperCase() : 'NOTA DE CRÉDITO'}</div>
+            <div class="${prefijo}-titulo">${nc ? _esc(nc.numero_display) : ''}</div>
+        </div>
+    </div>
+    <div class="${prefijo}-meta">Fecha: ${_esc(_ncFechaDocumento(data))}</div>
+
+    <div class="${prefijo}-corrige"><strong>Comprobante asociado</strong><br>${_esc(data.comprobante_original_display || '—')}</div>
+
+    <div class="${prefijo}-seccion">Datos del cliente</div>
+    ${_ncClienteTermica(cliente, nc, prefijo)}
+
+    <hr class="${prefijo}-sep-simple">
+    <div class="${prefijo}-items-head"><span>Producto / servicio</span><span>Subtotal</span></div>
+    ${items.map(it => `<div class="${prefijo}-item">
+        <div class="${prefijo}-item-nombre">${_esc(it.nombre)}</div>
+        <div class="${prefijo}-row ${prefijo}-item-detalle">
+            <span>${_esc(_ncCantidadDisplay(it.cantidad))} x $ ${_fmtNum(it.precio_unitario)}</span>
+            <strong>$ ${_fmtNum(it.subtotal)}</strong>
+        </div>
+    </div>`).join('')}
+
+    <hr class="${prefijo}-sep-doble">
+    ${_ncTotalesFilasTermica(nc, prefijo, items)}
+    <div class="${prefijo}-total"><span>TOTAL</span><span>$${_fmtNum(nc ? nc.importe_total : 0)}</span></div>
+    ${_ncLeyendaReceptorTermica(nc, prefijo)}
+
+    ${_ncComprobanteTermica(nc, prefijo)}
+    ${nc ? `<div class="${prefijo}-arca"><strong>ARCA</strong>Comprobante autorizado<br>Esta Agencia no se responsabiliza por los datos ingresados en el detalle de la operación.</div>` : ''}
 ${sinAutoImpresion ? '' : `
     <script>
         window.addEventListener('load', function () {
             setTimeout(function () { window.print(); }, 150);
         });
         window.addEventListener('afterprint', function () { window.close(); });
-    </script>
+    <\/script>
 `}
 </body>
 </html>`;
 }
 
-function ncHtmlTermica80(data, opts) { return _ncHtmlTermica(data, 72, opts); }
-function ncHtmlTermica58(data, opts) { return _ncHtmlTermica(data, 48, opts); }
+function ncHtmlTermica80(data, opts) { return _ncHtmlTermica(data, 80, 72, '80', opts); }
+function ncHtmlTermica58(data, opts) { return _ncHtmlTermica(data, 58, 48, '58', opts); }
 
-function _ncFechaHoy() {
-    return new Date().toLocaleDateString('es-AR');
+function _ncFechaDocumento(data) {
+    return (data && (data.fecha_hora || data.fecha)) || new Date().toLocaleDateString('es-AR');
 }
 
 function _ncClienteTexto(cliente, nc) {
@@ -384,10 +442,58 @@ function _ncTotalesFilas(nc) {
     return `<div class="nc-totales-row"><span>Neto gravado</span><span>$${_fmtNum(nc.importe_neto)}</span></div>${filasIva}`;
 }
 
-function _ncTotalesFilasTexto(nc) {
-    if (!nc || !nc.iva_grupos || !nc.iva_grupos.length) return '';
-    const filasIva = nc.iva_grupos.map(g => `<div class="nct-row nct-peq"><span>IVA ${_esc(g.alicuota)}%</span><span>$${_fmtNum(g.iva)}</span></div>`).join('');
-    return `<div class="nct-row nct-peq"><span>Neto gravado</span><span>$${_fmtNum(nc.importe_neto)}</span></div>${filasIva}`;
+function _ncTotalesFilasTermica(nc, prefijo, items) {
+    const subtotal = (items || []).reduce((acc, item) => acc + (parseFloat(item.subtotal || 0) || 0), 0);
+    const totalDocumento = parseFloat((nc && nc.importe_total) || 0) || 0;
+    const bonificacion = Math.max(0, subtotal - totalDocumento);
+    let html = `<div class="${prefijo}-total-row"><span>Subtotal</span><span>$${_fmtNum(subtotal)}</span></div>`;
+    if (bonificacion > 0.005) {
+        html += `<div class="${prefijo}-total-row"><span>Bonificación</span><span>− $${_fmtNum(bonificacion)}</span></div>`;
+    }
+    if (!nc || !nc.iva_grupos || !nc.iva_grupos.length) return html;
+    const esNotaCreditoB = nc.tipo_comprobante === 8;
+    const filasIva = nc.iva_grupos.map(g => `<div class="${prefijo}-total-row"><span>${esNotaCreditoB ? 'IVA contenido' : 'IVA'} ${_esc(g.alicuota)}%</span><span>$${_fmtNum(g.iva)}</span></div>`).join('');
+    return `${html}<div class="${prefijo}-total-row"><span>Neto gravado</span><span>$${_fmtNum(nc.importe_neto)}</span></div>${esNotaCreditoB ? `<div class="${prefijo}-seccion">Transparencia fiscal · Ley 27.743</div>` : ''}${filasIva}<div class="${prefijo}-total-row"><span>${esNotaCreditoB ? 'Otros imp. nac.' : 'Otros tributos'}</span><span>$0,00</span></div>`;
+}
+
+function _ncClienteTermica(cliente, nc, prefijo) {
+    const nombre = cliente && cliente.nombre ? cliente.nombre : 'A CONSUMIDOR FINAL';
+    const documento = (nc && nc.receptor_documento) || (cliente && cliente.documento) || '';
+    const condicionIva = (nc && nc.receptor_condicion_iva) || (cliente && cliente.condicion_iva) || 'Consumidor Final';
+    const domicilio = cliente && cliente.direccion ? cliente.direccion : '—';
+    return `<div class="${prefijo}-cliente">
+        <div class="${prefijo}-cliente-nombre">${_esc(nombre)}</div>
+        <div class="${prefijo}-peq">${documento ? _esc(documento) : 'CUIT: —'}</div>
+        <div class="${prefijo}-peq">IVA: ${_esc(condicionIva)}</div>
+        <div class="${prefijo}-peq">Dom: ${_esc(domicilio)}</div>
+    </div>`;
+}
+
+function _ncCantidadDisplay(valor) {
+    const numero = parseFloat(valor);
+    if (Number.isNaN(numero)) return String(valor == null ? '' : valor);
+    return numero.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+}
+
+function _ncLeyendaReceptorTermica(nc, prefijo) {
+    if (!nc || nc.tipo_comprobante !== 3) return '';
+    const condicion = String(nc.receptor_condicion_iva || '').toLocaleLowerCase('es');
+    if (!condicion.includes('monotribut')) return '';
+    return `<div class="${prefijo}-corrige">El crédito fiscal discriminado en el presente comprobante solo podrá ser computado a efectos del Régimen de Sostenimiento e Inclusión Fiscal para Pequeños Contribuyentes de la Ley N.º 27.618.</div>`;
+}
+
+function _ncComprobanteTermica(nc, prefijo) {
+    if (!nc) return '';
+    return `<div class="${prefijo}-fiscal">
+        <div class="${prefijo}-fiscal-label">Comprobante autorizado por ARCA</div>
+        <div class="${prefijo}-fiscal-contenido">
+            ${nc.qrDataUrl ? `<img class="${prefijo}-qr" src="${_esc(nc.qrDataUrl)}" alt="QR ARCA">` : ''}
+            <div class="${prefijo}-fiscal-datos">
+                <div class="${prefijo}-peq">CAE: <strong>${_esc(nc.cae)}</strong></div>
+                <div class="${prefijo}-peq">Vto. CAE: <strong>${_esc(nc.cae_vencimiento)}</strong></div>
+            </div>
+        </div>
+    </div>`;
 }
 
 function _ncComprobanteBox(nc) {

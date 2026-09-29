@@ -1,3 +1,9 @@
+// "1 unidad" / "15 unidades": la fila trae las dos formas (antes decía
+// siempre "Unidad", el nombre del choice).
+function _unidadPara(row, cantidad) {
+    return cantidad === 1 ? row.dataset.unidad : (row.dataset.unidadPlural || row.dataset.unidad);
+}
+
 // ═══════════════════════════════════════════
 //  stock.js
 //  Archivo: productos/static/productos/js/stock.js
@@ -17,7 +23,7 @@ function abrirAjuste(btn) {
     const pk     = row.dataset.pk;
     const nombre = row.dataset.nombre;
     const stock  = row.dataset.stock;
-    const unidad = row.dataset.unidad;
+    const unidad = _unidadPara(row, parseFloat(row.dataset.stock));
     const costoReferencia = row.dataset.costo || '';
 
     // Combinaciones del producto: JSON inyectado en data-colores del <tr>.
@@ -32,7 +38,7 @@ function abrirAjuste(btn) {
     // ── Resetear campos ────────────────────────────────────────────
     document.getElementById('ajustePk').value                = pk;
     document.getElementById('modalAjusteTitulo').textContent = nombre;
-    document.getElementById('modalAjusteStock').textContent  = `Stock actual: ${stock} ${unidad}`;
+    document.getElementById('modalAjusteStock').textContent  = `Stock actual: ${parseFloat(stock).toLocaleString('es-AR', { maximumFractionDigits: 3 })} ${unidad}`;
     document.getElementById('ajusteTipo').value              = '';
     document.getElementById('ajusteCantidad').value          = '';
     document.getElementById('ajusteMotivo').value            = '';
@@ -133,11 +139,14 @@ async function registrarAjuste() {
         const data = await res.json();
 
         if (data.ok) {
+            const filaAjustada = document.querySelector(`tr[data-pk="${pk}"]`);
+            const estadoAntes  = filaAjustada ? _estadoStockFila(filaAjustada) : null;
+
             // Actualizar stock total (qty, barra de progreso, badge de estado)
             actualizarFilaStock(pk, data.stock_actual, data.stock_bajo);
 
-            // Actualizar KPIs del header (stock bajo, sin stock, total)
-            actualizarKPIs();
+            // KPIs del header: un ajuste solo cambia el estado de ESTE producto.
+            if (filaAjustada) moverKPIs(estadoAntes, _estadoStockFila(filaAjustada));
 
             // Si el ajuste fue por combinación, actualizar stock en memoria y chip visual
             if (data.combinacion_pk != null && data.combinacion_stock != null) {
@@ -182,7 +191,7 @@ function actualizarFilaStock(pk, nuevoStock, stockBajo) {
     const val    = parseFloat(nuevoStock);
     const esBajo = val <= 0 || stockBajo;
     const clase  = esBajo ? 'danger' : 'ok';
-    const fmt    = (val % 1 === 0 ? parseInt(val) : val).toString();
+    const fmt    = val.toLocaleString('es-AR', { maximumFractionDigits: 3 });
 
     // Actualizar dataset del row
     row.dataset.stock = nuevoStock;
@@ -190,7 +199,7 @@ function actualizarFilaStock(pk, nuevoStock, stockBajo) {
     // Actualizar qty badge
     const el = document.getElementById(`stockQty-${pk}`);
     if (el) {
-        el.textContent = `${fmt} ${row.dataset.unidad}`;
+        el.textContent = `${fmt} ${_unidadPara(row, val)}`;
         el.className   = `stock-qty ${clase}`;
     }
 
@@ -230,34 +239,30 @@ function actualizarFilaStock(pk, nuevoStock, stockBajo) {
     }
 }
 
-// Recalcula y actualiza los KPI cards del header contando las filas de la tabla
-function actualizarKPIs() {
-    const filas = document.querySelectorAll('#tablaStock tbody tr[data-pk]');
-    let totalActivos = 0, stockBajoCount = 0, sinStockCount = 0;
+// Estado de stock de una fila: 'sin' | 'bajo' | 'ok' (mismo criterio que
+// los KPI que calcula el server en views_stock.py).
+function _estadoStockFila(row) {
+    const stock  = parseFloat(row.dataset.stock);
+    const minimo = parseFloat(row.dataset.minimo) || 0;
+    if (stock <= 0) return 'sin';
+    return stock <= minimo ? 'bajo' : 'ok';
+}
 
-    filas.forEach(row => {
-        const stock  = parseFloat(row.dataset.stock);
-        const minimo = parseFloat(row.dataset.minimo) || 0;
-        if (stock <= 0) {
-            sinStockCount++;
-        } else {
-            totalActivos++;
-            if (minimo > 0 && stock <= minimo) stockBajoCount++;
-        }
+// Mueve los contadores "stock bajo" / "sin stock" según cómo estaba y cómo
+// quedó el producto ajustado. Antes se recontaban las filas de la página
+// visible, y el total ("con control de stock", que incluye a los que están
+// en 0) pasaba de 17 a 15 con cualquier ajuste; con más de 25 productos o un
+// filtro puesto, los tres números quedaban mal.
+function moverKPIs(antes, despues) {
+    if (antes === despues) return;
+    const ids = { bajo: 'kpiBajo', sin: 'kpiSinStock' };
+    [[antes, -1], [despues, +1]].forEach(([estado, delta]) => {
+        const el = ids[estado] && document.getElementById(ids[estado]);
+        if (!el) return;
+        const n = Math.max(0, (parseInt(el.textContent, 10) || 0) + delta);
+        el.textContent = n;
+        el.style.color = n > 0 ? 'var(--danger)' : '';
     });
-
-    // Actualizar valores en los KPI cards
-    const kpiTotal    = document.getElementById('kpiTotal');
-    const kpiBajo     = document.getElementById('kpiBajo');
-    const kpiSinStock = document.getElementById('kpiSinStock');
-
-    if (kpiTotal)    kpiTotal.textContent    = totalActivos;
-    if (kpiBajo)     kpiBajo.textContent     = stockBajoCount;
-    if (kpiSinStock) kpiSinStock.textContent = sinStockCount;
-
-    // Colorear en rojo si hay alertas
-    if (kpiBajo)     kpiBajo.style.color     = stockBajoCount > 0 ? 'var(--danger)' : '';
-    if (kpiSinStock) kpiSinStock.style.color = sinStockCount  > 0 ? 'var(--danger)' : '';
 }
 
 // Actualiza el stock de una combinación en el dataset del row (estado en memoria)

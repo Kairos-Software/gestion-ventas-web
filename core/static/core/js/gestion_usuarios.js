@@ -313,6 +313,7 @@ document.addEventListener('DOMContentLoaded', function () {
         form.reset();
         document.getElementById('usuarioPk').value  = '';
         document.getElementById('usuarioModalLabel').innerText = 'Nuevo usuario';
+        document.getElementById('usuarioModalSubtitulo').innerText = 'Solo el usuario y la contraseña son obligatorios al crear.';
 
         const defNac = document.getElementById('id_nacionalidad');
         if (defNac) defNac.value = 'Argentina';
@@ -351,6 +352,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             document.getElementById('usuarioPk').value = id;
             document.getElementById('usuarioModalLabel').innerText = 'Editar usuario';
+            document.getElementById('usuarioModalSubtitulo').innerText = 'La contraseña la cambia cada uno desde Mi perfil, o con "¿Olvidaste tu contraseña?" al iniciar sesión.';
 
             // Campos de texto / selects
             const camposTexto = [
@@ -485,7 +487,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function rolHtml(u) {
-        if (!u.rol_nombre) return '<span class="rol-badge empty">Sin rol</span>';
+        if (!u.rol_nombre) return '<span class="rol-badge empty">Sin perfil</span>';
         return `<span class="rol-badge">${u.rol_nombre}</span>`;
     }
 
@@ -525,7 +527,7 @@ document.addEventListener('DOMContentLoaded', function () {
             <td class="usuario-nombre-cell">${u.first_name || ''} ${u.last_name || ''}</td>
             <td class="usuario-puesto-cell">${puestoHtml(u)}</td>
             <td class="usuario-dni-cell" data-label="DNI">${u.dni || '—'}</td>
-            <td class="usuario-rol-cell" data-label="Rol">${rolHtml(u)}</td>
+            <td class="usuario-rol-cell" data-label="Perfil">${rolHtml(u)}</td>
             <td class="usuario-estado-cell">${estadoBadge(u.estado_laboral)}</td>
             <td class="usuario-acciones-cell">${accionesHtml(u)}</td>`;
         tablaBody.appendChild(tr);

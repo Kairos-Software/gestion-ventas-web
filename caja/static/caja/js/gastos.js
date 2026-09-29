@@ -59,7 +59,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const paginacionContainer = document.getElementById('paginacionContainer');
 
     // ── Cargar movimientos ───────────────────────────────────────────
+    let consultaSeq = 0;
+
     async function cargarGastos() {
+        const seq = ++consultaSeq;
         const params = new URLSearchParams({
             pagina: paginaActual,
             por_pagina: porPagina,
@@ -69,9 +72,13 @@ document.addEventListener('DOMContentLoaded', function () {
         try {
             const response = await fetch(`${urls.listar}?${params}`);
             const data = await response.json();
+            // Si mientras tanto se cambió otro filtro, esta respuesta ya
+            // quedó vieja: no pisar el resultado de la consulta nueva.
+            if (seq !== consultaSeq) return;
 
             renderizarGastos(data.results);
             renderizarPaginacion(data.total, data.pagina, data.por_pagina);
+            renderizarResumen(data.total, data.totales || []);
         } catch (error) {
             console.error('Error al cargar movimientos:', error);
             gastosBody.innerHTML = '<tr><td colspan="9" class="gastos-tabla-loading">Error al cargar movimientos</td></tr>';
@@ -85,7 +92,10 @@ document.addEventListener('DOMContentLoaded', function () {
         const cuenta = document.getElementById('fCuenta').value;
         const moneda = document.getElementById('fMoneda').value;
         const origen = document.getElementById('fOrigen') ? document.getElementById('fOrigen').value : '';
-        const q = document.getElementById('fQ').value;
+        const q = document.getElementById('fQ').value.trim();
+        const montoMin = document.getElementById('fMontoMin').value;
+        const montoMax = document.getElementById('fMontoMax').value;
+        const orden = document.getElementById('fOrden').value;
 
         const filtros = {};
         if (desde) filtros.desde = desde;
@@ -95,8 +105,53 @@ document.addEventListener('DOMContentLoaded', function () {
         if (moneda) filtros.moneda = moneda;
         if (origen) filtros.origen = origen;
         if (q) filtros.q = q;
+        if (montoMin) filtros.monto_min = montoMin;
+        if (montoMax) filtros.monto_max = montoMax;
+        if (orden && orden !== 'fecha_desc') filtros.orden = orden;
 
         return filtros;
+    }
+
+    // Cantidad de filtros del panel plegable que están aplicados (la
+    // búsqueda y el orden quedan siempre a la vista, no cuentan).
+    function contarFiltrosPanel() {
+        const f = getFiltrosActivos();
+        let n = ['tipo', 'cuenta', 'moneda', 'origen'].filter(k => f[k]).length;
+        if (f.desde || f.hasta) n++;
+        if (f.monto_min || f.monto_max) n++;
+        return n;
+    }
+
+    function fmtMonto(valor) {
+        const n = parseFloat(valor);
+        if (isNaN(n)) return valor;
+        return n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function renderizarResumen(total, totales) {
+        const el = document.getElementById('gastosResumen');
+        const badge = document.getElementById('filtrosActivosCount');
+        const nFiltros = contarFiltrosPanel();
+        if (badge) {
+            badge.textContent = nFiltros;
+            badge.hidden = nFiltros === 0;
+        }
+        if (!el) return;
+        if (!total) { el.hidden = true; el.innerHTML = ''; return; }
+
+        let html = `<span class="gastos-resumen-cant"><strong>${total}</strong> ${total === 1 ? 'movimiento' : 'movimientos'}</span>`;
+        html += totales.map(t => {
+            const neto = parseFloat(t.neto);
+            return `
+            <span class="gastos-resumen-moneda">
+                <span class="gastos-resumen-moneda-cod">${escaparHtml(t.moneda)}</span>
+                <span>Ingresos <span class="gastos-resumen-val gastos-resumen-val--ingreso">+ ${fmtMonto(t.ingresos)}</span></span>
+                <span>Egresos <span class="gastos-resumen-val gastos-resumen-val--egreso">− ${fmtMonto(t.egresos)}</span></span>
+                <span>Neto <span class="gastos-resumen-val gastos-resumen-val--neto">${neto < 0 ? '− ' : ''}${fmtMonto(Math.abs(neto))}</span></span>
+            </span>`;
+        }).join('');
+        el.innerHTML = html;
+        el.hidden = false;
     }
 
     function renderizarGastos(gastos) {
@@ -110,7 +165,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 ? `<span class="gastos-badge-origen">Caja diaria · turno #${g.turno_numero}</span>`
                 : g.recarga_celular_numero
                 ? `<span class="gastos-badge-origen">Recarga · ${g.recarga_celular_numero}</span>`
-                : (g.cuenta_nombre || '-');
+                : (g.cuenta_nombre ? escaparHtml(g.cuenta_nombre) : '-');
             const accionesCol = g.es_caja_diaria
                 ? `<span class="gastos-acciones-nota" title="Se gestiona desde Caja Diaria">en Caja Diaria</span>`
                 : g.recarga_celular_numero
@@ -132,7 +187,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 <td>${g.fecha}</td>
                 <td>${g.hora}</td>
                 <td><span class="gastos-badge-tipo gastos-badge-tipo--${g.tipo}">${g.tipo === 'ingreso' ? 'Ingreso' : 'Egreso'}</span></td>
-                <td>${g.descripcion || '-'}</td>
+                <td>${g.descripcion ? escaparHtml(g.descripcion) : '-'}</td>
                 <td>${cuentaCol}</td>
                 <td class="gastos-monto gastos-monto--${g.tipo}">${g.monto}</td>
                 <td>${g.moneda}</td>
@@ -180,15 +235,77 @@ document.addEventListener('DOMContentLoaded', function () {
 
     formFiltros.addEventListener('submit', (e) => {
         e.preventDefault();
-        paginaActual = 1;
-        cargarGastos();
+        aplicarFiltros();
     });
 
     btnLimpiarFiltros.addEventListener('click', () => {
-        formFiltros.reset();
+        formFiltros.reset();  // incluye búsqueda y orden (form="formFiltros")
+        aplicarFiltros();
+    });
+
+    function aplicarFiltros() {
+        clearTimeout(filtroTimer);
         paginaActual = 1;
         cargarGastos();
+    }
+
+    // Los filtros se aplican solos: al instante en selects y fechas, con
+    // una pequeña demora mientras se tipea texto o montos.
+    let filtroTimer = null;
+    function aplicarFiltrosConDemora() {
+        clearTimeout(filtroTimer);
+        filtroTimer = setTimeout(aplicarFiltros, 400);
+    }
+
+    ['fTipo', 'fCuenta', 'fMoneda', 'fOrigen', 'fOrden'].forEach(id => {
+        document.getElementById(id)?.addEventListener('change', aplicarFiltros);
     });
+    ['fQ', 'fMontoMin', 'fMontoMax'].forEach(id => {
+        const el = document.getElementById(id);
+        el?.addEventListener('input', aplicarFiltrosConDemora);
+        el?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); aplicarFiltros(); }
+        });
+    });
+
+    // Período rápido → completa Desde/Hasta (hora local, no UTC).
+    const fPeriodo = document.getElementById('fPeriodo');
+    const fDesde = document.getElementById('fDesde');
+    const fHasta = document.getElementById('fHasta');
+
+    function isoLocal(fecha) {
+        const y = fecha.getFullYear();
+        const m = String(fecha.getMonth() + 1).padStart(2, '0');
+        const d = String(fecha.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+
+    function rangoPeriodo(periodo) {
+        const hoy = new Date();
+        const d = (y, m, dia) => isoLocal(new Date(y, m, dia));
+        const y = hoy.getFullYear(), m = hoy.getMonth(), dia = hoy.getDate();
+        switch (periodo) {
+            case 'hoy':     return [d(y, m, dia), d(y, m, dia)];
+            case '7d':      return [d(y, m, dia - 6), d(y, m, dia)];
+            case '30d':     return [d(y, m, dia - 29), d(y, m, dia)];
+            case 'mes':     return [d(y, m, 1), d(y, m, dia)];
+            case 'mes_ant': return [d(y, m - 1, 1), d(y, m, 0)];
+            case 'anio':    return [d(y, 0, 1), d(y, m, dia)];
+            default:        return null;
+        }
+    }
+
+    fPeriodo.addEventListener('change', () => {
+        if (fPeriodo.value === 'custom') { fDesde.focus(); return; }
+        const rango = rangoPeriodo(fPeriodo.value);
+        fDesde.value = rango ? rango[0] : '';
+        fHasta.value = rango ? rango[1] : '';
+        aplicarFiltros();
+    });
+    [fDesde, fHasta].forEach(el => el.addEventListener('change', () => {
+        fPeriodo.value = (fDesde.value || fHasta.value) ? 'custom' : '';
+        aplicarFiltros();
+    }));
 
     window.eliminarGasto = async function (pk) {
         if (!await KaiConfirm('¿Estás seguro de eliminar este movimiento?', { danger: true, confirmText: 'Eliminar' })) {

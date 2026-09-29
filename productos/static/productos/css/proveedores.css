@@ -680,3 +680,7 @@ textarea.nx-input {
     .nx-modal { max-width: calc(100% - 2rem); }
     .nx-toast { bottom: 1rem; right: 1rem; left: 1rem; text-align: center; max-width: none; }
 }
+/* El renglón de error solo ocupa lugar cuando hay un error: vacío
+   reservaba 1rem en algunos campos y en otros no (Tipo, Sitio web…), y el
+   formulario quedaba con huecos desparejos. */
+.nx-field-error:empty { display: none; }

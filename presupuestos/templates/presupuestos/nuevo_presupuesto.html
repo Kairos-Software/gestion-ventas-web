@@ -59,6 +59,12 @@ carrito, sin duplicar ~700 líneas de CSS para un módulo que la calca.
         font-size: .8rem;
         width: 100%;
     }
+
+    /* "Mayorista (10%)" no entraba en el ancho .w-sm y se cortaba. */
+    .vta-select-inline.w-sm[data-campo="lista_descuento"] {
+        min-width: 9.5rem;
+        max-width: 12rem;
+    }
 </style>
 {% endblock %}
 
@@ -214,7 +220,7 @@ window.PRE_CONFIG = {
     clienteEditarNombre: "{{ cliente_editar_nombre|escapejs }}",
 };
 </script>
-<script src="{% static 'presupuestos/js/nuevo_presupuesto.js' %}"></script>
+<script src="{% static 'presupuestos/js/nuevo_presupuesto.js' %}?v=20260928a"></script>
 <script src="{% static 'presupuestos/js/presupuesto_a4.js' %}"></script>
 {% endif %}
 {% endblock %}

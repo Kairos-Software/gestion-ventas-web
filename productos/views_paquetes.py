@@ -174,8 +174,10 @@ class PaqueteAccionesAjax(LoginRequiredMixin, View):
         # cargarlo. Siempre se genera uno propio (imprimible) para que
         # quede escaneable en caja como cualquier otro producto — no
         # se acepta uno a mano (no hay nada real que escanear todavía).
-        # Al editar un paquete ya existente, conserva el que ya tenía.
-        codigo_barras = paquete.codigo_barras if paquete.pk else generar_codigo_barras_paquete()
+        # Al editar un paquete ya existente, conserva el que ya tenía — y si
+        # no tenía ninguno (creado antes de que existiera esto), se le
+        # genera ahora: si no, "Imprimir código" no andaba nunca para él.
+        codigo_barras = paquete.codigo_barras or generar_codigo_barras_paquete()
 
         paquete.nombre        = nombre
         paquete.descripcion   = body.get('descripcion', '')

@@ -141,13 +141,19 @@
     min-width: 0;
 }
 
-/* Modales propios y de Bootstrap: siempre dejan margen y scroll vertical. */
-.kai-internal-app :where(
-    .modal-content, .modal-box, .prd-modal, .nx-modal, .cd-modal-content,
-    .hist-ticket-box
-) {
-    max-width: min(100%, calc(100vw - 2rem));
-    max-height: min(90vh, calc(100dvh - 2rem));
+/* Modales propios y de Bootstrap: siempre dejan margen y scroll vertical.
+   Va en una capa (@layer) para que sea solo un respaldo: el max-width
+   propio de cada pantalla (500px, 480px, .prd-modal--sm…) siempre gana.
+   Sin la capa, esta regla pisaba esos anchos y los modales se estiraban
+   al 90% de la pantalla en desktop. */
+@layer kai-respaldo {
+    .kai-internal-app :where(
+        .modal-content, .modal-box, .prd-modal, .nx-modal, .cd-modal-content,
+        .hist-ticket-box
+    ) {
+        max-width: min(100%, calc(100vw - 2rem));
+        max-height: min(90vh, calc(100dvh - 2rem));
+    }
 }
 
 .kai-internal-app :where(

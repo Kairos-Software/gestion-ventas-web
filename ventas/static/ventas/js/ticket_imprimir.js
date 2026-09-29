@@ -59,10 +59,20 @@ function ticketAbrirSelector(modo, ncData) {
     // solo el texto según con qué botón se abrió.
     const titulo = document.getElementById('ticketSelectorTitulo');
     const sub    = document.getElementById('ticketSelectorSub');
-    if (titulo) titulo.textContent = _ticketModo === 'pdf' ? 'Elegir formato del PDF' : 'Elegir formato de impresión';
-    if (sub)    sub.textContent    = _ticketModo === 'pdf'
-        ? 'Seleccioná el tamaño de página del archivo.'
-        : 'Seleccioná el tipo de papel/impresora que vas a usar.';
+    if (titulo) {
+        titulo.textContent = _ticketObjetivoNC
+            ? (_ticketModo === 'pdf' ? 'Guardar Nota de Crédito en PDF' : 'Imprimir Nota de Crédito')
+            : (_ticketModo === 'pdf' ? 'Elegir formato del PDF' : 'Elegir formato de impresión');
+    }
+    if (sub) {
+        sub.textContent = _ticketObjetivoNC
+            ? (_ticketModo === 'pdf'
+                ? 'Elegí A4 o el ancho de rollo de la impresora de tickets.'
+                : 'Elegí A4, rollo térmico de 80 mm o rollo térmico de 58 mm.')
+            : (_ticketModo === 'pdf'
+                ? 'Seleccioná el tamaño de página del archivo.'
+                : 'Seleccioná el tipo de papel/impresora que vas a usar.');
+    }
     // El checkbox "imprimir como ticket simple" no tiene sentido para una
     // Nota de Crédito (siempre es un comprobante fiscal, nunca "sin CAE").
     // El de "Duplicado" sí sigue aplicando (Original/Duplicado también

@@ -12,7 +12,7 @@ def mi_perfil(request):
 
     # Instancias vacías por defecto (GET)
     form_username = CambiarUsernameForm(usuario=usuario)
-    form_password = CambiarPasswordForm()
+    form_password = CambiarPasswordForm(usuario=usuario)
 
     if request.method == 'POST':
         accion = request.POST.get('accion')
@@ -28,7 +28,7 @@ def mi_perfil(request):
             # Si hay errores, caemos al render con el form con errores
 
         elif accion == 'password':
-            form_password = CambiarPasswordForm(request.POST)
+            form_password = CambiarPasswordForm(request.POST, usuario=usuario)
             if form_password.is_valid():
                 usuario.set_password(form_password.cleaned_data['password_nueva'])
                 usuario.save(update_fields=['password'])

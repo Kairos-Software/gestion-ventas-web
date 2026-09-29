@@ -64,6 +64,11 @@ function _fmt(v, decimales) {
     });
 }
 function _num(v) { return parseFloat(v) || 0; }
+// "24 × $ 1.850,00" debajo de cada ítem (costo con 2 decimales, o hasta 4 si los tiene).
+function _lineaItem(i) {
+    const c = (parseFloat(i.costo) || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+    return `${(parseFloat(i.cantidad) || 0).toLocaleString('es-AR', { maximumFractionDigits: 3 })} × $ ${c}`;
+}
 function _calcBase(i) { return _num(i.cantidad) * _num(i.costo); }
 function _calcSub(i) {
     const b = _calcBase(i);
@@ -314,7 +319,7 @@ function _render() {
                 </div>
             </div>
             <div class="fi-row-sub">
-                <span>${_esc(String(item.cantidad))} × ${_fmt(item.costo, 4)}</span>
+                <span id="fiLinea_${item.id}">${_lineaItem(item)}</span>
                 <strong id="fiSub_${item.id}">${conDesc ? `<s>${_fmt(base)}</s>` : ''}${_fmt(sub)}</strong>
             </div>
         </div>`;
@@ -399,6 +404,10 @@ function _updateField(id, campo, valor) {
         item[campo] = valor;
     }
     const base = _calcBase(item), sub = _calcSub(item);
+    // Antes esta línea quedaba con los valores del alta ("1 × $ 0,0000")
+    // aunque el ítem ya dijera 24 × 1850.
+    const lineaEl = $(`fiLinea_${id}`);
+    if (lineaEl) lineaEl.textContent = _lineaItem(item);
     const subEl = $(`fiSub_${id}`);
     if (subEl) subEl.innerHTML = (item.descuento && sub !== base ? `<s>${_fmt(base)}</s>` : '') + _fmt(sub);
     _recalc();

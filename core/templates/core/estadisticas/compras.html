@@ -130,7 +130,7 @@
 
 {% block extra_js %}
 {% if not sin_permiso %}
-<script src="{% static 'core/js/estadisticas.js' %}?v=20260921c"></script>
+<script src="{% static 'core/js/estadisticas.js' %}?v=20260928a"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         {% if serie_tiene_datos %}
@@ -159,7 +159,8 @@
             initChartDonut('chartMedioPagoCompras', {{ por_medio_pago_ars_json|safe }}, {
                 'Efectivo': '#10B981', 'Transferencia': '#1E6FA8',
                 'Débito': '#F26A1B', 'QR': '#F59E0B', 'Crédito (tarjeta)': '#8B5CF6',
-            }, { valueKey: 'total', formatValue: (v) => '$' + v.toLocaleString('es-AR') });
+                'Cheque': '#64748B',
+            }, { valueKey: 'total', formatValue: (v) => '$' + v.toLocaleString('es-AR'), leyendaCompacta: true });
         });
         {% endif %}
     });

@@ -7,8 +7,8 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'productos/css/productos.css' %}">
-<link rel="stylesheet" href="{% static 'productos/css/ofertas.css' %}">
-<link rel="stylesheet" href="{% static 'productos/css/paquetes.css' %}">
+<link rel="stylesheet" href="{% static 'productos/css/ofertas.css' %}?v=20260929b">
+<link rel="stylesheet" href="{% static 'productos/css/paquetes.css' %}?v=20260929b">
 {% endblock %}
 
 {% block content %}
@@ -141,7 +141,7 @@
                         <button type="button" class="prd-precio-toggle-btn prd-precio-toggle-btn--active" data-pq-modo="manual">Manual</button>
                         <button type="button" class="prd-precio-toggle-btn" data-pq-modo="automatico">Automático</button>
                     </div>
-                    <p class="prd-hint" id="pqHintModoPrecio" hidden>
+                    <p class="prd-hint prd-hint--sm" id="pqHintModoPrecio" hidden>
                         Suma el precio de venta de cada componente (× su cantidad) y le resta el
                         descuento de abajo, si hay. Se recalcula solo cada vez que cambia el
                         precio de alguno de los componentes o la lista de componentes.
@@ -223,6 +223,6 @@ const URLS = {
     imagenPortada     : '{% url "productos:producto_imagen_portada" %}',
 };
 </script>
-<script src="{% static 'productos/js/paquetes.js' %}"></script>
+<script src="{% static 'productos/js/paquetes.js' %}?v=20260929a"></script>
 {% endif %}
 {% endblock %}

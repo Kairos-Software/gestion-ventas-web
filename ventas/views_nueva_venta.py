@@ -14,7 +14,7 @@ from productos.models import (
     Producto, CombinacionVariante, ListaDescuento, cantidad_valida_para_unidad,
     ofertas_vigentes_hoy,
 )
-from core.models import Cliente, DatosEmpresa, ConfiguracionArca, permite_venta_sin_stock
+from core.models import Cliente, DatosEmpresa, ConfiguracionArca, CondicionIVA, permite_venta_sin_stock
 from compras.models import LoteCompra
 from .models import (
     Venta, ItemVenta, EstadoVenta, MedioPago, TipoResolucionLote,
@@ -1408,6 +1408,12 @@ def construir_contexto_detalle(request, venta):
         'url_registrar_devolucion': reverse('ventas:registrar_devolucion'),
         'url_emitir_nc_devolucion': reverse('ventas:emitir_nc_devolucion'),
         'url_cobro_fragmento': reverse('ventas:cobro_fragmento', args=[0]).replace('/0/', '/'),
+        # Alta rápida de cliente desde el carrito (sin salir de la venta) —
+        # reusa el mismo endpoint/form que Gestión de Clientes, ver
+        # core.views_clientes.ClienteCrearEditarAjax.
+        'url_cliente_crear':    reverse('core:cliente_acciones'),
+        'puede_crear_clientes': chequear_permiso(request.user, 'crear_clientes'),
+        'condiciones_iva':      CondicionIVA.choices,
     }
 
 

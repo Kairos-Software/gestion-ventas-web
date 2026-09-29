@@ -163,13 +163,15 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    margin-top: 0.6rem;
+    margin: 0 0 1rem;
+    flex-wrap: wrap;
     padding: 0.6rem 0.75rem;
     border: 1px dashed var(--border-strong, var(--border-color));
     border-radius: 0.5rem;
     background: var(--bg-white);
 }
-.pq-barcode-preview svg { flex-shrink: 0; }
+.pq-barcode-preview svg { flex-shrink: 0; max-width: 100%; height: auto; }
+
 
 /* Etiqueta imprimible (fuera de pantalla salvo al imprimir) */
 .pq-etiqueta-preview {

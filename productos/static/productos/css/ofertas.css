@@ -15,3 +15,21 @@
     text-align: center;
     color: var(--text-muted);
 }
+
+/* En estas páginas la lista es el contenido principal: sin el tope de
+   320px con scroll interno que tiene la misma lista dentro del modal de
+   Listas de descuento (dejaba media pantalla vacía y la lista cortada). */
+.of-panel .prd-ld-list {
+    max-height: none;
+    overflow: visible;
+}
+
+.of-badge--vencida {
+    background: rgba(239, 68, 68, 0.08);
+    color: var(--danger, #DC2626);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+/* Llevá/Pagá es una grilla dentro de la grilla de Nombre: sin su propio
+   margen de abajo (dejaba un hueco vacío antes de la vigencia). */
+#campoOfNxm { margin-bottom: 0; }

@@ -327,13 +327,22 @@
         recargaMsg.style.display = 'none';
     }
 
+    // Badge "Vencida hace Nd / Nd" del modal de recargas. Se recalcula
+    // después de registrar/borrar una recarga (con la lista ya
+    // recargada), no solo al abrir: si no, seguía mostrando el estado
+    // de antes de la recarga recién cargada.
+    function actualizarBadgeRecargas(pk) {
+        const c = celulares.find((x) => x.pk === pk);
+        recargaProximaBadge.innerHTML = (!c || c.dias_para_recarga === null || c.dias_para_recarga === undefined)
+            ? '' : badgeRecordatorio(c);
+    }
+
     function abrirRecargas(pk) {
         const c = celulares.find((x) => x.pk === pk);
         if (!c) return;
 
         recargasModalTitulo.textContent = `Recargas de ${c.numero}`;
-        recargaProximaBadge.innerHTML = (c.dias_para_recarga === null || c.dias_para_recarga === undefined)
-            ? '' : badgeRecordatorio(c);
+        actualizarBadgeRecargas(c.pk);
         recargaCelularPk.value = c.pk;
 
         const puedeUsarForm = CELULARES_PUEDE_CREAR || CELULARES_PUEDE_EDITAR;
@@ -403,7 +412,8 @@
                 if (recargaPk.value === tr.dataset.pk) salirModoEdicionRecarga();
                 KaiToast.show('Recarga eliminada.', 'success');
                 cargarRecargas(pkCelular);
-                cargarCelulares();
+                await cargarCelulares();
+                actualizarBadgeRecargas(pkCelular);
             }));
         });
     }
@@ -448,7 +458,8 @@
         KaiToast.show(esEdicion ? 'Recarga actualizada.' : 'Recarga registrada y cargada como egreso.', 'success');
         salirModoEdicionRecarga();
         cargarRecargas(pkCelular);
-        cargarCelulares();
+        await cargarCelulares();
+        actualizarBadgeRecargas(pkCelular);
     }));
 
     let buscarDebounce = null;

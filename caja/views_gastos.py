@@ -11,7 +11,7 @@ from django.utils import timezone
 from productos.models import Moneda
 from core.permisos import chequear_permiso
 
-from django.db.models import Count, ProtectedError
+from django.db.models import Count, ProtectedError, Q, Sum
 
 from .models import (
     Gasto, CuentaCaja, TipoCaja, TipoMovimientoCaja, sincronizar_movimiento_gasto,
@@ -32,6 +32,24 @@ def _cuenta_valida(cuenta_pk):
     if not cuenta_pk:
         return None
     return CuentaCaja.objects.filter(pk=cuenta_pk, caja=TipoCaja.GRANDE, activa=True).first()
+
+
+def _decimal_filtro(value):
+    """Decimal de un parámetro GET de filtro, o None si viene vacío/inválido."""
+    if value in (None, ''):
+        return None
+    try:
+        return Decimal(str(value).replace(',', '.'))
+    except (InvalidOperation, ValueError):
+        return None
+
+
+ORDENES_GASTOS = {
+    'fecha_desc': ('-fecha', '-hora', '-pk'),
+    'fecha_asc':  ('fecha', 'hora', 'pk'),
+    'monto_desc': ('-monto', '-fecha', '-hora'),
+    'monto_asc':  ('monto', '-fecha', '-hora'),
+}
 
 
 def _serializar_gasto(g):
@@ -167,8 +185,51 @@ class ListarGastosAjax(LoginRequiredMixin, View):
             qs = qs.filter(turno__isnull=True)
         elif origen == 'caja_diaria':
             qs = qs.filter(turno__isnull=False)
+        elif origen == 'recarga_celular':
+            qs = qs.filter(recarga_celular__isnull=False)
         if q:
-            qs = qs.filter(descripcion__icontains=q)
+            filtro_q = (
+                Q(descripcion__icontains=q)
+                | Q(concepto__nombre__icontains=q)
+                | Q(cuenta__nombre__icontains=q)
+                | Q(cuenta__titular__icontains=q)
+                | Q(creado_por__username__icontains=q)
+                | Q(creado_por__first_name__icontains=q)
+                | Q(creado_por__last_name__icontains=q)
+                | Q(recarga_celular__celular__numero__icontains=q)
+            )
+            if q.lstrip('#').isdigit():
+                filtro_q |= Q(turno__numero=int(q.lstrip('#')))
+            qs = qs.filter(filtro_q)
+
+        monto_min = _decimal_filtro(request.GET.get('monto_min'))
+        monto_max = _decimal_filtro(request.GET.get('monto_max'))
+        if monto_min is not None:
+            qs = qs.filter(monto__gte=monto_min)
+        if monto_max is not None:
+            qs = qs.filter(monto__lte=monto_max)
+
+        # Totales del resultado filtrado completo (no solo de la página),
+        # separados por moneda para no sumar pesos con dólares.
+        totales = {}
+        for fila in qs.order_by().values('moneda', 'tipo').annotate(total=Sum('monto'), n=Count('pk')):
+            t = totales.setdefault(fila['moneda'], {'moneda': fila['moneda'], 'ingresos': Decimal('0'), 'egresos': Decimal('0')})
+            if fila['tipo'] == TipoMovimientoCaja.INGRESO:
+                t['ingresos'] += fila['total'] or 0
+            else:
+                t['egresos'] += fila['total'] or 0
+        totales_lista = [
+            {
+                'moneda': t['moneda'],
+                'ingresos': str(t['ingresos']),
+                'egresos': str(t['egresos']),
+                'neto': str(t['ingresos'] - t['egresos']),
+            }
+            for t in sorted(totales.values(), key=lambda t: (t['moneda'] != 'ARS', t['moneda']))
+        ]
+
+        orden = ORDENES_GASTOS.get(request.GET.get('orden', ''), ORDENES_GASTOS['fecha_desc'])
+        qs = qs.order_by(*orden)
 
         # Paginación
         try:
@@ -188,6 +249,7 @@ class ListarGastosAjax(LoginRequiredMixin, View):
             'total': total,
             'pagina': pagina,
             'por_pagina': por_pagina,
+            'totales': totales_lista,
         })
 
 

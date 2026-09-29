@@ -827,10 +827,10 @@ document.addEventListener('DOMContentLoaded', function () {
                             <option value="__cheque__">— Cobrar con cheque —</option>
                         </select>
                         <button type="button" class="btn btn-secondary btn--sm" onclick="confirmarCuotaCobro(${c.pk}, true)">Adelantar cobro</button>
-                        <span class="cxc-cuota-fecha">Se habilita el ${c.fecha_vencimiento}</span>
+                        <span class="cxc-cuota-fecha">Vence el ${c.fecha_vencimiento}</span>
                     </div>`;
             } else if (c.estado === 'pendiente' && !c.habilitada) {
-                accion = notaChequeRechazado + `<span class="cxc-cuota-fecha">Se habilita el ${c.fecha_vencimiento}</span>`;
+                accion = notaChequeRechazado + `<span class="cxc-cuota-fecha">Vence el ${c.fecha_vencimiento}</span>`;
             } else if (c.estado === 'anulada' && c.cheque_pk) {
                 // Abono de cuotas libres cuyo cheque rebotó: queda como
                 // referencia histórica nada más — no cuenta para el saldo

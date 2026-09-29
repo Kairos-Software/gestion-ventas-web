@@ -1,5 +1,5 @@
 {% extends 'core/base.html' %}
-{% load static %}
+{% load static kai_formato l10n %}
 {% load humanize %}
 
 {% block title %}Stock{% endblock %}
@@ -37,7 +37,7 @@
             </div>
             <div class="kpi-body">
                 <div class="kpi-value" id="kpiTotal">{{ total_productos }}</div>
-                <div class="kpi-label">Productos con stock activo</div>
+                <div class="kpi-label">Productos con control de stock</div>
             </div>
         </div>
 
@@ -118,10 +118,11 @@
 
                     <tr data-pk="{{ p.pk }}"
                         data-nombre="{{ p.nombre }}"
-                        data-stock="{{ p.stock_actual }}"
-                        data-minimo="{{ p.stock_minimo }}"
-                        data-maximo="{{ p.stock_maximo|default:'' }}"
-                        data-unidad="{{ p.get_unidad_medida_display }}"
+                        data-stock="{{ p.stock_actual|unlocalize }}"
+                        data-minimo="{{ p.stock_minimo|unlocalize }}"
+                        data-maximo="{{ p.stock_maximo|default:''|unlocalize }}"
+                        data-unidad="{{ p.unidad_medida|unidad:1 }}"
+                        data-unidad-plural="{{ p.unidad_medida|unidad:2 }}"
                         data-colores="{{ p.combinaciones_json_str }}"
                         data-costo="{{ p.costo|default_if_none:''|stringformat:'s' }}">
 
@@ -151,7 +152,7 @@
                                 </div>
                                 <span class="stock-qty {% if p.stock_actual <= 0 %}danger{% elif p.stock_bajo %}danger{% else %}ok{% endif %}"
                                       id="stockQty-{{ p.pk }}">
-                                    {{ p.stock_actual|floatformat:"-3" }} {{ p.get_unidad_medida_display }}
+                                    {{ p.stock_actual|cantidad }} {{ p.unidad_medida|unidad:p.stock_actual }}
                                 </span>
                             </div>
                             {% endwith %}
@@ -181,7 +182,7 @@
                         </td>
 
                         <td>
-                            <span class="stock-valor">${{ p.valor_total_venta|floatformat:0|intcomma }}</span>
+                            <span class="stock-valor">${{ p.valor_total_venta|pesos:0 }}</span>
                         </td>
 
                         <td style="color:var(--text-muted);font-size:0.78rem;">
@@ -400,6 +401,6 @@ const URLS = {
 };
 const CSRF = "{{ csrf_token }}";
 </script>
-<script src="{% static 'productos/js/stock.js' %}?v=20260913"></script>
+<script src="{% static 'productos/js/stock.js' %}?v=20260928a"></script>
 {% endif %}
 {% endblock %}

@@ -5,7 +5,7 @@
 {% block title %}Ingresos y egresos{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'caja/css/gastos.css' %}?v=20260905">
+<link rel="stylesheet" href="{% static 'caja/css/gastos.css' %}?v=20260926b">
 {% endblock %}
 
 {% block content %}
@@ -54,15 +54,43 @@
         <!-- Panel: Historial -->
         <div class="gastos-tab-panel" id="panelHistorial">
             <div class="gastos-filtros-header">
+                <div class="gastos-buscar">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.4"/>
+                        <path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                    </svg>
+                    <input type="search" id="fQ" form="formFiltros" name="q" autocomplete="off"
+                        placeholder="Buscar por descripción, concepto, cuenta, usuario, turno…">
+                </div>
+                <select id="fOrden" form="formFiltros" name="orden" class="gastos-orden" title="Ordenar por">
+                    <option value="fecha_desc">Más recientes</option>
+                    <option value="fecha_asc">Más antiguos</option>
+                    <option value="monto_desc">Mayor monto</option>
+                    <option value="monto_asc">Menor monto</option>
+                </select>
                 <button type="button" class="btn-filtros-toggle" id="btnToggleFiltros" aria-expanded="false">
                     <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
                         <path d="M2 4H14M4.5 8H11.5M7 12H9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
                     </svg>
                     Filtros
+                    <span class="gastos-filtros-count" id="filtrosActivosCount" hidden>0</span>
                 </button>
             </div>
 
             <form id="formFiltros" class="gastos-filtros" hidden>
+                <div class="filtro-campo">
+                    <label for="fPeriodo">Período</label>
+                    <select id="fPeriodo">
+                        <option value="">Cualquier fecha</option>
+                        <option value="hoy">Hoy</option>
+                        <option value="7d">Últimos 7 días</option>
+                        <option value="30d">Últimos 30 días</option>
+                        <option value="mes">Este mes</option>
+                        <option value="mes_ant">Mes pasado</option>
+                        <option value="anio">Este año</option>
+                        <option value="custom">Personalizado…</option>
+                    </select>
+                </div>
                 <div class="filtro-campo">
                     <label for="fDesde">Desde</label>
                     <input type="date" id="fDesde" name="desde">
@@ -104,17 +132,24 @@
                         <option value="">Todos</option>
                         <option value="caja_grande">Caja grande</option>
                         <option value="caja_diaria">Caja diaria (turnos)</option>
+                        <option value="recarga_celular">Recargas de celular</option>
                     </select>
                 </div>
-                <div class="filtro-campo filtro-campo--ancho">
-                    <label for="fQ">Buscar</label>
-                    <input type="text" id="fQ" name="q" placeholder="Descripción...">
+                <div class="filtro-campo">
+                    <label for="fMontoMin">Monto desde</label>
+                    <input type="number" id="fMontoMin" name="monto_min" min="0" step="0.01" placeholder="0">
+                </div>
+                <div class="filtro-campo">
+                    <label for="fMontoMax">Monto hasta</label>
+                    <input type="number" id="fMontoMax" name="monto_max" min="0" step="0.01" placeholder="Sin tope">
                 </div>
                 <div class="filtro-acciones">
                     <button type="submit" class="btn btn-primary">Filtrar</button>
                     <button type="button" class="btn btn-ghost" id="btnLimpiarFiltros">Limpiar</button>
                 </div>
             </form>
+
+            <div class="gastos-resumen" id="gastosResumen" hidden></div>
 
             <div class="gastos-tabla-wrap">
                 <table class="gastos-tabla">
@@ -371,5 +406,5 @@
     };
     window.gastosToday = '{{ today }}';
 </script>
-<script src="{% static 'caja/js/gastos.js' %}?v=20260911"></script>
+<script src="{% static 'caja/js/gastos.js' %}?v=20260926b"></script>
 {% endblock %}

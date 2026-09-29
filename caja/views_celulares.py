@@ -39,10 +39,15 @@ def _nombre(usuario):
 
 
 def _cuenta_valida(cuenta_pk):
-    """Resuelve una cuenta activa de caja grande, o None si no es válida."""
+    """Resuelve una cuenta activa de caja grande en pesos, o None si no es
+    válida. Solo ARS: el Gasto de la recarga se crea siempre en pesos
+    (ver RecargaCelularAccionesAjax) — elegir "Efectivo" en USD/EUR
+    descontaba pesos de una cuenta en otra moneda."""
     if not cuenta_pk:
         return None
-    return CuentaCaja.objects.filter(pk=cuenta_pk, caja=TipoCaja.GRANDE, activa=True).first()
+    return CuentaCaja.objects.filter(
+        pk=cuenta_pk, caja=TipoCaja.GRANDE, activa=True, moneda=Moneda.ARS,
+    ).first()
 
 
 def _descripcion_recarga(celular):
@@ -109,7 +114,7 @@ class CelularesView(LoginRequiredMixin, View):
         asegurar_cuentas_efectivo(caja=TipoCaja.GRANDE)
         cuentas = (
             CuentaCaja.objects
-            .filter(caja=TipoCaja.GRANDE, activa=True)
+            .filter(caja=TipoCaja.GRANDE, activa=True, moneda=Moneda.ARS)
             .order_by('orden', 'nombre')
         )
         return render(request, 'caja/celulares.html', {

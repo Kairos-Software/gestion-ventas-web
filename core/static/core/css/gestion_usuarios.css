@@ -257,6 +257,20 @@
     white-space: nowrap;
 }
 
+/* Editar y Eliminar en una sola fila: con la columna al 1% el flex-wrap de
+   .acciones-cell los apilaba y estiraba cada fila al doble de alto. */
+.table-perfiles .acciones-cell {
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+}
+
+.table-perfiles .perfil-desc {
+    display: block;
+    margin-top: 0.125rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
 .table tbody tr:hover td {
     background: var(--bg-surface-hover);
 }
@@ -352,10 +366,22 @@
     border: 1px solid rgba(239, 68, 68, 0.15);
 }
 
-.estado-suspendido {
+.estado-licencia {
     background: rgba(245, 158, 11, 0.1);
     color: var(--warning);
     border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.estado-suspendido {
+    background: rgba(239, 68, 68, 0.08);
+    color: var(--danger);
+    border: 1px solid rgba(239, 68, 68, 0.15);
+}
+
+.estado-periodo_prueba {
+    background: rgba(30, 111, 168, 0.08);
+    color: var(--brand-blue);
+    border: 1px solid rgba(30, 111, 168, 0.2);
 }
 
 .estado-egresado {
@@ -372,6 +398,11 @@
 }
 
 .btn-accion {
+    /* <a> (Ver, Permisos) y <button> (Editar, Eliminar) con la misma altura
+       y el texto a la misma línea: el <a> heredaba el line-height del body. */
+    display: inline-flex;
+    align-items: center;
+    line-height: 1.2;
     padding: 0.3125rem 0.625rem;
     border-radius: 0.5rem;
     font-size: 0.75rem;

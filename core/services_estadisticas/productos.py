@@ -312,6 +312,23 @@ MESES_ADELANTE = 6
 DIAS_TENDENCIA_RECIENTE = 30
 UMBRAL_TENDENCIA = Decimal('0.15')  # ±15% entre el ritmo reciente y el de 90 días para no marcar ruido como tendencia
 
+# Etiqueta corta para mostrar al lado de una cantidad ("19 unidades",
+# "2,5 kg"). El display del modelo ("Unidad", "Kilogramo") quedaba en
+# singular y mayúscula: "Comprar 19 Unidad".
+_UNIDAD_CORTA = {
+    'unidad': ('unidad', 'unidades'), 'kg': ('kg', 'kg'), 'gr': ('g', 'g'),
+    'lt': ('l', 'l'), 'ml': ('ml', 'ml'), 'mt': ('m', 'm'), 'cm': ('cm', 'cm'),
+    'mt2': ('m²', 'm²'), 'mt3': ('m³', 'm³'), 'caja': ('caja', 'cajas'),
+    'pack': ('pack', 'packs'), 'par': ('par', 'pares'), 'docena': ('docena', 'docenas'),
+    'rollo': ('rollo', 'rollos'), 'bolsa': ('bolsa', 'bolsas'), 'otro': ('', ''),
+}
+
+
+def _unidad_corta(codigo, cantidad):
+    singular, plural = _UNIDAD_CORTA.get(codigo, (codigo, codigo))
+    return singular if cantidad == 1 else plural
+
+
 _NOMBRES_MES = [
     'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
     'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
@@ -474,7 +491,8 @@ def prediccion_reposicion():
             'id': p.id,
             'nombre': p.nombre,
             'codigo': p.codigo,
-            'unidad_medida': p.get_unidad_medida_display(),
+            'unidad_medida': _unidad_corta(p.unidad_medida, recomendado),
+            'unidad_ritmo': _unidad_corta(p.unidad_medida, round(velocidad_diaria * 7, 2)),
             'proveedor': p.proveedor.nombre if p.proveedor_id else None,
             'stock_actual': p.stock_actual,
             'velocidad_semanal': round(velocidad_diaria * 7, 2),

@@ -1094,3 +1094,20 @@
 .img-marcada-borrar img {
     filter: grayscale(100%);
 }
+/* Nunca compró a crédito: su 1000 es el valor de arranque, no un buen
+   pagador comprobado (ver Cliente.scoring_sin_datos). */
+.score-chip.score-chip--sin { background: var(--bg-secondary); color: var(--text-muted); font-weight: 600; }
+
+/* Etiquetas y datos cortos de la tabla, siempre en una línea: las celdas
+   heredan word-break: break-word y, con poco ancho, cortaban "Empre-sa",
+   "Potenci-al", el código y el teléfono a la mitad. Ahora el que se acomoda
+   en varias líneas es el nombre o la localidad, que son palabras enteras. */
+#tablaClientes .codigo-badge,
+#tablaClientes .tipo-badge,
+#tablaClientes .estado-badge,
+#tablaClientes .score-chip,
+#tablaClientes .tel-display {
+    white-space: nowrap;
+    word-break: normal;
+}
+#tablaClientes .score-chip--sin { white-space: normal; text-align: center; line-height: 1.2; }

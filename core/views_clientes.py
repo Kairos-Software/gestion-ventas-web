@@ -1,5 +1,6 @@
 # core/views_clientes.py
 import os
+import shutil
 import json
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
@@ -436,15 +437,31 @@ class ClienteEliminarAjax(LoginRequiredMixin, View):
         pk = request.POST.get('pk') or request.GET.get('pk')
         cliente = get_object_or_404(Cliente, pk=pk)
 
-        # Borrar carpeta completa media/clientes/<codigo>/ de una sola vez
-        import shutil
-        from django.conf import settings
+        # Sus cuentas por cobrar y cobros de cuenta corriente están
+        # protegidos (on_delete=PROTECT): son plata que alguien debe o ya
+        # pagó. Antes esto terminaba en un error 500 — y encima DESPUÉS de
+        # haber borrado la carpeta con sus imágenes y el pagaré escaneado.
+        from caja.models import CobroCuentaCorriente
+        cuentas = cliente.cuentas_por_cobrar.count()
+        cobros_cc = CobroCuentaCorriente.objects.filter(cliente=cliente).count()
+        if cuentas or cobros_cc:
+            partes = []
+            if cuentas:
+                partes.append(f'{cuentas} cuenta{"s" if cuentas != 1 else ""} por cobrar')
+            if cobros_cc:
+                partes.append(f'{cobros_cc} cobro{"s" if cobros_cc != 1 else ""} de cuenta corriente')
+            return JsonResponse({'error': (
+                f'No se puede eliminar: tiene {" y ".join(partes)}. '
+                'Si ya no le vendés, cambiale el estado a "Inactivo".'
+            )}, status=400)
+
         carpeta = os.path.join(settings.MEDIA_ROOT, 'clientes', cliente.codigo or str(cliente.pk))
+        # Teléfonos, contactos, imágenes y scoring se borran con él; sus
+        # ventas y presupuestos quedan, sin cliente asignado (SET_NULL).
+        cliente.delete()
+        # Los archivos, recién cuando el borrado en la base salió bien.
         if os.path.isdir(carpeta):
             shutil.rmtree(carpeta, ignore_errors=True)
-
-        # Eliminar el cliente (cascade borra las relaciones en la BD)
-        cliente.delete()
         return JsonResponse({'success': True})
 
 

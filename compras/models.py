@@ -1513,6 +1513,11 @@ def registrar_perdida(lote, cantidad, motivo, motivo_detalle='', usuario=None,
     cantidad = Decimal(str(cantidad))
     if cantidad <= 0:
         raise ValueError('La cantidad debe ser mayor a 0.')
+    # Un lote inactivo es de una compra anulada (o de un producto borrado):
+    # su stock ya salió del producto — darlo de baja otra vez lo descontaría
+    # dos veces.
+    if not lote.activo:
+        raise ValueError(f'El lote {lote.codigo} ya no está activo (su compra fue anulada).')
     if cantidad > lote.cantidad_actual:
         raise ValueError(
             f'El lote {lote.codigo} solo tiene {lote.cantidad_actual} unidad(es) disponibles.'

@@ -532,7 +532,10 @@ def generar_codigo_barras_paquete():
     ultimo = (
         Producto.objects
         .filter(es_paquete=True, codigo_barras__startswith=f'PAQ-{anio}')
-        .order_by('-id').first()
+        # Por el número (con ceros a la izquierda ordena bien como texto),
+        # no por id: un paquete viejo que recibe su código al editarlo
+        # tiene id más bajo que otros, y con '-id' se repetía el número.
+        .order_by('-codigo_barras').first()
     )
     if not ultimo:
         numero = 1
@@ -999,6 +1002,19 @@ class Producto(models.Model):
                 f'Ajustá el stock a 0 (ajuste manual, venta, devolución al proveedor, etc.) '
                 f'antes de eliminarlo.'
             )
+        # Componente de un paquete: PaqueteComponente.producto es PROTECT.
+        # Se avisa acá con ValueError (el que ya atrapan las dos vistas de
+        # borrado) en vez de dejar que explote un ProtectedError → error 500.
+        paquetes = list(
+            Producto.objects.filter(componentes__producto=self)
+            .values_list('nombre', flat=True).distinct()
+        )
+        if paquetes:
+            raise ValueError(
+                f'No se puede eliminar "{self}": es parte del paquete '
+                f'{", ".join(chr(34) + n + chr(34) for n in paquetes)}. '
+                f'Sacalo del paquete (o eliminá el paquete) primero.'
+            )
         from django.db import transaction
         with transaction.atomic():
             self.movimientos_stock.all().delete()
@@ -1029,7 +1045,8 @@ class Producto(models.Model):
                 continue
             stock_comp = comp.combinacion.stock_actual if comp.combinacion_id else comp.producto.stock_actual
             disponibles.append(int(stock_comp // comp.cantidad))
-        return min(disponibles) if disponibles else 0
+        # Con un componente en negativo (vendido sin stock) no se arma ninguno.
+        return max(0, min(disponibles)) if disponibles else 0
 
     @property
     def permite_fraccion(self):
@@ -1207,9 +1224,10 @@ class CombinacionVariante(models.Model):
         ordering            = ['pk']
 
     def __str__(self):
-        opciones = self.opciones.all()
-        nombres = [f"{op.variante.nombre}:{op.nombre}" for op in opciones]
-        return f'{self.producto.codigo} — {", ".join(nombres)}'
+        # `self.opciones` son las filas intermedias (CombinacionVarianteOpcion):
+        # antes se leía op.variante y cualquier str() de una combinación
+        # (admin, mensajes de error) explotaba con AttributeError.
+        return f'{self.producto.codigo} — {self.descripcion_legible()}'
 
     @property
     def sku_efectivo(self):

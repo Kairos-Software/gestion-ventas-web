@@ -41,7 +41,7 @@ function setCheck(id, val) {
 
 // ── Abrir modal NUEVO ────────────────────────────────────────
 
-document.getElementById('btn-nuevo-proveedor').addEventListener('click', () => {
+document.getElementById('btn-nuevo-proveedor')?.addEventListener('click', () => {
     cerrarModal();
     abrirModal();
 });
@@ -151,14 +151,16 @@ document.getElementById('btn-guardar').addEventListener('click', async () => {
                 agregarFilaTabla(data, body);
                 actualizarContadores(1, body.activo ? 1 : 0);
             } else {
-                actualizarFilaTabla(pk, data, body);
-                // Si cambió el estado activo/inactivo, ajustar contador
+                // Leer el estado ANTERIOR antes de redibujar la fila (que
+                // pisa data-activo): si no, "Activos" nunca se movía.
                 const filaAnterior = document.querySelector(`tr[data-pk="${pk}"]`);
                 const eraActivo = filaAnterior?.dataset.activo === 'true';
                 const esActivo  = body.activo;
+                actualizarFilaTabla(pk, data, body);
                 if (eraActivo !== esActivo) actualizarContadores(0, esActivo ? 1 : -1);
             }
         } else {
+            if (data.error) showToast(data.error, 'error');  // p. ej. sin permiso (403)
             // Mostrar errores de validación
             for (const [campo, errores] of Object.entries(data.errors || {})) {
                 const errEl = document.getElementById(`err-${campo}`);
@@ -230,7 +232,7 @@ document.getElementById('btn-confirmar-eliminar').addEventListener('click', asyn
                     </div>`;
             }
         } else {
-            showToast('No se pudo eliminar el proveedor.', 'error');
+            showToast(data.error || 'No se pudo eliminar el proveedor.', 'error');
         }
     } catch {
         showToast('Error de conexión.', 'error');
@@ -253,40 +255,47 @@ inputBusqueda?.addEventListener('input', () => {
 // ════════════════════════════════════════════════════════════════════
 
 function _condicionLabel(val) {
+    // Mismos valores que CondicionPago en productos/models.py (antes las
+    // claves eran '30_dias'… y la fila nueva mostraba "30" pelado).
     const map = {
-        contado:    'Contado',
-        '15_dias':  '15 días',
-        '30_dias':  '30 días',
-        '60_dias':  '60 días',
-        '90_dias':  '90 días',
-        consignacion: 'Consignación',
+        contado:  'Contado',
+        '15':     '15 días',
+        '30':     '30 días',
+        '60':     '60 días',
+        '90':     '90 días',
+        convenir: 'A convenir',
     };
     return map[val] || val || '—';
+}
+
+function _esc(v) {
+    return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function _buildCeldas(data, body) {
     // Proveedor (nombre + sitio web)
     const sitioHtml = body.sitio_web
-        ? `<div class="nx-cell-sub"><a href="${body.sitio_web}" target="_blank" class="nx-link">${body.sitio_web}</a></div>`
+        ? `<div class="nx-cell-sub"><a href="${_esc(body.sitio_web)}" target="_blank" rel="noopener" class="nx-link">${_esc(body.sitio_web)}</a></div>`
         : '';
-    const proveedorHtml = `<div class="nx-cell-main">${body.nombre}</div>${sitioHtml}`;
+    const proveedorHtml = `<div class="nx-cell-main">${_esc(body.nombre)}</div>${sitioHtml}`;
 
     // CUIT
-    const cuitHtml = body.cuit || '—';
+    const cuitHtml = _esc(body.cuit) || '—';
 
     // Contacto
     let contactoHtml;
     if (body.contacto_nombre) {
-        contactoHtml = `<div class="nx-cell-main">${body.contacto_nombre}</div>
-            ${body.contacto_cargo ? `<div class="nx-cell-sub">${body.contacto_cargo}</div>` : ''}`;
+        contactoHtml = `<div class="nx-cell-main">${_esc(body.contacto_nombre)}</div>
+            ${body.contacto_cargo ? `<div class="nx-cell-sub">${_esc(body.contacto_cargo)}</div>` : ''}`;
     } else if (body.email) {
-        contactoHtml = `<div class="nx-cell-sub">${body.email}</div>`;
+        contactoHtml = `<div class="nx-cell-sub">${_esc(body.email)}</div>`;
     } else {
         contactoHtml = '<span class="nx-empty">—</span>';
     }
 
     // Ciudad
-    const ciudadHtml = body.ciudad || '—';
+    const ciudadHtml = _esc(body.ciudad) || '—';
 
     // Condición de pago
     const condicionHtml = `<span class="nx-badge nx-badge--pago">${_condicionLabel(body.condicion_pago)}</span>`;
@@ -297,10 +306,9 @@ function _buildCeldas(data, body) {
         : '<span class="nx-badge nx-badge--inactivo">Inactivo</span>';
 
     // Acciones
-    const nombre = (body.nombre || '').replace(/'/g, "\\'");
-    const accionesHtml = `
-        <button class="nx-btn-icon btn-editar" data-pk="${data.pk}" title="Editar">✎</button>
-        <button class="nx-btn-icon btn-eliminar nx-btn-icon--danger" data-pk="${data.pk}" data-nombre="${body.nombre}" title="Eliminar">✕</button>`;
+    const accionesHtml =
+        (PUEDE_EDITAR ? `<button class="nx-btn-icon btn-editar" data-pk="${data.pk}" title="Editar">✎</button>` : '') +
+        (PUEDE_ELIMINAR ? `<button class="nx-btn-icon btn-eliminar nx-btn-icon--danger" data-pk="${data.pk}" data-nombre="${_esc(body.nombre)}" title="Eliminar">✕</button>` : '');
 
     return { proveedorHtml, cuitHtml, contactoHtml, ciudadHtml, condicionHtml, estadoHtml, accionesHtml };
 }

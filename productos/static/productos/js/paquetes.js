@@ -104,8 +104,8 @@ function _actualizarPreviewPrecioPaquete() {
         total += subtotal;
         filas.push(`
             <div class="pq-precio-breakdown-row">
-                <span class="pq-precio-breakdown-nombre">${_pqEsc(c.nombre)} × ${c.cantidad}</span>
-                <span class="pq-precio-breakdown-monto">${KaiFormat.moneda(subtotal)}</span>
+                <span class="pq-precio-breakdown-nombre">${_pqEsc(c.nombre)} × ${KaiFormat.cantidad(c.cantidad)}</span>
+                <span class="pq-precio-breakdown-monto">$${KaiFormat.moneda(subtotal)}</span>
             </div>`);
     }
 
@@ -126,14 +126,14 @@ function _actualizarPreviewPrecioPaquete() {
     if (descuento > 0) {
         html += `
             <div class="pq-precio-breakdown-row pq-precio-breakdown-row--descuento">
-                <span class="pq-precio-breakdown-nombre">Descuento (${descuento}%)</span>
-                <span class="pq-precio-breakdown-monto">-${KaiFormat.moneda(descuentoMonto)}</span>
+                <span class="pq-precio-breakdown-nombre">Descuento (${KaiFormat.cantidad(descuento, 2)}%)</span>
+                <span class="pq-precio-breakdown-monto">−$${KaiFormat.moneda(descuentoMonto)}</span>
             </div>`;
     }
     html += `
         <div class="pq-precio-breakdown-row pq-precio-breakdown-row--total">
             <span class="pq-precio-breakdown-nombre">Precio de venta</span>
-            <span class="pq-precio-breakdown-monto">${KaiFormat.moneda(precioFinal, 4)}</span>
+            <span class="pq-precio-breakdown-monto">$${KaiFormat.moneda(precioFinal)}</span>
         </div>`;
     breakdown.innerHTML = html;
     breakdown.hidden = false;
@@ -260,11 +260,11 @@ function _renderPaquetes() {
 
     cont.innerHTML = _cachePaquetes.map(p => `
         <div class="prd-ld-row ${p.activo ? '' : 'prd-ld-row--inactiva'}">
-            <div class="prd-ld-row-pct">$${p.precio_venta}${p.modo_precio === 'automatico' ? '<span class="pq-badge-auto">Auto</span>' : ''}</div>
+            <div class="prd-ld-row-pct">$${KaiFormat.moneda(p.precio_venta)}${p.modo_precio === 'automatico' ? '<span class="pq-badge-auto">Auto</span>' : ''}</div>
             <div class="prd-ld-row-info">
-                <span class="prd-ld-row-nombre">${p.nombre}</span>
+                <span class="prd-ld-row-nombre">${_pqEsc(p.nombre)}</span>
                 <span class="prd-badge ${p.activo ? 'prd-badge--tipo' : ''}">${p.activo ? 'Activo' : 'Inactivo'}</span>
-                <span class="prd-of-row-meta">${_alcanceComponentesTexto(p)} · Se pueden armar ${p.stock_disponible} ahora${p.codigo_barras ? ` · Código: ${p.codigo_barras}` : ''}</span>
+                <span class="prd-of-row-meta">${_alcanceComponentesTexto(p)} · Se pueden armar ${KaiFormat.cantidad(p.stock_disponible)} ahora${p.codigo_barras ? ` · Código: ${_pqEsc(p.codigo_barras)}` : ''}</span>
             </div>
             <div class="prd-ld-row-actions">
                 <button type="button" class="prd-ld-icon-btn ${p.publicado ? 'prd-ld-icon-btn--activo' : ''}"
@@ -287,7 +287,7 @@ function _renderPaquetes() {
                         <path d="M10.5 2L13 4.5L5 12.5H2.5V10L10.5 2Z" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
                 </button>
-                <button type="button" class="prd-ld-icon-btn prd-ld-icon-btn--danger" title="Eliminar" onclick="_eliminarPaquete(${p.pk}, '${p.nombre.replace(/'/g, "\\'")}')">
+                <button type="button" class="prd-ld-icon-btn prd-ld-icon-btn--danger" title="Eliminar" onclick="_eliminarPaquete(${p.pk})">
                     <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
                         <path d="M2.5 4H12.5M5.5 4V3H9.5V4M6 6.5V10.5M9 6.5V10.5M3.5 4L4.3 12H10.7L11.5 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
@@ -500,12 +500,12 @@ function _renderComponentes() {
     cont.innerHTML = _pqComponentesSeleccionados.map(c => `
         <div class="pq-componente-row">
             <div class="pq-componente-info">
-                <span class="pq-componente-nombre">${c.nombre}</span>
-                <span class="pq-componente-codigo">${c.codigo || ''}</span>
+                <span class="pq-componente-nombre">${_pqEsc(c.nombre)}</span>
+                <span class="pq-componente-codigo">${_pqEsc(c.codigo || '')}</span>
             </div>
-            <span class="pq-componente-precio">${c.precio_venta !== undefined && c.precio_venta !== '' && c.precio_venta !== null ? KaiFormat.moneda(c.precio_venta, 4) : 'Sin precio'}</span>
+            <span class="pq-componente-precio">${c.precio_venta !== undefined && c.precio_venta !== '' && c.precio_venta !== null ? '$' + KaiFormat.moneda(c.precio_venta) : 'Sin precio'}</span>
             <input type="number" class="pq-componente-cantidad" min="0.001" step="0.001"
-                   value="${c.cantidad}" data-pk="${c.producto_pk}" title="Cantidad de este componente por paquete">
+                   value="${parseFloat(c.cantidad) || ''}" data-pk="${c.producto_pk}" title="Cantidad de este componente por paquete">
             <button type="button" class="pq-componente-quitar" data-pk="${c.producto_pk}" title="Quitar">✕</button>
         </div>
     `).join('');
@@ -638,7 +638,8 @@ async function guardarPaquete() {
     await cargarPaquetes();
 }
 
-async function _eliminarPaquete(pk, nombre) {
+async function _eliminarPaquete(pk) {
+    const nombre = (_cachePaquetes.find(x => x.pk === pk) || {}).nombre || '';
     if (!await KaiConfirm(`¿Eliminar el paquete "${nombre}"? Esta acción no se puede deshacer.`, { danger: true })) return;
     const res  = await fetch(URLS.paqueteEliminar, {
         method: 'POST',

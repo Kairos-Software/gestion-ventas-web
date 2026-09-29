@@ -77,14 +77,117 @@
 
 .trx-filtros-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr 160px 160px auto;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
     gap: 0.75rem;
     align-items: end;
+}
+
+.trx-filtro--ancho {
+    grid-column: span 2;
+}
+
+.trx-buscar {
+    position: relative;
+}
+
+.trx-buscar svg {
+    position: absolute;
+    left: 0.6rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    pointer-events: none;
+}
+
+.trx-buscar input {
+    padding-left: 1.9rem;
 }
 
 .trx-filtros-acciones {
     display: flex;
     gap: 0.5rem;
+}
+
+/* Todos los controles del filtro con la misma altura (el base.css
+   agranda inputs y no selects). */
+.trx-filtros .form-control,
+.trx-filtros .form-select,
+.trx-filtros .input-group-text {
+    height: 38px;
+    min-height: 38px;
+    padding-top: 0;
+    padding-bottom: 0;
+    font-size: 0.875rem;
+}
+
+.trx-filtros .trx-buscar .form-control {
+    padding-left: 1.9rem;
+}
+
+.trx-filtros-pie {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 0.85rem;
+}
+
+.trx-filtros-ayuda {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+/* Resumen de resultados (arriba de la tabla) */
+.trx-resumen {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+}
+
+.trx-resumen strong {
+    color: var(--text-primary);
+}
+
+.trx-resumen-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 2rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    font-size: 0.75rem;
+}
+
+.trx-resumen-chip button {
+    border: none;
+    background: none;
+    padding: 0;
+    line-height: 1;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.trx-resumen-chip button:hover {
+    color: var(--danger);
+}
+
+.trx-desc {
+    display: block;
+    margin-top: 0.2rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -458,18 +561,14 @@
    RESPONSIVE
    ══════════════════════════════════════════════════════════════════ */
 @media (max-width: 1023px) {
-    .trx-filtros-grid {
-        grid-template-columns: 1fr 1fr;
-    }
-    .trx-filtros-acciones {
-        grid-column: span 2;
-    }
+    .trx-filtros-pie { flex-direction: column; align-items: stretch; }
 }
 
 @media (max-width: 767px) {
     .trx-page-header { flex-direction: column; align-items: flex-start; }
-    .trx-filtros-grid { grid-template-columns: 1fr; }
-    .trx-filtros-acciones { grid-column: span 1; }
+    .trx-filtros-grid { grid-template-columns: 1fr 1fr; }
+    .trx-filtro--ancho { grid-column: 1 / -1; }
+    .trx-resumen { padding: 0.625rem 1rem; }
 
     .trx-table th,
     .trx-table td { font-size: 0.8125rem; padding: 0.625rem 0.75rem; }
@@ -480,3 +579,6 @@
 
     .trx-detalle-row dt { width: 110px; }
 }
+/* Montos y botones de acción en una sola línea */
+.trx-table .trx-monto { white-space: nowrap; }
+.trx-table td:last-child { white-space: nowrap; }

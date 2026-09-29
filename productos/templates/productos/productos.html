@@ -1,5 +1,5 @@
 {% extends 'core/base.html' %}
-{% load static %}
+{% load static kai_formato %}
 
 {% block title %}Productos{% endblock %}
 
@@ -281,16 +281,16 @@
                     </td>
                     <td>
                         {% if p.precio_venta %}
-                            <span class="prd-precio">${{ p.precio_venta|floatformat:4 }}</span>
+                            <span class="prd-precio">${{ p.precio_venta|pesos:4 }}</span>
                         {% else %}<span class="prd-muted">—</span>{% endif %}
                     </td>
                     <td>
                         {% if p.gestiona_stock %}
                             <span class="prd-stock {% if p.stock_bajo %}prd-stock--bajo{% endif %}">
-                                {{ p.stock_actual|floatformat:"-3" }}
-                                <span class="prd-stock-um">{{ p.get_unidad_medida_display }}</span>
+                                {{ p.stock_actual|cantidad }}
+                                <span class="prd-stock-um">{{ p.unidad_medida|unidad:p.stock_actual }}</span>
                             </span>
-                            {% if p.stock_bajo %}<span class="prd-stock-alerta" title="Stock mínimo: {{ p.stock_minimo }}">⚠</span>{% endif %}
+                            {% if p.stock_bajo %}<span class="prd-stock-alerta" title="Stock mínimo: {{ p.stock_minimo|cantidad }}">⚠</span>{% endif %}
                         {% else %}<span class="prd-muted">Sin stock</span>{% endif %}
                     </td>
                     <td>
@@ -1369,6 +1369,6 @@ const URLS = {
 };
 </script>
 {{ columnas_resumen|json_script:"exportColumnasResumen" }}
-<script src="{% static 'productos/js/productos.js' %}?v=8"></script>
+<script src="{% static 'productos/js/productos.js' %}?v=20260928c"></script>
 {% endif %}
 {% endblock %}

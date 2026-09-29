@@ -112,7 +112,7 @@
                                 <tr>
                                     <td data-label="Producto"><strong>{{ p.nombre }}</strong><small>{{ p.codigo }}{% if p.proveedor %} · {{ p.proveedor }}{% endif %}{% if p.poco_confiable %} · <em>Pocos datos</em>{% endif %}</small></td>
                                     <td data-label="Stock" data-sort="{{ p.stock_actual }}">{{ p.stock_actual|cantidad }}</td>
-                                    <td data-label="Ritmo semanal">{{ p.velocidad_semanal|cantidad }} {{ p.unidad_medida }}{% if p.tendencia == 'acelerando' %}<small class="est-tendencia acelerando">↑ Más rápido</small>{% elif p.tendencia == 'frenando' %}<small class="est-tendencia frenando">↓ Más lento</small>{% endif %}</td>
+                                    <td data-label="Ritmo semanal">{{ p.velocidad_semanal|cantidad }} {{ p.unidad_ritmo }}{% if p.tendencia == 'acelerando' %}<small class="est-tendencia acelerando">↑ Más rápido</small>{% elif p.tendencia == 'frenando' %}<small class="est-tendencia frenando">↓ Más lento</small>{% endif %}</td>
                                     <td data-label="Se agotaría" data-sort="{{ p.dias_hasta_agotamiento }}">{% if p.dias_hasta_agotamiento == 0 %}Ya agotado{% else %}{{ p.fecha_estimada|date:'d/m/Y' }}<small>en {{ p.dias_hasta_agotamiento }} día{{ p.dias_hasta_agotamiento|pluralize }}</small>{% endif %}</td>
                                     <td data-label="Comprar">{{ p.recomendado_unidades|cantidad }} {{ p.unidad_medida }}</td>
                                     <td data-label="Costo estimado" data-sort="{{ p.costo_estimado|default_if_none:'' }}">{% if p.costo_estimado is None %}Sin costo cargado{% else %}${{ p.costo_estimado|pesos }}{% endif %}</td>

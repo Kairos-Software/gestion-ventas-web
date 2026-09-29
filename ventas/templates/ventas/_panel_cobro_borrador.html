@@ -13,15 +13,24 @@ vdt* que espera ese script están todos acá.
                 <div class="vdt-cobro-topgrid">
                     <div class="vta-field" style="margin-bottom:0">
                         <label class="vta-label" for="vdtClienteInput">Cliente</label>
-                        <div class="vta-cli-wrap">
-                            <svg class="vta-cli-icon" width="14" height="14" viewBox="0 0 16 16" fill="none">
-                                <circle cx="8" cy="5.4" r="2.7" stroke="currentColor" stroke-width="1.3"/>
-                                <path d="M2.6 13.6C3 10.9 5.2 9 8 9s5 1.9 5.4 4.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-                            </svg>
-                            <input type="text" id="vdtClienteInput" class="vta-control vta-cli-input"
-                                   placeholder="Consumidor Final — buscá por nombre, apellido o DNI" autocomplete="off">
-                            <div id="vdtClienteDropdown" class="vta-cli-dropdown"></div>
-                            <button type="button" id="vdtClienteClear" class="vta-cliente-venta-clear" title="Quitar cliente" style="display:none;">✕</button>
+                        <div class="vdt-cli-row">
+                            <div class="vta-cli-wrap">
+                                <svg class="vta-cli-icon" width="14" height="14" viewBox="0 0 16 16" fill="none">
+                                    <circle cx="8" cy="5.4" r="2.7" stroke="currentColor" stroke-width="1.3"/>
+                                    <path d="M2.6 13.6C3 10.9 5.2 9 8 9s5 1.9 5.4 4.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                                </svg>
+                                <input type="text" id="vdtClienteInput" class="vta-control vta-cli-input"
+                                       placeholder="Consumidor Final — buscá por nombre, apellido o DNI" autocomplete="off">
+                                <div id="vdtClienteDropdown" class="vta-cli-dropdown"></div>
+                                <button type="button" id="vdtClienteClear" class="vta-cliente-venta-clear" title="Quitar cliente" style="display:none;">✕</button>
+                            </div>
+                            {% if puede_crear_clientes %}
+                            <button type="button" id="vdtClienteNuevoBtn" class="vdt-cli-nuevo-btn" title="Cliente nuevo — carga rápida sin salir de la venta">
+                                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                                    <path d="M8 2.5v11M2.5 8h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                </svg>
+                            </button>
+                            {% endif %}
                         </div>
                         <div id="vdtClienteScoringChip" class="vdt-sco-chip" hidden></div>
                     </div>
@@ -171,3 +180,86 @@ vdt* que espera ese script están todos acá.
 
             </div>
         </div>
+
+        {% if puede_crear_clientes %}
+        {% comment %}
+        Alta rápida de cliente — sin salir de la venta. Mismo backend
+        que Gestión de Clientes (core:cliente_acciones), con solo los
+        campos imprescindibles: pensado para el caso "el cliente no es
+        Consumidor Final y no está cargado todavía", en medio de una
+        venta con el carrito ya lleno. Lo demás (teléfonos, dirección,
+        CRM, etc.) se completa después desde la ficha del cliente si
+        hace falta.
+        {% endcomment %}
+        <div class="modal fade" id="vdtClienteNuevoModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Cliente nuevo</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="vdtCliNuevoError" class="vdt-cli-nuevo-error" hidden></div>
+
+                        <div class="vta-field">
+                            <label class="vta-label">Tipo</label>
+                            <div class="vdt-cli-nuevo-tipo">
+                                <label class="vdt-cli-nuevo-tipo-opt">
+                                    <input type="radio" name="vdtCliNuevoTipo" value="persona" checked>
+                                    <span class="vdt-cli-nuevo-tipo-card">Persona</span>
+                                </label>
+                                <label class="vdt-cli-nuevo-tipo-opt">
+                                    <input type="radio" name="vdtCliNuevoTipo" value="empresa">
+                                    <span class="vdt-cli-nuevo-tipo-card">Empresa</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="vdtCliNuevoPersona" class="vdt-cli-nuevo-grid">
+                            <div class="vta-field">
+                                <label class="vta-label" for="vdtCliNuevoNombre">Nombre</label>
+                                <input type="text" id="vdtCliNuevoNombre" class="vta-control" autocomplete="off">
+                            </div>
+                            <div class="vta-field">
+                                <label class="vta-label" for="vdtCliNuevoApellido">Apellido</label>
+                                <input type="text" id="vdtCliNuevoApellido" class="vta-control" autocomplete="off">
+                            </div>
+                            <div class="vta-field">
+                                <label class="vta-label" for="vdtCliNuevoDni">DNI</label>
+                                <input type="text" id="vdtCliNuevoDni" class="vta-control" autocomplete="off">
+                            </div>
+                            <div class="vta-field">
+                                <label class="vta-label" for="vdtCliNuevoCuil">CUIL</label>
+                                <input type="text" id="vdtCliNuevoCuil" class="vta-control" autocomplete="off">
+                            </div>
+                        </div>
+
+                        <div id="vdtCliNuevoEmpresa" class="vdt-cli-nuevo-grid" hidden>
+                            <div class="vta-field" style="grid-column: 1 / -1">
+                                <label class="vta-label" for="vdtCliNuevoRazonSocial">Razón social</label>
+                                <input type="text" id="vdtCliNuevoRazonSocial" class="vta-control" autocomplete="off">
+                            </div>
+                            <div class="vta-field">
+                                <label class="vta-label" for="vdtCliNuevoCuit">CUIT</label>
+                                <input type="text" id="vdtCliNuevoCuit" class="vta-control" autocomplete="off">
+                            </div>
+                        </div>
+
+                        <div class="vta-field">
+                            <label class="vta-label" for="vdtCliNuevoCondIva">Condición ante IVA</label>
+                            <select id="vdtCliNuevoCondIva" class="vta-control">
+                                <option value="">— Sin especificar —</option>
+                                {% for val, label in condiciones_iva %}
+                                <option value="{{ val }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="vta-btn vta-btn-ghost" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" id="vdtCliNuevoGuardar" class="vta-btn vta-btn-primary">Guardar y usar en esta venta</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}

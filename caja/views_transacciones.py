@@ -14,6 +14,7 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
+from django.db.models import Q
 from django.http import JsonResponse
 from django.views import View
 from django.views.generic import TemplateView
@@ -60,6 +61,24 @@ def _parse_decimal(value, field_name):
         return d, None
     except (InvalidOperation, TypeError, ValueError):
         return None, f'{field_name} tiene un valor inválido.'
+
+
+def _parse_decimal_filtro(value):
+    """Decimal de un parámetro GET de filtro, o None si viene vacío/inválido."""
+    if value in (None, ''):
+        return None
+    try:
+        return Decimal(str(value).replace(',', '.'))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+
+
+ORDENES_LISTADO = {
+    'fecha_desc': ('-fecha', '-fecha_alta'),
+    'fecha_asc':  ('fecha', 'fecha_alta'),
+    'monto_desc': ('-monto_origen', '-fecha', '-fecha_alta'),
+    'monto_asc':  ('monto_origen', '-fecha', '-fecha_alta'),
+}
 
 
 def _json_error(msg, status=400):
@@ -348,7 +367,8 @@ class CrearTransaccionAjax(LoginRequiredMixin, View):
 class ListarTransaccionesAjax(LoginRequiredMixin, View):
     """
     GET /caja/transacciones/listar/
-    Parámetros opcionales: tipo, desde, hasta, page, page_size
+    Parámetros opcionales: tipo, desde, hasta, q, cuenta, moneda,
+    monto_min, monto_max, orden, page, page_size
     """
 
     def get(self, request):
@@ -359,7 +379,6 @@ class ListarTransaccionesAjax(LoginRequiredMixin, View):
             TransaccionCaja.objects
             .select_related('cuenta_origen', 'cuenta_destino', 'creado_por')
             .filter(cuenta_origen__caja=TipoCaja.GRANDE)
-            .order_by('-fecha', '-fecha_alta')
         )
 
         tipo = request.GET.get('tipo')
@@ -376,6 +395,56 @@ class ListarTransaccionesAjax(LoginRequiredMixin, View):
                 qs = qs.filter(fecha__lte=date.fromisoformat(hasta))
         except ValueError:
             pass
+
+        # Búsqueda libre: descripción, detalle del costo, cuentas y quién
+        # la registró.
+        q = request.GET.get('q', '').strip()
+        if q:
+            qs = qs.filter(
+                Q(descripcion__icontains=q)
+                | Q(descripcion_costo__icontains=q)
+                | Q(cuenta_origen__nombre__icontains=q)
+                | Q(cuenta_origen__titular__icontains=q)
+                | Q(cuenta_destino__nombre__icontains=q)
+                | Q(cuenta_destino__titular__icontains=q)
+                | Q(creado_por__username__icontains=q)
+                | Q(creado_por__first_name__icontains=q)
+                | Q(creado_por__last_name__icontains=q)
+            )
+
+        # Cuenta involucrada, como origen, destino o cualquiera de las dos.
+        cuenta = request.GET.get('cuenta', '').strip()
+        if cuenta.isdigit():
+            rol = request.GET.get('rol_cuenta', '').strip()
+            if rol == 'origen':
+                qs = qs.filter(cuenta_origen_id=cuenta)
+            elif rol == 'destino':
+                qs = qs.filter(cuenta_destino_id=cuenta)
+            else:
+                qs = qs.filter(Q(cuenta_origen_id=cuenta) | Q(cuenta_destino_id=cuenta))
+
+        moneda = request.GET.get('moneda', '').strip()
+        if moneda:
+            qs = qs.filter(Q(cuenta_origen__moneda=moneda) | Q(cuenta_destino__moneda=moneda))
+
+        # Rango de monto: entra si el monto debitado O el acreditado cae en
+        # el rango (en compra/venta de divisa son montos en monedas
+        # distintas, y el usuario puede estar buscando cualquiera de los
+        # dos).
+        monto_min = _parse_decimal_filtro(request.GET.get('monto_min'))
+        monto_max = _parse_decimal_filtro(request.GET.get('monto_max'))
+        if monto_min is not None or monto_max is not None:
+            cond_origen, cond_destino = Q(), Q()
+            if monto_min is not None:
+                cond_origen  &= Q(monto_origen__gte=monto_min)
+                cond_destino &= Q(monto_destino__gte=monto_min)
+            if monto_max is not None:
+                cond_origen  &= Q(monto_origen__lte=monto_max)
+                cond_destino &= Q(monto_destino__lte=monto_max)
+            qs = qs.filter(cond_origen | cond_destino)
+
+        orden = ORDENES_LISTADO.get(request.GET.get('orden', ''), ORDENES_LISTADO['fecha_desc'])
+        qs = qs.order_by(*orden)
 
         try:
             page      = max(1, int(request.GET.get('page', 1)))

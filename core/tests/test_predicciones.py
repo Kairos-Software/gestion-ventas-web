@@ -22,7 +22,7 @@ class PrediccionesStockTests(SimpleTestCase):
         producto = SimpleNamespace(
             id=1, nombre='Producto futuro', codigo='P1', proveedor_id=None,
             stock_actual=Decimal('150'), stock_maximo=None, costo_actual=costo,
-            permite_fraccion=False, get_unidad_medida_display=lambda: 'Unidad',
+            permite_fraccion=False, unidad_medida='unidad',
         )
         ventas = MagicMock()
         ventas.values.return_value.annotate.return_value = [{

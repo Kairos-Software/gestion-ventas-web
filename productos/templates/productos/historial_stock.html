@@ -1,5 +1,5 @@
 {% extends 'core/base.html' %}
-{% load static %}
+{% load static kai_formato %}
 
 {% block title %}Historial{% if producto %} — {{ producto.nombre }}{% endif %}{% endblock %}
 
@@ -34,7 +34,7 @@ Catálogo &rsaquo; <a href="{% url 'productos:stock' %}">Mi Stock</a> &rsaquo; <
         <h1>{{ producto.nombre }}</h1>
         <p>
             {{ producto.codigo }}
-            · Stock actual: <strong>{{ producto.stock_actual|floatformat:"-3" }} {{ producto.get_unidad_medida_display }}</strong>
+            · Stock actual: <strong>{{ producto.stock_actual|cantidad }} {{ producto.unidad_medida|unidad:producto.stock_actual }}</strong>
         </p>
     </div>
 </div>

@@ -171,6 +171,11 @@ document.querySelectorAll('.prd-precio-toggle-btn[data-incluye-iva]').forEach(bt
 // por sobre el costo de referencia tipeado a mano (ver
 // Producto.actualizar_costo_y_precio() en el backend). _actualizarPreviewAutomatico()
 // los lee para calcular en vivo el mismo número que va a quedar guardado.
+// "$2.100,0000" (es-AR, 4 decimales: costo unitario). Antes salía "$2100.0000".
+function _fmtCosto4(v) {
+    return parseFloat(v).toLocaleString('es-AR', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+}
+
 function actualizarBadgeCosto(costoActual, esReal) {
     window._costoActualEsReal = !!esReal;
     window._costoActualReal   = costoActual ? parseFloat(costoActual) : null;
@@ -182,10 +187,10 @@ function actualizarBadgeCosto(costoActual, esReal) {
         badge.textContent = 'Sin compras registradas todavía.';
         hintCosto.textContent = 'Para stock que ya tenías antes de usar el sistema.';
     } else if (esReal) {
-        badge.textContent = `Último costo de compra: $${parseFloat(costoActual).toFixed(4)} — es el que se usa para el precio automático.`;
+        badge.textContent = `Último costo de compra: $${_fmtCosto4(costoActual)} — es el que se usa para el precio automático.`;
         hintCosto.textContent = 'Ya hay una compra real registrada. Si subió el precio de reposición sin haber comprado todavía, cargá el nuevo costo y tocá "Activar".';
     } else {
-        badge.textContent = `Costo de referencia en uso: $${parseFloat(costoActual).toFixed(4)}.`;
+        badge.textContent = `Costo de referencia en uso: $${_fmtCosto4(costoActual)}.`;
         hintCosto.textContent = 'Para stock que ya tenías antes de usar el sistema, o para avisar una reposición más cara.';
     }
     _actualizarPreviewAutomatico();
@@ -1425,7 +1430,7 @@ function _renderCombinacionItem(c) {
             ${metaBits.length ? `<span class="prd-combinacion-item2-meta">${metaBits.map(m => `<span>${m}</span>`).join('')}</span>` : ''}
         </div>
         <div class="prd-combinacion-item-stock">
-            <span class="prd-combinacion-stock-num">${c.stock_actual}</span>
+            <span class="prd-combinacion-stock-num">${parseFloat(c.stock_actual || 0).toLocaleString('es-AR', { maximumFractionDigits: 3 })}</span>
         </div>
         <div class="prd-combinacion-item-actions">
             <button class="prd-img-btn" title="Editar combinación" onclick="editarCombinacion(${c.pk})">
@@ -2118,10 +2123,11 @@ async function prdAplicarAccionMasiva(accion) {
             }
             const bloqueados = data.bloqueados || [];
             if (bloqueados.length) {
-                const detalle = bloqueados.map(b => `"${b.nombre}" (todavía tiene stock)`).join(', ');
+                // El motivo lo arma el server (stock pendiente, es parte de un paquete…).
+                const detalle = bloqueados.map(b => b.motivo || `"${b.nombre}"`).join(' ');
                 showToast(
                     `${data.afectados} producto(s) eliminado(s). ${bloqueados.length} no se pudo(eron) `
-                    + `eliminar porque todavía tienen stock: ${detalle}.`,
+                    + `eliminar. ${detalle}`,
                     bloqueados.length && !data.afectados ? 'error' : 'ok'
                 );
             } else {

@@ -608,15 +608,18 @@ class ProductoAccionesMasivasAjax(LoginRequiredMixin, View):
             for producto in productos:
                 rutas_imagenes = [img.imagen.path for img in producto.imagenes.all() if img.imagen]
                 nombre = str(producto)
+                # El pk se guarda antes: después de delete() Django lo deja en
+                # None, y la pantalla recibía [null] y no sacaba las filas.
+                pk = producto.pk
                 try:
                     producto.delete()
                 except ValueError as e:
-                    bloqueados.append({'pk': producto.pk, 'nombre': nombre, 'motivo': str(e)})
+                    bloqueados.append({'pk': pk, 'nombre': nombre, 'motivo': str(e)})
                     continue
                 for ruta in rutas_imagenes:
                     if os.path.isfile(ruta):
                         os.remove(ruta)
-                eliminados.append(producto.pk)
+                eliminados.append(pk)
                 afectados += 1
             return JsonResponse({
                 'ok': True, 'afectados': afectados,

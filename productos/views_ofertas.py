@@ -14,6 +14,7 @@ from core.permisos import chequear_permiso
 
 
 def _serializar_oferta(o):
+    hoy = timezone.localtime().date()
     return {
         'pk':             o.pk,
         'nombre':         o.nombre,
@@ -34,7 +35,11 @@ def _serializar_oferta(o):
             for p in o.productos.all()
         ],
         'categorias':     list(o.categorias.values_list('pk', flat=True)),
-        'vigente_hoy':    o.vigente_en(timezone.localtime().date()),
+        'vigente_hoy':    o.vigente_en(hoy),
+        # Una oferta "Activa" cuyo período ya terminó (o todavía no
+        # empezó) no se aplica: la lista lo tiene que decir.
+        'vencida':        o.fecha_fin < hoy,
+        'programada':     o.fecha_inicio > hoy,
     }
 
 

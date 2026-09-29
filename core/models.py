@@ -1044,6 +1044,14 @@ class Cliente(models.Model):
         return BANDA_LABEL.get(self.scoring_banda, self.scoring_banda)
 
     @property
+    def scoring_sin_datos(self):
+        """True si nunca compró a crédito ni usó cheques y nadie ajustó el
+        puntaje a mano: su 1000 es el valor de arranque, no un buen pagador
+        comprobado. Las pantallas muestran "Sin historial" en vez de
+        "1000 · Excelente" (igual que el buscador de Nueva Venta)."""
+        return self.scoring_sin_historial and self.scoring_override is None
+
+    @property
     def scoring_alerta(self):
         """Frase corta para avisar en la pantalla de venta cuando el
         cliente está en una banda de cuidado — '' si no hay nada que avisar."""

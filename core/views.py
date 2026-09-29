@@ -193,9 +193,106 @@ def configuracion(request):
     })
 
 
+def _secciones_manual_visibles(user):
+    """Qué partes del manual ve este usuario: las mismas condiciones que
+    usa el menú lateral (core/base.html) y cada pantalla. Quien no tiene
+    permiso para una pantalla tampoco ve cómo se usa — el contenido ni
+    siquiera se manda al navegador (no es un ocultado por CSS)."""
+    p = lambda codigo: chequear_permiso(user, codigo)
+    v = {
+        # Configuración (los bloques que la propia pantalla muestra)
+        'config_empresa': p('editar_empresa'),
+        'config_cuentas': p('editar_cuentas'),
+        'config_notificaciones': p('gestionar_notificaciones'),
+        # Usuarios
+        'usuarios': p('ver_usuarios'),
+        'usuarios_crear': p('crear_usuarios'),
+        'usuarios_editar': p('editar_usuarios'),
+        'usuarios_eliminar': p('eliminar_usuarios'),
+        'roles_crear': p('crear_roles'),
+        'roles_editar': p('editar_roles'),
+        'roles_eliminar': p('eliminar_roles'),
+        'usuarios_permisos': p('gestionar_permisos'),
+        'roles': p('ver_roles'),
+        # Ventas y presupuestos
+        'ventas_crear': p('crear_ventas'),
+        'ventas_ver': p('ver_ventas'),
+        'ventas_corregir': p('editar_ventas') or p('eliminar_ventas'),
+        'devoluciones': p('registrar_devoluciones'),
+        'balanza': p('ver_balanza'),
+        'presupuestos_crear': p('crear_presupuestos'),
+        'presupuestos_ver': p('ver_presupuestos'),
+        # Compras
+        'compras_crear': p('crear_compras'),
+        'compras_ver': p('ver_compras'),
+        # Catálogo
+        'clientes': p('ver_clientes'),
+        'clientes_crear': p('crear_clientes'),
+        'clientes_editar': p('editar_clientes'),
+        'clientes_eliminar': p('eliminar_clientes'),
+        'productos': p('ver_productos'),
+        'productos_editar': p('crear_productos') or p('editar_productos'),
+        'productos_eliminar': p('eliminar_productos'),
+        'productos_importar': p('crear_productos') and p('editar_productos'),
+        'listas_descuento': p('gestionar_listas_descuento'),
+        'stock': p('ver_stock'),
+        'stock_ajustar': p('ajustar_stock'),
+        'paquetes': p('gestionar_paquetes'),
+        'ofertas': p('gestionar_ofertas'),
+        'proveedores': p('ver_proveedores'),
+        'proveedores_crear': p('crear_proveedores'),
+        'proveedores_editar': p('editar_proveedores'),
+        'proveedores_eliminar': p('eliminar_proveedores'),
+        'pedidos': p('ver_pedidos'),
+        'catalogo_online': p('editar_catalogo'),
+        # Caja y finanzas
+        'caja': p('ver_caja'),
+        'caja_turno': p('ver_caja') and p('abrir_cerrar_turno'),
+        'caja_mov_turno': p('ver_caja') and p('crear_gastos'),
+        'reabrir_turno': p('ver_caja') and p('reabrir_turno'),
+        'gastos': p('ver_gastos'),
+        'transacciones': p('ver_transacciones'),
+        'deudas': p('ver_deudas'),
+        'cobros': p('ver_cuentas_cobrar'),
+        'cheques': p('ver_cheques'),
+        'recargos': p('ver_recargos'),
+        'bienes': p('ver_bienes'),
+        # Estadísticas
+        'est_resumen': p('ver_estadisticas'),
+        'est_ventas': p('ver_ventas'),
+        'est_compras': p('ver_compras'),
+        'est_productos': p('ver_productos'),
+        'est_clientes': p('ver_clientes'),
+        'est_caja': p('ver_caja'),
+        # Herramientas
+        'notas': p('ver_notas'),
+        'factura_inicial': p('usar_factura_inicial'),
+        'celulares': p('ver_celulares'),
+        'superusuario': user.is_superuser,
+    }
+    v['ventas'] = v['ventas_crear'] or v['ventas_ver'] or v['balanza']
+    v['presupuestos'] = v['presupuestos_crear'] or v['presupuestos_ver']
+    v['compras'] = v['compras_crear'] or v['compras_ver']
+    v['catalogo'] = (v['productos'] or v['stock'] or v['paquetes'] or v['ofertas']
+                     or v['proveedores'] or v['catalogo_online'] or v['compras_crear']
+                     or v['pedidos'])
+    v['caja_seccion'] = v['caja'] or v['gastos'] or v['transacciones']
+    v['finanzas'] = (v['caja_seccion'] or v['deudas'] or v['cobros'] or v['cheques']
+                     or v['recargos'] or v['bienes'])
+    v['estadisticas'] = (v['est_resumen'] or v['est_ventas'] or v['est_compras']
+                         or v['est_productos'] or v['est_clientes'] or v['est_caja'])
+    v['personas'] = v['clientes'] or v['usuarios']
+    # Recomendaciones: cada consejo depende de una pantalla; si no aplica
+    # ninguno, la sección entera no se muestra.
+    v['recomendaciones'] = (v['config_empresa'] or v['config_cuentas'] or v['caja_turno']
+                            or v['ventas_crear'] or v['ventas_corregir'] or v['compras_ver']
+                            or v['stock_ajustar'] or v['usuarios_permisos'] or v['cobros'])
+    return v
+
+
 @login_required
 def manual_usuario(request):
-    return render(request, 'core/manual.html')
+    return render(request, 'core/manual.html', {'ver': _secciones_manual_visibles(request.user)})
 
 
 @login_required

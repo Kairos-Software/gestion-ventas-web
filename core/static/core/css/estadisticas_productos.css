@@ -9,6 +9,11 @@
 .est-stock-highlight--expired { border-left-color: var(--success); }
 .est-stock-highlight--value { border-left-color: var(--brand-blue); }
 .est-stock-highlight--value .est-summary-highlight-value { color: var(--brand-blue); }
+/* Son 5 tarjetas: con el mínimo general de 230px la quinta quedaba sola en
+   una segunda fila en pantallas de escritorio comunes. */
+@media (min-width: 1131px) {
+    .est-stock-page .est-summary-highlights { grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); }
+}
 .est-stock-alert-grid,
 .est-stock-period-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.7rem; }
 .est-stock-alert-grid > *,

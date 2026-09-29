@@ -727,3 +727,16 @@
     padding: 1.5rem 1rem;
     margin: 0;
 }
+/* "15 / 15 unidades" en una sola línea (se partía en dos). */
+.inv-cantidad-txt { white-space: nowrap; }
+
+/* Historiales de pérdidas y fraccionamientos: las palabras se partían por
+   la mitad ("Vencimi-ento", "30/08 /2026", "unida-des"). Los textos cortos
+   van en una línea; solo el producto y el detalle pueden bajar de renglón. */
+.inv-tabla-historial td,
+.inv-tabla-historial th { word-break: normal; overflow-wrap: normal; }
+.inv-tabla-historial td:first-child,
+.inv-tabla-historial th,
+.inv-nowrap { white-space: nowrap; }
+.inv-tabla-historial td:nth-child(3),
+.inv-tabla-historial td:nth-child(4) { white-space: nowrap; }

@@ -123,7 +123,8 @@ class RolesListarAjax(LoginRequiredMixin, View):
         roles = Rol.objects.annotate(num_usuarios=Count('usuario')).order_by('nombre')
         return JsonResponse({
             'roles': [
-                {'pk': r.pk, 'nombre': r.nombre, 'num_usuarios': r.num_usuarios}
+                {'pk': r.pk, 'nombre': r.nombre, 'descripcion': r.descripcion,
+                 'num_usuarios': r.num_usuarios}
                 for r in roles
             ],
         })

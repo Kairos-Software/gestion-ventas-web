@@ -4,7 +4,7 @@
 {% block title %}Gestión de Personal{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'core/css/gestion_usuarios.css' %}?v=8">
+<link rel="stylesheet" href="{% static 'core/css/gestion_usuarios.css' %}?v=20260928a">
 {% endblock %}
 
 {% block content %}
@@ -46,7 +46,7 @@
                 <th>Nombre completo</th>
                 <th>Puesto / Área</th>
                 <th>DNI</th>
-                <th>Rol</th>
+                <th>Perfil</th>
                 <th>Estado</th>
                 {% if puede_editar or puede_gestionar_permisos or puede_eliminar %}
                 <th>Acciones</th>
@@ -123,11 +123,11 @@
                     {% endif %}
                 </td>
                 <td class="usuario-dni-cell" data-label="DNI">{{ usuario.dni|default:'—' }}</td>
-                <td class="usuario-rol-cell" data-label="Rol">
+                <td class="usuario-rol-cell" data-label="Perfil">
                     {% if usuario.rol %}
                         <span class="rol-badge">{{ usuario.rol.nombre }}</span>
                     {% else %}
-                        <span class="rol-badge empty">Sin rol</span>
+                        <span class="rol-badge empty">Sin perfil</span>
                     {% endif %}
                 </td>
                 <td class="usuario-estado-cell">
@@ -173,7 +173,7 @@
             <div class="modal-header">
                 <div>
                     <h5 class="modal-title" id="usuarioModalLabel">Nuevo usuario</h5>
-                    <p class="modal-subtitle">Solo el usuario y la contraseña son obligatorios al crear.</p>
+                    <p class="modal-subtitle" id="usuarioModalSubtitulo">Solo el usuario y la contraseña son obligatorios al crear.</p>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
@@ -209,7 +209,8 @@
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Email del sistema</label>
-                                    <input type="email" class="form-control" name="email" id="id_email">
+                                    <input type="email" class="form-control" name="email" id="id_email" aria-describedby="ayudaEmailSistema">
+                                    <span class="form-help" id="ayudaEmailSistema">Ahí le llega el código si se olvida la contraseña.</span>
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Perfil de permisos</label>
@@ -953,12 +954,12 @@
     };
     window.rolesIniciales = [
         {% for r in roles %}
-        {pk: {{ r.pk }}, nombre: "{{ r.nombre|escapejs }}", num_usuarios: {{ r.num_usuarios }}},
+        {pk: {{ r.pk }}, nombre: "{{ r.nombre|escapejs }}", descripcion: "{{ r.descripcion|escapejs }}", num_usuarios: {{ r.num_usuarios }}},
         {% endfor %}
     ];
 </script>
-<script src="{% static 'core/js/gestion_usuarios.js' %}?v=6"></script>
+<script src="{% static 'core/js/gestion_usuarios.js' %}?v=20260928a"></script>
 {% if puede_ver_roles %}
-<script src="{% static 'core/js/perfiles_permisos.js' %}?v=5"></script>
+<script src="{% static 'core/js/perfiles_permisos.js' %}?v=20260928a"></script>
 {% endif %}
 {% endblock %}

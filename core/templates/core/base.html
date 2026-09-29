@@ -23,7 +23,7 @@
     <link rel="stylesheet" href="{% static 'core/css/notify.css' %}">
     {% block extra_css %}{% endblock %}
     <!-- Se carga al final para contener también los estilos específicos de cada módulo. -->
-    <link rel="stylesheet" href="{% static 'core/css/responsive-interno.css' %}?v=20260902.1">
+    <link rel="stylesheet" href="{% static 'core/css/responsive-interno.css' %}?v=20260928a">
 </head>
 <body class="kai-internal-app">
 <div class="app-container">
@@ -816,7 +816,7 @@
                         </div>
                         <div class="user-dropdown-info">
                             <span class="user-dropdown-name">{{ user.get_full_name|default:user.username }}</span>
-                            <span class="user-dropdown-role">{{ user.rol.nombre|default:'Usuario' }}</span>
+                            <span class="user-dropdown-role">{% if user.is_superuser %}Administrador{% else %}{{ user.rol.nombre|default:'Usuario' }}{% endif %}</span>
                         </div>
                         <svg class="user-dropdown-chevron" width="14" height="14" viewBox="0 0 14 14" fill="none">
                             <path d="M3 5L7 9L11 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -834,7 +834,7 @@
                             </div>
                             <div>
                                 <p class="user-dropdown-header-name">{{ user.get_full_name|default:user.username }}</p>
-                                <p class="user-dropdown-header-role">{{ user.rol.nombre|default:'Usuario' }}</p>
+                                <p class="user-dropdown-header-role">{% if user.is_superuser %}Administrador{% else %}{{ user.rol.nombre|default:'Usuario' }}{% endif %}</p>
                             </div>
                         </div>
                         <div class="user-dropdown-divider"></div>

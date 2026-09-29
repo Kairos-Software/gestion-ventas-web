@@ -311,7 +311,7 @@ function _opcionesDescuento(item) {
     if (!listas.length) return null;
     const opciones = listas.map(l => `
         <option value="lista:${_esc(l.nombre)}" data-pct="${l.porcentaje}" ${item.lista_descuento_nombre === l.nombre ? 'selected' : ''}>
-            ${_esc(l.nombre)} (${l.porcentaje}%)
+            ${_esc(l.nombre)} (${parseFloat(l.porcentaje).toLocaleString('es-AR')}%)
         </option>`).join('');
     return `<option value="">— Manual —</option>${opciones}`;
 }

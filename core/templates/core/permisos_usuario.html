@@ -14,13 +14,13 @@
         <h1>Permisos de <span>{{ usuario_obj.username }}</span></h1>
         {% if rol_nombre %}
             <p class="rol-info">
-                <span class="rol-actual">Rol: <strong>{{ rol_nombre }}</strong></span>
-                <span class="leyenda-item"><span class="tag-rol">ROL</span> heredado</span>
-                <span class="leyenda-item"><span class="tag-override-si">OVERRIDE ✓</span> permitido individualmente</span>
-                <span class="leyenda-item"><span class="tag-override-no">OVERRIDE ✗</span> quitado individualmente</span>
+                <span class="rol-actual">Perfil: <strong>{{ rol_nombre }}</strong></span>
+                <span class="leyenda-item"><span class="tag-rol">PERFIL</span> viene del perfil</span>
+                <span class="leyenda-item"><span class="tag-override-si">SUMADO ✓</span> dado solo a este usuario</span>
+                <span class="leyenda-item"><span class="tag-override-no">QUITADO ✗</span> sacado solo a este usuario</span>
             </p>
         {% else %}
-            <p class="rol-info sin-rol">Este usuario no tiene rol asignado. Todos los permisos son overrides individuales.</p>
+            <p class="rol-info sin-rol">Este usuario no tiene perfil de permisos: todo lo que tenga se lo diste a mano, acá.</p>
         {% endif %}
     </div>
 </div>
@@ -93,9 +93,9 @@
                     <label class="permiso-label" for="perm_{{ p.codigo }}">{{ p.label }}</label>
                     <div class="permiso-meta">
                         <span class="fuente-badge fuente-{{ p.fuente }} {% if p.fuente == 'sin_permiso' %}fuente-vacia{% endif %}">
-                            {% if p.fuente == 'rol' %}ROL
-                            {% elif p.fuente == 'override_positivo' %}OVERRIDE ✓
-                            {% elif p.fuente == 'override_negativo' %}OVERRIDE ✗
+                            {% if p.fuente == 'rol' %}PERFIL
+                            {% elif p.fuente == 'override_positivo' %}SUMADO ✓
+                            {% elif p.fuente == 'override_negativo' %}QUITADO ✗
                             {% elif p.fuente == 'superusuario' %}SUPERUSER
                             {% else %}—{% endif %}
                         </span>

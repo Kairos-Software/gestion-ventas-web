@@ -4,7 +4,7 @@
 {% block title %}Transacciones – Caja Grande{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'caja/css/transacciones.css' %}">
+<link rel="stylesheet" href="{% static 'caja/css/transacciones.css' %}?v=20260926b">
 {% endblock %}
 
 {% block content %}
@@ -63,8 +63,20 @@
 <div class="trx-filtros">
   <div class="trx-filtros-grid">
 
+    <div class="trx-filtro--ancho">
+      <label class="trx-label" for="filtro-q">Buscar</label>
+      <div class="trx-buscar">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.4"/>
+          <path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        </svg>
+        <input type="search" id="filtro-q" class="form-control form-control-sm"
+               placeholder="Descripción, cuenta, titular, usuario…" autocomplete="off">
+      </div>
+    </div>
+
     <div>
-      <label class="trx-label">Tipo</label>
+      <label class="trx-label" for="filtro-tipo">Tipo</label>
       <select id="filtro-tipo" class="form-select form-select-sm">
         <option value="">Todos los tipos</option>
         <option value="deposito">Depósito bancario</option>
@@ -76,15 +88,81 @@
     </div>
 
     <div>
-      <label class="trx-label">Desde</label>
+      <label class="trx-label" for="filtro-cuenta">Cuenta</label>
+      <select id="filtro-cuenta" class="form-select form-select-sm">
+        <option value="">Todas las cuentas</option>
+      </select>
+    </div>
+
+    <div>
+      <label class="trx-label" for="filtro-rol-cuenta">La cuenta como</label>
+      <select id="filtro-rol-cuenta" class="form-select form-select-sm" disabled>
+        <option value="">Origen o destino</option>
+        <option value="origen">Solo origen (sale plata)</option>
+        <option value="destino">Solo destino (entra plata)</option>
+      </select>
+    </div>
+
+    <div>
+      <label class="trx-label" for="filtro-moneda">Moneda</label>
+      <select id="filtro-moneda" class="form-select form-select-sm">
+        <option value="">Todas</option>
+      </select>
+    </div>
+
+    <div>
+      <label class="trx-label" for="filtro-periodo">Período</label>
+      <select id="filtro-periodo" class="form-select form-select-sm">
+        <option value="">Cualquier fecha</option>
+        <option value="hoy">Hoy</option>
+        <option value="7d">Últimos 7 días</option>
+        <option value="30d">Últimos 30 días</option>
+        <option value="mes">Este mes</option>
+        <option value="mes_ant">Mes pasado</option>
+        <option value="anio">Este año</option>
+        <option value="custom">Personalizado…</option>
+      </select>
+    </div>
+
+    <div>
+      <label class="trx-label" for="filtro-desde">Desde</label>
       <input type="date" id="filtro-desde" class="form-control form-control-sm">
     </div>
 
     <div>
-      <label class="trx-label">Hasta</label>
-      <input type="date" id="filtro-hasta" class="form-control form-select-sm">
+      <label class="trx-label" for="filtro-hasta">Hasta</label>
+      <input type="date" id="filtro-hasta" class="form-control form-control-sm">
     </div>
 
+    <div>
+      <label class="trx-label" for="filtro-monto-min">Monto desde</label>
+      <div class="input-group input-group-sm">
+        <span class="input-group-text">$</span>
+        <input type="number" id="filtro-monto-min" class="form-control" min="0" step="0.01" placeholder="0">
+      </div>
+    </div>
+
+    <div>
+      <label class="trx-label" for="filtro-monto-max">Monto hasta</label>
+      <div class="input-group input-group-sm">
+        <span class="input-group-text">$</span>
+        <input type="number" id="filtro-monto-max" class="form-control" min="0" step="0.01" placeholder="Sin tope">
+      </div>
+    </div>
+
+    <div>
+      <label class="trx-label" for="filtro-orden">Ordenar por</label>
+      <select id="filtro-orden" class="form-select form-select-sm">
+        <option value="fecha_desc">Más recientes</option>
+        <option value="fecha_asc">Más antiguas</option>
+        <option value="monto_desc">Mayor monto</option>
+        <option value="monto_asc">Menor monto</option>
+      </select>
+    </div>
+
+  </div>
+  <div class="trx-filtros-pie">
+    <p class="trx-filtros-ayuda">El rango de monto busca en lo debitado <em>o</em> lo acreditado (en divisas son monedas distintas).</p>
     <div class="trx-filtros-acciones">
       <button id="trx-btn-filtrar" class="btn btn-sm btn-primary">
         <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="margin-right:.3rem">
@@ -93,12 +171,12 @@
       </button>
       <button id="trx-btn-limpiar-filtros" class="btn btn-sm btn-outline-secondary">Limpiar</button>
     </div>
-
   </div>
 </div>
 
 {# ── Tabla ────────────────────────────────────────────────────────── #}
 <div class="trx-card">
+  <div class="trx-resumen" id="trx-resumen" hidden></div>
   <div class="trx-table-wrap">
     <table class="trx-table">
       <thead>
@@ -351,6 +429,6 @@
 
 {% block extra_js %}
 {% if puede_ver %}
-<script src="{% static 'caja/js/transacciones.js' %}"></script>
+<script src="{% static 'caja/js/transacciones.js' %}?v=20260926b"></script>
 {% endif %}
 {% endblock %}

@@ -45,7 +45,7 @@ function _fmtFechaOf(iso) {
 }
 
 function _alcanceTextoOferta(o) {
-    if (o.tipo === 'umbral') return `Total de la venta ≥ $${o.monto_minimo}`;
+    if (o.tipo === 'umbral') return `Total de la venta ≥ $${KaiFormat.moneda(o.monto_minimo, 0)}`;
     const nProd = o.productos.length;
     const nCat  = o.categorias.length;
     if (!nProd && !nCat) return 'Todo el catálogo';
@@ -57,7 +57,21 @@ function _alcanceTextoOferta(o) {
 
 function _tituloOferta(o) {
     if (o.tipo === 'nxm') return `${o.cantidad_lleva}x${o.cantidad_paga}`;
-    return `${o.porcentaje}%`;
+    return `${KaiFormat.cantidad(o.porcentaje, 2)}%`;
+}
+
+function _ofEsc(str) {
+    return String(str ?? '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function _badgeVigencia(o) {
+    if (!o.activa) return '';
+    if (o.vigente_hoy) return '<span class="prd-badge prd-badge--tipo">Vigente hoy</span>';
+    if (o.vencida) return '<span class="prd-badge of-badge--vencida">Vencida</span>';
+    if (o.programada) return '<span class="prd-badge">Empieza el ' + _fmtFechaOf(o.fecha_inicio) + '</span>';
+    return '<span class="prd-badge">Hoy no aplica</span>';  // fuera de sus días de la semana
 }
 
 async function cargarOfertas() {
@@ -83,10 +97,10 @@ function _renderOfertas() {
         <div class="prd-ld-row ${o.activa ? '' : 'prd-ld-row--inactiva'}">
             <div class="prd-ld-row-pct">${_tituloOferta(o)}</div>
             <div class="prd-ld-row-info">
-                <span class="prd-ld-row-nombre">${o.nombre}</span>
+                <span class="prd-ld-row-nombre">${_ofEsc(o.nombre)}</span>
                 <span class="prd-badge ${o.activa ? 'prd-badge--tipo' : ''}">${o.activa ? 'Activa' : 'Inactiva'}</span>
                 <span class="prd-badge">${o.aplicacion === 'automatica' ? 'Automática' : 'Manual'}</span>
-                ${o.vigente_hoy ? '<span class="prd-badge prd-badge--tipo">Vigente hoy</span>' : ''}
+                ${_badgeVigencia(o)}
                 <span class="prd-of-row-meta">${_fmtFechaOf(o.fecha_inicio)} → ${_fmtFechaOf(o.fecha_fin)} · ${_alcanceTextoOferta(o)}</span>
             </div>
             <div class="prd-ld-row-actions">
@@ -100,7 +114,7 @@ function _renderOfertas() {
                         ? `<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M4.5 4.5L10.5 10.5M10.5 4.5L4.5 10.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>`
                         : `<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M4 2.5L11.5 7.5L4 12.5V2.5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>`}
                 </button>
-                <button type="button" class="prd-ld-icon-btn prd-ld-icon-btn--danger" title="Eliminar" onclick="_eliminarOferta(${o.pk}, '${o.nombre.replace(/'/g, "\\'")}')">
+                <button type="button" class="prd-ld-icon-btn prd-ld-icon-btn--danger" title="Eliminar" onclick="_eliminarOferta(${o.pk})">
                     <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
                         <path d="M2.5 4H12.5M5.5 4V3H9.5V4M6 6.5V10.5M9 6.5V10.5M3.5 4L4.3 12H10.7L11.5 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
@@ -302,11 +316,12 @@ async function _toggleActivaOferta(pk) {
     if (data.ok) {
         await cargarOfertas();
     } else {
-        KaiToast.show(data.error || 'Error', 'danger');
+        KaiToast.show(Object.values(data.errors || {}).flat().join(' ') || data.error || 'Error', 'danger');
     }
 }
 
-async function _eliminarOferta(pk, nombre) {
+async function _eliminarOferta(pk) {
+    const nombre = (_cacheOfertas.find(x => x.pk === pk) || {}).nombre || '';
     if (!await KaiConfirm(`¿Eliminar la oferta "${nombre}"? Esta acción no se puede deshacer.`, { danger: true })) return;
     const res  = await fetch(URLS.ofertaEliminar, {
         method: 'POST',

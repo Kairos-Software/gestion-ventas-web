@@ -728,6 +728,44 @@
 
 .vta-cliente-venta-clear:hover { color: var(--danger, #e11d48); }
 
+/* Fila del buscador de cliente + botón "+" — separados, uno al lado del
+   otro (antes el "+" iba superpuesto DENTRO del buscador, se leía mal y
+   tapaba el placeholder). El wrap del buscador ocupa el espacio
+   disponible; el botón es chico y de ancho fijo, así el buscador queda
+   claramente más largo. */
+.vdt-cli-row {
+    display: flex;
+    align-items: stretch;
+    gap: .4rem;
+}
+.vdt-cli-row .vta-cli-wrap {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* Botón "Cliente nuevo" — acción positiva, look propio (no reusa el gris
+   del "✕" de limpiar ni su hover rojo, que es semántica de "peligro"). */
+.vdt-cli-nuevo-btn {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    border-radius: .625rem;
+    border: 1px solid var(--brand-orange);
+    background: var(--brand-orange-light);
+    color: var(--brand-orange);
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    transition: background .15s, color .15s;
+}
+
+.vdt-cli-nuevo-btn:hover {
+    background: var(--brand-orange);
+    color: #fff;
+}
+
 /* Spinner chico mientras se espera la respuesta de la búsqueda —
    ocupa el mismo lugar que el botón de limpiar, nunca se muestran
    juntos (escribir ya vacía el cliente elegido, ver nueva_venta.js). */
@@ -1941,6 +1979,96 @@ textarea.vta-control {
 }
 .vdt-cobro .vta-cli-option-doc {
     line-height: 1.35;
+}
+
+/* Modal "Cliente nuevo" — alta rápida sin salir de la venta (botón "+"
+   al lado de la búsqueda de cliente, ver detalle_venta.js). */
+.vdt-cli-nuevo-tipo {
+    display: flex;
+    gap: .75rem;
+}
+/* Chip de tipo persona/empresa — mismo lenguaje que .tipo-card en
+   core/css/gestion_clientes.css (la ficha completa de Gestión de
+   Clientes), acá reducido a las dos opciones que hacen falta. */
+.vdt-cli-nuevo-tipo-opt { cursor: pointer; }
+.vdt-cli-nuevo-tipo-opt input { position: absolute; opacity: 0; width: 0; height: 0; }
+.vdt-cli-nuevo-tipo-card {
+    display: inline-flex;
+    align-items: center;
+    padding: .5rem 1.1rem;
+    border: 1px solid var(--border-color);
+    border-radius: .75rem;
+    font-size: .85rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--bg-white);
+    transition: all .18s;
+}
+.vdt-cli-nuevo-tipo-opt input:checked + .vdt-cli-nuevo-tipo-card {
+    border-color: var(--brand-orange);
+    background: var(--brand-orange-light);
+    color: var(--brand-orange);
+    font-weight: 600;
+    box-shadow: 0 0 0 3px var(--brand-orange-light);
+}
+.vdt-cli-nuevo-tipo-opt input:focus-visible + .vdt-cli-nuevo-tipo-card {
+    outline: 2px solid var(--brand-orange);
+    outline-offset: 2px;
+}
+.vdt-cli-nuevo-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .75rem;
+}
+.vdt-cli-nuevo-error {
+    background: rgba(225, 29, 72, .08);
+    border: 1px solid rgba(225, 29, 72, .25);
+    color: var(--danger, #e11d48);
+    border-radius: .5rem;
+    padding: .6rem .75rem;
+    font-size: .8rem;
+    margin-bottom: .9rem;
+}
+
+/* El modal en sí — sin esto usa el look crudo de Bootstrap (cuadrado,
+   sin fondo en header/footer), distinto de todos los demás modales de
+   la app. Mismo lenguaje visual que core/css/gestion_clientes.css. */
+#vdtClienteNuevoModal .modal-content {
+    border: 1px solid var(--border-color);
+    border-radius: 1rem;
+    box-shadow: var(--shadow-lg);
+}
+#vdtClienteNuevoModal .modal-header {
+    padding: 1.1rem 1.35rem;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    border-radius: 1rem 1rem 0 0;
+}
+#vdtClienteNuevoModal .modal-title {
+    font-family: var(--font-heading);
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -.2px;
+}
+#vdtClienteNuevoModal .modal-body {
+    padding: 1.25rem 1.35rem;
+}
+#vdtClienteNuevoModal .modal-footer {
+    padding: 1rem 1.35rem;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+    border-radius: 0 0 1rem 1rem;
+    gap: .6rem;
+}
+/* .vta-btn es width:100% por diseño (así apilan las acciones del panel
+   de cobro) — acá el footer es una fila angosta como en el resto de los
+   modales de la app, así que se pisa ese ancho y el margin-top que
+   .vta-btn-ghost trae para el layout apilado. */
+#vdtClienteNuevoModal .modal-footer .vta-btn {
+    width: auto;
+    padding-inline: 1.25rem;
+    margin-top: 0;
 }
 
 /* Bloque de cierre del pago — total FIJO + estado + recargo, todo junto.

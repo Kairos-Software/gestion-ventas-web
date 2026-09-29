@@ -259,15 +259,18 @@ function _bindClienteVentaDetalle() {
     const input    = document.getElementById('vdtClienteInput');
     const dropdown = document.getElementById('vdtClienteDropdown');
     const clear    = document.getElementById('vdtClienteClear');
+    const nuevoBtn = document.getElementById('vdtClienteNuevoBtn');
     if (!input || !dropdown || !clear) return;
 
     input.value = clienteVentaDetalle.nombre;
     clear.style.display = clienteVentaDetalle.pk ? 'inline-flex' : 'none';
+    if (nuevoBtn) nuevoBtn.style.display = clienteVentaDetalle.pk ? 'none' : 'inline-flex';
 
     function _aplicarCliente(pk, nombre, scoring) {
         clienteVentaDetalle = { pk, nombre };
         VDT.clienteUnicoPk = pk;
         VDT.clienteScoring = scoring ? scoring.scoring : null;
+        if (nuevoBtn) nuevoBtn.style.display = pk ? 'none' : 'inline-flex';
         // Actualiza el chip de banda + el aviso + re-render de líneas
         // (por si "Cuotas"/"Cheque" pasan a estar disponibles o no).
         _setClienteScoring(scoring || null);
@@ -282,6 +285,116 @@ function _bindClienteVentaDetalle() {
                 sinHistorial: scoring.sinHistorial,
             } : null);
         }
+    }
+
+    // ── Alta rápida de cliente (botón "+") — solo si el back mandó la
+    // URL (permiso crear_clientes, ver construir_contexto_detalle). No
+    // reemplaza la ficha completa de Gestión de Clientes: solo lo
+    // mínimo para no perder la venta en curso.
+    if (nuevoBtn && VDT.urlClienteCrear) {
+        const modalEl = document.getElementById('vdtClienteNuevoModal');
+        // Bootstrap cuelga su backdrop directo de <body> — si el modal se
+        // queda anidado adentro del aside "sticky" del panel de cobro, ese
+        // aside crea su propio contexto de apilamiento y atrapa ahí al
+        // modal (aunque sea position:fixed), así que el backdrop termina
+        // pintándose ENCIMA pese a tener menor z-index, bloqueando todos
+        // los clics. Se lo saca a <body> antes de mostrarlo. Se limpia
+        // cualquier copia húerfana de una carga anterior del fragmento
+        // (panel_cobro.js reinyecta este HTML entero cada vez).
+        document.querySelectorAll('#vdtClienteNuevoModal').forEach(el => { if (el !== modalEl) el.remove(); });
+        document.body.appendChild(modalEl);
+        const errorBox    = document.getElementById('vdtCliNuevoError');
+        const tipoRadios  = document.querySelectorAll('input[name="vdtCliNuevoTipo"]');
+        const seccPersona = document.getElementById('vdtCliNuevoPersona');
+        const seccEmpresa = document.getElementById('vdtCliNuevoEmpresa');
+        const fNombre       = document.getElementById('vdtCliNuevoNombre');
+        const fApellido     = document.getElementById('vdtCliNuevoApellido');
+        const fDni          = document.getElementById('vdtCliNuevoDni');
+        const fCuil          = document.getElementById('vdtCliNuevoCuil');
+        const fRazonSocial  = document.getElementById('vdtCliNuevoRazonSocial');
+        const fCuit         = document.getElementById('vdtCliNuevoCuit');
+        const fCondIva      = document.getElementById('vdtCliNuevoCondIva');
+        const btnGuardar    = document.getElementById('vdtCliNuevoGuardar');
+        let bsModal = null;
+
+        function _tipoActual() {
+            const checked = Array.from(tipoRadios).find(r => r.checked);
+            return checked ? checked.value : 'persona';
+        }
+
+        function _actualizarSeccionesTipo() {
+            const esEmpresa = _tipoActual() === 'empresa';
+            if (seccPersona) seccPersona.hidden = esEmpresa;
+            if (seccEmpresa) seccEmpresa.hidden = !esEmpresa;
+        }
+
+        tipoRadios.forEach(r => r.addEventListener('change', _actualizarSeccionesTipo));
+
+        nuevoBtn.addEventListener('click', () => {
+            // Reset del formulario — arranca limpio cada vez.
+            tipoRadios.forEach(r => { r.checked = (r.value === 'persona'); });
+            [fNombre, fApellido, fDni, fCuil, fRazonSocial, fCuit].forEach(f => { if (f) f.value = ''; });
+            if (fCondIva) fCondIva.value = '';
+            if (errorBox) { errorBox.hidden = true; errorBox.textContent = ''; }
+            _actualizarSeccionesTipo();
+            // Lo que ya tipeó en la búsqueda es casi siempre el punto de
+            // partida (nombre, o "nombre apellido") — se lo precarga para
+            // no hacerlo tipear de nuevo.
+            const q = input.value.trim();
+            if (q && fNombre) {
+                const partes = q.split(/\s+/);
+                fNombre.value = partes[0];
+                if (partes.length > 1 && fApellido) fApellido.value = partes.slice(1).join(' ');
+            }
+            if (!bsModal) bsModal = new bootstrap.Modal(modalEl);
+            bsModal.show();
+        });
+
+        btnGuardar.addEventListener('click', async () => {
+            const tipo = _tipoActual();
+            const fd = new FormData();
+            fd.append('tipo', tipo);
+            fd.append('estado', 'activo');
+            if (tipo === 'persona') {
+                fd.append('nombre', fNombre.value.trim());
+                fd.append('apellido', fApellido.value.trim());
+                fd.append('dni', fDni.value.trim());
+                fd.append('cuil', fCuil.value.trim());
+            } else {
+                fd.append('razon_social', fRazonSocial.value.trim());
+                fd.append('cuit', fCuit.value.trim());
+            }
+            fd.append('cond_iva', fCondIva.value);
+
+            btnGuardar.disabled = true;
+            try {
+                const res  = await fetch(VDT.urlClienteCrear, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': VDT.csrfToken },
+                    body: fd,
+                });
+                const data = await res.json();
+                if (data.success) {
+                    bsModal.hide();
+                    const nombre = data.cliente.nombre_display;
+                    input.value = nombre;
+                    clear.style.display = 'inline-flex';
+                    dropdown.classList.remove('open');
+                    dropdown.innerHTML = '';
+                    _aplicarCliente(data.cliente.id, nombre, null);
+                    if (window.KaiToast) window.KaiToast.show(`Cliente "${nombre}" creado y agregado a la venta.`, 'success');
+                } else if (data.errors) {
+                    const msg = Object.entries(data.errors).map(([k, v]) => `${k}: ${v.join(', ')}`).join(' — ');
+                    if (errorBox) { errorBox.textContent = msg || 'Revisá los datos cargados.'; errorBox.hidden = false; }
+                } else {
+                    if (errorBox) { errorBox.textContent = data.error || 'No se pudo crear el cliente.'; errorBox.hidden = false; }
+                }
+            } catch {
+                if (errorBox) { errorBox.textContent = 'Error de conexión. Probá de nuevo.'; errorBox.hidden = false; }
+            } finally {
+                btnGuardar.disabled = false;
+            }
+        });
     }
 
     input.addEventListener('input', () => {

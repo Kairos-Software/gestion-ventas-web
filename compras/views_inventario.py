@@ -25,6 +25,7 @@ from .models import (
 )
 from productos.models import Producto, cantidad_valida_para_unidad
 from core.permisos import chequear_permiso
+from core.services_estadisticas.productos import _unidad_corta
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -39,6 +40,9 @@ class InventarioView(LoginRequiredMixin, TemplateView):
         ctx = super().get_context_data(**kwargs)
         if not chequear_permiso(self.request.user, 'crear_compras'):
             ctx['sin_permiso'] = True
+        # Registrar una pérdida pide ajustar_stock (ver RegistrarPerdidaAjax):
+        # sin ese permiso el botón no se muestra, en vez de fallar al usarlo.
+        ctx['puede_registrar_perdida'] = chequear_permiso(self.request.user, 'ajustar_stock')
         return ctx
 
 
@@ -129,6 +133,10 @@ class ListarLotesAjax(LoginRequiredMixin, View):
             'cantidad_actual':       lote.cantidad_actual,
             'cantidad_inicial':      lote.cantidad_inicial,
             'unidad_medida':         producto.get_unidad_medida_display() if producto else '',
+            # "6 / 6 unidades", "2,5 / 5 kg": corta y en plural (la de arriba,
+            # el display del choice, siempre sale en singular).
+            'unidad_corta':          _unidad_corta(producto.unidad_medida, lote.cantidad_inicial) if producto else '',
+            'unidad_disponible':     _unidad_corta(producto.unidad_medida, lote.cantidad_actual) if producto else '',
             'unidades_por_presentacion': (producto.unidades_por_presentacion or '') if producto else '',
             'contenido_neto':        str(producto.contenido_neto) if producto and producto.contenido_neto else '',
             'porcentaje_restante':   lote.porcentaje_restante,
@@ -278,6 +286,7 @@ class ListarPerdidasAjax(LoginRequiredMixin, View):
             'lote_codigo':      p.lote_codigo_snapshot,
             'cantidad':         p.cantidad,
             'unidad_medida':    p.producto.get_unidad_medida_display() if p.producto else '',
+            'unidad_corta':     _unidad_corta(p.producto.unidad_medida, p.cantidad) if p.producto else '',
             'costo_unitario':   str(p.costo_unitario_snapshot),
             'costo_total':      str(p.costo_total),
             'precio_venta_unitario': str(p.precio_venta_unitario_snapshot),
@@ -332,6 +341,7 @@ class BuscarProductosFraccionarAjax(LoginRequiredMixin, View):
             'unidad_medida_key': p.unidad_medida,
             'permite_fraccion': p.permite_fraccion,
             'stock_actual':     str(p.stock_actual),
+            'unidad_stock':     _unidad_corta(p.unidad_medida, p.stock_actual),
             'unidades_por_presentacion': p.unidades_por_presentacion or '',
             'contenido_neto':   str(p.contenido_neto) if p.contenido_neto else '',
         } for p in qs.order_by('nombre')[:20]]

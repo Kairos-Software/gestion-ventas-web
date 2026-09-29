@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="{% static 'core/css/estadisticas.css' %}">
 <link rel="stylesheet" href="{% static 'core/css/estadisticas_resumen.css' %}?v=20260921c">
 <link rel="stylesheet" href="{% static 'core/css/estadisticas_ventas.css' %}?v=20260921a">
-<link rel="stylesheet" href="{% static 'core/css/estadisticas_productos.css' %}?v=20260922a">
+<link rel="stylesheet" href="{% static 'core/css/estadisticas_productos.css' %}?v=20260928a">
 {% endblock %}
 
 {% block content %}
@@ -80,10 +80,10 @@
                 {% if perdidas_actuales.lotes_por_vencer %}
                 <ol class="est-stock-list">
                     {% for lote in perdidas_actuales.lotes_por_vencer|slice:':3' %}
-                    <li><div><strong>{{ lote.producto }}</strong><small>Lote {{ lote.codigo }} · vence {{ lote.fecha_vencimiento|date:'d/m/Y' }} · {{ lote.cantidad_actual|cantidad }} unidades</small></div><span>${{ lote.valor_en_riesgo|pesos }}<small>al costo</small></span></li>
+                    <li><div><strong>{{ lote.producto.nombre }}</strong><small>Lote {{ lote.codigo }} · vence {{ lote.fecha_vencimiento|date:'d/m/Y' }} · {{ lote.cantidad_actual|cantidad }} unidades</small></div><span>${{ lote.valor_en_riesgo|pesos }}<small>al costo</small></span></li>
                     {% endfor %}
                 </ol>
-                {% if perdidas_actuales.lotes_por_vencer|length > 3 %}<details class="est-sales-expand"><summary>Ver más lotes</summary><ol class="est-stock-list">{% for lote in perdidas_actuales.lotes_por_vencer|slice:'3:' %}<li><div><strong>{{ lote.producto }}</strong><small>Lote {{ lote.codigo }} · vence {{ lote.fecha_vencimiento|date:'d/m/Y' }} · {{ lote.cantidad_actual|cantidad }} unidades</small></div><span>${{ lote.valor_en_riesgo|pesos }}<small>al costo</small></span></li>{% endfor %}</ol>{% if perdidas_actuales.cantidad_lotes_por_vencer > perdidas_actuales.lotes_por_vencer|length %}<p class="est-sales-note">Se muestran los primeros {{ perdidas_actuales.lotes_por_vencer|length }} lotes.</p>{% endif %}</details>{% endif %}
+                {% if perdidas_actuales.lotes_por_vencer|length > 3 %}<details class="est-sales-expand"><summary>Ver más lotes</summary><ol class="est-stock-list">{% for lote in perdidas_actuales.lotes_por_vencer|slice:'3:' %}<li><div><strong>{{ lote.producto.nombre }}</strong><small>Lote {{ lote.codigo }} · vence {{ lote.fecha_vencimiento|date:'d/m/Y' }} · {{ lote.cantidad_actual|cantidad }} unidades</small></div><span>${{ lote.valor_en_riesgo|pesos }}<small>al costo</small></span></li>{% endfor %}</ol>{% if perdidas_actuales.cantidad_lotes_por_vencer > perdidas_actuales.lotes_por_vencer|length %}<p class="est-sales-note">Se muestran los primeros {{ perdidas_actuales.lotes_por_vencer|length }} lotes.</p>{% endif %}</details>{% endif %}
                 {% else %}<p class="est-sales-empty">No hay lotes por vencer en los próximos 30 días.</p>{% endif %}
             </article>
         </div>
@@ -95,7 +95,7 @@
             <details class="est-sales-detail" id="estStockVencidos">
                 <summary><span><strong>Lotes ya vencidos</strong><small>{{ perdidas_actuales.cantidad_lotes_vencidos }} con stock en el depósito</small></span></summary>
                 <div class="est-sales-detail-body">
-                    {% for lote in perdidas_actuales.lotes_vencidos %}<div class="est-stock-detail-row"><div><strong>{{ lote.producto }}</strong><small>Lote {{ lote.codigo }} · venció {{ lote.fecha_vencimiento|date:'d/m/Y' }} · {{ lote.cantidad_actual|cantidad }} unidades</small></div><b>${{ lote.valor_perdido|pesos }}</b></div>{% empty %}<p class="est-sales-empty">No hay lotes vencidos con stock.</p>{% endfor %}
+                    {% for lote in perdidas_actuales.lotes_vencidos %}<div class="est-stock-detail-row"><div><strong>{{ lote.producto.nombre }}</strong><small>Lote {{ lote.codigo }} · venció {{ lote.fecha_vencimiento|date:'d/m/Y' }} · {{ lote.cantidad_actual|cantidad }} unidades</small></div><b>${{ lote.valor_perdido|pesos }}</b></div>{% empty %}<p class="est-sales-empty">No hay lotes vencidos con stock.</p>{% endfor %}
                     {% if perdidas_actuales.cantidad_lotes_vencidos > perdidas_actuales.lotes_vencidos|length %}<p class="est-sales-note">Se muestran los primeros {{ perdidas_actuales.lotes_vencidos|length }} lotes.</p>{% endif %}
                 </div>
             </details>
@@ -128,7 +128,7 @@
                 <div class="kai-help-popover" id="ayuda_stock_perdidas">Es el costo de los lotes que vencieron y siguen en stock, más las mermas registradas en esas fechas.</div>
                 <strong class="est-stock-period-total">${{ perdidas_periodo.total_perdidas_periodo|pesos }}</strong>
                 <div class="est-stock-period-split"><div><span>Vencidos</span><strong>${{ perdidas_periodo.total_vencido_periodo|pesos }}</strong><small>{{ perdidas_periodo.cantidad_lotes_vencidos_periodo }} lote{{ perdidas_periodo.cantidad_lotes_vencidos_periodo|pluralize }}</small></div><div><span>Roturas y mermas</span><strong>${{ perdidas_periodo.total_mermas_periodo|pesos }}</strong><small>{{ perdidas_periodo.unidades_mermas_periodo|cantidad }} unidad{{ perdidas_periodo.unidades_mermas_periodo|pluralize:"es" }} perdida{{ perdidas_periodo.unidades_mermas_periodo|pluralize }}</small></div></div>
-                {% if perdidas_periodo.lotes_vencidos_periodo %}<details class="est-sales-expand"><summary>Ver lotes vencidos en el período</summary><div class="est-stock-period-lots">{% for lote in perdidas_periodo.lotes_vencidos_periodo %}<div class="est-stock-detail-row"><div><strong>{{ lote.producto }}</strong><small>Lote {{ lote.codigo }} · {{ lote.fecha_vencimiento|date:'d/m/Y' }} · {{ lote.cantidad_actual|cantidad }} unidades</small></div><b>${{ lote.valor_perdido|pesos }}</b></div>{% endfor %}</div>{% if perdidas_periodo.cantidad_lotes_vencidos_periodo > perdidas_periodo.lotes_vencidos_periodo|length %}<p class="est-sales-note">Se muestran los primeros {{ perdidas_periodo.lotes_vencidos_periodo|length }} lotes.</p>{% endif %}</details>{% endif %}
+                {% if perdidas_periodo.lotes_vencidos_periodo %}<details class="est-sales-expand"><summary>Ver lotes vencidos en el período</summary><div class="est-stock-period-lots">{% for lote in perdidas_periodo.lotes_vencidos_periodo %}<div class="est-stock-detail-row"><div><strong>{{ lote.producto.nombre }}</strong><small>Lote {{ lote.codigo }} · {{ lote.fecha_vencimiento|date:'d/m/Y' }} · {{ lote.cantidad_actual|cantidad }} unidades</small></div><b>${{ lote.valor_perdido|pesos }}</b></div>{% endfor %}</div>{% if perdidas_periodo.cantidad_lotes_vencidos_periodo > perdidas_periodo.lotes_vencidos_periodo|length %}<p class="est-sales-note">Se muestran los primeros {{ perdidas_periodo.lotes_vencidos_periodo|length }} lotes.</p>{% endif %}</details>{% endif %}
             </article>
 
             <article class="est-sales-panel">

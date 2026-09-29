@@ -276,13 +276,17 @@ function initChartComprasTendencia(serieMensual) {
 //    todo): nivel de riesgo y estado de cartera de clientes, medio de
 //    pago. `items` trae {label, <valueKey>}, `colores` mapea label ->
 //    color hex. `formatValue` da formato al número (cantidad simple
-//    por defecto, o "$1.234" para montos). ──
+//    por defecto, o "$1.234" para montos). `leyendaCompacta`: leyenda
+//    abajo y solo "Nombre 32%" — para tortas en columnas angostas que ya
+//    tienen los montos listados al lado (a la derecha no entraba y se
+//    cortaba el texto). ──
 function initChartDonut(elementId, items, colores, opciones) {
     const el = document.getElementById(elementId);
     if (!el || !items.length) return;
 
     const valueKey = (opciones && opciones.valueKey) || 'cantidad';
     const formatValue = (opciones && opciones.formatValue) || (v => v);
+    const compacta = !!(opciones && opciones.leyendaCompacta);
 
     new Chart(el, {
         type: 'doughnut',
@@ -301,10 +305,10 @@ function initChartDonut(elementId, items, colores, opciones) {
             cutout: '62%',
             plugins: {
                 legend: {
-                    position: 'right',
+                    position: compacta ? 'bottom' : 'right',
                     labels: {
                         boxWidth: 10,
-                        padding: 12,
+                        padding: compacta ? 8 : 12,
                         generateLabels: (chart) => {
                             const data = chart.data;
                             const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
@@ -312,7 +316,7 @@ function initChartDonut(elementId, items, colores, opciones) {
                                 const value = data.datasets[0].data[i];
                                 const pct = total ? Math.round((value / total) * 100) : 0;
                                 return {
-                                    text: `${label}: ${formatValue(value)} (${pct}%)`,
+                                    text: compacta ? `${label} ${pct}%` : `${label}: ${formatValue(value)} (${pct}%)`,
                                     fillStyle: data.datasets[0].backgroundColor[i],
                                     index: i,
                                 };

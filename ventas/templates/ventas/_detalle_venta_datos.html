@@ -34,6 +34,8 @@
         urlDocEliminar: "{{ url_doc_eliminar }}",
         urlFacturar: "{{ url_facturar }}",
         urlBuscarCliente: "{{ url_buscar_cliente }}",
+        urlClienteCrear: "{{ url_cliente_crear }}",
+        puedeCrearClientes: {{ puede_crear_clientes|yesno:"true,false" }},
         urlRegistrarDevolucion: "{{ url_registrar_devolucion }}",
         urlEmitirNotaCredito: "{{ url_emitir_nc_devolucion }}",
         puedeRegistrarDevoluciones: {{ puede_registrar_devoluciones|yesno:"true,false" }},
@@ -201,6 +203,8 @@
     window.NC_DATA = [
         {% for dev in devoluciones %}{% if dev.nota_credito_arca %}{
             devolucion_pk: {{ dev.pk }},
+            fecha: "{{ dev.fecha|date:'d/m/Y' }}",
+            fecha_hora: "{{ dev.nota_credito_arca.creado_el|date:'d/m/Y H:i' }}",
             comprobante_original_display: "{% if comprobante_arca %}{{ comprobante_arca.get_tipo_comprobante_display|escapejs }} {{ comprobante_arca.punto_venta|stringformat:'05d' }}-{{ comprobante_arca.numero|stringformat:'08d' }}{% endif %}",
             items: [
                 {% for dev_item in dev.items.all %}{
@@ -215,7 +219,7 @@
                 tipo_comprobante: {{ dev.nota_credito_arca.tipo_comprobante }},
                 punto_venta: {{ dev.nota_credito_arca.punto_venta }},
                 numero: {{ dev.nota_credito_arca.numero }},
-                numero_display: "{{ dev.nota_credito_arca.numero_display }}",
+                numero_display: "{{ dev.nota_credito_arca.punto_venta|stringformat:'05d' }}-{{ dev.nota_credito_arca.numero|stringformat:'08d' }}",
                 cae: "{{ dev.nota_credito_arca.cae }}",
                 cae_vencimiento: "{{ dev.nota_credito_arca.cae_vencimiento|date:'d/m/Y' }}",
                 importe_total: "{{ dev.nota_credito_arca.importe_total|stringformat:'.2f' }}",

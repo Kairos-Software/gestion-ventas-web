@@ -42,7 +42,10 @@ def pesos(value, decimales=2):
         entero = entero[:-3]
     grupos.insert(0, entero)
 
-    return f'{"-" if negativo else ""}{".".join(grupos)},{decimales}'
+    signo = '-' if negativo else ''
+    if not decimales:  # `|pesos:0` → "31.500", sin coma colgando
+        return f'{signo}{".".join(grupos)}'
+    return f'{signo}{".".join(grupos)},{decimales}'
 
 
 def _miles(entero):
@@ -78,3 +81,17 @@ def cantidad(value):
     entero, _, decimales = format(monto, 'f').partition('.')
     txt = f'{_miles(entero)},{decimales}' if decimales else _miles(entero)
     return f'-{txt}' if negativo else txt
+
+
+@register.filter
+def unidad(codigo, cantidad):
+    """Unidad de medida corta y en plural cuando corresponde:
+    `{{ p.unidad_medida|unidad:p.stock_actual }}` → "unidades", "unidad",
+    "kg", "cajas". Antes las pantallas de stock decían "15 Unidad" (el
+    display del choice, siempre en singular)."""
+    from core.services_estadisticas.productos import _unidad_corta
+    try:
+        cantidad = Decimal(str(cantidad))
+    except (InvalidOperation, TypeError, ValueError):
+        cantidad = None
+    return _unidad_corta(codigo, cantidad)

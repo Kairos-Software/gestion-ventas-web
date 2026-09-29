@@ -54,7 +54,7 @@
             <div class="perfil-hero-meta">
                 <h1 class="perfil-name">{{ user.get_full_name|default:user.username }}</h1>
                 <div class="perfil-hero-sub">
-                    <span class="badge badge-orange">{{ user.rol.nombre|default:'Usuario' }}</span>
+                    <span class="badge badge-orange">{% if user.is_superuser %}Administrador{% else %}{{ user.rol.nombre|default:'Usuario' }}{% endif %}</span>
                     <span class="perfil-at">@{{ user.username }}</span>
                     {% if user.puesto %}
                         <span class="perfil-puesto">{{ user.puesto }}{% if user.area %} · {{ user.area }}{% endif %}</span>
@@ -116,8 +116,8 @@
                     {% endif %}
                 </div>
                 <div class="perfil-field">
-                    <span class="perfil-field-label">Rol</span>
-                    <span class="perfil-field-value">{{ user.rol.nombre|default:'Usuario' }}</span>
+                    <span class="perfil-field-label">Perfil de permisos</span>
+                    <span class="perfil-field-value">{% if user.is_superuser %}Administrador{% else %}{{ user.rol.nombre|default:'Usuario' }}{% endif %}</span>
                 </div>
                 {% if user.puesto %}
                 <div class="perfil-field">

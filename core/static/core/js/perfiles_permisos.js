@@ -74,7 +74,7 @@
         const mostrarAcciones = permisos.editar || permisos.eliminar;
         perfilesTbody.innerHTML = roles.map(r => `
             <tr>
-                <td>${escapeHtml(r.nombre)}</td>
+                <td>${escapeHtml(r.nombre)}${r.descripcion ? `<span class="perfil-desc">${escapeHtml(r.descripcion)}</span>` : ''}</td>
                 <td data-label="Usuarios">${r.num_usuarios}</td>
                 <td class="usuario-acciones-cell">
                     ${mostrarAcciones ? `<div class="acciones-cell">

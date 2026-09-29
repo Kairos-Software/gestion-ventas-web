@@ -4,7 +4,7 @@
 {% block title %}{{ usuario_obj.get_full_name|default:usuario_obj.username }} — Personal{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'core/css/detalle_usuario.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/detalle_usuario.css' %}?v=20260928a">
 {% endblock %}
 
 {% block content %}
@@ -202,7 +202,7 @@
                 </span></div>
                 <div class="field-item"><span class="fi-label">Tipo de contrato</span><span class="fi-value">{{ usuario_obj.get_tipo_contrato_display|default:'—' }}</span></div>
                 <div class="field-item"><span class="fi-label">Modalidad de trabajo</span><span class="fi-value">{{ usuario_obj.get_modalidad_trabajo_display|default:'—' }}</span></div>
-                <div class="field-item"><span class="fi-label">Rol del sistema</span><span class="fi-value">{% if usuario_obj.rol %}<span class="rol-badge">{{ usuario_obj.rol.nombre }}</span>{% else %}—{% endif %}</span></div>
+                <div class="field-item"><span class="fi-label">Perfil de permisos</span><span class="fi-value">{% if usuario_obj.rol %}<span class="rol-badge">{{ usuario_obj.rol.nombre }}</span>{% else %}—{% endif %}</span></div>
             </div>
         </div>
 

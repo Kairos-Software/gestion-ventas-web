@@ -4,7 +4,7 @@
 {% block title %}Clientes{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'core/css/gestion_clientes.css' %}?v=20260830">
+<link rel="stylesheet" href="{% static 'core/css/gestion_clientes.css' %}?v=20260928b">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 {% endblock %}
 
@@ -114,9 +114,13 @@
                 </td>
                 <td>{{ cliente.localidad|default:'—' }}{% if cliente.provincia %}, {{ cliente.provincia }}{% endif %}</td>
                 <td>
+                    {% if cliente.scoring_sin_datos %}
+                    <span class="score-chip score-chip--sin" title="Todavía no compró a crédito: no hay datos para calcular su riesgo.">Sin historial</span>
+                    {% else %}
                     <span class="score-chip score-band--{{ cliente.scoring_banda }}" title="{{ cliente.scoring_banda_label }}">
                         {{ cliente.scoring }}
                     </span>
+                    {% endif %}
                 </td>
                 <td><span class="estado-badge estado-{{ cliente.estado }}">{{ cliente.get_estado_display }}</span></td>
                 {% if puede_editar or puede_eliminar %}
@@ -639,5 +643,5 @@
     window.clienteBuscarUrl   = "{% url 'core:cliente_buscar' %}";
 </script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="{% static 'core/js/gestion_clientes.js' %}?v=20260830"></script>
+<script src="{% static 'core/js/gestion_clientes.js' %}?v=20260928b"></script>
 {% endblock %}

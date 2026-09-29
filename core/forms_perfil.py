@@ -62,15 +62,15 @@ class CambiarPasswordForm(forms.Form):
         }),
     )
 
-    # El request.user se inyecta en la vista antes de llamar is_valid()
-    # usando form.usuario = request.user  (ver views_perfil.py)
-    def __init__(self, *args, **kwargs):
+    # El usuario es obligatorio: sin él no se podría verificar la contraseña
+    # actual y cualquiera con la sesión abierta podría cambiarla.
+    def __init__(self, *args, usuario, **kwargs):
         super().__init__(*args, **kwargs)
-        self.usuario = None  # se asigna desde la vista
+        self.usuario = usuario
 
     def clean_password_actual(self):
         ingresada = self.cleaned_data.get('password_actual')
-        if self.usuario and not self.usuario.check_password(ingresada):
+        if not self.usuario.check_password(ingresada):
             raise forms.ValidationError('La contraseña actual es incorrecta.')
         return ingresada
 

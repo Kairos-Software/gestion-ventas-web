@@ -127,6 +127,18 @@
     border: 1px solid rgba(239, 68, 68, 0.15);
 }
 
+.estado-badge.estado-periodo_prueba {
+    background: rgba(30, 111, 168, 0.08);
+    color: var(--brand-blue);
+    border: 1px solid rgba(30, 111, 168, 0.2);
+}
+
+.estado-badge.estado-egresado {
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
+}
+
 .contrato-badge {
     display: inline-flex;
     align-items: center;

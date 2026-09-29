@@ -869,7 +869,7 @@ function _opcionesListaAdv(item) {
     const listas = CFG.listasDescuento || [];
     return listas.map(l => `
         <option value="lista:${_esc(l.nombre)}" data-pct="${l.porcentaje}" ${item.lista_descuento_nombre === l.nombre ? 'selected' : ''}>
-            ${_esc(l.nombre)} (${l.porcentaje}%)
+            ${_esc(l.nombre)} (${parseFloat(l.porcentaje).toLocaleString('es-AR')}%)
         </option>`).join('');
 }
 function _selectListaAdv(item) {
@@ -1025,7 +1025,7 @@ function _renderCarrito() {
             <div class="vta-cart-row-adv open">
                 <div>
                     <label>Descuento manual %</label>
-                    <input type="number" min="0" max="100" step="0.01" data-campo="descuento" value="${item.descuento}">
+                    <input type="number" min="0" max="100" step="0.01" data-campo="descuento" value="${+(parseFloat(item.descuento) || 0).toFixed(2)}">
                 </div>
                 <div>
                     <label>Lista de descuento</label>
@@ -1202,7 +1202,7 @@ function _renderOfertaGlobal(totalBruto, totalNeto, ofertaAplicada) {
     if (ofertaAplicada && ofertaAplicada.aplicacion === 'automatica') {
         const monto = totalNeto * parseFloat(ofertaAplicada.porcentaje) / 100;
         cont.style.display = '';
-        cont.innerHTML = `<span class="vta-oferta-global-badge">✓ Oferta "${_esc(ofertaAplicada.nombre)}" aplicada: -${ofertaAplicada.porcentaje}% (-${_fmtPeso(monto)})</span>`;
+        cont.innerHTML = `<span class="vta-oferta-global-badge">✓ Oferta "${_esc(ofertaAplicada.nombre)}" aplicada: -${parseFloat(ofertaAplicada.porcentaje).toLocaleString('es-AR')}% (-${_fmtPeso(monto)})</span>`;
         return;
     }
 
@@ -1216,7 +1216,7 @@ function _renderOfertaGlobal(totalBruto, totalNeto, ofertaAplicada) {
     cont.style.display = '';
     const opciones = manualesCalificadas.map(o => `
         <option value="${_esc(o.nombre)}" ${ofertaGlobalManualElegida === o.nombre ? 'selected' : ''}>
-            ${_esc(o.nombre)} (-${o.porcentaje}%)
+            ${_esc(o.nombre)} (-${parseFloat(o.porcentaje).toLocaleString('es-AR')}%)
         </option>`).join('');
     cont.innerHTML = `
         <label class="vta-oferta-global-label">Oferta por monto mínimo disponible:</label>

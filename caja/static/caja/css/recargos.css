@@ -79,7 +79,10 @@
 /* ── Grilla de cuentas ────────────────────────────────────────── */
 .rec-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    /* 460px: lo que necesita la tabla (medio · plan · recargo · estado ·
+       3 acciones) sin cortar el botón de borrar ni meter scroll lateral
+       en cada tarjeta. min(100%, …) para que en celular no desborde. */
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 460px), 1fr));
     gap: 1.25rem;
 }
 

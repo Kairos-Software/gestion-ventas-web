@@ -385,6 +385,13 @@ def construir_historial_stock(producto, combinacion_pk=None, categoria=None, es_
 
     stock_reconstruido = Decimal('0')
     for e in eventos:
+        # Los anulados se MUESTRAN (pasaron) pero no cuentan: anular una
+        # venta devuelve el stock al lote sin crear un evento de reverso, y
+        # anular una compra desactiva su lote. Sumarlos daba una "diferencia"
+        # falsa en todo producto con una anulación. Mismo criterio que
+        # `rastrear_stock` (solo lotes activos).
+        if not e['activo']:
+            continue
         cantidad = Decimal(str(e['cantidad']))
         stock_reconstruido += cantidad if e['es_entrada'] else -cantidad
 

@@ -69,6 +69,14 @@ document.addEventListener('DOMContentLoaded', function () {
     // ── Stat cards (Vigentes / Por vencer / Vencidos) ──
     // Se calculan sobre el total del inventario, sin aplicar el buscador
     // ni los filtros de la tabla — igual que las tarjetas de "Mi Stock".
+    // Costos con 2 decimales, o hasta 4 cuando de verdad los tiene
+    // ("$10,20" y no "$10,2000"; "$1.735,5372" se mantiene).
+    function _costo(v) {
+        const n = parseFloat(v);
+        if (isNaN(n)) return v ?? '';
+        return n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+    }
+
     function cargarStats() {
         const statOk        = document.getElementById('statOk');
         const statPorVencer  = document.getElementById('statPorVencer');
@@ -82,7 +90,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 let ok = 0, porVencer = 0, vencidos = 0;
                 data.results.forEach(l => {
-                    if (l.estado_vencimiento === 'ok') ok++;
+                    // Sin fecha de vencimiento también es vigente — igual que
+                    // el filtro "OK" (antes la tarjeta decía 6 y el filtro
+                    // mostraba todos los lotes que no vencen).
+                    if (l.estado_vencimiento === 'ok' || !l.estado_vencimiento) ok++;
                     else if (l.estado_vencimiento === 'por_vencer') porVencer++;
                     else if (l.estado_vencimiento === 'vencido') vencidos++;
                 });
@@ -138,13 +149,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 </td>
                 <td><span class="inv-codigo-lote">${escapeHtml(l.codigo)}</span></td>
                 <td>
-                    ${KaiFormat.cantidad(l.cantidad_actual)} / ${KaiFormat.cantidad(l.cantidad_inicial)} <span class="inv-unidad-medida">${escapeHtml(l.unidad_medida || '')}</span>
+                    <span class="inv-cantidad-txt">${KaiFormat.cantidad(l.cantidad_actual)} / ${KaiFormat.cantidad(l.cantidad_inicial)} <span class="inv-unidad-medida">${escapeHtml(l.unidad_corta || l.unidad_medida || '')}</span></span>
                     ${l.unidades_por_presentacion ? `<div class="inv-contenido-neto">cada ${escapeHtml(l.unidad_medida || '')} trae ${l.unidades_por_presentacion} piezas${l.contenido_neto ? ` de ${KaiFormat.cantidad(l.contenido_neto)} c/u` : ''}</div>` : (l.contenido_neto ? `<div class="inv-contenido-neto">cada ${escapeHtml(l.unidad_medida || '')} trae ${KaiFormat.cantidad(l.contenido_neto)} → ${KaiFormat.cantidad(parseFloat(l.cantidad_actual) * parseFloat(l.contenido_neto))} en total</div>` : '')}
                     <div class="inv-barra-restante">
                         <div class="inv-barra-restante-fill" style="width:${l.porcentaje_restante}%"></div>
                     </div>
                 </td>
-                <td>$${KaiFormat.moneda(l.costo_unitario, 4)}</td>
+                <td>$${_costo(l.costo_unitario)}</td>
                 <td>${badgeVencimiento(l)}</td>
                 <td>${l.fecha_compra}</td>
                 <td>${escapeHtml(l.proveedor || '—')}</td>
@@ -161,14 +172,14 @@ document.addEventListener('DOMContentLoaded', function () {
                             </svg>
                             Código
                         </button>
-                        <button class="btn-ver-codigo btn-perdida" data-pk="${l.pk}" data-nombre="${escapeHtml(l.producto_nombre)}"
-                                data-codigo="${escapeHtml(l.codigo)}" data-disponible="${l.cantidad_actual}" data-unidad="${escapeHtml(l.unidad_medida || '')}"
+                        ${window.INVENTARIO_PUEDE_PERDIDA === false ? '' : `<button class="btn-ver-codigo btn-perdida" data-pk="${l.pk}" data-nombre="${escapeHtml(l.producto_nombre)}"
+                                data-codigo="${escapeHtml(l.codigo)}" data-disponible="${l.cantidad_actual}" data-unidad="${escapeHtml(l.unidad_disponible || l.unidad_medida || '')}"
                                 title="Registrar pérdida de este lote">
                             <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                                 <path d="M3 3L13 13M13 3L3 13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
                             </svg>
                             Pérdida
-                        </button>
+                        </button>`}
                     </div>
                 </td>
             </tr>
@@ -769,10 +780,10 @@ document.addEventListener('DOMContentLoaded', function () {
                             ${p.variante_desc ? `<div class="inv-variante-desc">${escapeHtml(p.variante_desc)}</div>` : ''}
                         </td>
                         <td><span class="inv-codigo-lote">${escapeHtml(p.lote_codigo)}</span></td>
-                        <td>${KaiFormat.cantidad(p.cantidad)} <span class="inv-unidad-medida">${escapeHtml(p.unidad_medida || '')}</span></td>
+                        <td>${KaiFormat.cantidad(p.cantidad)} <span class="inv-unidad-medida">${escapeHtml(p.unidad_corta || p.unidad_medida || '')}</span></td>
                         <td>
-                            ${p.motivo_label}${p.automatica ? ' <span class="badge-vencimiento sin-fecha">auto</span>' : ''}
-                            ${p.motivo_detalle ? `<div class="inv-variante-desc">${escapeHtml(p.motivo_detalle)}</div>` : ''}
+                            <span class="inv-nowrap">${p.motivo_label}${p.automatica ? ' <span class="badge-vencimiento sin-fecha">auto</span>' : ''}</span>
+                            ${p.motivo_detalle && !p.automatica ? `<div class="inv-variante-desc">${escapeHtml(p.motivo_detalle)}</div>` : ''}
                         </td>
                         <td>$${KaiFormat.moneda(p.costo_total)}</td>
                         <td>$${KaiFormat.moneda(p.precio_venta_total)}</td>
@@ -781,7 +792,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 `).join('');
             })
             .catch(() => {
-                perdidasTbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">Error al cargar pérdidas.</td></tr>`;
+                perdidasTbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-4">Error al cargar pérdidas.</td></tr>`;
             });
     }
 
@@ -869,7 +880,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 dropdownEl.innerHTML = data.results.map(p => `
                     <div class="frac-dropdown-item" data-pk="${p.pk}" data-nombre="${escapeHtml(p.nombre)}"
-                         data-stock="${p.stock_actual}" data-unidad="${escapeHtml(p.unidad_medida)}"
+                         data-stock="${p.stock_actual}" data-unidad="${escapeHtml(p.unidad_stock || p.unidad_medida)}"
                          data-unidad-key="${escapeHtml(p.unidad_medida_key)}" data-permite-fraccion="${p.permite_fraccion}"
                          data-contenido-neto="${p.contenido_neto}"
                          data-unidades-por-presentacion="${p.unidades_por_presentacion}">

@@ -20,6 +20,18 @@ from .forms_usuarios import (
 )
 from .permisos import chequear_permiso, filtrar_permisos_otorgables
 
+
+def _usuarios_gestionables(solicitante):
+    """Los mismos usuarios que muestra la lista: nunca un superusuario y, si
+    quien pide no es superusuario, tampoco él mismo. Todas las vistas que
+    reciben un pk tienen que buscar acá: si no, armando la petición a mano
+    se podía editar al dueño (cambiarle el email y después usar "¿Olvidaste
+    tu contraseña?" para quedarse con su cuenta) o eliminarlo."""
+    qs = Usuario.objects.filter(is_superuser=False)
+    if not solicitante.is_superuser:
+        qs = qs.exclude(pk=solicitante.pk)
+    return qs
+
 # ══════════════════════════════════════════════════════════════════
 #  LISTADO / GESTIÓN
 # ══════════════════════════════════════════════════════════════════
@@ -29,9 +41,7 @@ class GestionUsuariosView(LoginRequiredMixin, View):
         puede_ver = chequear_permiso(request.user, 'ver_usuarios')
 
         if puede_ver:
-            qs = Usuario.objects.filter(is_superuser=False).order_by('username')
-            if not request.user.is_superuser:
-                qs = qs.exclude(pk=request.user.pk)
+            qs = _usuarios_gestionables(request.user).order_by('username')
         else:
             qs = Usuario.objects.none()
 
@@ -72,7 +82,7 @@ class UsuarioCrearEditarAjax(LoginRequiredMixin, View):
             return JsonResponse({'error': 'pk requerido'}, status=400)
 
         usuario = get_object_or_404(
-            Usuario.objects.prefetch_related('estudios', 'experiencias', 'capacitaciones', 'documentos', 'cuentas_bancarias'),
+            _usuarios_gestionables(request.user).prefetch_related('estudios', 'experiencias', 'capacitaciones', 'documentos', 'cuentas_bancarias'),
             pk=pk
         )
 
@@ -198,7 +208,7 @@ class UsuarioCrearEditarAjax(LoginRequiredMixin, View):
         if pk:
             if not chequear_permiso(request.user, 'editar_usuarios'):
                 return JsonResponse({'error': 'Sin permiso'}, status=403)
-            usuario = get_object_or_404(Usuario, pk=pk)
+            usuario = get_object_or_404(_usuarios_gestionables(request.user), pk=pk)
             form = FormularioEdicionUsuario(request.POST, request.FILES, instance=usuario)
         else:
             if not chequear_permiso(request.user, 'crear_usuarios'):
@@ -400,7 +410,7 @@ class UsuarioEliminarAjax(LoginRequiredMixin, View):
         if not chequear_permiso(request.user, 'eliminar_usuarios'):
             return JsonResponse({'error': 'Sin permiso'}, status=403)
         pk = request.GET.get('pk')
-        usuario = get_object_or_404(Usuario, pk=pk)
+        usuario = get_object_or_404(_usuarios_gestionables(request.user), pk=pk)
         usuario.delete()
         return JsonResponse({'success': True})
 
@@ -414,7 +424,7 @@ class DetalleUsuarioView(LoginRequiredMixin, View):
         if not chequear_permiso(request.user, 'ver_usuarios'):
             return render(request, 'core/sin_permiso.html', status=403)
 
-        usuario_obj = get_object_or_404(Usuario, pk=pk)
+        usuario_obj = get_object_or_404(_usuarios_gestionables(request.user), pk=pk)
 
         context = {
             'usuario_obj':    usuario_obj,
@@ -438,7 +448,7 @@ class EditarUsuarioDetalleAjax(LoginRequiredMixin, View):
         if not chequear_permiso(request.user, 'editar_usuarios'):
             return JsonResponse({'error': 'Sin permiso'}, status=403)
 
-        usuario = get_object_or_404(Usuario, pk=pk)
+        usuario = get_object_or_404(_usuarios_gestionables(request.user), pk=pk)
         form = FormularioEdicionUsuario(request.POST, request.FILES, instance=usuario)
 
         if form.is_valid():
@@ -470,7 +480,7 @@ class UsuarioEstudioAjax(LoginRequiredMixin, View):
         if not chequear_permiso(request.user, 'editar_usuarios'):
             return JsonResponse({'error': 'Sin permiso'}, status=403)
 
-        usuario = get_object_or_404(Usuario, pk=pk)
+        usuario = get_object_or_404(_usuarios_gestionables(request.user), pk=pk)
         accion  = request.POST.get('_action', 'crear')
 
         if accion == 'eliminar':
@@ -506,7 +516,7 @@ class UsuarioExperienciaAjax(LoginRequiredMixin, View):
         if not chequear_permiso(request.user, 'editar_usuarios'):
             return JsonResponse({'error': 'Sin permiso'}, status=403)
 
-        usuario = get_object_or_404(Usuario, pk=pk)
+        usuario = get_object_or_404(_usuarios_gestionables(request.user), pk=pk)
         accion  = request.POST.get('_action', 'crear')
 
         if accion == 'eliminar':
@@ -543,7 +553,7 @@ class UsuarioCapacitacionAjax(LoginRequiredMixin, View):
         if not chequear_permiso(request.user, 'editar_usuarios'):
             return JsonResponse({'error': 'Sin permiso'}, status=403)
 
-        usuario = get_object_or_404(Usuario, pk=pk)
+        usuario = get_object_or_404(_usuarios_gestionables(request.user), pk=pk)
         accion  = request.POST.get('_action', 'crear')
 
         if accion == 'eliminar':
@@ -583,7 +593,7 @@ class UsuarioDocumentoAjax(LoginRequiredMixin, View):
         if not chequear_permiso(request.user, 'editar_usuarios'):
             return JsonResponse({'error': 'Sin permiso'}, status=403)
 
-        usuario = get_object_or_404(Usuario, pk=pk)
+        usuario = get_object_or_404(_usuarios_gestionables(request.user), pk=pk)
         accion  = request.POST.get('_action', 'subir')
 
         if accion == 'eliminar':
@@ -615,7 +625,7 @@ class UsuarioFotoAjax(LoginRequiredMixin, View):
         if not chequear_permiso(request.user, 'editar_usuarios'):
             return JsonResponse({'error': 'Sin permiso'}, status=403)
 
-        usuario = get_object_or_404(Usuario, pk=pk)
+        usuario = get_object_or_404(_usuarios_gestionables(request.user), pk=pk)
         accion  = request.POST.get('_action', 'subir')
 
         if accion == 'eliminar':

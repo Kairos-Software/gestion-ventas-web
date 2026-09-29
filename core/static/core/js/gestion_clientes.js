@@ -498,6 +498,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const fd = new FormData(); fd.append('pk', pkEliminar);
         const resp = await postForm(window.clienteEliminarUrl, fd);
         const data = await resp.json();
-        if (data.success) location.reload(); else KaiToast.show('Error al eliminar.', 'danger');
+        // El server explica por qué no se puede (por ej. tiene cuentas por cobrar).
+        if (data.success) location.reload(); else KaiToast.show(data.error || 'Error al eliminar.', 'danger');
     });
 });

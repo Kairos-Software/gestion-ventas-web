@@ -1,5 +1,5 @@
 {% extends 'core/base.html' %}
-{% load static %}
+{% load static kai_formato %}
 
 {% block title %}Pedidos del catálogo{% endblock %}
 
@@ -45,6 +45,7 @@
             <input type="text" name="q" value="{{ q }}"
                    class="prd-search-input" placeholder="Buscar por nombre o WhatsApp...">
         </div>
+        <div class="prd-filters-row">
         <select name="estado" class="prd-filter-select">
             <option value="">Todos los estados</option>
             {% for valor, etiqueta in estados %}
@@ -55,6 +56,7 @@
         {% if q or filtro_estado %}
         <a href="{% url 'catalogo:pedidos_historial' %}" class="prd-btn prd-btn-ghost">Limpiar</a>
         {% endif %}
+        </div>
     </form>
 </div>
 
@@ -98,7 +100,7 @@
                     <td>
                         {{ p.items.count }} producto{{ p.items.count|pluralize }}
                     </td>
-                    <td><span class="prd-precio">${{ p.total|floatformat:2 }}</span></td>
+                    <td><span class="prd-precio">${{ p.total|pesos }}</span></td>
                     <td>
                         {% if p.estado == 'pendiente' %}<span class="prd-estado prd-estado--pendiente">Pendiente</span>
                         {% elif p.estado == 'vendido' %}<span class="prd-estado prd-estado--vendido">Vendido</span>

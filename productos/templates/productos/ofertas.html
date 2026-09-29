@@ -7,7 +7,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'productos/css/productos.css' %}">
-<link rel="stylesheet" href="{% static 'productos/css/ofertas.css' %}">
+<link rel="stylesheet" href="{% static 'productos/css/ofertas.css' %}?v=20260929b">
 {% endblock %}
 
 {% block content %}
@@ -221,6 +221,6 @@ const URLS = {
     productoBuscar    : '{% url "productos:producto_buscar" %}',
 };
 </script>
-<script src="{% static 'productos/js/ofertas.js' %}"></script>
+<script src="{% static 'productos/js/ofertas.js' %}?v=20260929a"></script>
 {% endif %}
 {% endblock %}

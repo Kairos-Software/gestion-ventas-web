@@ -20,7 +20,7 @@
                 Hola, <span>{{ user.get_full_name|default:user.username }}</span>
             </h1>
             <p class="welcome-subtitle">
-                {{ fecha_actual|date:"l, j \d\e F \d\e Y" }} &nbsp;·&nbsp; {{ user.rol.nombre|default:'Usuario' }}
+                {{ fecha_actual|date:"l, j \d\e F \d\e Y" }} &nbsp;·&nbsp; {% if user.is_superuser %}Administrador{% else %}{{ user.rol.nombre|default:'Usuario' }}{% endif %}
             </p>
         </div>
     </div>

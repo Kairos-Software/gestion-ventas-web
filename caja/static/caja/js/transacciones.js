@@ -27,6 +27,8 @@ const Transacciones = (() => {
     let _paginaActual  = 1;
     let _totalPaginas  = 1;
     let _calcTimer     = null;
+    let _filtroTimer   = null;
+    let _totalResultados = 0;
 
     /* ── CSRF ──────────────────────────────────────────────────── */
     function getCsrf() {
@@ -54,6 +56,7 @@ const Transacciones = (() => {
     ══════════════════════════════════════════════════════════════ */
     async function init() {
         _poblarSelectsCuentas();
+        _poblarFiltros();
         await _cargarListado();
         _bindEventos();
     }
@@ -77,6 +80,19 @@ const Transacciones = (() => {
         selDestino.innerHTML = opciones;
     }
 
+    function _poblarFiltros() {
+        const selCuenta = document.getElementById('filtro-cuenta');
+        if (selCuenta) {
+            selCuenta.innerHTML = '<option value="">Todas las cuentas</option>' + _opcionesCuentas(CUENTAS);
+        }
+        const selMoneda = document.getElementById('filtro-moneda');
+        if (selMoneda) {
+            const monedas = [...new Set(CUENTAS.map(c => c.moneda))].sort();
+            selMoneda.innerHTML = '<option value="">Todas</option>' +
+                monedas.map(m => `<option value="${m}">${m}</option>`).join('');
+        }
+    }
+
     function _monedaDeCuenta(pk) {
         return CUENTAS.find(c => String(c.pk) === String(pk))?.moneda ?? '';
     }
@@ -88,25 +104,40 @@ const Transacciones = (() => {
     /* ══════════════════════════════════════════════════════════════
        LISTADO
     ══════════════════════════════════════════════════════════════ */
+    let _consultaSeq = 0;
+
     async function _cargarListado(pagina = 1) {
+        const seq = ++_consultaSeq;
         _paginaActual = pagina;
         const params  = new URLSearchParams({ page: pagina, page_size: 20 });
 
-        const filtroTipo  = document.getElementById('filtro-tipo')?.value;
-        const filtroDesde = document.getElementById('filtro-desde')?.value;
-        const filtroHasta = document.getElementById('filtro-hasta')?.value;
-
-        if (filtroTipo)  params.set('tipo',  filtroTipo);
-        if (filtroDesde) params.set('desde', filtroDesde);
-        if (filtroHasta) params.set('hasta', filtroHasta);
+        const val = id => (document.getElementById(id)?.value ?? '').trim();
+        const filtros = {
+            tipo:       val('filtro-tipo'),
+            desde:      val('filtro-desde'),
+            hasta:      val('filtro-hasta'),
+            q:          val('filtro-q'),
+            cuenta:     val('filtro-cuenta'),
+            rol_cuenta: val('filtro-cuenta') ? val('filtro-rol-cuenta') : '',
+            moneda:     val('filtro-moneda'),
+            monto_min:  val('filtro-monto-min'),
+            monto_max:  val('filtro-monto-max'),
+            orden:      val('filtro-orden'),
+        };
+        Object.entries(filtros).forEach(([k, v]) => { if (v) params.set(k, v); });
 
         try {
             const res = await getJSON(`${URL.listar}?${params}`);
+            // Si mientras tanto se cambió otro filtro, esta respuesta ya
+            // quedó vieja: no pisar el resultado de la consulta nueva.
+            if (seq !== _consultaSeq) return;
             if (res.ok) {
-                _transacciones = res.transacciones;
-                _totalPaginas  = res.paginas;
+                _transacciones   = res.transacciones;
+                _totalPaginas    = res.paginas;
+                _totalResultados = res.total;
                 _renderListado();
                 _renderPaginacion();
+                _renderResumen();
             }
         } catch (e) {
             console.error('Error cargando transacciones:', e);
@@ -118,15 +149,16 @@ const Transacciones = (() => {
         if (!tbody) return;
 
         if (!_transacciones.length) {
+            const conFiltros = _filtrosActivos().length > 0;
             tbody.innerHTML = `
                 <tr>
-                  <td colspan="6" class="text-center py-5">
+                  <td colspan="7" class="text-center py-5">
                     <div class="empty-state">
                       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
                         <path d="M7 16l-4-4 4-4"/><path d="M17 8l4 4-4 4"/><path d="M3 12h18"/>
                       </svg>
-                      <h3>Sin transacciones</h3>
-                      <p>Todavía no hay movimientos registrados.</p>
+                      <h3>${conFiltros ? 'Sin resultados' : 'Sin transacciones'}</h3>
+                      <p>${conFiltros ? 'Ninguna transacción coincide con estos filtros.' : 'Todavía no hay movimientos registrados.'}</p>
                     </div>
                   </td>
                 </tr>`;
@@ -144,14 +176,17 @@ const Transacciones = (() => {
         tbody.innerHTML = _transacciones.map(t => {
             const cfg = badgeCfg[t.tipo] ?? { cls: 'badge-secondary', label: t.tipo_label };
             const costoHtml = t.costo_extra
-                ? `<div class="trx-costo-extra">− ${_fmt(t.costo_extra)} <span>${t.descripcion_costo || 'costo extra'}</span></div>`
+                ? `<div class="trx-costo-extra">− ${_fmt(t.costo_extra)} <span>${_esc(t.descripcion_costo || 'costo extra')}</span></div>`
                 : '';
             return `
             <tr>
               <td class="ps-4">${_fmtFecha(t.fecha)}</td>
-              <td><span class="trx-badge ${cfg.cls}">${cfg.label}</span></td>
-              <td>${t.cuenta_origen}</td>
-              <td>${t.cuenta_destino}</td>
+              <td>
+                <span class="trx-badge ${cfg.cls}">${cfg.label}</span>
+                ${t.descripcion ? `<span class="trx-desc" title="${_esc(t.descripcion)}">${_esc(t.descripcion)}</span>` : ''}
+              </td>
+              <td>${_esc(t.cuenta_origen)}</td>
+              <td>${_esc(t.cuenta_destino)}</td>
               <td>
                 <span class="trx-monto trx-monto--egreso">− ${_fmt(t.monto_origen)}</span>
                 ${costoHtml}
@@ -189,6 +224,75 @@ const Transacciones = (() => {
         }
         html += '</div>';
         el.innerHTML = html;
+    }
+
+    /* ── Resumen: cantidad de resultados + filtros activos ───────── */
+    const PERIODOS = {
+        hoy: 'Hoy', '7d': 'Últimos 7 días', '30d': 'Últimos 30 días',
+        mes: 'Este mes', mes_ant: 'Mes pasado', anio: 'Este año',
+    };
+
+    function _textoOpcion(id) {
+        const sel = document.getElementById(id);
+        return sel?.options[sel.selectedIndex]?.text ?? '';
+    }
+
+    // Cada filtro activo con su etiqueta y qué campos vaciar para quitarlo.
+    function _filtrosActivos() {
+        const val = id => (document.getElementById(id)?.value ?? '').trim();
+        const activos = [];
+        if (val('filtro-q'))      activos.push({ label: `"${val('filtro-q')}"`, ids: ['filtro-q'] });
+        if (val('filtro-tipo'))   activos.push({ label: _textoOpcion('filtro-tipo'), ids: ['filtro-tipo'] });
+        if (val('filtro-cuenta')) {
+            const rol = val('filtro-rol-cuenta');
+            const pre = rol === 'origen' ? 'Desde ' : rol === 'destino' ? 'Hacia ' : '';
+            activos.push({ label: pre + (_cuentaPorPk(val('filtro-cuenta'))?.nombre ?? 'cuenta'),
+                           ids: ['filtro-cuenta', 'filtro-rol-cuenta'] });
+        }
+        if (val('filtro-moneda')) activos.push({ label: val('filtro-moneda'), ids: ['filtro-moneda'] });
+
+        const periodo = val('filtro-periodo');
+        if (PERIODOS[periodo]) {
+            activos.push({ label: PERIODOS[periodo], ids: ['filtro-periodo', 'filtro-desde', 'filtro-hasta'] });
+        } else if (val('filtro-desde') || val('filtro-hasta')) {
+            const d = val('filtro-desde'), h = val('filtro-hasta');
+            const label = d && h ? `${_fmtFecha(d)} – ${_fmtFecha(h)}` : d ? `Desde ${_fmtFecha(d)}` : `Hasta ${_fmtFecha(h)}`;
+            activos.push({ label, ids: ['filtro-periodo', 'filtro-desde', 'filtro-hasta'] });
+        }
+
+        const mn = val('filtro-monto-min'), mx = val('filtro-monto-max');
+        if (mn || mx) {
+            const label = mn && mx ? `$${_fmt(mn)} a $${_fmt(mx)}` : mn ? `Desde $${_fmt(mn)}` : `Hasta $${_fmt(mx)}`;
+            activos.push({ label, ids: ['filtro-monto-min', 'filtro-monto-max'] });
+        }
+        return activos;
+    }
+
+    function _renderResumen() {
+        const el = document.getElementById('trx-resumen');
+        if (!el) return;
+        const activos = _filtrosActivos();
+        if (!activos.length && !_totalResultados) { el.hidden = true; el.innerHTML = ''; return; }
+
+        const n = _totalResultados;
+        let html = `<span><strong>${n}</strong> ${n === 1 ? 'transacción' : 'transacciones'}${activos.length ? ' con' : ''}</span>`;
+        html += activos.map((f, i) => `
+            <span class="trx-resumen-chip">${_esc(f.label)}
+              <button type="button" title="Quitar filtro" data-quitar="${i}">×</button>
+            </span>`).join('');
+        el.innerHTML = html;
+        el.hidden = false;
+
+        el.querySelectorAll('[data-quitar]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                activos[+btn.dataset.quitar].ids.forEach(id => {
+                    const inp = document.getElementById(id);
+                    if (inp) inp.value = '';
+                });
+                _sincronizarRolCuenta();
+                _cargarListado(1);
+            });
+        });
     }
 
     /* ══════════════════════════════════════════════════════════════
@@ -483,9 +587,53 @@ const Transacciones = (() => {
     function aplicarFiltros() { _cargarListado(1); }
 
     function limpiarFiltros() {
-        ['filtro-tipo', 'filtro-desde', 'filtro-hasta']
+        ['filtro-tipo', 'filtro-desde', 'filtro-hasta', 'filtro-q', 'filtro-cuenta',
+         'filtro-rol-cuenta', 'filtro-moneda', 'filtro-periodo', 'filtro-monto-min', 'filtro-monto-max']
             .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+        const orden = document.getElementById('filtro-orden');
+        if (orden) orden.value = 'fecha_desc';
+        _sincronizarRolCuenta();
         _cargarListado(1);
+    }
+
+    // "La cuenta como" solo tiene sentido con una cuenta elegida.
+    function _sincronizarRolCuenta() {
+        const rol = document.getElementById('filtro-rol-cuenta');
+        if (!rol) return;
+        rol.disabled = !document.getElementById('filtro-cuenta')?.value;
+        if (rol.disabled) rol.value = '';
+    }
+
+    // Rango de fechas de un período rápido, en hora local.
+    function _rangoPeriodo(periodo) {
+        const hoy = new Date();
+        const d = (y, m, dia) => _isoLocal(new Date(y, m, dia));
+        const y = hoy.getFullYear(), m = hoy.getMonth(), dia = hoy.getDate();
+        switch (periodo) {
+            case 'hoy':     return [d(y, m, dia), d(y, m, dia)];
+            case '7d':      return [d(y, m, dia - 6), d(y, m, dia)];
+            case '30d':     return [d(y, m, dia - 29), d(y, m, dia)];
+            case 'mes':     return [d(y, m, 1), d(y, m, dia)];
+            case 'mes_ant': return [d(y, m - 1, 1), d(y, m, 0)];
+            case 'anio':    return [d(y, 0, 1), d(y, m, dia)];
+            default:        return null;
+        }
+    }
+
+    function _onPeriodoChange() {
+        const periodo = document.getElementById('filtro-periodo').value;
+        const desde = document.getElementById('filtro-desde');
+        const hasta = document.getElementById('filtro-hasta');
+        if (periodo === 'custom') { desde.focus(); return; }
+        const rango = _rangoPeriodo(periodo);
+        desde.value = rango ? rango[0] : '';
+        hasta.value = rango ? rango[1] : '';
+        _cargarListado(1);
+    }
+
+    function _filtrarConDemora() {
+        clearTimeout(_filtroTimer);
+        _filtroTimer = setTimeout(() => _cargarListado(1), 400);
     }
 
     function irPagina(n) { _cargarListado(n); }
@@ -527,6 +675,31 @@ const Transacciones = (() => {
             ?.addEventListener('click', aplicarFiltros);
         document.getElementById('trx-btn-limpiar-filtros')
             ?.addEventListener('click', limpiarFiltros);
+
+        // Los filtros se aplican solos: al instante en los selects, con
+        // una pequeña demora mientras se tipea texto o montos.
+        ['filtro-tipo', 'filtro-moneda', 'filtro-orden', 'filtro-rol-cuenta'].forEach(id => {
+            document.getElementById(id)?.addEventListener('change', () => _cargarListado(1));
+        });
+        document.getElementById('filtro-cuenta')?.addEventListener('change', () => {
+            _sincronizarRolCuenta();
+            _cargarListado(1);
+        });
+        document.getElementById('filtro-periodo')?.addEventListener('change', _onPeriodoChange);
+        ['filtro-desde', 'filtro-hasta'].forEach(id => {
+            document.getElementById(id)?.addEventListener('change', () => {
+                const periodo = document.getElementById('filtro-periodo');
+                if (periodo) periodo.value = 'custom';
+                _cargarListado(1);
+            });
+        });
+        ['filtro-q', 'filtro-monto-min', 'filtro-monto-max'].forEach(id => {
+            const el = document.getElementById(id);
+            el?.addEventListener('input', _filtrarConDemora);
+            el?.addEventListener('keydown', e => {
+                if (e.key === 'Enter') { clearTimeout(_filtroTimer); _cargarListado(1); }
+            });
+        });
     }
 
     /* ══════════════════════════════════════════════════════════════
@@ -597,8 +770,23 @@ const Transacciones = (() => {
         return `${d}/${m}/${y}`;
     }
 
+    // Fecha local (no UTC: toISOString() pasaba al día siguiente
+    // después de las 21 h en Argentina).
+    function _isoLocal(fecha) {
+        const y = fecha.getFullYear();
+        const m = String(fecha.getMonth() + 1).padStart(2, '0');
+        const d = String(fecha.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+
     function _hoy() {
-        return new Date().toISOString().split('T')[0];
+        return _isoLocal(new Date());
+    }
+
+    function _esc(s) {
+        return String(s ?? '').replace(/[&<>"']/g, ch => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+        }[ch]));
     }
 
     return { init, abrirModalCrear, verDetalle, confirmarAnular, irPagina };

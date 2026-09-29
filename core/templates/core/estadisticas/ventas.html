@@ -219,7 +219,7 @@
 {% block extra_js %}
 {% if not sin_permiso and resumen_ventas.cantidad_ventas and ventas_tiene_graficos %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-<script src="{% static 'core/js/estadisticas.js' %}?v=20260922a"></script>
+<script src="{% static 'core/js/estadisticas.js' %}?v=20260928a"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         if (!window.Chart) return;
@@ -233,7 +233,8 @@
             initChartDonut('chartMedioPago', {{ por_medio_pago_ars_json|safe }}, {
                 'Efectivo': '#10B981', 'Transferencia': '#1E6FA8',
                 'Débito': '#F26A1B', 'Crédito': '#8B5CF6', 'QR': '#F59E0B',
-            }, { valueKey: 'total', formatValue: (v) => '$' + v.toLocaleString('es-AR') });
+                'Cuotas': '#0EA5E9', 'Cheque': '#64748B',
+            }, { valueKey: 'total', formatValue: (v) => '$' + v.toLocaleString('es-AR'), leyendaCompacta: true });
         });
         {% endif %}
         {% if facturacion_arca_json != '[]' %}
@@ -244,7 +245,7 @@
             initChartDonut('chartFacturacionArca', {{ facturacion_arca_json|safe }}, {
                 'Factura A': '#1E6FA8', 'Factura B': '#10B981',
                 'Factura C': '#F59E0B', 'Sin facturar': '#8A9BB0',
-            }, { valueKey: 'total', formatValue: (v) => '$' + v.toLocaleString('es-AR') });
+            }, { valueKey: 'total', formatValue: (v) => '$' + v.toLocaleString('es-AR'), leyendaCompacta: true });
         });
         {% endif %}
     });

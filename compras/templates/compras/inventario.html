@@ -6,7 +6,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'compras/css/compras.css' %}">
-<link rel="stylesheet" href="{% static 'compras/css/inventario.css' %}">
+<link rel="stylesheet" href="{% static 'compras/css/inventario.css' %}?v=20260929c">
 {% endblock %}
 
 {% block content %}
@@ -406,7 +406,7 @@
      MODAL — Historial de pérdidas
 ══════════════════════════════════════════════════════════ -->
 <div class="modal fade" id="modalPerdidas" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+    <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Historial de pérdidas</h5>
@@ -414,7 +414,7 @@
             </div>
             <div class="modal-body">
                 <div class="inventario-tabla-wrap">
-                    <table class="table inventario-tabla">
+                    <table class="table inventario-tabla inv-tabla-historial">
                         <thead>
                             <tr>
                                 <th>Fecha</th>
@@ -524,7 +524,7 @@
      MODAL — Historial de fraccionamientos
 ══════════════════════════════════════════════════════════ -->
 <div class="modal fade" id="modalFraccionamientos" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+    <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Historial de fraccionamientos</h5>
@@ -532,7 +532,7 @@
             </div>
             <div class="modal-body">
                 <div class="inventario-tabla-wrap">
-                    <table class="table inventario-tabla">
+                    <table class="table inventario-tabla inv-tabla-historial">
                         <thead>
                             <tr>
                                 <th>Fecha</th>
@@ -569,6 +569,7 @@
         fraccionar:          "{% url 'compras:inventario_fraccionar' %}",
         listarFraccionamientos: "{% url 'compras:inventario_fraccionamientos_listar' %}",
     };
+    window.INVENTARIO_PUEDE_PERDIDA = {{ puede_registrar_perdida|yesno:'true,false' }};
 </script>
-<script src="{% static 'compras/js/inventario.js' %}"></script>
+<script src="{% static 'compras/js/inventario.js' %}?v=20260929d"></script>
 {% endblock %}
