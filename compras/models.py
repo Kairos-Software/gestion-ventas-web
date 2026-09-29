@@ -1462,6 +1462,14 @@ class Perdida(models.Model):
     combinacion_desc_snapshot = models.CharField(max_length=300, blank=True)
 
     cantidad = models.DecimalField(max_digits=12, decimal_places=3)
+    cantidad_recuperada = models.DecimalField(
+        max_digits=12, decimal_places=3, default=0,
+        help_text=(
+            'Unidades de esta pérdida por vencimiento que después se vendieron '
+            'igual (ver recuperar_perdidas_vencimiento). `cantidad` ya es lo '
+            'que quedó perdido de verdad: se le restan.'
+        ),
+    )
     costo_unitario_snapshot = models.DecimalField(max_digits=14, decimal_places=4, default=0)
     precio_venta_unitario_snapshot = models.DecimalField(
         max_digits=14, decimal_places=4, default=0,
@@ -1566,26 +1574,44 @@ def registrar_perdida(lote, cantidad, motivo, motivo_detalle='', usuario=None,
     )
 
 
-def procesar_lotes_vencidos():
-    """
-    Recorre lotes activos con stock cuya fecha_vencimiento ya pasó y
-    los da de baja automáticamente como pérdida por vencimiento, por
-    el total que les quedaba.
+def fecha_baja_vencido(fecha_vencimiento, dias_tolerancia):
+    """Primer día en que un lote vencido ya no se puede vender: el día
+    siguiente al vencimiento, más los días de tolerancia configurados."""
+    return fecha_vencimiento + timedelta(days=dias_tolerancia + 1)
 
-    No hay un scheduler corriendo dentro de Django, así que esto se
-    llama "perezosamente" cada vez que se visita Inventario (ver
-    views_inventario.py) — igual que asegurar_cuentas_efectivo() en
-    caja/models.py. Si hace falta precisión real (que se procese
-    aunque nadie abra la pantalla ese día), este mismo trabajo está
-    expuesto como comando: `manage.py procesar_lotes_vencidos`, para
-    programarlo con el Task Scheduler de Windows.
+
+def procesar_lotes_vencidos(producto=None):
     """
+    Da de baja como pérdida por vencimiento los lotes activos con stock
+    que ya pasaron su vencimiento MÁS los días de tolerancia de
+    Configuración → Ventas. Si ahí está apagada la baja automática, no
+    hace nada: los lotes quedan como "vencidos" hasta que se vendan o se
+    den de baja a mano.
+
+    La pérdida se fecha el día en que el lote dejó de ser vendible
+    (fecha_baja_vencido), no el día en que esto corre: así Estadísticas
+    la cuenta en el período correcto aunque nadie haya abierto el sistema
+    ese día.
+
+    No hace falta un proceso que corra cada 24 h: se llama "perezosamente"
+    justo antes de lo que depende de esto — al vender ese producto (ver
+    ventas._resolver_y_consumir_lotes, con `producto`), al abrir
+    Inventario, Stock y Estadísticas. Igual queda el comando
+    `manage.py procesar_lotes_vencidos` por si se quiere programar.
+    """
+    from core.models import config_vencidos
+    baja_automatica, dias_tolerancia = config_vencidos()
+    if not baja_automatica:
+        return []
+
     hoy = timezone.localtime().date()
-    pks = list(
-        LoteCompra.objects
-        .filter(activo=True, cantidad_actual__gt=0, fecha_vencimiento__lt=hoy)
-        .values_list('pk', flat=True)
-    )
+    # Vendible hasta vencimiento + tolerancia (inclusive): se da de baja
+    # cuando fecha_baja_vencido(...) <= hoy.
+    limite = hoy - timedelta(days=dias_tolerancia)
+    qs = LoteCompra.objects.filter(activo=True, cantidad_actual__gt=0, fecha_vencimiento__lt=limite)
+    if producto is not None:
+        qs = qs.filter(producto=producto)
+    pks = list(qs.values_list('pk', flat=True))
 
     # Se procesa de a un lote, releyéndolo con lock y re-chequeando que
     # todavía tenga stock: como esto corre "perezosamente" en cada visita
@@ -1610,9 +1636,80 @@ def procesar_lotes_vencidos():
                 motivo_detalle  = 'Vencimiento automático',
                 usuario         = None,
                 automatica      = True,
-                fecha           = hoy,
+                fecha           = fecha_baja_vencido(lote.fecha_vencimiento, dias_tolerancia),
             ))
     return perdidas
+
+
+def cantidad_recuperable_vencida(producto, combinacion=None):
+    """Unidades dadas de baja automáticamente por vencimiento que todavía
+    se pueden "recuperar" si aparecen en el mostrador y se venden."""
+    from django.db.models import Sum
+    qs = Perdida.objects.filter(
+        producto=producto, motivo=MotivoPerdida.VENCIMIENTO, automatica=True,
+        cantidad__gt=0, lote__activo=True,
+    )
+    qs = qs.filter(combinacion=combinacion) if combinacion is not None else qs.filter(combinacion__isnull=True)
+    return qs.aggregate(t=Sum('cantidad'))['t'] or Decimal('0')
+
+
+def recuperar_perdidas_vencimiento(producto, combinacion, cantidad, usuario=None):
+    """
+    Se está vendiendo mercadería que el sistema ya había dado de baja por
+    vencimiento (físicamente seguía en el local). En vez de dejar el
+    stock en negativo o rechazar la venta, devuelve esas unidades a su
+    lote y las descuenta de la pérdida: la pérdida queda solo por lo que
+    de verdad se tiró. Empieza por la pérdida más reciente.
+
+    Solo toca pérdidas AUTOMÁTICAS: una pérdida cargada a mano es una
+    decisión de alguien (se tiró, se rompió) y no se corrige sola.
+
+    Devuelve [(lote, cantidad_recuperada, perdida), ...]. Puede recuperar
+    menos de lo pedido si no alcanza. El que llama después consume esas
+    unidades del lote como en cualquier venta.
+    """
+    from productos.models import MovimientoStock, TipoMovimiento
+
+    restante = Decimal(str(cantidad))
+    qs = (
+        Perdida.objects.select_for_update()
+        .filter(producto=producto, motivo=MotivoPerdida.VENCIMIENTO, automatica=True,
+                cantidad__gt=0, lote__activo=True)
+        .order_by('-fecha', '-fecha_alta')
+    )
+    qs = qs.filter(combinacion=combinacion) if combinacion is not None else qs.filter(combinacion__isnull=True)
+
+    recuperado = []
+    for perdida in qs:
+        if restante <= 0:
+            break
+        tomar = min(restante, perdida.cantidad)
+        lote = LoteCompra.objects.select_for_update().get(pk=perdida.lote_id)
+        lote.cantidad_actual = lote.cantidad_actual + tomar
+        lote.save(update_fields=['cantidad_actual', 'fecha_modificacion'])
+
+        perdida.cantidad            = perdida.cantidad - tomar
+        perdida.cantidad_recuperada = perdida.cantidad_recuperada + tomar
+        perdida.save(update_fields=['cantidad', 'cantidad_recuperada'])
+
+        # Vuelve al stock del producto (la venta lo descuenta enseguida).
+        MovimientoStock(
+            producto    = producto,
+            combinacion = combinacion,
+            tipo        = TipoMovimiento.RECUPERO_PERDIDA,
+            cantidad    = tomar,
+            motivo      = f'Se vendió mercadería del lote {lote.codigo}, dado de baja por vencimiento',
+            usuario     = usuario,
+        ).save()
+        if combinacion is not None:
+            comb = CombinacionVariante.objects.select_for_update().get(pk=combinacion.pk)
+            comb.stock_actual += tomar
+            comb.save(update_fields=['stock_actual'])
+            producto.sincronizar_stock_desde_combinaciones()
+
+        recuperado.append((lote, tomar, perdida))
+        restante -= tomar
+    return recuperado
 
 
 # ══════════════════════════════════════════════════════════════════

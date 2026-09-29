@@ -7,7 +7,7 @@
 {% block breadcrumb %}<strong>Manual de usuario</strong>{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'core/css/manual.css' %}?v=20260928i">
+<link rel="stylesheet" href="{% static 'core/css/manual.css' %}?v=20260929a">
 {% endblock %}
 
 {% block content %}
@@ -27,7 +27,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
     </div>
     <div class="manual-search" role="search">
         <svg class="manual-search-icon" width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.6"/><path d="M13.5 13.5L17.5 17.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-        <input type="search" id="manualBuscar" placeholder="Buscar en el manual… (ej: tarjeta, cheque, anular)" autocomplete="off" aria-describedby="manualBuscarEstado">
+        <input type="search" id="manualBuscar" placeholder="Buscar una palabra o pantalla…" autocomplete="off" aria-label="Buscar en el manual" aria-describedby="manualBuscarEstado">
         <kbd class="manual-kbd manual-search-hint" aria-hidden="true">/</kbd>
         <p class="manual-search-estado" id="manualBuscarEstado" aria-live="polite"></p>
     </div>
@@ -46,6 +46,18 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
 </header>
 
 <div class="manual-shell">
+
+    <button class="manual-toc-toggle" id="manualTocToggle" type="button" aria-controls="manualToc" aria-expanded="false">
+        <span class="manual-toc-toggle-icon" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M4 5H16M4 10H16M4 15H12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        </span>
+        <span class="manual-toc-toggle-copy">
+            <small>Índice del manual</small>
+            <strong id="manualTocActual">Primeros pasos</strong>
+        </span>
+        <svg class="manual-toc-toggle-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 6L8 10.5L12.5 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="manual-toc-toggle-progress" aria-hidden="true"><span id="manualProgresoMovil"></span></span>
+    </button>
 
     <nav class="manual-toc" id="manualToc" aria-label="Índice del manual">
         <div class="manual-toc-progress" aria-hidden="true"><span id="manualProgreso"></span></div>
@@ -314,7 +326,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                                 <tr><td><a href="#config-cuentas">Cuentas de caja</a></td><td>Bancos, billeteras y tarjetas donde entra y sale la plata.</td></tr>
                                 {% endif %}
                                 {% if ver.config_empresa %}
-                                <tr><td><a href="#config-ventas">Ventas</a></td><td>Vender sin stock y cobrar por cuenta corriente.</td></tr>
+                                <tr><td><a href="#config-ventas">Ventas</a></td><td>Vender sin stock, cobrar por cuenta corriente y qué hacer con los lotes vencidos.</td></tr>
                                 {% endif %}
                                 {% if ver.config_empresa %}
                                 <tr><td><a href="#config-limite">Límite contable</a></td><td>Seguimiento del tope de monotributo.</td></tr>
@@ -481,11 +493,11 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                 <!-- ── Ventas ── -->
                 <div class="manual-sub" id="config-ventas">
                     <h3>Ventas</h3>
-                    <p>Dos interruptores que cambian cómo se comporta el sistema al vender. Se guardan solos al tocarlos.</p>
+                    <p>Opciones que cambian cómo se comporta el sistema al vender. Se guardan solas al tocarlas.</p>
                     <figure class="manual-shot">
-                        <img src="{% static 'core/img/manual/configuracion-08-ventas-opciones.webp' %}" width="1800" height="762" loading="lazy"
-                             alt="Bloque Ventas con dos interruptores apagados: Permitir vender sin stock y Cobrar por cuenta corriente, cada uno con su explicación.">
-                        <figcaption>Los dos interruptores, apagados (así vienen de fábrica).</figcaption>
+                        <img src="{% static 'core/img/manual/configuracion-08-ventas-opciones.webp' %}" width="1800" height="753" loading="lazy"
+                             alt="Bloque Ventas: Permitir vender sin stock y Cobrar por cuenta corriente apagados; Dar de baja los lotes vencidos encendido, con 0 días de tolerancia después del vencimiento.">
+                        <figcaption>Así vienen de fábrica.</figcaption>
                     </figure>
                     <div class="manual-cards">
                         <div class="manual-card">
@@ -499,6 +511,12 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                             <p><strong>Apagado</strong> (por defecto): cada venta financiada es una deuda aparte, con su plan de cuotas, vencimientos e interés. Se cobra deuda por deuda.</p>
                             <p><strong>Encendido</strong>: cada cliente tiene <strong>un solo saldo</strong> que sube con cada venta y baja con cada pago, como una libreta. El pago se aplica solo a las deudas más viejas primero.</p>
                             <p class="manual-tip">Prenderlo o apagarlo <strong>no modifica ninguna venta</strong>: solo cambia cómo se ve y cómo se cobra. Se puede volver atrás cuando quieras.</p>
+                        </div>
+                        <div class="manual-card">
+                            <h4>Dar de baja los lotes vencidos</h4>
+                            <p><strong>Encendido</strong> (por defecto): cuando un lote vence, el sistema lo da de baja solo como <strong>pérdida por vencimiento</strong>. Con <strong>días de tolerancia</strong> en 0, se da de baja al día siguiente de vencer; con 5, se puede seguir vendiendo 5 días más.</p>
+                            <p><strong>Apagado</strong>: el lote queda marcado como vencido en Inventario hasta que se venda o lo des de baja a mano.</p>
+                            <p>Mientras un lote vencido se puede vender, <strong>sale primero</strong> y el carrito lo avisa. Si se vende algo que ya se había dado de baja (estaba en el local), se descuenta de esa pérdida: la pérdida queda solo por lo que de verdad se tiró.</p>
                         </div>
                     </div>
                 </div>
@@ -887,7 +905,8 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                              alt="Buscador con la palabra gaseosa y dos resultados desplegados, cada uno con su nombre y código.">
                         <figcaption>Resultados del buscador mientras escribís.</figcaption>
                     </figure>
-                    <p>Cada fila muestra de qué lote sale la mercadería: <strong>Más viejo (FIFO)</strong> es lo normal (se descuenta primero lo que entró antes). Si escaneás el código de un lote puntual o una etiqueta de <a href="#ventas-balanza">Balanza</a>, la fila lo indica.</p>
+                    <p>Cada fila muestra de qué lote sale la mercadería: <strong>Más viejo (FIFO)</strong> es lo normal (se descuenta primero lo que entró antes; en los perecederos, lo que vence antes). Si escaneás el código de un lote puntual o una etiqueta de <a href="#ventas-balanza">Balanza</a>, la fila lo indica.</p>
+                    <p class="manual-note">Si parte de lo que vendés está <strong>vencido</strong>, la fila lo avisa en naranja: "6 salen de un lote vencido el 28/09/2026", o "2 ya se habían dado de baja por vencimiento: se descuentan de esa pérdida". Es un aviso, no un bloqueo: vos decidís si lo vendés. Cómo se manejan los vencidos se configura en <a href="#config-ventas">Configuración › Ventas</a>.</p>
 
                     <h4>Descuentos y ofertas por producto</h4>
                     <p>Tocá <span class="manual-ui">Desc / oferta</span> en la fila. Se abre un recuadro donde podés poner un <strong>Descuento manual %</strong>, elegir una <strong>Lista de descuento</strong> o aplicar una <strong>Oferta vigente</strong> para ese producto. Las ofertas automáticas (como un 2x1) se aplican solas; las del tipo "gastá $X o más" aparecen al pie del carrito porque son sobre el total.</p>
@@ -1764,7 +1783,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                         <li id="hs-his-3"><strong>Movimientos.</strong> Compras, facturas iniciales, ajustes, pérdidas, fraccionamientos, ventas y devoluciones, del más nuevo al más viejo, con quién lo hizo. Una venta o compra anulada aparece marcada "anulada" y no cuenta.</li>
                         <li id="hs-his-4"><strong>Comprobante.</strong> Tocalo para abrir esa compra o venta.</li>
                     </ol>
-                    <p class="manual-note">Los productos perecederos que se vencen se dan de baja solos: aparecen como <strong>Merma / Pérdida — Vencimiento automático</strong>, hechos por "Sistema".</p>
+                    <p class="manual-note">Los productos perecederos que se vencen se dan de baja solos (si está activado en <a href="#config-ventas">Configuración › Ventas</a>): aparecen como <strong>Merma / Pérdida — Vencimiento automático</strong>, hechos por "Sistema". Si después se vendió parte de eso, la pérdida muestra solo lo que quedó y aclara cuánto "se vendió igual".</p>
                 </div>
                 {% endif %}
 
@@ -2045,7 +2064,8 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                         {% if ver.stock_ajustar %}<li id="hs-inv-9"><strong>Pérdida.</strong> Da de baja mercadería de ese lote (se explica abajo).</li>{% endif %}
                         <li id="hs-inv-10"><strong>Fraccionar producto</strong> (se explica abajo).</li>
                     </ol>
-                    <p class="manual-warning"><strong>Lo vencido se da de baja solo.</strong> Cuando alguien abre Inventario, todo lote cuya fecha de vencimiento ya pasó se descuenta del stock y queda como <strong>pérdida por vencimiento</strong>, hecha por "Sistema". Por eso la tarjeta de vencidos casi siempre está en 0. Mientras nadie abra esta pantalla, lo vencido sigue figurando en el stock: conviene entrar todos los días, o pedir que se programe esa baja automática en el servidor.</p>
+                    <p class="manual-warning"><strong>Lo vencido se da de baja solo</strong>, si está activado en <a href="#config-ventas">Configuración › Ventas</a>. Pasados los días de tolerancia, el lote se descuenta del stock y queda como <strong>pérdida por vencimiento</strong>, hecha por "Sistema" y con la fecha en que dejó de ser vendible. No hace falta entrar a ninguna pantalla para que pase: el sistema lo revisa al vender ese producto y al abrir Inventario, Stock o Estadísticas.</p>
+                    <p>Mientras un lote vencido todavía se puede vender, aparece en la tarjeta <strong>Vencidos</strong> y en el filtro del mismo nombre, con la fecha en que se va a dar de baja. En <strong>Pérdidas</strong>, si algo dado de baja se vendió igual, se ve cuánto se descontó.</p>
                 </div>
 
                 {% if ver.stock_ajustar %}
@@ -2164,12 +2184,12 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                     <ol class="manual-legend">
                         <li id="hs-ped-1"><strong>Buscar y filtrar</strong> por nombre, WhatsApp o estado.</li>
                         <li id="hs-ped-2"><strong>Nota del cliente</strong>, si dejó alguna (retiro, envío, una consulta).</li>
-                        <li id="hs-ped-3"><strong>Estado:</strong> Pendiente (sin resolver), Vendido (ya pasó a una venta) o Descartado.</li>
+                        <li id="hs-ped-3"><strong>Estado:</strong> Pendiente (sin resolver), Vendido (su venta ya está confirmada) o Descartado.</li>
                         <li id="hs-ped-4"><strong>WhatsApp:</strong> abre la conversación con ese número para coordinar.</li>
                         <li id="hs-ped-5"><strong>Vender</strong> (el carrito naranja): abre Nueva Venta con los productos del pedido ya cargados. Revisás, elegís cliente y medio de pago, y confirmás como cualquier venta.</li>
                         <li id="hs-ped-6"><strong>Descartar / Reactivar.</strong> La cruz descarta un pedido que no se concretó; la flecha lo vuelve a poner como pendiente. El tacho lo borra del todo.</li>
                     </ol>
-                    <p class="manual-warning">Al tocar <span class="manual-ui">Vender</span>, el pedido ya pasa a <strong>Vendido</strong>, aunque todavía no hayas confirmado la venta. Si al final no se concreta, salí sin confirmar: el borrador de venta se descarta solo al día siguiente, pero el pedido queda como Vendido y ya no se puede reactivar. Tocalo recién cuando la venta sea segura.</p>
+                    <p>El pedido pasa a <strong>Vendido</strong> recién cuando confirmás la venta. Mientras tanto sigue Pendiente, con la aclaración "Venta sin confirmar"; si volvés a tocar <span class="manual-ui">Vender</span>, retomás esa misma venta. Si después anulás la venta, el pedido vuelve a Pendiente. En uno vendido, el botón <span class="manual-ui">Ver venta</span> abre su detalle.</p>
                     <p class="manual-note">Un pedido no descuenta stock ni mueve plata: eso pasa recién cuando confirmás la venta. Los precios del pedido son los del momento en que el cliente lo envió; si cambiaron, ajustalos en el carrito antes de confirmar.</p>
                 </div>
                 {% endif %}
@@ -3287,9 +3307,9 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                     </figure>
                     <ol class="manual-legend">
                         <li id="hs-ests-1"><strong>Productos para reponer.</strong> Agotados o con stock igual o menor al <strong>mínimo</strong> que cargaste en cada producto. Si no cargás mínimos, acá solo aparecen los agotados.</li>
-                        <li id="hs-ests-2"><strong>Lotes por vencer y ya vencidos.</strong> Lotes con stock que vencen en los próximos 30 días, y los vencidos que siguen en el depósito, con su valor al costo.</li>
+                        <li id="hs-ests-2"><strong>Lotes por vencer y ya vencidos.</strong> Lotes con stock que vencen en los próximos 30 días, y los vencidos que todavía no se dieron de baja (dentro de los días de tolerancia, o con la baja automática apagada), con su valor al costo.</li>
                         <li id="hs-ests-3"><strong>Valor del stock.</strong> Lo que te costó la mercadería que tenés hoy, y lo que cobrarías si la vendieras toda a precio de lista. No es ganancia ni plata disponible.</li>
-                        <li id="hs-ests-4"><strong>Ver datos por período.</strong> Baja a vencidos y mermas y a los paquetes, con su propio filtro de fechas.</li>
+                        <li id="hs-ests-4"><strong>Ver datos por período.</strong> Baja a las pérdidas del período (lo dado de baja por vencimiento, y aparte roturas y otras mermas, al costo real de cada lote) y a los paquetes, con su propio filtro de fechas.</li>
                     </ol>
                     <p>En <strong>Más sobre el stock de hoy</strong> también está <strong>Stock sin ventas recientes</strong>: productos con stock que no se vendieron en 60 días, ordenados por la plata que tenés inmovilizada.</p>
                 </div>
@@ -3595,6 +3615,11 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
     </div>
 </div>
 
+<button class="manual-back-top" id="manualVolverArriba" type="button" aria-label="Volver al principio del manual" title="Volver arriba">
+    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 12L10 6L16 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span>Arriba</span>
+</button>
+
 {# Visor de capturas: se abre al tocar cualquier imagen del manual #}
 <dialog class="manual-lightbox" id="manualLightbox" closedby="any" aria-label="Captura ampliada">
     <form method="dialog" class="manual-lightbox-bar">
@@ -3608,5 +3633,5 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'core/js/manual.js' %}?v=20260928i"></script>
+<script src="{% static 'core/js/manual.js' %}?v=20260929a"></script>
 {% endblock %}

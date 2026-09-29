@@ -14,6 +14,33 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const secciones = Array.from(contenido.querySelectorAll('.manual-section'));
     const linksToc = Array.from(nav.querySelectorAll(':scope > a'));
+    const tocToggle = document.getElementById('manualTocToggle');
+    const tocActual = document.getElementById('manualTocActual');
+    const mediaMovil = window.matchMedia('(max-width: 900px)');
+    const movimientoReducido = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+    function abrirIndice(abrir) {
+        if (!tocToggle) return;
+        nav.classList.toggle('is-open', abrir);
+        tocToggle.classList.toggle('is-open', abrir);
+        tocToggle.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+    }
+
+    if (tocToggle) {
+        tocToggle.addEventListener('click', () => abrirIndice(!nav.classList.contains('is-open')));
+        linksToc.forEach(link => link.addEventListener('click', () => {
+            if (mediaMovil.matches) abrirIndice(false);
+        }));
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && nav.classList.contains('is-open')) {
+                abrirIndice(false);
+                tocToggle.focus();
+            }
+        });
+        mediaMovil.addEventListener('change', e => {
+            if (!e.matches) abrirIndice(false);
+        });
+    }
 
     const slug = (txt) => txt.toLowerCase()
         .normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -61,7 +88,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     // ══════════ Sección activa + progreso ══════════
-    const barra = document.getElementById('manualProgreso');
+    const barras = [document.getElementById('manualProgreso'), document.getElementById('manualProgresoMovil')].filter(Boolean);
     let pendiente = false;
 
     function actualizarIndice() {
@@ -75,6 +102,10 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!activa) activa = secciones.find(s => !s.classList.contains('is-oculta')) || null;
 
         linksToc.forEach(a => a.classList.toggle('is-active', !!activa && a.getAttribute('href') === '#' + activa.id));
+        if (activa && tocActual) {
+            const linkActivo = nav.querySelector(`a[href="#${activa.id}"]`);
+            tocActual.textContent = linkActivo ? linkActivo.textContent.trim() : 'Explorar temas';
+        }
         nav.querySelectorAll('.manual-toc-sub').forEach(sub => {
             sub.hidden = !activa || sub.previousElementSibling.getAttribute('href') !== '#' + activa.id;
         });
@@ -85,11 +116,11 @@ document.addEventListener('DOMContentLoaded', function () {
         });
         titulos.forEach(t => t.link.classList.toggle('is-active', t === tituloActivo));
 
-        if (barra) {
+        if (barras.length) {
             const r = contenido.getBoundingClientRect();
             const total = r.height - window.innerHeight + corte;
             const avance = Math.min(1, Math.max(0, (corte - r.top) / (total > 0 ? total : 1)));
-            barra.style.width = (avance * 100).toFixed(1) + '%';
+            barras.forEach(barra => { barra.style.width = (avance * 100).toFixed(1) + '%'; });
         }
     }
 
@@ -206,7 +237,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!rangos.length) return;
         indiceActual = (indiceActual + 1) % rangos.length;
         const el = rangos[indiceActual].startContainer.parentElement;
-        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        el.scrollIntoView({ block: 'center', behavior: movimientoReducido.matches ? 'auto' : 'smooth' });
         estado.textContent = `Resultado ${indiceActual + 1} de ${rangos.length} · Enter para ir al siguiente`;
     }
 
@@ -225,6 +256,17 @@ document.addEventListener('DOMContentLoaded', function () {
                 input.select();
             }
         });
+    }
+
+    // El manual es largo: acceso discreto para volver al buscador y al inicio.
+    const volverArriba = document.getElementById('manualVolverArriba');
+    if (volverArriba) {
+        const actualizarVolver = () => volverArriba.classList.toggle('is-visible', window.scrollY > 700);
+        volverArriba.addEventListener('click', () => {
+            window.scrollTo({ top: 0, behavior: movimientoReducido.matches ? 'auto' : 'smooth' });
+        });
+        window.addEventListener('scroll', actualizarVolver, { passive: true });
+        actualizarVolver();
     }
 
     // ══════════ Capturas ══════════

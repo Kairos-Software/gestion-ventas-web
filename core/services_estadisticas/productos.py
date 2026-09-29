@@ -13,7 +13,7 @@ from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR
 from django.db.models import F, Avg, Count, ExpressionWrapper, Min, Sum
 from django.utils import timezone
 
-from compras.models import LoteCompra
+from compras.models import LoteCompra, Perdida, MotivoPerdida
 from productos.models import MovimientoStock, TipoMovimiento, Producto
 from ventas.models import ItemVenta, EstadoVenta, ConsumoLoteVenta
 
@@ -27,14 +27,14 @@ from .ventas import SUBTOTAL_EXPR, COSTO_CONSUMO_EXPR
 
 def perdidas_vencimiento(dias_alerta=30):
     """
-    - lotes_vencidos: lotes activos con stock, ya vencidos → pérdida
-      "consumada" (siguen en el depósito pero ya no son vendibles).
+    - lotes_vencidos: lotes activos con stock, ya vencidos, que todavía
+      no se dieron de baja (dentro de los días de tolerancia, o con la
+      baja automática apagada — ver ConfiguracionVentas). Siguen en el
+      depósito y todavía se pueden vender.
     - lotes_por_vencer: lotes activos con stock que vencen dentro de
       `dias_alerta` días → alerta preventiva para liquidar/descartar.
-    - mermas: histórico de MovimientoStock tipo=MERMA, valuado al costo
-      promedio de los lotes de cada producto (aproximado: el movimiento
-      de stock no guarda a qué lote específico correspondía).
-      Si todavía no registrás mermas por ese modelo, esto queda vacío.
+    - mermas: histórico de pérdidas (modelo Perdida), valuadas al costo
+      real del lote de cada una.
     """
     hoy = timezone.localtime().date()
     limite_alerta = hoy + timedelta(days=dias_alerta)
@@ -62,26 +62,25 @@ def perdidas_vencimiento(dias_alerta=30):
     cantidad_lotes_por_vencer = lotes_por_vencer.count()
     total_en_riesgo = sum((l.valor_en_riesgo for l in lotes_por_vencer), Decimal('0'))
 
-    # — Mermas históricas (cualquier pérdida de stock, no solo vencimiento) —
-    costo_promedio_por_producto = {
-        row['producto']: row['costo_prom'] or Decimal('0')
-        for row in LoteCompra.objects.values('producto').annotate(costo_prom=Avg('costo_unitario'))
-    }
+    # — Pérdidas históricas (cualquier motivo), del registro de Perdida:
+    # costo real del lote y cantidad neta (sin lo que se recuperó al
+    # venderse igual, ver compras.recuperar_perdidas_vencimiento).
     mermas_qs = (
-        MovimientoStock.objects
-        .filter(tipo=TipoMovimiento.MERMA)
-        .values('producto__id', 'producto__nombre', 'producto__codigo')
-        .annotate(unidades_perdidas=Sum('cantidad'))
+        Perdida.objects.filter(cantidad__gt=0)
+        .values('producto__id', 'producto_nombre_snapshot', 'producto__codigo')
+        .annotate(
+            unidades_perdidas=Sum('cantidad'),
+            valor=Sum(ExpressionWrapper(F('cantidad') * F('costo_unitario_snapshot'), output_field=MONEY)),
+        )
         .order_by('-unidades_perdidas')
     )
     mermas = []
     total_mermas = Decimal('0')
     for fila in mermas_qs:
-        costo_prom = costo_promedio_por_producto.get(fila['producto__id'], Decimal('0'))
-        valor = Decimal(fila['unidades_perdidas'] or 0) * costo_prom
+        valor = fila['valor'] or Decimal('0')
         total_mermas += valor
         mermas.append({
-            'producto': fila['producto__nombre'],
+            'producto': fila['producto_nombre_snapshot'],
             'codigo': fila['producto__codigo'],
             'unidades_perdidas': fila['unidades_perdidas'],
             'valor_estimado': round(valor, 2),
@@ -107,49 +106,38 @@ def perdidas_vencimiento(dias_alerta=30):
 
 def perdidas_del_periodo(desde, hasta):
     """
-    Pérdidas "concretadas" dentro del período elegido en los filtros:
-    - vencido: lotes cuya fecha de vencimiento cae dentro de [desde,
-      hasta] y que todavía tienen stock sin vender (la pérdida se
-      concretó en ese momento porque no se llegó a vender a tiempo).
-    - mermas: MovimientoStock tipo=MERMA registrados en ese rango de
-      fechas, valuados al costo promedio del producto.
-    """
-    lotes_vencidos_periodo = (
-        LoteCompra.objects
-        .filter(activo=True, cantidad_actual__gt=0,
-                fecha_vencimiento__range=(desde, hasta),
-                fecha_vencimiento__lt=timezone.localtime().date())
-        .select_related('producto')
-        .annotate(valor_perdido=ExpressionWrapper(
-            F('cantidad_actual') * F('costo_unitario'), output_field=MONEY))
-        .order_by('fecha_vencimiento')
-    )
-    total_vencido_periodo = sum((l.valor_perdido for l in lotes_vencidos_periodo), Decimal('0'))
+    Pérdidas registradas dentro del período (modelo Perdida, por su
+    fecha), valuadas al costo real del lote:
+    - vencido: dadas de baja por vencimiento. Quedan fechadas el día en
+      que el lote dejó de ser vendible, no el día en que se procesaron.
+    - mermas: cualquier otro motivo (rotura, robo, uso interno…).
+    La cantidad es la neta: si después se vendió algo que se había dado
+    de baja por vencimiento, ya se descontó de la pérdida.
 
-    costo_promedio_por_producto = {
-        row['producto']: row['costo_prom'] or Decimal('0')
-        for row in LoteCompra.objects.values('producto').annotate(costo_prom=Avg('costo_unitario'))
-    }
-    mermas_periodo_qs = (
-        MovimientoStock.objects
-        .filter(tipo=TipoMovimiento.MERMA, fecha__date__range=(desde, hasta))
-        .values('producto__id')
-        .annotate(unidades=Sum('cantidad'))
+    Antes el vencido salía de los lotes vencidos que todavía tenían
+    stock, y lo ya dado de baja caía en "Roturas y mermas" (valuado a
+    costo promedio y con la fecha de proceso).
+    """
+    valor = ExpressionWrapper(F('cantidad') * F('costo_unitario_snapshot'), output_field=MONEY)
+    base = (
+        Perdida.objects
+        .filter(fecha__range=(desde, hasta), cantidad__gt=0)
+        .annotate(valor_perdido=valor)
     )
-    total_mermas_periodo = Decimal('0')
-    unidades_mermas_periodo = 0
-    for fila in mermas_periodo_qs:
-        costo_prom = costo_promedio_por_producto.get(fila['producto__id'], Decimal('0'))
-        total_mermas_periodo += Decimal(fila['unidades'] or 0) * costo_prom
-        unidades_mermas_periodo += fila['unidades'] or 0
+    vencidas = base.filter(motivo=MotivoPerdida.VENCIMIENTO).order_by('-fecha', '-fecha_alta')
+    mermas   = base.exclude(motivo=MotivoPerdida.VENCIMIENTO)
+
+    tot_venc = vencidas.aggregate(t=Sum('valor_perdido'))['t'] or Decimal('0')
+    agg_mer  = mermas.aggregate(t=Sum('valor_perdido'), u=Sum('cantidad'))
+    tot_mer  = agg_mer['t'] or Decimal('0')
 
     return {
-        'lotes_vencidos_periodo': list(lotes_vencidos_periodo[:15]),
-        'cantidad_lotes_vencidos_periodo': lotes_vencidos_periodo.count(),
-        'total_vencido_periodo': round(total_vencido_periodo, 2),
-        'unidades_mermas_periodo': unidades_mermas_periodo,
-        'total_mermas_periodo': round(total_mermas_periodo, 2),
-        'total_perdidas_periodo': round(total_vencido_periodo + total_mermas_periodo, 2),
+        'lotes_vencidos_periodo': list(vencidas[:15]),
+        'cantidad_lotes_vencidos_periodo': vencidas.count(),
+        'total_vencido_periodo': round(tot_venc, 2),
+        'unidades_mermas_periodo': agg_mer['u'] or 0,
+        'total_mermas_periodo': round(tot_mer, 2),
+        'total_perdidas_periodo': round(tot_venc + tot_mer, 2),
     }
 
 

@@ -112,3 +112,58 @@ class GondolaAlmacenConfigTests(TestCase):
         banner.refresh_from_db()
         self.assertEqual(banner.posicion, 'antes_destacados')
         self.assertEqual(banner.titulo, 'Oferta actualizada')
+
+
+class PedidoEstadoSegunVentaTests(TestCase):
+    """El pedido pasa a Vendido recién cuando su venta se confirma."""
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        from .models import Pedido
+        self.factory = RequestFactory()
+        self.user = get_user_model().objects.create_user('vendedor', password='x')
+        self.pedido = Pedido.objects.create(contacto_telefono='11 5555-0000')
+
+    def _vender(self):
+        from .views_pedidos import PedidoVenderAjax
+        request = self.factory.post('/pedidos/1/vender/')
+        request.user = self.user
+        with patch('catalogo.views_pedidos.chequear_permiso', return_value=True):
+            return json.loads(PedidoVenderAjax.as_view()(request, pk=self.pedido.pk).content)
+
+    def test_tocar_vender_no_lo_marca_vendido(self):
+        from .models import EstadoPedido
+        data = self._vender()
+        self.pedido.refresh_from_db()
+        self.assertEqual(self.pedido.estado, EstadoPedido.PENDIENTE)
+        self.assertIsNotNone(self.pedido.venta_id)
+        self.assertIn(f'?editar={self.pedido.venta_id}', data['redirect'])
+        # Tocar Vender otra vez reusa el mismo borrador.
+        venta = self.pedido.venta_id
+        self._vender()
+        self.pedido.refresh_from_db()
+        self.assertEqual(self.pedido.venta_id, venta)
+
+    def test_confirmar_y_anular_la_venta_cambian_el_estado(self):
+        from ventas.models import EstadoVenta
+        from .models import EstadoPedido, marcar_pedidos_de_venta
+        self._vender()
+        self.pedido.refresh_from_db()
+        venta = self.pedido.venta
+        marcar_pedidos_de_venta(venta, confirmada=True)
+        self.pedido.refresh_from_db()
+        self.assertEqual(self.pedido.estado, EstadoPedido.VENDIDO)
+        marcar_pedidos_de_venta(venta, confirmada=False)
+        self.pedido.refresh_from_db()
+        self.assertEqual(self.pedido.estado, EstadoPedido.PENDIENTE)
+
+    def test_ver_venta_de_un_pedido_vendido_no_arma_otra_venta(self):
+        from ventas.models import Venta
+        from .models import marcar_pedidos_de_venta
+        self._vender()
+        self.pedido.refresh_from_db()
+        marcar_pedidos_de_venta(self.pedido.venta, confirmada=True)
+        antes = Venta.objects.count()
+        data = self._vender()
+        self.assertEqual(Venta.objects.count(), antes)
+        self.assertIn(f'/detalle/{self.pedido.venta_id}/', data['redirect'])

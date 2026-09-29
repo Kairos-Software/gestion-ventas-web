@@ -8,14 +8,14 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Sum, Min
 
 from productos.models import (
     Producto, CombinacionVariante, ListaDescuento, cantidad_valida_para_unidad,
     ofertas_vigentes_hoy,
 )
 from core.models import Cliente, DatosEmpresa, ConfiguracionArca, CondicionIVA, permite_venta_sin_stock
-from compras.models import LoteCompra
+from compras.models import LoteCompra, cantidad_recuperable_vencida
 from .models import (
     Venta, ItemVenta, EstadoVenta, MedioPago, TipoResolucionLote,
     EtiquetaBalanza, EstadoEtiquetaBalanza, descartar_borradores_vencidos,
@@ -70,6 +70,10 @@ class NuevaVentaView(LoginRequiredMixin, TemplateView):
         if not chequear_permiso(self.request.user, 'crear_ventas'):
             ctx['sin_permiso'] = True
             return ctx
+        # Lotes que pasaron su tolerancia de vencimiento → pérdida, antes de
+        # buscar productos (ver compras.procesar_lotes_vencidos).
+        from compras.models import procesar_lotes_vencidos
+        procesar_lotes_vencidos()
         ctx['puede_crear'] = True
 
         editar_pk = self.request.GET.get('editar', '').strip()
@@ -273,6 +277,31 @@ class BuscarProductoAjax(LoginRequiredMixin, View):
         return JsonResponse({'results': resultados[:30]})
 
     # ── Helpers de serialización ────────────────────────────────────
+    @staticmethod
+    def _info_vencidos(p, c=None):
+        """
+        Para avisar en el carrito, antes de confirmar:
+        - vencido_cantidad / vencido_fecha: stock en lotes ya vencidos que
+          todavía no se dieron de baja (tolerancia o baja automática
+          apagada). Por FEFO, es lo primero que sale.
+        - recuperable_vencido: unidades dadas de baja por vencimiento que,
+          si se venden, se descuentan de esa pérdida (ver
+          compras.recuperar_perdidas_vencimiento). Cuenta como stock
+          disponible para el aviso de stock insuficiente.
+        """
+        vacio = {'vencido_cantidad': 0, 'vencido_fecha': None, 'recuperable_vencido': 0}
+        if p.es_paquete or not p.gestiona_stock or not p.es_perecedero:
+            return vacio
+        hoy = timezone.localtime().date()
+        qs = LoteCompra.objects.filter(producto=p, activo=True, cantidad_actual__gt=0, fecha_vencimiento__lt=hoy)
+        qs = qs.filter(combinacion=c) if c is not None else qs.filter(combinacion__isnull=True)
+        agg = qs.aggregate(t=Sum('cantidad_actual'), f=Min('fecha_vencimiento'))
+        return {
+            'vencido_cantidad':    float(agg['t'] or 0),
+            'vencido_fecha':       agg['f'].strftime('%d/%m/%Y') if agg['f'] else None,
+            'recuperable_vencido': float(cantidad_recuperable_vencida(p, c)),
+        }
+
     def _filas_texto(self, p):
         """Para listado general / búsqueda por texto: cada variante activa, fila separada."""
         if p.gestiona_variantes:
@@ -317,6 +346,7 @@ class BuscarProductoAjax(LoginRequiredMixin, View):
             'stock_actual':   float(stock),
             'match_exacto':   match_exacto,
         })
+        fila.update(self._info_vencidos(p))
         return fila
 
     def _fila_variante(self, p, c, match_exacto=False):
@@ -329,6 +359,7 @@ class BuscarProductoAjax(LoginRequiredMixin, View):
             'stock_actual':   float(c.stock_actual),
             'match_exacto':   match_exacto,
         })
+        fila.update(self._info_vencidos(p, c))
         return fila
 
     def _fila_producto_exacto(self, p):
@@ -351,6 +382,7 @@ class BuscarProductoAjax(LoginRequiredMixin, View):
                     'combinacion_pk': c.pk,
                     'nombre':         c.descripcion_legible(),
                     'stock_actual':   float(c.stock_actual),
+                    **self._info_vencidos(p, c),
                 }
                 for c in p.combinaciones.filter(activo=True).order_by('pk')
             ],

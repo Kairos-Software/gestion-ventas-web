@@ -290,7 +290,8 @@ document.addEventListener('DOMContentLoaded', function () {
             return `<span class="badge-vencimiento sin-fecha">Sin vencimiento</span>`;
         }
         const labels = { vencido: 'Vencido', por_vencer: 'Por vencer', ok: 'OK' };
-        return `<span class="badge-vencimiento ${l.estado_vencimiento}">${labels[l.estado_vencimiento]} · ${l.fecha_vencimiento}</span>`;
+        const baja = l.baja_el ? `<div class="inv-variante-desc">Se da de baja el ${l.baja_el}</div>` : '';
+        return `<span class="badge-vencimiento ${l.estado_vencimiento}">${labels[l.estado_vencimiento]} · ${l.fecha_vencimiento}</span>${baja}`;
     }
 
     // ══════════════════════════════════════════════════════════
@@ -784,6 +785,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         <td>
                             <span class="inv-nowrap">${p.motivo_label}${p.automatica ? ' <span class="badge-vencimiento sin-fecha">auto</span>' : ''}</span>
                             ${p.motivo_detalle && !p.automatica ? `<div class="inv-variante-desc">${escapeHtml(p.motivo_detalle)}</div>` : ''}
+                            ${parseFloat(p.cantidad_recuperada) > 0 ? `<div class="inv-variante-desc">${KaiFormat.cantidad(p.cantidad_recuperada)} se vendieron igual y se descontaron</div>` : ''}
                         </td>
                         <td>$${KaiFormat.moneda(p.costo_total)}</td>
                         <td>$${KaiFormat.moneda(p.precio_venta_total)}</td>

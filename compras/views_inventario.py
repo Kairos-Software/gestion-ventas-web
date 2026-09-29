@@ -21,10 +21,12 @@ from datetime import timedelta
 
 from .models import (
     LoteCompra, Perdida, MotivoPerdida, registrar_perdida, procesar_lotes_vencidos,
+    fecha_baja_vencido,
     Fraccionamiento, fraccionar,
 )
 from productos.models import Producto, cantidad_valida_para_unidad
 from core.permisos import chequear_permiso
+from core.models import config_vencidos
 from core.services_estadisticas.productos import _unidad_corta
 
 
@@ -104,6 +106,7 @@ class ListarLotesAjax(LoginRequiredMixin, View):
 
         qs = qs.order_by(F('fecha_vencimiento').asc(nulls_last=True), '-fecha_compra')
 
+        self._config_vencidos = config_vencidos()
         return JsonResponse({'results': [self._serializar(l) for l in qs]})
 
     # ── Serialización ────────────────────────────────────────────
@@ -114,9 +117,15 @@ class ListarLotesAjax(LoginRequiredMixin, View):
 
         hoy = timezone.localtime().date()
         estado_vencimiento = None
+        baja_el = None
         if lote.fecha_vencimiento:
             if lote.fecha_vencimiento < hoy:
                 estado_vencimiento = 'vencido'
+                # Cuándo lo va a dar de baja el sistema (si la baja
+                # automática está prendida) — ver ConfiguracionVentas.
+                baja_auto, dias_tol = getattr(self, '_config_vencidos', None) or config_vencidos()
+                if baja_auto:
+                    baja_el = fecha_baja_vencido(lote.fecha_vencimiento, dias_tol).strftime('%d/%m/%Y')
             elif lote.fecha_vencimiento <= hoy + timedelta(days=7):
                 estado_vencimiento = 'por_vencer'
             else:
@@ -144,6 +153,7 @@ class ListarLotesAjax(LoginRequiredMixin, View):
             'fecha_vencimiento':     lote.fecha_vencimiento.strftime('%d/%m/%Y') if lote.fecha_vencimiento else None,
             'fecha_vencimiento_iso': lote.fecha_vencimiento.isoformat() if lote.fecha_vencimiento else None,
             'estado_vencimiento':    estado_vencimiento,
+            'baja_el':               baja_el,
             'fecha_compra':          lote.fecha_compra.strftime('%d/%m/%Y'),
             'es_perecedero':         producto.es_perecedero if producto else False,
         }
@@ -295,6 +305,7 @@ class ListarPerdidasAjax(LoginRequiredMixin, View):
             'motivo_label':     p.get_motivo_display(),
             'motivo_detalle':   p.motivo_detalle,
             'automatica':       p.automatica,
+            'cantidad_recuperada': str(p.cantidad_recuperada),
             'registrado_por':   p.registrado_por.get_full_name() if p.registrado_por else ('Sistema' if p.automatica else '—'),
         } for p in qs]
 

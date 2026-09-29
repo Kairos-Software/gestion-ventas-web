@@ -524,6 +524,17 @@
     margin-top: .35rem;
 }
 
+/* Mercadería vencida en el carrito (lote vencido o ya dado de baja). */
+.vta-cart-venc-msg {
+    color: #B45309;
+    background: rgba(245, 158, 11, .1);
+    border-radius: 6px;
+    padding: .3rem .5rem;
+    font-size: .74rem;
+    font-weight: 500;
+    margin-top: .35rem;
+}
+
 .vta-cart-row-tags {
     display: flex;
     align-items: center;

@@ -40,7 +40,7 @@
             </article>
             <article class="est-summary-highlight est-stock-highlight--expired {% if perdidas_actuales.cantidad_lotes_vencidos %}is-negative{% endif %}">
                 <div class="est-summary-label-row"><span class="est-summary-highlight-label">Lotes ya vencidos</span><button type="button" class="kai-help-btn" data-help-target="ayuda_stock_vencido" aria-label="Qué significa lotes ya vencidos" aria-controls="ayuda_stock_vencido">?</button></div>
-                <div class="kai-help-popover" id="ayuda_stock_vencido">Son lotes vencidos que todavía figuran con unidades en el depósito.</div>
+                <div class="kai-help-popover" id="ayuda_stock_vencido">Son lotes vencidos que todavía no se dieron de baja: están dentro de los días de tolerancia, o tenés la baja automática apagada (Configuración → Ventas). Se pueden vender, con aviso en el carrito.</div>
                 <strong class="est-summary-highlight-value">{{ perdidas_actuales.cantidad_lotes_vencidos }}</strong>
                 <p>${{ perdidas_actuales.total_vencido|pesos }} al costo</p>
                 <a href="#estStockVencidos">Ver lotes <span aria-hidden="true">→</span></a>
@@ -93,7 +93,7 @@
         <div class="est-stock-section-heading"><div><h2 id="estStockOtros">Más sobre el stock de hoy</h2></div></div>
         <div class="est-stock-detail-grid">
             <details class="est-sales-detail" id="estStockVencidos">
-                <summary><span><strong>Lotes ya vencidos</strong><small>{{ perdidas_actuales.cantidad_lotes_vencidos }} con stock en el depósito</small></span></summary>
+                <summary><span><strong>Vencidos sin dar de baja</strong><small>{{ perdidas_actuales.cantidad_lotes_vencidos }} lote{{ perdidas_actuales.cantidad_lotes_vencidos|pluralize }} con stock en el depósito, que todavía se puede vender</small></span></summary>
                 <div class="est-sales-detail-body">
                     {% for lote in perdidas_actuales.lotes_vencidos %}<div class="est-stock-detail-row"><div><strong>{{ lote.producto.nombre }}</strong><small>Lote {{ lote.codigo }} · venció {{ lote.fecha_vencimiento|date:'d/m/Y' }} · {{ lote.cantidad_actual|cantidad }} unidades</small></div><b>${{ lote.valor_perdido|pesos }}</b></div>{% empty %}<p class="est-sales-empty">No hay lotes vencidos con stock.</p>{% endfor %}
                     {% if perdidas_actuales.cantidad_lotes_vencidos > perdidas_actuales.lotes_vencidos|length %}<p class="est-sales-note">Se muestran los primeros {{ perdidas_actuales.lotes_vencidos|length }} lotes.</p>{% endif %}
@@ -125,10 +125,10 @@
         <div class="est-stock-period-grid">
             <article class="est-sales-panel">
                 <div class="est-sales-panel-heading"><div><h3>Vencidos y mermas</h3><p>Valor estimado al costo en el período</p></div><button type="button" class="kai-help-btn" data-help-target="ayuda_stock_perdidas" aria-label="Qué significa vencidos y mermas" aria-controls="ayuda_stock_perdidas">?</button></div>
-                <div class="kai-help-popover" id="ayuda_stock_perdidas">Es el costo de los lotes que vencieron y siguen en stock, más las mermas registradas en esas fechas.</div>
+                <div class="kai-help-popover" id="ayuda_stock_perdidas">Es el costo de lo que se dio de baja en esas fechas: lotes vencidos por un lado, roturas y otras pérdidas por el otro. Si algo dado de baja por vencimiento se vendió igual, ya está descontado.</div>
                 <strong class="est-stock-period-total">${{ perdidas_periodo.total_perdidas_periodo|pesos }}</strong>
                 <div class="est-stock-period-split"><div><span>Vencidos</span><strong>${{ perdidas_periodo.total_vencido_periodo|pesos }}</strong><small>{{ perdidas_periodo.cantidad_lotes_vencidos_periodo }} lote{{ perdidas_periodo.cantidad_lotes_vencidos_periodo|pluralize }}</small></div><div><span>Roturas y mermas</span><strong>${{ perdidas_periodo.total_mermas_periodo|pesos }}</strong><small>{{ perdidas_periodo.unidades_mermas_periodo|cantidad }} unidad{{ perdidas_periodo.unidades_mermas_periodo|pluralize:"es" }} perdida{{ perdidas_periodo.unidades_mermas_periodo|pluralize }}</small></div></div>
-                {% if perdidas_periodo.lotes_vencidos_periodo %}<details class="est-sales-expand"><summary>Ver lotes vencidos en el período</summary><div class="est-stock-period-lots">{% for lote in perdidas_periodo.lotes_vencidos_periodo %}<div class="est-stock-detail-row"><div><strong>{{ lote.producto.nombre }}</strong><small>Lote {{ lote.codigo }} · {{ lote.fecha_vencimiento|date:'d/m/Y' }} · {{ lote.cantidad_actual|cantidad }} unidades</small></div><b>${{ lote.valor_perdido|pesos }}</b></div>{% endfor %}</div>{% if perdidas_periodo.cantidad_lotes_vencidos_periodo > perdidas_periodo.lotes_vencidos_periodo|length %}<p class="est-sales-note">Se muestran los primeros {{ perdidas_periodo.lotes_vencidos_periodo|length }} lotes.</p>{% endif %}</details>{% endif %}
+                {% if perdidas_periodo.lotes_vencidos_periodo %}<details class="est-sales-expand"><summary>Ver lotes vencidos en el período</summary><div class="est-stock-period-lots">{% for p in perdidas_periodo.lotes_vencidos_periodo %}<div class="est-stock-detail-row"><div><strong>{{ p.producto_nombre_snapshot }}</strong><small>Lote {{ p.lote_codigo_snapshot }} · dado de baja el {{ p.fecha|date:'d/m/Y' }} · {{ p.cantidad|cantidad }} unidades{% if p.cantidad_recuperada %} ({{ p.cantidad_recuperada|cantidad }} se vendieron igual){% endif %}</small></div><b>${{ p.valor_perdido|pesos }}</b></div>{% endfor %}</div>{% if perdidas_periodo.cantidad_lotes_vencidos_periodo > perdidas_periodo.lotes_vencidos_periodo|length %}<p class="est-sales-note">Se muestran los primeros {{ perdidas_periodo.lotes_vencidos_periodo|length }} lotes.</p>{% endif %}</details>{% endif %}
             </article>
 
             <article class="est-sales-panel">

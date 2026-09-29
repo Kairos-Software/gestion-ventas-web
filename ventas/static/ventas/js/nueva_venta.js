@@ -469,6 +469,9 @@ function _agregarResultado(fila) {
                 combinacion_pk: combos[0].combinacion_pk,
                 variante_desc:  combos[0].nombre,
                 stock_actual:   combos[0].stock_actual,
+                vencido_cantidad:    combos[0].vencido_cantidad,
+                vencido_fecha:       combos[0].vencido_fecha,
+                recuperable_vencido: combos[0].recuperable_vencido,
             });
         } else if (combos.length > 1) {
             _toast('Elegí la variante', `"${fila.nombre}" tiene varias variantes activas — elegí cuál vendés.`);
@@ -479,6 +482,9 @@ function _agregarResultado(fila) {
                 variante_desc:  c.nombre,
                 nombre:         `${fila.nombre} — ${c.nombre}`,
                 stock_actual:   c.stock_actual,
+                vencido_cantidad:    c.vencido_cantidad,
+                vencido_fecha:       c.vencido_fecha,
+                recuperable_vencido: c.recuperable_vencido,
             })));
         } else {
             _toast('Sin variantes activas', `"${fila.nombre}" no tiene ninguna variante activa cargada.`);
@@ -577,6 +583,10 @@ function _agregarFila(fila) {
         // sin control de inventario) nunca se valida.
         stock_actual:    fila.gestiona_stock === false ? null : parseFloat(fila.stock_actual),
         gestiona_stock:  fila.gestiona_stock !== false,
+        // Lotes vencidos (ver BuscarProductoAjax._info_vencidos).
+        vencido_cantidad:    parseFloat(fila.vencido_cantidad) || 0,
+        vencido_fecha:       fila.vencido_fecha || null,
+        recuperable_vencido: parseFloat(fila.recuperable_vencido) || 0,
         precio:          fila.precio_venta ?? '',
         moneda:          fila.moneda || 'ARS',
         descuento:       0,
@@ -913,7 +923,30 @@ function _txtTagDesc(item) {
  *  trajo la búsqueda, no reemplaza esa validación). */
 function _stockInsuficiente(item) {
     if (!item.gestiona_stock || item.stock_actual == null) return false;
-    return (parseFloat(item.cantidad) || 0) > item.stock_actual;
+    return (parseFloat(item.cantidad) || 0) > _stockVendible(item);
+}
+
+/** Stock + lo dado de baja por vencimiento que se puede recuperar al
+ *  venderlo (el servidor lo descuenta de esa pérdida al confirmar). */
+function _stockVendible(item) {
+    return (item.stock_actual || 0) + (item.recuperable_vencido || 0);
+}
+
+/** Aviso de mercadería vencida en el carrito: lo que se va a vender de
+ *  un lote vencido (sale primero) o de lo ya dado de baja. */
+function _avisoVencido(item) {
+    if (!item.gestiona_stock || item.stock_actual == null) return '';
+    const cant = parseFloat(item.cantidad) || 0;
+    const partes = [];
+    if (item.vencido_cantidad > 0) {
+        const n = Math.min(cant, item.vencido_cantidad);
+        partes.push(`${KaiFormat.cantidad(n)} ${n === 1 ? 'sale' : 'salen'} de un lote vencido el ${item.vencido_fecha}.`);
+    }
+    const deBaja = Math.min(Math.max(0, cant - Math.max(0, item.stock_actual)), item.recuperable_vencido || 0);
+    if (deBaja > 0) {
+        partes.push(`${KaiFormat.cantidad(deBaja)} ya se ${deBaja === 1 ? 'había' : 'habían'} dado de baja por vencimiento: se descuenta${deBaja === 1 ? '' : 'n'} de esa pérdida.`);
+    }
+    return partes.join(' ');
 }
 
 function _carritoTieneStockInsuficiente() {
@@ -938,9 +971,23 @@ function _actualizarAvisoStockFila(fila, item) {
             const mid = fila.querySelector('.vta-cart-row-mid');
             if (mid) mid.insertAdjacentElement('afterend', aviso);
         }
-        aviso.textContent = `Stock disponible: ${item.stock_actual}`;
+        aviso.textContent = `Stock disponible: ${KaiFormat.cantidad(_stockVendible(item))}`;
     } else if (aviso) {
         aviso.remove();
+    }
+
+    const txtVenc = _avisoVencido(item);
+    let avisoV = fila.querySelector('.vta-cart-venc-msg');
+    if (txtVenc) {
+        if (!avisoV) {
+            avisoV = document.createElement('div');
+            avisoV.className = 'vta-cart-venc-msg';
+            const ancla = fila.querySelector('.vta-cart-alert-msg') || fila.querySelector('.vta-cart-row-mid');
+            if (ancla) ancla.insertAdjacentElement('afterend', avisoV);
+        }
+        avisoV.textContent = txtVenc;
+    } else if (avisoV) {
+        avisoV.remove();
     }
 }
 
@@ -1019,7 +1066,8 @@ function _renderCarrito() {
                 ${bloqueado ? '' : `<button type="button" class="vta-cart-row-edit" data-act="adv">${item.advOpen ? 'Ocultar' : 'Desc / oferta'}</button>`}
                 <div class="vta-cart-row-sub">${_tieneDesc(item) ? `<s>${_fmt(base, item.moneda)}</s>` : ''}${_fmt(sub, item.moneda)}</div>
             </div>
-            ${insuf ? `<div class="vta-cart-alert-msg">Stock disponible: ${item.stock_actual}</div>` : ''}
+            ${insuf ? `<div class="vta-cart-alert-msg">Stock disponible: ${KaiFormat.cantidad(_stockVendible(item))}</div>` : ''}
+            ${_avisoVencido(item) ? `<div class="vta-cart-venc-msg">${_esc(_avisoVencido(item))}</div>` : ''}
             ${tag ? `<div class="vta-cart-row-tags">${tag}</div>` : ''}
             ${!bloqueado && item.advOpen ? `
             <div class="vta-cart-row-adv open">

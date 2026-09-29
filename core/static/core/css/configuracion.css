@@ -755,3 +755,16 @@ html { scroll-behavior: smooth; }
         inset: 11px 2px;
     }
 }
+
+/* Configuración → Ventas: días de tolerancia de lotes vencidos */
+.config-vencidos-dias {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem 0.75rem;
+    margin-top: 0.75rem;
+    font-size: 0.82rem;
+}
+.config-vencidos-dias label { font-weight: 600; color: var(--text-primary); }
+.config-vencidos-dias input { width: 5.5rem; }
+.config-vencidos-dias small { color: var(--text-muted); flex-basis: 100%; }

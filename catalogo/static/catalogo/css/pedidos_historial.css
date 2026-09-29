@@ -21,3 +21,6 @@
     font-size: 0.82rem;
     color: var(--text-primary);
 }
+
+/* "Venta sin confirmar": tocaron Vender pero la venta sigue en borrador. */
+.ped-venta-curso { display: block; margin-top: 0.25rem; font-size: 0.72rem; }

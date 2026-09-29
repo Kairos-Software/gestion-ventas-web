@@ -949,7 +949,7 @@ class Pedido(models.Model):
     venta = models.ForeignKey(
         'ventas.Venta', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='pedido_origen',
-        help_text='Borrador de venta creado al tocar "Vender". Null hasta ese momento.',
+        help_text='Venta creada al tocar "Vender". El pedido pasa a VENDIDO recién cuando se confirma.',
     )
     fecha_alta = models.DateTimeField(auto_now_add=True)
 
@@ -971,6 +971,23 @@ class Pedido(models.Model):
         if self.descuento_global_pct:
             subtotal = subtotal * (1 - self.descuento_global_pct / 100)
         return subtotal
+
+
+def marcar_pedidos_de_venta(venta, confirmada):
+    """
+    Sincroniza el estado del pedido con el de su venta. Confirmada →
+    VENDIDO; anulada → vuelve a PENDIENTE (el pedido no se concretó y se
+    puede volver a vender o descartar). Lo llaman Venta.confirmar() y
+    Venta.anular(), dentro de su misma transacción.
+    """
+    if confirmada:
+        Pedido.objects.filter(venta=venta).exclude(estado=EstadoPedido.VENDIDO).update(
+            estado=EstadoPedido.VENDIDO, leido=True,
+        )
+    else:
+        Pedido.objects.filter(venta=venta, estado=EstadoPedido.VENDIDO).update(
+            estado=EstadoPedido.PENDIENTE,
+        )
 
 
 class ItemPedido(models.Model):

@@ -201,6 +201,8 @@ class ConfiguracionVentasGuardarAjax(LoginRequiredMixin, View):
     POST JSON — sección Configuración → Ventas. Acepta, cada uno opcional:
       - permitir_venta_sin_stock: bool
       - modo_cobranza: 'individual' | 'cuenta_corriente'
+      - vencidos_baja_automatica: bool
+      - vencidos_dias_tolerancia: int 0-365
     Solo se toca lo que viene en el body (el front manda un campo por vez).
     """
 
@@ -227,12 +229,28 @@ class ConfiguracionVentasGuardarAjax(LoginRequiredMixin, View):
             config.modo_cobranza = valor
             campos.append('modo_cobranza')
 
+        if 'vencidos_baja_automatica' in body:
+            config.vencidos_baja_automatica = bool(body.get('vencidos_baja_automatica'))
+            campos.append('vencidos_baja_automatica')
+
+        if 'vencidos_dias_tolerancia' in body:
+            try:
+                dias = int(body.get('vencidos_dias_tolerancia'))
+            except (TypeError, ValueError):
+                return JsonResponse({'error': 'Los días de tolerancia tienen que ser un número entero.'}, status=400)
+            if not 0 <= dias <= 365:
+                return JsonResponse({'error': 'Los días de tolerancia van de 0 a 365.'}, status=400)
+            config.vencidos_dias_tolerancia = dias
+            campos.append('vencidos_dias_tolerancia')
+
         config.save(update_fields=campos)
 
         return JsonResponse({
             'ok': True,
             'permitir_venta_sin_stock': config.permitir_venta_sin_stock,
             'modo_cobranza': config.modo_cobranza,
+            'vencidos_baja_automatica': config.vencidos_baja_automatica,
+            'vencidos_dias_tolerancia': config.vencidos_dias_tolerancia,
         })
 
 

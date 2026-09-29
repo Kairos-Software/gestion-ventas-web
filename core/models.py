@@ -1557,6 +1557,23 @@ class ConfiguracionVentas(models.Model):
             'existente — solo cambia cómo se ve y se cobra.'
         ),
     )
+    vencidos_baja_automatica = models.BooleanField(
+        'Dar de baja los lotes vencidos', default=True,
+        help_text=(
+            'Si está activo, un lote vencido se da de baja solo como pérdida '
+            'por vencimiento, pasados los días de tolerancia. Si está '
+            'apagado, queda marcado como vencido hasta que se venda o se dé '
+            'de baja a mano.'
+        ),
+    )
+    vencidos_dias_tolerancia = models.PositiveSmallIntegerField(
+        'Días de tolerancia para vencidos', default=0,
+        help_text=(
+            'Días después del vencimiento en los que el lote todavía se '
+            'puede vender (con aviso en el carrito). 0 = se da de baja al '
+            'día siguiente de vencer.'
+        ),
+    )
     actualizado_el = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -1637,6 +1654,12 @@ class ConfiguracionLimiteContable(models.Model):
     def get_solo(cls):
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+
+def config_vencidos():
+    """(baja_automatica, dias_tolerancia) — ver ConfiguracionVentas."""
+    c = ConfiguracionVentas.get_solo()
+    return c.vencidos_baja_automatica, c.vencidos_dias_tolerancia
 
 
 def permite_venta_sin_stock():

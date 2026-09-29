@@ -289,6 +289,10 @@ class GestionProductosView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
+        # Lotes que pasaron su tolerancia de vencimiento → pérdida, antes de
+        # mostrar stock (ver compras.procesar_lotes_vencidos).
+        from compras.models import procesar_lotes_vencidos
+        procesar_lotes_vencidos()
 
         ctx['puede_crear']    = chequear_permiso(self.request.user, 'crear_productos')
         ctx['puede_editar']   = chequear_permiso(self.request.user, 'editar_productos')

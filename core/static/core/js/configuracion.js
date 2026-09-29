@@ -592,6 +592,41 @@ document.addEventListener('DOMContentLoaded', function () {
                 : 'Desactivado. Las ventas sin stock vuelven a estar bloqueadas.',
         );
 
+        const toggleVencidos = document.getElementById('idVencidosBaja');
+        const inputDias      = document.getElementById('idVencidosDias');
+        const _textoDias = (d) => d === 0 ? 'al día siguiente de vencer' : `${d} día${d === 1 ? '' : 's'} después de vencer`;
+        guardarPrefVenta(
+            toggleVencidos,
+            (on) => ({ vencidos_baja_automatica: on }),
+            (on) => on
+                ? `Activado. Los lotes se dan de baja ${_textoDias(parseInt(inputDias.value, 10) || 0)}.`
+                : 'Desactivado. Los lotes vencidos quedan en Inventario hasta que los vendas o los des de baja.',
+        );
+        if (inputDias && urlsV.guardar) {
+            inputDias.addEventListener('change', function () {
+                const dias = Math.max(0, Math.min(365, parseInt(inputDias.value, 10) || 0));
+                inputDias.value = dias;
+                if (msgV) { msgV.style.color = ''; msgV.textContent = 'Guardando…'; }
+                fetch(urlsV.guardar, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfV() },
+                    body: JSON.stringify({ vencidos_dias_tolerancia: dias }),
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) {
+                        if (msgV) { msgV.style.color = '#e11d48'; msgV.textContent = data.error; }
+                        return;
+                    }
+                    if (msgV) { msgV.style.color = '#16a34a'; msgV.textContent = `Guardado: se pueden vender hasta ${dias} día${dias === 1 ? '' : 's'} después del vencimiento.`; }
+                    if (window.KaiToast) KaiToast.show('Preferencia de ventas guardada.', 'success');
+                })
+                .catch(() => {
+                    if (msgV) { msgV.style.color = '#e11d48'; msgV.textContent = 'Error de conexión. Intentá de nuevo.'; }
+                });
+            });
+        }
+
         guardarPrefVenta(
             toggleCtaCte,
             (on) => ({ modo_cobranza: on ? 'cuenta_corriente' : 'individual' }),

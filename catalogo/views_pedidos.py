@@ -212,6 +212,10 @@ class PedidoVenderAjax(LoginRequiredMixin, View):
     ya existía) y devuelve la URL de Nueva Venta con ese borrador
     cargado, lista para confirmar — mismo mecanismo que "Editar carrito"
     en el historial de ventas (?editar=<pk>).
+
+    El pedido sigue PENDIENTE hasta que esa venta se confirma (ver
+    Venta.confirmar → marcar_pedidos_de_venta). Antes pasaba a VENDIDO
+    acá mismo, aunque la venta nunca se confirmara.
     """
 
     def post(self, request, pk):
@@ -226,8 +230,16 @@ class PedidoVenderAjax(LoginRequiredMixin, View):
                 status=400,
             )
 
+        # Ya vendido: "Ver venta" (campanita) lleva al detalle. Antes caía
+        # en el else de abajo y armaba OTRA venta con los mismos productos.
+        if pedido.estado == EstadoPedido.VENDIDO and pedido.venta_id:
+            return JsonResponse({'ok': True, 'redirect': reverse('ventas:detalle_venta', args=[pedido.venta_id])})
+
         if pedido.venta_id and pedido.venta.estado == EstadoVenta.BORRADOR:
             venta = pedido.venta
+            if not pedido.leido:
+                pedido.leido = True
+                pedido.save(update_fields=['leido'])
         else:
             with transaction.atomic():
                 venta = Venta.objects.create(
@@ -243,9 +255,8 @@ class PedidoVenderAjax(LoginRequiredMixin, View):
                         cantidad=item.cantidad, precio_unitario=item.precio_unitario,
                     )
                 pedido.venta = venta
-                pedido.estado = EstadoPedido.VENDIDO
                 pedido.leido = True
-                pedido.save(update_fields=['venta', 'estado', 'leido'])
+                pedido.save(update_fields=['venta', 'leido'])
 
         url = reverse('ventas:nueva_venta') + f'?editar={venta.pk}'
         return JsonResponse({'ok': True, 'redirect': url})
@@ -271,7 +282,7 @@ class PedidosHistorialView(LoginRequiredMixin, TemplateView):
             ctx['sin_permiso'] = True
             return ctx
 
-        qs = Pedido.objects.prefetch_related('items').order_by('-fecha_alta')
+        qs = Pedido.objects.select_related('venta').prefetch_related('items').order_by('-fecha_alta')
 
         q = self.request.GET.get('q', '').strip()
         if q:

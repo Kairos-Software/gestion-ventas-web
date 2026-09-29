@@ -169,11 +169,17 @@ def _eventos_mermas(producto, combinacion_pk):
 
     eventos = []
     for p in qs:
+        # Toda la pérdida se vendió igual (compras.recuperar_perdidas_vencimiento):
+        # esas unidades ya figuran como venta, no queda nada perdido.
+        if p.cantidad <= 0:
+            continue
         detalle = p.get_motivo_display()
         if p.motivo_detalle:
             detalle += f' · {p.motivo_detalle}'
         if p.lote_codigo_snapshot:
             detalle += f' · Lote {p.lote_codigo_snapshot}'
+        if p.cantidad_recuperada:
+            detalle += f' · {p.cantidad_recuperada.normalize():f} se vendieron igual y se descontaron'
 
         eventos.append(_evento(
             fecha_orden      = (p.fecha, p.fecha_alta),

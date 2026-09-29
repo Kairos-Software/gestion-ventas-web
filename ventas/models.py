@@ -11,7 +11,7 @@ from productos.models import Producto, Moneda, CondicionPago, CombinacionVariant
 from core.models import (
     Cliente, AmbienteArca, recalcular_scoring_cliente, permite_venta_sin_stock,
 )
-from compras.models import LoteCompra
+from compras.models import LoteCompra, procesar_lotes_vencidos, recuperar_perdidas_vencimiento
 
 
 def _programar_recalculo_scoring(cliente):
@@ -120,6 +120,11 @@ def _lotes_candidatos(producto, combinacion):
     return list(qs.order_by('fecha_compra', 'fecha_alta'))
 
 
+def _cant_txt(valor):
+    """5.000 → "5"; 2.500 → "2,5" (para los avisos al vendedor)."""
+    return f'{Decimal(valor).normalize():f}'.replace('.', ',')
+
+
 def _aviso_venta_sin_stock(nombre_desc, cantidad):
     return (
         f'"{nombre_desc}": se vendieron {cantidad} unidad(es) SIN STOCK '
@@ -187,6 +192,11 @@ def _resolver_y_consumir_lotes(item, producto=None, combinacion=None, cantidad=N
             costo_unitario_snapshot = producto.costo,
         )
 
+    # Lo que ya pasó su tolerancia de vencimiento se da de baja ANTES de
+    # elegir lotes (si nadie abrió Inventario hoy, seguía disponible).
+    procesar_lotes_vencidos(producto=producto)
+    hoy = timezone.localtime().date()
+
     lotes = _lotes_candidatos(producto, combinacion)
 
     if es_llamada_normal and item.tipo_escaneo == TipoResolucionLote.LOTE_ESPECIFICO and item.lote_escaneado_id:
@@ -199,14 +209,6 @@ def _resolver_y_consumir_lotes(item, producto=None, combinacion=None, cantidad=N
                 f'Volvé a escanear un código de lote válido.'
             )
         lotes = [prioritario] + [l for l in lotes if l.pk != prioritario.pk]
-
-    if not lotes:
-        if permitir_sin_stock:
-            return (
-                [_consumo_sin_stock(cantidad)],
-                [_aviso_venta_sin_stock(nombre_desc, cantidad)],
-            )
-        raise ValueError(f'No hay lotes con stock disponible para "{nombre_desc}".')
 
     restante   = cantidad
     consumos   = []
@@ -221,6 +223,14 @@ def _resolver_y_consumir_lotes(item, producto=None, combinacion=None, cantidad=N
             continue
 
         tomar = min(restante, disponible)
+
+        # FEFO: si hay un lote vencido (dentro de la tolerancia, o con la
+        # baja automática apagada) sale primero — y se avisa.
+        if lote.fecha_vencimiento and lote.fecha_vencimiento < hoy:
+            avisos.append(
+                f'"{nombre_desc}": {_cant_txt(tomar)} unidad(es) salieron del lote {lote.codigo}, '
+                f'vencido el {lote.fecha_vencimiento:%d/%m/%Y}.'
+            )
 
         hay_mas_lotes = any(l.cantidad_actual > 0 for l in lotes[idx + 1:])
         if es_primero and tomar < restante and hay_mas_lotes:
@@ -250,6 +260,32 @@ def _resolver_y_consumir_lotes(item, producto=None, combinacion=None, cantidad=N
             costo_unitario_snapshot = costo_unitario_venta,
         ))
         restante -= tomar
+
+    # Sin stock en lotes, pero con mercadería dada de baja por vencimiento:
+    # si se está vendiendo, es que estaba en el local. Se recupera de la
+    # pérdida (que queda solo por lo que se tiró de verdad).
+    if restante > 0:
+        for lote, tomado, perdida in recuperar_perdidas_vencimiento(producto, combinacion, restante):
+            lote.descontar_stock(tomado)
+            costo = lote.costo_unitario
+            if lote.item_compra_id is None and producto.costo is not None:
+                costo = producto.costo
+            consumos.append(ConsumoLoteVenta.objects.create(
+                item_venta              = item,
+                lote                    = lote,
+                cantidad                = tomado,
+                lote_codigo_snapshot    = lote.codigo,
+                costo_unitario_snapshot = costo,
+            ))
+            avisos.append(
+                f'"{nombre_desc}": se vendieron {_cant_txt(tomado)} unidad(es) del lote {lote.codigo}, '
+                f'que se había dado de baja por vencimiento el {perdida.fecha:%d/%m/%Y}. '
+                f'Se descontaron de esa pérdida.'
+            )
+            restante -= tomado
+
+    if restante > 0 and not consumos and not permitir_sin_stock:
+        raise ValueError(f'No hay lotes con stock disponible para "{nombre_desc}".')
 
     if restante > 0:
         if permitir_sin_stock:
@@ -1081,6 +1117,10 @@ class Venta(models.Model):
             'estado', 'total', 'confirmado_por', 'fecha_confirmacion', 'medio_pago',
         ])
 
+        # Si la venta salió de un pedido del catálogo, recién ahora está vendido.
+        from catalogo.models import marcar_pedidos_de_venta
+        marcar_pedidos_de_venta(self, confirmada=True)
+
         if pagos_resueltos is not None:
             self.pagos.all().delete()
             for p in pagos_resueltos:
@@ -1173,6 +1213,9 @@ class Venta(models.Model):
         self.anulado_por    = anulado_por
         self.fecha_anulacion = timezone.now()
         self.save(update_fields=['estado', 'anulado_por', 'fecha_anulacion'])
+
+        from catalogo.models import marcar_pedidos_de_venta
+        marcar_pedidos_de_venta(self, confirmada=False)
 
         # Sincronizar movimiento de caja grande
         from caja.models import sincronizar_movimiento_venta

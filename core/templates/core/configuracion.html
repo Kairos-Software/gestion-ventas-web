@@ -9,7 +9,7 @@
 {% block breadcrumb %}<strong>Configuración</strong>{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'core/css/configuracion.css' %}?v=20260904">
+<link rel="stylesheet" href="{% static 'core/css/configuracion.css' %}?v=20260929a">
 {% endblock %}
 
 {% block content %}
@@ -437,6 +437,32 @@
                 </div>
                 <label class="toggle-switch">
                     <input type="checkbox" id="idModoCuentaCorriente" {% if configuracion_ventas.modo_cobranza == 'cuenta_corriente' %}checked{% endif %}>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+
+            <div class="config-row config-setting-row" id="configVencidosRow">
+                <div class="config-row-info">
+                    <div class="config-row-label">Dar de baja los lotes vencidos</div>
+                    <div class="config-row-desc">
+                        Activado (por defecto): cuando un lote vence, se da de baja solo como
+                        <strong>pérdida por vencimiento</strong>, pasados los días de tolerancia de abajo.
+                        <br>
+                        Apagado: el lote queda marcado como vencido en Inventario hasta que se venda
+                        o lo des de baja a mano.
+                        <br>
+                        Mientras un lote vencido se puede vender, el carrito avisa al agregarlo.
+                        Si se vende algo que ya se había dado de baja, se descuenta de esa pérdida.
+                    </div>
+                    <div class="config-vencidos-dias">
+                        <label for="idVencidosDias">Días de tolerancia después del vencimiento</label>
+                        <input type="number" id="idVencidosDias" class="form-control form-control-sm" min="0" max="365" step="1"
+                               value="{{ configuracion_ventas.vencidos_dias_tolerancia }}">
+                        <small>0 = se da de baja al día siguiente de vencer.</small>
+                    </div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="idVencidosBaja" {% if configuracion_ventas.vencidos_baja_automatica %}checked{% endif %}>
                     <span class="toggle-track"></span>
                 </label>
             </div>
@@ -934,5 +960,5 @@
         guardar: "{% url 'core:config_limite_contable_guardar' %}",
     };
 </script>
-<script src="{% static 'core/js/configuracion.js' %}?v=20260907"></script>
+<script src="{% static 'core/js/configuracion.js' %}?v=20260929a"></script>
 {% endblock %}

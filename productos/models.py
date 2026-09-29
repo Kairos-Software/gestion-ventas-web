@@ -1366,6 +1366,7 @@ class TipoMovimiento(models.TextChoices):
     TRANSFERENCIA_E = 'transf_e',     'Transferencia (entrada)'
     INVENTARIO_E    = 'inventario_e', 'Inventario inicial'
     FRACCIONAMIENTO_E = 'fracc_e',    'Fraccionamiento (paquete armado)'
+    RECUPERO_PERDIDA  = 'recupero_perd', 'Recupero de pérdida (vencido vendido)'
     # Salidas
     VENTA           = 'venta',        'Venta'
     AJUSTE_NEG      = 'ajuste_neg',   'Ajuste negativo (corrección)'
@@ -1383,6 +1384,7 @@ MOVIMIENTOS_ENTRADA = {
     TipoMovimiento.TRANSFERENCIA_E,
     TipoMovimiento.INVENTARIO_E,
     TipoMovimiento.FRACCIONAMIENTO_E,
+    TipoMovimiento.RECUPERO_PERDIDA,
 }
 
 

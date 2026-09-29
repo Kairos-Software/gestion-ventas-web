@@ -89,6 +89,11 @@ def resumen(request):
     if not chequear_permiso(request.user, 'ver_estadisticas'):
         return render(request, 'core/estadisticas/resumen.html', {'sin_permiso': True})
 
+    # Pérdidas por vencimiento al día antes de calcular (ver
+    # compras.procesar_lotes_vencidos: quedan fechadas cuando vencieron).
+    from compras.models import procesar_lotes_vencidos
+    procesar_lotes_vencidos()
+
     hoy = timezone.localtime().date()
     preset, desde, hasta = _resolver_rango(request, hoy)
 
@@ -290,6 +295,11 @@ def compras(request):
 def productos(request):
     if not chequear_permiso(request.user, 'ver_productos'):
         return render(request, 'core/estadisticas/productos.html', {'sin_permiso': True})
+
+    # Pérdidas por vencimiento al día antes de calcular (ver
+    # compras.procesar_lotes_vencidos: quedan fechadas cuando vencieron).
+    from compras.models import procesar_lotes_vencidos
+    procesar_lotes_vencidos()
 
     hoy = timezone.localtime().date()
     preset, desde, hasta = _resolver_rango(request, hoy)
