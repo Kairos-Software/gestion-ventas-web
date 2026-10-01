@@ -44,7 +44,11 @@ body::-webkit-scrollbar-thumb:hover { background: #A8420A; }
    ═══════════════════════════════════════════ */
 .manual-hero {
     position: relative;
-    overflow: hidden;
+    /* Sin overflow:hidden: la lista de resultados del buscador tiene que
+       poder salir del recuadro. El anillo decorativo (::after) se recorta
+       solo con su propio clip-path. z-index: que la lista quede encima
+       del contenido que sigue. */
+    z-index: 15;   /* sobre el índice sticky del celular (10), bajo la barra del sistema (99) */
     display: grid;
     grid-template-columns: minmax(0, 1.1fr) minmax(280px, 1fr);
     gap: 1.25rem 2rem;
@@ -65,6 +69,7 @@ body::-webkit-scrollbar-thumb:hover { background: #A8420A; }
     position: absolute;
     z-index: -1;
     inset: 0;
+    border-radius: inherit;
     opacity: 0.18;
     background-image:
         linear-gradient(rgba(255,255,255,0.11) 1px, transparent 1px),
@@ -73,16 +78,20 @@ body::-webkit-scrollbar-thumb:hover { background: #A8420A; }
     mask-image: linear-gradient(90deg, transparent 20%, #000 100%);
 }
 
+/* Anillo decorativo arriba a la derecha, dibujado como fondo para que no
+   se salga del recuadro (antes era un círculo con borde que sobresalía y
+   lo recortaba overflow:hidden — que también recortaba la lista del
+   buscador). Mismo anillo: centro a 85px del borde derecho y 35px del
+   superior, radio 80-150px. */
 .manual-hero::after {
     content: "";
     position: absolute;
     z-index: -1;
-    top: -115px;
-    right: -65px;
-    width: 300px;
-    height: 300px;
-    border: 70px solid rgba(255,255,255,0.045);
-    border-radius: 50%;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: radial-gradient(circle at calc(100% - 85px) 35px,
+        transparent 80px, rgba(255,255,255,0.045) 80px 150px, transparent 150px);
 }
 
 .manual-hero-kicker {
@@ -136,6 +145,7 @@ body::-webkit-scrollbar-thumb:hover { background: #A8420A; }
 
 .manual-search-icon {
     position: absolute;
+    z-index: 1;   /* el input con foco se mueve (transform) y lo tapaba */
     left: 0.95rem;
     top: 24px;
     transform: translateY(-50%);
@@ -153,6 +163,65 @@ body::-webkit-scrollbar-thumb:hover { background: #A8420A; }
 
 .manual-search input:focus ~ .manual-search-hint,
 .manual-search input:not(:placeholder-shown) ~ .manual-search-hint { display: none; }
+
+/* ── Resultados del buscador (lista de temas) ── */
+.manual-search-panel {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(100% + 1.9rem);
+    z-index: 40;
+    background: var(--card-bg, #fff);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: 0 18px 44px rgba(0,0,0,0.28);
+    overflow: hidden;
+}
+.manual-resultados {
+    list-style: none;
+    margin: 0;
+    padding: 0.35rem;
+    max-height: min(60vh, 460px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+.manual-resultado {
+    display: grid;
+    gap: 0.15rem;
+    padding: 0.6rem 0.75rem;
+    border-radius: 10px;
+    cursor: pointer;
+}
+.manual-resultado[aria-selected="true"] { background: rgba(242,106,27,0.09); box-shadow: inset 3px 0 0 var(--brand-orange); }
+.manual-resultado-titulo { font-weight: 700; font-size: 0.9rem; line-height: 1.3; }
+.manual-resultado-donde { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.02em; color: var(--brand-orange-dark, #c2410c); text-transform: uppercase; }
+.manual-resultado-fragmento { font-size: 0.8rem; line-height: 1.45; color: var(--text-secondary, var(--text-muted)); }
+.manual-resultado mark { background: rgba(255,178,127,0.45); color: inherit; border-radius: 3px; padding: 0 1px; }
+.manual-resultado-vacio { padding: 0.9rem 0.85rem; font-size: 0.84rem; line-height: 1.5; color: var(--text-secondary, var(--text-muted)); }
+.manual-search-texto {
+    display: block;
+    width: 100%;
+    padding: 0.65rem 0.95rem;
+    border: 0;
+    border-top: 1px solid var(--border-color);
+    background: var(--bg-secondary, #f6f7f9);
+    color: var(--text-secondary, var(--text-muted));
+    font-size: 0.78rem;
+    text-align: left;
+    cursor: pointer;
+}
+.manual-search-texto:hover, .manual-search-texto:focus-visible { color: var(--text-primary); background: rgba(242,106,27,0.07); }
+
+/* El tema elegido destella un momento al llegar. */
+.manual-sub.is-encontrado, .manual-section.is-encontrado { animation: manualEncontrado 2.4s ease-out; border-radius: 12px; }
+@keyframes manualEncontrado {
+    0%, 30% { box-shadow: 0 0 0 3px rgba(242,106,27,0.55), 0 0 0 10px rgba(242,106,27,0.12); }
+    100% { box-shadow: 0 0 0 3px rgba(242,106,27,0), 0 0 0 10px rgba(242,106,27,0); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .manual-sub.is-encontrado, .manual-section.is-encontrado { animation: none; box-shadow: 0 0 0 3px rgba(242,106,27,0.55); }
+}
 
 .manual-search-estado {
     position: absolute;
@@ -1067,6 +1136,7 @@ mark.manual-mark { background: #FDE68A; color: #0D1B2A; padding: 0; }
 }
 
 @media (max-width: 900px) {
+    .manual-search-panel { top: calc(100% + 0.4rem); }
     .manual-hero { grid-template-columns: 1fr; padding: 1.55rem 1.35rem 1.25rem; margin-bottom: 1rem; }
     .manual-search-estado { position: static; margin-top: 0.4rem; }
     .manual-shell { display: block; }
@@ -1152,7 +1222,7 @@ mark.manual-mark { background: #FDE68A; color: #0D1B2A; padding: 0; }
 
 @media (max-width: 640px) {
     .manual-hero { border-radius: var(--radius-lg); }
-    .manual-hero::after { width: 220px; height: 220px; border-width: 52px; }
+    .manual-hero::after { background: radial-gradient(circle at calc(100% - 45px) -5px, transparent 58px, rgba(255,255,255,0.045) 58px 110px, transparent 110px); }
     .manual-hero-text p { font-size: 0.86rem; }
     .manual-search input { height: 50px; padding-left: 2.55rem; padding-right: 1rem; font-size: 0.88rem; }
     .manual-search-hint { display: none; }

@@ -2,8 +2,10 @@
    Manual de usuario:
    - Índice: arma el sub-índice de cada sección con sus <h3>, resalta la
      sección/subtema visible y muestra una barra de progreso de lectura.
-   - Buscador: filtra secciones y subtemas, resalta coincidencias (sin
-     distinguir tildes ni mayúsculas) y Enter salta a la siguiente.
+   - Buscador: entiende la consulta como un problema ("cambiar contraseña",
+     "devolver mercadería") y propone los temas que mejor responden (motor
+     en manual_buscador.js). Abajo de la lista, "Buscar el texto exacto"
+     hace la búsqueda literal de antes: filtra secciones y resalta.
    - Capturas: visor ampliado (<dialog>), recorte de capturas largas y
      globos de los marcadores numerados.
 */
@@ -182,8 +184,8 @@ document.addEventListener('DOMContentLoaded', function () {
         indiceActual = -1;
     }
 
-    function buscar() {
-        const termino = normalizar(input.value.trim());
+    function buscarTexto(texto) {
+        const termino = normalizar(texto.trim());
         limpiarBusqueda();
         if (termino.length < 2) { actualizarIndice(); return; }
         if (!nodosTexto) cargarNodos();
@@ -241,12 +243,139 @@ document.addEventListener('DOMContentLoaded', function () {
         estado.textContent = `Resultado ${indiceActual + 1} de ${rangos.length} · Enter para ir al siguiente`;
     }
 
-    if (input) {
+    // ── Búsqueda por tema (ver manual_buscador.js) ──
+    // Lo que escribe la persona se interpreta como un problema ("cambiar
+    // contraseña", "devolver mercadería"): se muestra una lista de los
+    // temas que mejor responden, y al elegir uno se va directo ahí.
+    const panel = document.getElementById('manualResultadosPanel');
+    const lista = document.getElementById('manualResultados');
+    const btnTexto = document.getElementById('manualBuscarTexto');
+    let indiceTemas = null;
+    let opciones = [];        // resultados mostrados
+    let activa = -1;
+    let ultimaRaices = new Set();
+
+    const esc = (t) => t.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    // Envuelve en <mark> las palabras del fragmento que coinciden.
+    function marcar(texto, raicesBuscadas) {
+        return esc(texto).replace(/[A-Za-zÀ-ÿñÑ0-9]+/g, w =>
+            raicesBuscadas.has(ManualBuscador.raiz(ManualBuscador.normalizar(w))) ? `<mark>${w}</mark>` : w);
+    }
+
+    function abrirPanel(abrir) {
+        panel.hidden = !abrir;
+        input.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+        if (!abrir) { activa = -1; input.removeAttribute('aria-activedescendant'); }
+    }
+
+    function marcarActiva(i) {
+        const items = lista.querySelectorAll('[role="option"]');
+        items.forEach((el, k) => el.setAttribute('aria-selected', k === i ? 'true' : 'false'));
+        activa = i;
+        if (i >= 0 && items[i]) {
+            input.setAttribute('aria-activedescendant', items[i].id);
+            items[i].scrollIntoView({ block: 'nearest' });
+        } else {
+            input.removeAttribute('aria-activedescendant');
+        }
+    }
+
+    function sugerir() {
+        const q = input.value.trim();
+        limpiarBusqueda();
+        if (q.length < 2) { abrirPanel(false); actualizarIndice(); return; }
+        if (!indiceTemas) indiceTemas = ManualBuscador.crearIndice(contenido);
+
+        const { resultados, raices } = ManualBuscador.buscar(indiceTemas, q, 7);
+        opciones = resultados;
+        ultimaRaices = raices;
+        btnTexto.textContent = `Buscar el texto exacto «${q}» en todo el manual`;
+
+        if (!resultados.length) {
+            lista.innerHTML = `<li class="manual-resultado-vacio" role="presentation">
+                No encontramos un tema parecido. Probá contarlo con otras palabras, por ejemplo
+                <em>«anular una venta»</em>, <em>«cargar un producto»</em> o <em>«cerrar la caja»</em>.</li>`;
+        } else {
+            lista.innerHTML = resultados.map((r, i) => {
+                const donde = r.tema.seccion ? `${esc(r.tema.seccion === 'Introducción' ? r.tema.titulo : r.tema.seccion)}` : '';
+                return `<li role="option" id="manualRes${i}" class="manual-resultado" aria-selected="false" data-i="${i}">
+                    <span class="manual-resultado-titulo">${marcar(r.tema.titulo, raices)}</span>
+                    ${donde ? `<span class="manual-resultado-donde">${donde}${r.tema.seccion === 'Introducción' ? ' · introducción' : ''}</span>` : ''}
+                    ${r.fragmento ? `<span class="manual-resultado-fragmento">${marcar(r.fragmento, raices)}</span>` : ''}
+                </li>`;
+            }).join('');
+        }
+        estado.textContent = resultados.length
+            ? `${resultados.length} ${resultados.length === 1 ? 'tema encontrado' : 'temas encontrados'} · ↑↓ para elegir, Enter para abrir`
+            : 'Sin temas parecidos';
+        abrirPanel(true);
+        marcarActiva(resultados.length ? 0 : -1);
+    }
+
+    function irATema(r) {
+        abrirPanel(false);
+        limpiarBusqueda();
+        actualizarIndice();
+        const destino = r.subtitulo || r.tema.destino;
+        let d = destino.closest('details');
+        while (d) { d.open = true; d = d.parentElement.closest('details'); }
+        destino.scrollIntoView({ block: 'start', behavior: movimientoReducido.matches ? 'auto' : 'smooth' });
+
+        // Resaltar el tema elegido y las palabras buscadas dentro de él.
+        contenido.querySelectorAll('.is-encontrado').forEach(el => el.classList.remove('is-encontrado'));
+        r.tema.el.classList.add('is-encontrado');
+        setTimeout(() => r.tema.el.classList.remove('is-encontrado'), 2600);
+        if (soportaHighlight) {
+            const rs = ManualBuscador.rangosEn(r.tema.el, ultimaRaices);
+            if (rs.length) CSS.highlights.set('manual-busqueda', new Highlight(...rs));
+        }
+        estado.textContent = `Mostrando: ${r.tema.titulo} · Esc para limpiar`;
+    }
+
+    if (input && panel) {
         let espera = null;
-        input.addEventListener('input', () => { clearTimeout(espera); espera = setTimeout(buscar, 160); });
+        input.addEventListener('input', () => { clearTimeout(espera); espera = setTimeout(sugerir, 140); });
+        input.addEventListener('focus', () => { if (input.value.trim().length >= 2 && opciones.length) abrirPanel(true); });
         input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') { e.preventDefault(); irAlSiguiente(); }
-            if (e.key === 'Escape') { input.value = ''; buscar(); }
+            const items = lista.querySelectorAll('[role="option"]');
+            if (e.key === 'ArrowDown' && !panel.hidden) {
+                e.preventDefault();
+                marcarActiva(items.length ? (activa + 1) % items.length : -1);
+            } else if (e.key === 'ArrowUp' && !panel.hidden) {
+                e.preventDefault();
+                marcarActiva(items.length ? (activa - 1 + items.length) % items.length : -1);
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (!panel.hidden && opciones[activa]) irATema(opciones[activa]);
+                else if (rangos.length) irAlSiguiente();
+                else if (input.value.trim().length >= 2) sugerir();
+            } else if (e.key === 'Escape') {
+                if (!panel.hidden) { abrirPanel(false); return; }
+                input.value = '';
+                limpiarBusqueda();
+                actualizarIndice();
+            }
+        });
+        // mousedown (no click): que el input no pierda el foco antes de elegir.
+        lista.addEventListener('mousedown', (e) => {
+            const li = e.target.closest('[role="option"]');
+            if (!li) return;
+            e.preventDefault();
+            irATema(opciones[Number(li.dataset.i)]);
+        });
+        lista.addEventListener('mousemove', (e) => {
+            const li = e.target.closest('[role="option"]');
+            if (li && Number(li.dataset.i) !== activa) marcarActiva(Number(li.dataset.i));
+        });
+        btnTexto.addEventListener('mousedown', (e) => e.preventDefault());
+        btnTexto.addEventListener('click', () => {
+            abrirPanel(false);
+            buscarTexto(input.value);
+            if (rangos.length) irAlSiguiente();
+        });
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.manual-search')) abrirPanel(false);
         });
         document.addEventListener('keydown', (e) => {
             const enCampo = e.target.closest('input, textarea, select, [contenteditable="true"]');

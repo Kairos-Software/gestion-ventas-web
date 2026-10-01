@@ -7,7 +7,7 @@
 {% block breadcrumb %}<strong>Manual de usuario</strong>{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'core/css/manual.css' %}?v=20260929a">
+<link rel="stylesheet" href="{% static 'core/css/manual.css' %}?v=20261001c">
 {% endblock %}
 
 {% block content %}
@@ -27,9 +27,15 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
     </div>
     <div class="manual-search" role="search">
         <svg class="manual-search-icon" width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.6"/><path d="M13.5 13.5L17.5 17.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-        <input type="search" id="manualBuscar" placeholder="Buscar una palabra o pantalla…" autocomplete="off" aria-label="Buscar en el manual" aria-describedby="manualBuscarEstado">
+        <input type="search" id="manualBuscar" placeholder="¿Qué necesitás hacer? Ej.: cambiar la contraseña, devolver mercadería…" autocomplete="off"
+               role="combobox" aria-expanded="false" aria-controls="manualResultados" aria-autocomplete="list"
+               aria-label="Buscar en el manual: escribí lo que necesitás hacer" aria-describedby="manualBuscarEstado">
         <kbd class="manual-kbd manual-search-hint" aria-hidden="true">/</kbd>
         <p class="manual-search-estado" id="manualBuscarEstado" aria-live="polite"></p>
+        <div class="manual-search-panel" id="manualResultadosPanel" hidden>
+            <ul class="manual-resultados" id="manualResultados" role="listbox" aria-label="Temas que responden tu búsqueda"></ul>
+            <button type="button" class="manual-search-texto" id="manualBuscarTexto">Buscar el texto exacto en todo el manual</button>
+        </div>
     </div>
     <div class="manual-quick">
         <span class="manual-quick-label">Empezá por acá:</span>
@@ -275,7 +281,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                 </div>
 
                 {% if ver.ventas_crear or ver.compras_crear %}
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="escaner lector pistola codigo de barras">
                     <h3>Buscar productos con lector de código de barras</h3>
                     <p>En {% if ver.ventas_crear and ver.compras_crear %}Nueva Venta y Nueva Compra{% elif ver.compras_crear %}Nueva Compra{% else %}Nueva Venta{% endif %} el buscador acepta texto (nombre, código, SKU) y también la lectura directa de un lector de código de barras. Si hay un único resultado, <span class="manual-kbd">Enter</span> lo agrega directo al carrito sin tocar el mouse. <span class="manual-kbd">Esc</span> cierra la lista de resultados.</p>
                 </div>
@@ -349,7 +355,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
 
                 {% if ver.config_empresa %}
                 <!-- ── Datos de la empresa ── -->
-                <div class="manual-sub" id="config-empresa">
+                <div class="manual-sub" data-claves="logo nombre del negocio cuit direccion razon social" id="config-empresa">
                     <h3>Datos de la empresa</h3>
                     <p>Estos datos aparecen en el <strong>ticket de venta</strong>, en la <strong>factura electrónica</strong> y en el <strong>catálogo online</strong>. Solo el <strong>Nombre comercial</strong> es obligatorio, pero si vas a facturar con ARCA completá todo.</p>
                     <div class="manual-stack">
@@ -380,7 +386,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
 
                 {% if ver.config_empresa %}
                 <!-- ── ARCA ── -->
-                <div class="manual-sub" id="config-arca">
+                <div class="manual-sub" data-claves="afip factura electronica certificado cae" id="config-arca">
                     <h3>Facturación electrónica (ARCA)</h3>
                     <p>Sirve para emitir facturas con <strong>CAE</strong>, es decir, válidas ante ARCA. No es obligatorio para vender: sin esto el sistema sigue funcionando con tickets internos.</p>
                     <p class="manual-tip">Empezá siempre en <strong>Testing / Homologación</strong> (facturas de prueba, sin valor fiscal) y pasá a <strong>Producción</strong> recién cuando una venta de prueba haya salido bien de punta a punta.</p>
@@ -552,7 +558,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                 {% endif %}
 
                 <!-- ── Apariencia ── -->
-                <div class="manual-sub" id="config-apariencia">
+                <div class="manual-sub" data-claves="modo oscuro tema colores claro" id="config-apariencia">
                     <h3>Apariencia</h3>
                     <p><strong>Sidebar contraído por defecto</strong>: si lo activás, el menú lateral arranca con solo íconos. Es lo mismo que tocar <span class="manual-ui">☰</span> en la barra superior, y queda guardado <strong>en esa computadora</strong> (cada PC recuerda su preferencia). El <strong>modo oscuro</strong> todavía no está disponible.</p>
                 </div>
@@ -620,7 +626,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                     <span class="manual-ui">Tu nombre</span> (arriba a la derecha)<span class="manual-where-sep" aria-hidden="true">›</span><span class="manual-ui">Mi perfil</span>
                 </div>
 
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="cambiar clave contraseña password nombre de usuario">
                     <h3>Cambiar tu usuario o tu contraseña</h3>
                     <p class="manual-lead">Arriba ves tus datos: nombre, email, perfil de permisos, puesto y último acceso. Esos datos los carga quien administra el personal. Vos cambiás solo dos cosas: <strong>tu nombre de usuario</strong> y <strong>tu contraseña</strong>.</p>
                     <figure class="manual-shot manual-shot--hotspots">
@@ -644,7 +650,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                     </ol>
                 </div>
 
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="olvide la clave no puedo entrar no me deja entrar recuperar contraseña bloqueado">
                     <h3>Si te olvidaste la contraseña</h3>
                     <p>No hace falta que nadie te la resetee: la recuperás vos desde la pantalla de ingreso, con un código que te llega por mail.</p>
                     <div class="manual-split">
@@ -721,7 +727,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                 </div>
 
                 {% if ver.usuarios_crear %}
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="agregar empleado nuevo usuario crear cuenta cajero vendedor">
                     <h3>Dar de alta a un empleado</h3>
                     <figure class="manual-shot manual-shot--hotspots">
                         <div class="manual-shot-frame">
@@ -752,7 +758,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                 {% endif %}
 
                 {% if ver.usuarios_editar or ver.usuarios_eliminar %}
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="dar de baja empleado echar despedir bloquear usuario">
                     <h3>Corregir datos o quitarle el acceso a alguien</h3>
                     {% if ver.usuarios_editar %}
                     <p><span class="manual-ui">Editar</span> abre la misma ventana del alta, con sus datos cargados. Podés cambiar el usuario, el email, el perfil y cualquier dato de las pestañas. <strong>La contraseña no se cambia desde acá</strong>: cada uno la cambia desde <a href="#seccion-mi-perfil">Mi perfil</a>, o la recupera con <span class="manual-ui">¿Olvidaste tu contraseña?</span> si se la olvidó (por eso conviene que tenga el email cargado).</p>
@@ -765,7 +771,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                 {% endif %}
 
                 {% if ver.usuarios_permisos %}
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="que puede hacer cada empleado restringir permitir">
                     <h3>Ajustar los permisos de una persona</h3>
                     <p>Con <span class="manual-ui">Permisos</span> en la fila de un empleado ves todo lo que puede hacer, agrupado por área. Cada interruptor es un permiso.</p>
                     <figure class="manual-shot manual-shot--hotspots">
@@ -893,7 +899,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
 
                 {% if ver.ventas_crear %}
                 <!-- ── Cargar productos ── -->
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="agregar productos al carrito escanear">
                     <h3>Cargar los productos</h3>
                     <ol class="manual-steps">
                         <li><div>Escaneá el producto con el lector o escribí parte del nombre o del código. Si hay un solo resultado, <span class="manual-kbd">Enter</span> lo agrega directo; si hay varios, tocá el que corresponde.</div></li>
@@ -920,7 +926,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
 
                 {% if ver.ventas_crear %}
                 <!-- ── Cliente ── -->
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="venta a nombre de un cliente consumidor final">
                     <h3>Elegir el cliente</h3>
                     <p>En la columna Cobro, campo <strong>Cliente</strong>: buscá por nombre, apellido o DNI. Si no elegís ninguno, la venta queda a nombre de <strong>Consumidor Final</strong>.</p>
                     <div class="manual-split">
@@ -940,7 +946,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
 
                 {% if ver.ventas_crear %}
                 <!-- ── Cobrar ── -->
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="pagar con tarjeta transferencia mercadopago efectivo pago dividido">
                     <h3>Cobrar: medios de pago</h3>
                     <div class="manual-split">
                         <div>
@@ -1020,7 +1026,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
 
                 {% if ver.ventas_crear %}
                 <!-- ── Confirmar ── -->
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="imprimir ticket hacer una factura sacar factura comprobante">
                     <h3>Confirmar, facturar e imprimir</h3>
                     <div class="manual-split">
                         <div>
@@ -1088,7 +1094,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
 
                 {% if ver.ventas_ver %}
                 <!-- ── Historial ── -->
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="ver ventas anteriores buscar una venta ventas de hoy">
                     <h3>Historial de ventas</h3>
                     <p>En <span class="manual-ui">Ventas</span> › <span class="manual-ui">Historial</span> están todas las ventas. Podés filtrar por texto (número, nota, <strong>producto o cliente</strong>), estado, turno, medio de pago y fechas. Arriba de la lista ves la cantidad de resultados y el <strong>total cobrado</strong> de lo filtrado.</p>
                     <figure class="manual-shot">
@@ -1107,7 +1113,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
 
                 {% if ver.ventas_corregir %}
                 <!-- ── Corregir ── -->
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="me equivoque en una venta cancelar venta borrar venta error cobro">
                     <h3>Corregir o anular una venta confirmada</h3>
                     <div class="manual-cards">
                         <div class="manual-card">
@@ -1129,7 +1135,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
 
                 {% if ver.devoluciones %}
                 <!-- ── Devoluciones ── -->
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="devolver mercaderia devolucion de mercaderia cambio de producto el cliente devuelve reintegro de dinero nota de credito">
                     <h3>Devoluciones</h3>
                     <div class="manual-split">
                         <div>
@@ -1153,7 +1159,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
 
                 {% if ver.balanza %}
                 <!-- ── Balanza ── -->
-                <div class="manual-sub" id="ventas-balanza">
+                <div class="manual-sub" data-claves="vender por kilo pesar fiambre verdura" id="ventas-balanza">
                     <h3 id="seccion-herramientas-balanza">Balanza (productos que se venden por peso)</h3>
                     <p>En <span class="manual-ui">Ventas</span> › <span class="manual-ui">Balanza</span>: elegí el producto (tiene que tener una unidad de peso o volumen, ver <a href="#seccion-catalogo">Catálogo</a>), cargá la <strong>Cantidad pesada / medida</strong> y tocá <span class="manual-ui">Generar etiqueta</span>. Imprimí el código de barras y pegalo en la bolsa: en caja alcanza con escanearlo en Nueva Venta y la cantidad y el precio se cargan solos, sin poder modificarse.</p>
                     <p>Si pesaste mal, no se edita: tocá <span class="manual-ui">Anular</span> en el historial de etiquetas y volvé a pesar. <span class="manual-quote">"¿Anular la etiqueta &lt;código&gt;? Vas a tener que pesar el producto de nuevo si te equivocaste."</span></p>
@@ -1183,7 +1189,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                 </div>
 
                 {% if ver.presupuestos_crear %}
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="cotizacion cotizar presupuestar">
                     <h3>Armar un presupuesto</h3>
                     <p class="manual-lead">Un presupuesto es una cotización: le mostrás al cliente cuánto le saldría. <strong>No descuenta stock, no mueve la caja y no tiene valor fiscal.</strong> Sirve, por ejemplo, para un cliente que revende y te pide precio mayorista por cantidad.</p>
                     <figure class="manual-shot manual-shot--hotspots">
@@ -1296,7 +1302,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
 
                 {% if ver.compras_crear %}
                 <!-- ── Productos ── -->
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="agregar productos al carrito escanear">
                     <h3>Cargar los productos</h3>
                     <ol class="manual-steps">
                         <li><div>Buscá o escaneá cada producto y tocalo para agregarlo. El último agregado queda arriba de la lista.</div></li>
@@ -1337,7 +1343,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
 
                 {% if ver.compras_crear %}
                 <!-- ── Pago ── -->
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="pagar al proveedor cuenta corriente proveedor a pagar despues">
                     <h3>Forma de pago</h3>
                     <p>Igual que en Ventas, elegís el medio con su botón (o con las teclas <span class="manual-kbd">1</span> a <span class="manual-kbd">7</span>) y podés combinar varios con <span class="manual-ui">+ Agregar otro medio</span>. Los importes tienen que sumar el total.</p>
                     <table class="manual-table manual-table--grid">
@@ -1611,7 +1617,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                 {% endif %}
 
                 {% if ver.productos_editar %}
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="agregar producto nuevo alta de producto articulo">
                     <h3>Cargar un producto</h3>
                     <figure class="manual-shot manual-shot--hotspots">
                         <div class="manual-shot-frame">
@@ -1637,7 +1643,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                     <p class="manual-tip">En <strong>Logística</strong> cargá el <strong>Stock mínimo</strong>: cuando el stock llega a ese número, el producto se marca como "stock bajo" acá, en Stock y en el Dashboard. Si es un producto que vence, tildá <strong>Es perecedero</strong> para que el sistema te avise de los vencimientos.</p>
                 </div>
 
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="subir precios aumentar precios remarcar actualizar precio margen ganancia porcentaje">
                     <h3>Precios: manual o automático</h3>
                     <figure class="manual-shot manual-shot--hotspots">
                         <div class="manual-shot-frame">
@@ -1687,7 +1693,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                 </div>
 
                 {% if ver.productos_importar %}
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="aumento masivo de precios planilla cargar muchos productos de una vez importar">
                     <h3>Cargar o actualizar muchos productos con Excel</h3>
                     <ol class="manual-steps">
                         <li><div>Tocá <span class="manual-ui">Importar de Excel</span> y bajá la <strong>plantilla vacía</strong>, o exportá tu lista para modificarla.</div></li>
@@ -1709,7 +1715,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                 {% endif %}
 
                 {% if ver.stock %}
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="cuanto me queda que falta reponer sin stock">
                     <h3>Stock: cuánto tenés de cada cosa</h3>
                     <figure class="manual-shot manual-shot--hotspots">
                         <div class="manual-shot-frame">
@@ -1737,7 +1743,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                 {% endif %}
 
                 {% if ver.stock_ajustar %}
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="ajustar stock conte la mercaderia no coincide el stock inventario fisico sumar restar unidades">
                     <h3>Corregir el stock a mano</h3>
                     <div class="manual-split manual-split--reverse">
                         <figure class="manual-shot manual-shot--hotspots">
@@ -1788,7 +1794,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                 {% endif %}
 
                 {% if ver.paquetes %}
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="combo kit varios productos juntos">
                     <h3>Paquetes y combos</h3>
                     <div class="manual-where">
                         <span class="manual-where-label">Dónde está</span>
@@ -1867,7 +1873,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                 {% endif %}
 
                 {% if ver.ofertas %}
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="2x1 descuento promocion liquidacion">
                     <h3>Ofertas y promociones</h3>
                     <div class="manual-where">
                         <span class="manual-where-label">Dónde está</span>
@@ -2028,7 +2034,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                 {% endif %}
 
                 {% if ver.compras_crear %}
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="productos vencidos que vencen fecha de vencimiento">
                     <h3>Inventario: lotes y vencimientos</h3>
                     <div class="manual-where">
                         <span class="manual-where-label">Dónde está</span>
@@ -2069,7 +2075,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                 </div>
 
                 {% if ver.stock_ajustar %}
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="se rompio robo tirar mercaderia merma producto roto">
                     <h3>Registrar una pérdida</h3>
                     <div class="manual-split manual-split--reverse">
                         <figure class="manual-shot manual-shot--hotspots">
@@ -2125,7 +2131,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                 {% endif %}
 
                 {% if ver.catalogo_online %}
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="pagina web tienda online mostrar productos">
                     <h3>Catálogo online: la página que ven tus clientes</h3>
                     <div class="manual-where">
                         <span class="manual-where-label">Dónde está</span>
@@ -2160,7 +2166,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                 {% endif %}
 
                 {% if ver.pedidos %}
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="pedidos online whatsapp tienda web">
                     <h3>Pedidos que llegan del catálogo</h3>
                     <div class="manual-where">
                         <span class="manual-where-label">Dónde está</span>
@@ -2240,7 +2246,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
 
                 {% if ver.caja %}
                 <!-- ── Caja grande ── -->
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="cuanta plata tengo saldo de cuentas banco">
                     <h3>Ver cuánta plata hay: Caja grande</h3>
                     <p>En <span class="manual-ui">Finanzas</span> › <span class="manual-ui">Caja grande</span> ves el balance del negocio y cuánto hay en cada cuenta.</p>
                     <figure class="manual-shot manual-shot--hotspots">
@@ -2265,7 +2271,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
 
                 {% if ver.caja_turno %}
                 <!-- ── Abrir turno ── -->
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="empezar el dia abrir caja">
                     <h3>Abrir el turno</h3>
                     <div class="manual-split">
                         <div>
@@ -2325,7 +2331,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
 
                 {% if ver.caja_mov_turno %}
                 <!-- ── Ingreso/egreso del turno ── -->
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="retirar plata de la caja poner cambio retiro de efectivo">
                     <h3>Sacar o poner efectivo en el cajón</h3>
                     <div class="manual-split">
                         <div>
@@ -2349,7 +2355,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
 
                 {% if ver.caja_turno %}
                 <!-- ── Cerrar turno ── -->
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="cerrar caja fin del dia contar plata arqueo">
                     <h3>Cerrar el turno (arqueo)</h3>
                     <div class="manual-split">
                         <div>
@@ -2405,7 +2411,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
 
                 {% if ver.reabrir_turno %}
                 <!-- ── Reabrir ── -->
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="me equivoque al cerrar caja volver a abrir">
                     <h3>Reabrir un turno cerrado</h3>
                     <div class="manual-split">
                         <div>
@@ -2429,7 +2435,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
 
                 {% if ver.gastos %}
                 <!-- ── Ingresos y egresos ── -->
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="gastos pagar luz alquiler sueldo cargar gasto ingreso extra">
                     <h3 id="seccion-caja-ingresos-egresos">Ingresos y egresos</h3>
                     <p>En <span class="manual-ui">Finanzas</span> › <span class="manual-ui">Ingresos y egresos</span> cargás la plata que entra o sale de la <strong>caja grande</strong> y no es una venta ni una compra: sueldos, alquiler, luz, el mecánico, un aporte del dueño. Impacta la cuenta en el momento.</p>
                     <figure class="manual-shot manual-shot--hotspots">
@@ -2488,7 +2494,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
 
                 {% if ver.transacciones %}
                 <!-- ── Transacciones ── -->
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="pasar plata de una cuenta a otra mover dinero banco caja depositar retirar transferir">
                     <h3>Transacciones entre cuentas</h3>
                     <p>En <span class="manual-ui">Finanzas</span> › <span class="manual-ui">Transacciones</span> registrás la plata que se mueve <strong>entre tus propias cuentas</strong>: no es ganancia ni gasto, solo cambia de lugar.</p>
                     <figure class="manual-shot manual-shot--hotspots">
@@ -2602,7 +2608,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                 </div>
 
                 <!-- ── Nueva deuda ── -->
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="prestamo del banco credito deuda del negocio">
                     <h3>Registrar una deuda nueva</h3>
                     <ol class="manual-steps">
                         <li><div>Tocá <span class="manual-ui">Nueva deuda</span> y elegí el <strong>tipo</strong>.</div></li>
@@ -2676,7 +2682,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                 </div>
 
                 <!-- ── Pagar ── -->
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="pagar deuda prestamo cuota">
                     <h3>Pagar una cuota</h3>
                     <div class="manual-split">
                         <div>
@@ -2776,7 +2782,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                 </div>
 
                 <!-- ── Dos formas ── -->
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="fiado fiar me deben clientes que deben libreta">
                     <h3>Dos formas de manejar lo que te deben</h3>
                     <p class="manual-lead">Cuando vendés en cuotas o fiado, el cliente queda debiendo. El sistema lo puede mostrar de dos maneras. Se elige en <a href="#config-ventas">Configuración → Ventas → Cobrar por cuenta corriente</a>, y se puede cambiar cuando quieras sin que se modifique ninguna venta.</p>
                     <div class="manual-cards">
@@ -2795,7 +2801,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                 </div>
 
                 <!-- ── CxC pantalla ── -->
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="fiado me deben clientes deudores cuotas de clientes">
                     <h3>Cuentas por cobrar</h3>
                     <p>Las cuentas por cobrar se crean solas cuando confirmás una <a href="#seccion-ventas">venta en cuotas</a>. También podés cargar una a mano, por ejemplo un fiado que no pasó por el sistema.</p>
                     <figure class="manual-shot manual-shot--hotspots">
@@ -2834,7 +2840,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                 </div>
 
                 <!-- ── Cobrar cuota ── -->
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="cobrar fiado el cliente me pago cobrar deuda de cliente">
                     <h3>Cobrar una cuota</h3>
                     <ol class="manual-steps">
                         <li><div>Tocá <span class="manual-ui">Ver cuotas</span> en la fila del cliente.</div></li>
@@ -2857,7 +2863,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                 </div>
 
                 <!-- ── Cuenta corriente ── -->
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="fiado libreta saldo del cliente me deben">
                     <h3>Cuenta corriente</h3>
                     <p>Con <strong>Cobrar por cuenta corriente</strong> encendido, en el menú aparece <span class="manual-ui">Cuenta corriente</span> en lugar de Cuentas por cobrar. Ves a cada cliente con su saldo total.</p>
                     <figure class="manual-shot manual-shot--hotspots">
@@ -2984,7 +2990,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                     </div>
                 </div>
 
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="cheque rebotado rechazado depositar cheque">
                     <h3>Cobrarlo, pagarlo o rechazarlo</h3>
                     <div class="manual-split">
                         <div>
@@ -3184,7 +3190,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
 
                 {% if ver.est_resumen %}
                 <!-- ── Resumen ── -->
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="cuanto gane ganancia del mes resultado balance">
                     <h3>Resumen</h3>
                     <p>La foto general del período. Las capturas de esta sección usan <span class="manual-ui">Este año</span>.</p>
                     <figure class="manual-shot manual-shot--hotspots">
@@ -3317,7 +3323,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
 
                 {% if ver.est_productos %}
                 <!-- ── Predicciones ── -->
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="que comprar cuando reponer que me va a faltar pedido al proveedor">
                     <h3>Predicciones: qué comprar y cuándo</h3>
                     <p>Mira a qué ritmo vendiste cada producto en los <strong>últimos 90 días</strong> y calcula cuándo se te terminaría. Es una ayuda para planificar compras, no un pedido.</p>
                     <figure class="manual-shot manual-shot--hotspots">
@@ -3473,7 +3479,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                         </figure>
                     </div>
                 </div>
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="cargar credito celular recarga virtual">
                     <h3>Registrar una recarga</h3>
                     <p>Tocá el reloj de la línea, completá <strong>Fecha</strong>, <strong>Monto</strong> y <strong>Sale de</strong> (la cuenta con la que pagaste) y tocá <span class="manual-ui">Registrar</span>. El recordatorio vuelve a contar desde esa fecha.</p>
                     <figure class="manual-shot">
@@ -3506,7 +3512,7 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
                 </div>
 
                 {% if ver.notas %}
-                <div class="manual-sub">
+                <div class="manual-sub" data-claves="notas recordatorio anotar">
                     <h3>Anotador</h3>
                     <div class="manual-where">
                         <span class="manual-where-label">Dónde está</span>
@@ -3633,5 +3639,6 @@ usan el mismo markup sin .manual-sub y se ven igual de bien.
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'core/js/manual.js' %}?v=20260929a"></script>
+<script src="{% static 'core/js/manual_buscador.js' %}?v=20261001d"></script>
+<script src="{% static 'core/js/manual.js' %}?v=20261001a"></script>
 {% endblock %}
